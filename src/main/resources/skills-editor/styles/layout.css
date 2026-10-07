@@ -131,8 +131,8 @@ html.is-booting * {
    squeezed by the flex algorithm before script gets to fold it. */
 .menubar .btn[data-variant="menu"] {
     flex: 0 0 auto;
-    max-width: var(--menu-entry-width, 12em);
     overflow: hidden;
+    max-width: var(--menu-entry-width, 12em);
     transition: max-width var(--motion-fast) var(--ease-standard),
     padding var(--motion-fast) var(--ease-standard),
     margin var(--motion-fast) var(--ease-standard),
@@ -364,10 +364,10 @@ body.is-dragging .code-pane {
 }
 
 .editor-body {
-    position: relative;
     flex: 1;
     display: flex;
     min-height: 0;
+    position: relative;
 }
 
 /* A code pane is one column of the split: its own tab strip above its own
@@ -376,39 +376,39 @@ body.is-dragging .code-pane {
    and drawn at any time. */
 .code-pane {
     flex: 1 1 0;
+    min-width: 0;
     display: flex;
     flex-direction: column;
-    min-width: 0;
 }
 
 /* Each pane lists the open documents at its own top, the way a split editor
    group keeps its own tab bar. The inset matches the 4px the tab centres in. */
 .code-pane-tabs {
-    display: flex;
-    align-items: center;
-    flex: 0 0 auto;
-    height: var(--header-height);
-    padding: 0 var(--space-1);
     min-width: 0;
+    display: flex;
+    flex: 0 0 auto;
     overflow: hidden;
+    align-items: center;
+    padding: 0 var(--space-1);
+    height: var(--header-height);
 }
 
 /* The row under the tabs: the gutter and code area, with the pane's own minimap
    appended to it by the minimap feature. */
 .code-pane-main {
-    position: relative;
-    flex: 1 1 auto;
-    display: flex;
     min-width: 0;
     min-height: 0;
+    display: flex;
+    flex: 1 1 auto;
+    position: relative;
 }
 
 .code-pane[data-pane="right"] {
-    flex-basis: 0;
-    flex-grow: 0;
     opacity: 0;
-    visibility: hidden;
+    flex-grow: 0;
+    flex-basis: 0;
     overflow: hidden;
+    visibility: hidden;
     transition: flex-basis var(--motion-fast) var(--ease-standard),
     flex-grow var(--motion-fast) var(--ease-standard),
     opacity var(--motion-fast) var(--ease-standard),
@@ -416,10 +416,10 @@ body.is-dragging .code-pane {
 }
 
 .editor-body.is-split .code-pane[data-pane="right"] {
-    flex-basis: 0;
-    flex-grow: calc(1 - var(--split-ratio, 0.5));
     opacity: 1;
+    flex-basis: 0;
     visibility: visible;
+    flex-grow: calc(1 - var(--split-ratio, 0.5));
 }
 
 /* Both panes grow from a zero basis, so they divide the body by their grow
@@ -449,13 +449,13 @@ body.is-dragging .code-pane {
    strip the pseudo-element lays over it, so the line itself stays a hairline.
    The axis the split is on sets which way the pointer reads it. */
 .pane-divider {
-    position: relative;
     flex: 0 0 0;
-    align-self: stretch;
+    position: relative;
     visibility: hidden;
-    background: color-mix(in srgb, var(--border) 45%, transparent);
     cursor: col-resize;
     touch-action: none;
+    align-self: stretch;
+    background: color-mix(in srgb, var(--border) 45%, transparent);
     transition: flex-basis var(--motion-fast) var(--ease-standard),
     visibility var(--motion-fast) var(--ease-standard);
 }
@@ -471,8 +471,8 @@ body.is-dragging .code-pane {
 
 .pane-divider::after {
     content: "";
-    position: absolute;
     inset: 0 -3px;
+    position: absolute;
 }
 
 /* With no document open the panes would each halve the empty state, so they are
@@ -492,8 +492,9 @@ body.is-dragging .code-pane {
 }
 
 .gutter-inner {
-    padding: var(--space-3) 0;
     will-change: transform;
+    position: relative;
+    padding: var(--space-3) 0;
 }
 
 .gutter-line {
@@ -509,6 +510,19 @@ body.is-dragging .code-pane {
 .gutter-line.active {
     opacity: 1;
     color: var(--text-dim);
+}
+
+/* A run of modified lines reads as one bar, drawn as a single pill spanning
+   them rather than a chip per line, so a block of changes looks like a block.
+   It sits at the far edge of the gutter, clear of the numbers; the 4px insets
+   keep the round tips inside the outermost lines of the run. The accent blue
+   because the change belongs to the same story as the selection and carets. */
+.changed-run {
+    position: absolute;
+    left: 4px;
+    width: 3px;
+    border-radius: 999px;
+    background: var(--accent);
 }
 
 .code {
@@ -540,6 +554,13 @@ body.is-dragging .code-pane {
 
 .highlight code {
     display: block;
+    /* The lines must box out to the full scroll width, not just the pane's
+       width: the active and diagnostic bands paint on the box, and a box that
+       stopped at the pane's edge would leave the band hanging mid-screen the
+       moment the overlay scrolls sideways. max-content stretches it to the
+       longest line, the floor keeps a short file covering a wide pane. */
+    min-width: 100%;
+    width: max-content;
 }
 
 /* A line is its own stacking context, so the selection band below can be pushed
@@ -553,24 +574,30 @@ body.is-dragging .code-pane {
     min-height: var(--line-height-code);
 }
 
-/* The selection band. Drawn as a pseudo-element rather than laid out as markup,
-   so it never touches the text nodes the caret measures against, and sized by
-   the editor from one line's pixel offsets. It takes the caret's own height from
-   the caret's own token, so the two are always exactly as tall as each other. */
-.highlight .line::before {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    display: none;
+/* The selection band, one span per selected range: several carets can share a
+   line and a line owns only one ::before, so each band is an empty child
+   instead of a pseudo-element. Empty means the TreeWalker that places the
+   caret never sees it; left and width come from the same measured offsets the
+   caret draws with. It takes the caret's own height from the caret's own
+   token, so the two are always exactly as tall as each other. */
+.highlight .line .band {
     top: 0;
+    z-index: -1;
+    position: absolute;
     height: var(--line-height-code);
-    left: var(--selection-left, 0);
-    width: var(--selection-width, 0);
     background: var(--accent-selection);
 }
 
-.highlight .line.has-selection::before {
-    display: block;
+/* The bracket match: a rounded box behind each end of the pair, another child
+   of the line the band already taught to scroll under the glyphs. The border
+   is inside the box, so a full-width character is never pushed off its
+   measured column. */
+.highlight .line .match {
+    top: 0;
+    z-index: -1;
+    position: absolute;
+    background: var(--match-bg);
+    height: var(--line-height-code);
 }
 
 .highlight .line.active {
@@ -638,7 +665,7 @@ body.is-dragging .code-pane {
 .caret {
     top: 0;
     left: 0;
-    width: 1px;
+    width: 2px;
     z-index: 4;
     opacity: 0;
     position: absolute;
@@ -650,16 +677,18 @@ body.is-dragging .code-pane {
 
 .caret.is-visible {
     opacity: 1;
-    animation: caret-blink 1s step-end infinite;
 }
 
-@keyframes caret-blink {
-    0%, 100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0;
-    }
+/* The shadows of a multi-cursor edit wear the brand blue. Every caret then
+   answers to one clock on the root: the off-toggle lands on an ancestor, so
+   all carets flip in the same frame and a shadow can never blink out of step
+   with the one it follows. */
+.caret.is-shadow {
+    background: var(--accent);
+}
+
+.caret-blink-off .caret.is-visible {
+    opacity: 0;
 }
 
 

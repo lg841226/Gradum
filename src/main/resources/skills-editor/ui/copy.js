@@ -45,6 +45,8 @@ export const copy = {
     unsplit: "Unsplit editor",
     split: "Split editor right",
     splitDown: "Split editor down",
+    hideMinimap: "Hide minimap",
+    showMinimap: "Show minimap",
     build: "Build without installing",
     collapseTree: "Collapse this folder",
   },
@@ -77,12 +79,15 @@ export const copy = {
     encodingTip: "Text stored as UTF-8",
     lineEndingTip: "Lines end with LF (\\n)",
     position: (line, column) => `${line}:${column}`,
+    cursors: (count) => `${count} ${plural(count, "text cursor")}`,
+    indent: (count) => `${count} ${plural(count, "space")}`,
+    indentLabel: (count) => `Indent ${count} ${plural(count, "space")}`,
     errors: (count) => `${count} ${plural(count, "error")}`,
     warnings: (count) => `${count} ${plural(count, "warning")}`,
     positionLabel: (line, column) => `Line ${line}, column ${column}`,
     positionTip: (line, column) => `Caret at line ${line}, column ${column}`,
     selection: (count, lineCount) =>
-      `${count} ${plural(count, "character")}, ${lineCount} ${plural(lineCount, "newline")}`,
+      `${count} ${plural(count, "char")}, ${lineCount} ${plural(lineCount, "break")}`,
   },
 
   problems: {

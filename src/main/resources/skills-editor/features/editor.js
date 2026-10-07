@@ -1,31 +1,10 @@
-import {codeMetrics, escapeHtml, FALLBACK_METRICS} from "../core/dom.js";
 import {activeDoc, withDoc} from "../core/store.js";
 import {buildSkill, deploySkill, listSkills} from "../data/skillsApi.js";
 import {createEmptyState} from "../ui/components/feedback.js";
 import {createPanel} from "../ui/components/panel.js";
-import {createTabStrip} from "../ui/components/tab.js";
 import {copy} from "../ui/copy.js";
 import {dragPointer} from "./splitter.js";
-
-const KOTLIN_KEYWORDS = [
-  "package", "import", "class", "object", "interface", "fun", "val", "var",
-  "override", "private", "public", "protected", "internal", "return", "if", "else", "when",
-  "for", "while", "do", "try", "catch", "finally", "throw", "is", "in", "as", "null", "true",
-  "false", "this", "super", "open", "data", "sealed", "enum", "companion", "abstract", "const",
-  "lateinit", "by", "where", "typealias", "init", "constructor", "break", "continue", "out",
-  "reified", "inline", "suspend", "crossinline", "noinline", "vararg", "operator", "infix",
-  "external", "annotation", "actual", "expect", "tailrec",
-];
-
-const TOKEN_CLASS = {
-  1: "com",
-  2: "str",
-  3: "ann",
-  4: "num",
-  5: "kw",
-  6: "type",
-  7: "fn",
-};
+import {createCodePane} from "./pane.js";
 
 // Compiler output caps the diagnostics it prints inline; anything past this
 // count lives in the Problems panel, which lists them all.
@@ -36,505 +15,6 @@ const MAX_LOG_PROBLEMS = 6;
 // one outright is what the split toggle is for.
 const MIN_SHARE = 0.2;
 const MAX_SHARE = 0.8;
-
-const TOKEN_PATTERN = new RegExp(
-  [
-    String.raw`(\/\/[^\n]*|\/\*[\s\S]*?\*\/)`,
-    String.raw`("""[\s\S]*?"""|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*')`,
-    String.raw`(@[A-Za-z_][A-Za-z0-9_]*)`,
-    String.raw`(\b\d[\w.]*[LlFfDd]?\b)`,
-    `\\b(${KOTLIN_KEYWORDS.join("|")})\\b`,
-    String.raw`(\b[A-Z][A-Za-z0-9_]*\b)`,
-    String.raw`(\b[a-z_][A-Za-z0-9_]*)(?=\s*\()`,
-  ].join("|"),
-  "g",
-);
-
-function classOf(match) {
-  for (let group = 1; group < match.length; group++) {
-    if (match[group] !== undefined) {
-      return TOKEN_CLASS[group];
-    }
-  }
-  return null;
-}
-
-function tokenize(text) {
-  const tokens = [];
-  let cursor = 0;
-  let match;
-
-  TOKEN_PATTERN.lastIndex = 0;
-  while ((match = TOKEN_PATTERN.exec(text)) !== null) {
-    if (match.index > cursor) {
-      tokens.push({text: text.slice(cursor, match.index), cls: null});
-    }
-    tokens.push({text: match[0], cls: classOf(match)});
-    cursor = match.index + match[0].length;
-  }
-  if (cursor < text.length) {
-    tokens.push({text: text.slice(cursor), cls: null});
-  }
-  return tokens;
-}
-
-// East Asian wide and fullwidth ranges. These are the glyphs a monospace grid
-// draws two cells wide, which is how a column is counted for the status bar.
-// The class is assembled from fragments so no single line runs past the column
-// limit.
-const WIDE_GLYPH = new RegExp(
-  [
-    String.raw`[\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF`,
-    String.raw`\u4E00-\u9FFF\uA000-\uA4CF\uAC00-\uD7A3`,
-    String.raw`\uF900-\uFAFF\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]`,
-  ].join(""),
-);
-
-// Column the caret sits in, counted the way a monospace grid counts rather
-// than by character: a wide glyph holds two columns, and a tab runs to the
-// next stop four columns along. This is what the status bar reports, so it is
-// deliberately not the same number as the pixel offset `advance` returns.
-function displayColumns(text) {
-  let column = 0;
-
-  for (const char of text) {
-    if (char === "\t") {
-      column += 4 - (column % 4);
-    } else if (WIDE_GLYPH.test(char)) {
-      column += 2;
-    } else {
-      column += 1;
-    }
-  }
-  return column;
-}
-
-// Anything outside ASCII is boxed in the overlay, so a fullwidth （ is not read
-// as an ASCII ( at a glance: the two are near-identical at code size and the
-// glyph shape alone does not separate them. Escaping runs first, so the tags
-// added here are never themselves boxed and an entity's ASCII characters are
-// left alone — only the glyphs the file actually holds are wrapped.
-function markGlyphs(text) {
-  return escapeHtml(text).replace(
-    /[^\x00-\x7F]+/g,
-    (run) => `<span class="glyph-box">${run}</span>`,
-  );
-}
-
-// One code surface: the gutter, the syntax overlay, the marker layer, the drawn
-// caret, and the textarea that owns the real caret and selection. Two of these
-// are mounted side by side to show the same buffer twice — each keeps its own
-// tab strip, scroll, selection and caret, and redraws only its own overlay.
-function createCodePane(store, {onInput, onFocus, onRun}) {
-  const root = document.createElement("div");
-  root.className = "code-pane";
-
-  const tabStrip = createTabStrip();
-  const tabs = document.createElement("header");
-  tabs.className = "code-pane-tabs";
-  tabs.append(tabStrip);
-
-  const gutter = document.createElement("div");
-  gutter.className = "gutter";
-
-  const gutterInner = document.createElement("div");
-  gutterInner.className = "gutter-inner";
-  gutter.appendChild(gutterInner);
-
-  const code = document.createElement("div");
-  code.className = "code";
-
-  const highlight = document.createElement("pre");
-  highlight.className = "highlight";
-  highlight.setAttribute("aria-hidden", "true");
-
-  const highlightCode = document.createElement("code");
-  highlight.appendChild(highlightCode);
-
-  const markers = document.createElement("div");
-  markers.className = "markers";
-
-  const source = document.createElement("textarea");
-  source.className = "source";
-  source.wrap = "off";
-  source.spellcheck = false;
-  source.setAttribute("autocapitalize", "off");
-  source.setAttribute("autocomplete", "off");
-
-  const caret = document.createElement("div");
-  caret.className = "caret";
-
-  code.append(highlight, markers, caret, source);
-
-  const main = document.createElement("div");
-  main.className = "code-pane-main";
-  main.append(gutter, code);
-
-  root.append(tabs, main);
-
-  const metrics = {...FALLBACK_METRICS};
-
-  function measureMetrics() {
-    Object.assign(metrics, codeMetrics(highlight));
-  }
-
-  // The caret and the squiggles are drawn, not laid out by the text layer, so
-  // their horizontal offsets are read back off the highlight overlay — the very
-  // glyphs on screen — instead of being predicted from a font. Neither counting
-  // columns nor measuring with a canvas survives a fallback: a CJK glyph is
-  // drawn by whatever font the stack falls through to, and its advance is
-  // whatever that font says, which the model has no way to know. A Range over
-  // the line's own text nodes answers exactly, and because the range is read
-  // after the overlay has been scrolled it already carries the horizontal
-  // scroll. Reading a rect does not dirty layout the way a style write would,
-  // so a scroll frame stays cheap.
-
-  // The text node and offset that `index` (in UTF-16 units, matching the text
-  // layer) falls on within a rendered line.
-  function textPositionAt(lineNode, index) {
-    let remaining = index;
-    const walker = document.createTreeWalker(lineNode, NodeFilter.SHOW_TEXT);
-
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      if (remaining <= node.data.length) {
-        return {node, offset: remaining};
-      }
-      remaining -= node.data.length;
-    }
-    return null;
-  }
-
-  // Width, in pixels, of the first `charCount` characters of the rendered line,
-  // measured from the line's own left edge. Tabs, wide glyphs and fallback runs
-  // are all handled by the layout engine, so the number matches the glyphs.
-  function advance(lineNumber, charCount) {
-    if (charCount <= 0) {
-      return 0;
-    }
-    const lineNode = highlightCode.querySelector(`.line[data-line="${lineNumber}"]`);
-    if (!lineNode) {
-      return 0;
-    }
-    const position = textPositionAt(lineNode, charCount);
-    if (!position) {
-      return 0;
-    }
-
-    const range = document.createRange();
-    range.setStart(lineNode, 0);
-    range.setEnd(position.node, position.offset);
-
-    const rangeEnd = range.getBoundingClientRect().right;
-    const lineStart = lineNode.getBoundingClientRect().left;
-    return Math.max(0, rangeEnd - lineStart);
-  }
-
-  let selectedLines = [];
-
-  function clearSelection() {
-    for (const lineNode of selectedLines) {
-      lineNode.classList.remove("has-selection");
-      lineNode.style.removeProperty("--selection-left");
-      lineNode.style.removeProperty("--selection-width");
-    }
-    selectedLines = [];
-  }
-
-  // The band is drawn per line from the same measured offsets the caret uses, so
-  // it lines up with the glyphs rather than the line box. A selection that runs
-  // past a line's end simply stops there: the band is the selected characters,
-  // and a line break holds no characters of its own.
-  function updateSelection() {
-    clearSelection();
-
-    const start = source.selectionStart;
-    const end = source.selectionEnd;
-    if (end <= start) {
-      return;
-    }
-
-    const text = source.value;
-    const head = text.slice(0, start).split("\n");
-    let lineNumber = head.length;
-    let lineStart = start - head[head.length - 1].length;
-
-    while (lineStart < end) {
-      let lineEnd = text.indexOf("\n", lineStart);
-      if (lineEnd === -1) {
-        lineEnd = text.length;
-      }
-
-      const from = Math.max(start, lineStart) - lineStart;
-      const to = Math.min(end, lineEnd) - lineStart;
-      const lineNode = highlightCode.querySelector(`.line[data-line="${lineNumber}"]`);
-      if (lineNode && to > from) {
-        const left = advance(lineNumber, from);
-        lineNode.style.setProperty("--selection-left", `${left}px`);
-        lineNode.style.setProperty("--selection-width", `${advance(lineNumber, to) - left}px`);
-        lineNode.classList.add("has-selection");
-        selectedLines.push(lineNode);
-      }
-
-      lineStart = lineEnd + 1;
-      lineNumber += 1;
-    }
-  }
-
-  // macOS elastic overscroll can report a negative offset for a moment when a
-  // fast scroll hits the top. The text layer cannot follow it, so the overlays
-  // clamp and hold still instead of bouncing against the text.
-  function scrollOffset() {
-    return {
-      left: Math.max(0, source.scrollLeft),
-      top: Math.max(0, source.scrollTop),
-    };
-  }
-
-  function syncScroll() {
-    const {left, top} = scrollOffset();
-    highlight.scrollTop = top;
-    highlight.scrollLeft = left;
-    gutterInner.style.transform = `translateY(${-top}px)`;
-    markers.style.transform = `translate(${-left}px, ${-top}px)`;
-    updateCaret();
-  }
-
-  let caretOffset = -1;
-  let publishedCursor = null;
-  let publishedSelection = null;
-
-  // The native caret can drift against the syntax overlay because the two
-  // layers round their fractional line boxes apart, so it is hidden and this
-  // caret is placed from the same metrics the overlay and squiggles use.
-  function updateCaret() {
-    const before = source.value.slice(0, source.selectionStart);
-    const lineIndex = before.split("\n").length - 1;
-    const linePrefix = before.slice(before.lastIndexOf("\n") + 1);
-    const column = displayColumns(linePrefix);
-    const focused = document.activeElement === source;
-
-    // The status bar reads the caret position from the store, so every caret
-    // move publishes it — but only for the pane the user is actually in, so the
-    // readout follows the focused view rather than whichever pane drew last.
-    // The selection rides along in the same patch: the strip appends its length
-    // in characters and newlines while a range is selected.
-    if (focused) {
-      const position = {line: lineIndex + 1, column: column + 1};
-      const changed = !publishedCursor
-        || publishedCursor.line !== position.line
-        || publishedCursor.column !== position.column;
-      if (changed) {
-        publishedCursor = position;
-      }
-
-      const start = source.selectionStart;
-      const end = source.selectionEnd;
-      const selectionChanged = !publishedSelection
-        || publishedSelection.start !== start
-        || publishedSelection.end !== end;
-      if (selectionChanged) {
-        publishedSelection = {start, end};
-      }
-
-      if (changed || selectionChanged) {
-        const patch = {};
-        if (changed) {
-          patch.cursor = position;
-        }
-        if (selectionChanged) {
-          const selected = source.value.slice(start, end);
-          patch.selection = start === end ? null : {
-            characters: selected.length,
-            newlines: selected.split("\n").length - 1,
-          };
-        }
-        store.setState(patch);
-      }
-    }
-
-    const visible = focused
-      && source.selectionStart === source.selectionEnd
-      && !source.readOnly
-      && !code.hidden;
-    if (!visible) {
-      caret.classList.remove("is-visible");
-      caretOffset = -1;
-      return;
-    }
-
-    // The overlay is scrolled in lockstep with the text layer, so its left edge
-    // already carries the horizontal scroll: the caret only has to subtract the
-    // vertical offset, which it owns.
-    const lineNode = highlightCode.querySelector(`.line[data-line="${lineIndex + 1}"]`);
-    const {top} = scrollOffset();
-
-    let x = 0;
-    if (lineNode) {
-      const lineLeft = lineNode.getBoundingClientRect().left;
-      const codeLeft = code.getBoundingClientRect().left;
-      const caretRight = lineLeft + advance(lineIndex + 1, linePrefix.length);
-      x = Math.round(caretRight - codeLeft);
-    }
-    const y = Math.round(metrics.padTop + lineIndex * metrics.lineHeight - top);
-
-    caret.style.transform = `translate(${x}px, ${y}px)`;
-    caret.classList.add("is-visible");
-
-    // Restart the blink only when the caret changes position, never on a scroll
-    // frame. A forced reflow here would make the gutter lag the native scroll.
-    if (source.selectionStart !== caretOffset) {
-      caretOffset = source.selectionStart;
-      caret.getAnimations().forEach((animation) => {
-        animation.currentTime = 0;
-      });
-    }
-  }
-
-  function lineNumberAt(offset) {
-    return source.value.slice(0, offset).split("\n").length;
-  }
-
-  function updateActiveLine() {
-    const line = lineNumberAt(source.selectionStart);
-
-    const previousCode = highlightCode.querySelector(".line.active");
-    if (previousCode) {
-      previousCode.classList.remove("active");
-    }
-    const previousGutter = gutterInner.querySelector(".gutter-line.active");
-    if (previousGutter) {
-      previousGutter.classList.remove("active");
-    }
-
-    const codeLine = highlightCode.querySelector(`.line[data-line="${line}"]`);
-    if (codeLine) {
-      codeLine.classList.add("active");
-    }
-    const gutterLine = gutterInner.querySelector(`.gutter-line[data-line="${line}"]`);
-    if (gutterLine) {
-      gutterLine.classList.add("active");
-    }
-  }
-
-  function renderHighlight(text) {
-    const lines = [];
-    let line = "";
-
-    for (const token of tokenize(text)) {
-      token.text.split("\n").forEach((part, index) => {
-        if (index > 0) {
-          lines.push(line);
-          line = "";
-        }
-        if (!part) {
-          return;
-        }
-        if (token.cls) {
-          line += `<span class="${token.cls}">${markGlyphs(part)}</span>`;
-        } else {
-          line += markGlyphs(part);
-        }
-      });
-    }
-    lines.push(line);
-
-    const codeLineHtml = (content, index) =>
-      `<span class="line" data-line="${index + 1}">${content}</span>`;
-    const gutterLineHtml = (_content, index) =>
-      `<span class="gutter-line" data-line="${index + 1}">${index + 1}</span>`;
-
-    highlightCode.innerHTML = lines.map(codeLineHtml).join("");
-    gutterInner.innerHTML = lines.map(gutterLineHtml).join("");
-    updateActiveLine();
-  }
-
-  function setSourceVisible(visible) {
-    gutter.hidden = !visible;
-    code.hidden = !visible;
-  }
-
-  function loadDoc(doc, {focus = false} = {}) {
-    source.value = doc ? doc.source : "";
-    source.readOnly = !doc;
-    setSourceVisible(Boolean(doc));
-
-    renderHighlight(source.value);
-    updateSelection();
-    syncScroll();
-
-    if (doc && focus) {
-      source.focus();
-    }
-  }
-
-  // Writes a buffer this pane did not produce itself — the other pane's typing —
-  // while keeping this pane's own scroll and (clamped) selection, so a reader's
-  // place is not thrown away by an edit on the far side.
-  function adoptText(text) {
-    const {selectionStart, selectionEnd, scrollTop, scrollLeft} = source;
-    source.value = text;
-
-    const limit = text.length;
-    source.selectionStart = Math.min(selectionStart, limit);
-    source.selectionEnd = Math.min(selectionEnd, limit);
-    source.scrollTop = scrollTop;
-    source.scrollLeft = scrollLeft;
-
-    renderHighlight(text);
-    updateSelection();
-    syncScroll();
-  }
-
-  const pane = {
-    root,
-    main,
-    tabStrip,
-    source,
-    highlightCode,
-    markers,
-    metrics,
-    measureMetrics,
-    renderHighlight,
-    loadDoc,
-    adoptText,
-    syncScroll,
-    updateSelection,
-    updateCaret,
-    updateActiveLine,
-    advance,
-  };
-
-  source.addEventListener("input", () => onInput(pane));
-  source.addEventListener("scroll", syncScroll);
-  source.addEventListener("focus", () => {
-    updateCaret();
-    onFocus(pane);
-  });
-  source.addEventListener("blur", updateCaret);
-
-  // Holding an arrow key repeats keydown but fires neither keyup nor input, and
-  // the text layer only scrolls once the caret reaches an edge: so a caret
-  // redrawn on those events alone would sit still through the whole repeat and
-  // then jump on release. The caret moves on every repeat, and selectionchange
-  // is the one event that reports it; the editor layer listens for it once and
-  // routes it to the focused pane.
-  source.addEventListener("keydown", (event) => {
-    if (event.key === "Tab") {
-      event.preventDefault();
-      const start = source.selectionStart;
-      const end = source.selectionEnd;
-      source.value = `${source.value.slice(0, start)}  ${source.value.slice(end)}`;
-      source.selectionStart = source.selectionEnd = start + 2;
-      onInput(pane);
-    }
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-      event.preventDefault();
-      void onRun();
-    }
-  });
-
-  return pane;
-}
 
 // The editor island: it owns the two code surfaces with their syntax overlays,
 // the problem counts, and the run command. The surface is two panes over one
@@ -833,15 +313,23 @@ export function mountEditor(store, {canvas, showPanel}) {
 
   let renderedId;
   let renderedFocus = 0;
+  let renderedBaseline;
 
   const render = (state) => {
     const doc = activeDoc(state);
     const id = doc ? doc.id : null;
     const text = doc ? doc.source : "";
+    const baseline = doc ? doc.baseline : null;
     const idChanged = id !== renderedId;
     if (idChanged) {
       renderedId = id;
     }
+
+    // A deployment swaps the baseline without moving a byte of the buffer, so the
+    // modified-line bars have to be redrawn by hand — nothing below would
+    // otherwise notice.
+    const baselineChanged = !idChanged && baseline !== renderedBaseline;
+    renderedBaseline = baseline;
 
     for (const pane of panes) {
       if (idChanged) {
@@ -853,6 +341,8 @@ export function mountEditor(store, {canvas, showPanel}) {
       // IME composition are never disturbed.
       if (pane.source.value !== text && pane.source !== document.activeElement) {
         pane.adoptText(text);
+      } else if (baselineChanged && pane.source.value === text) {
+        pane.renderHighlight(text);
       }
     }
 
@@ -883,6 +373,11 @@ export function mountEditor(store, {canvas, showPanel}) {
     if (!pane) {
       return;
     }
+    // The platform only speaks for the primary range: a real user action
+    // moves it somewhere the list does not match and collapses the extras,
+    // while the echo of the editor's own write compares equal and leaves
+    // every caret where it planted it.
+    pane.syncCursors();
     pane.updateActiveLine();
     pane.updateCaret();
     pane.updateSelection();

@@ -69,6 +69,13 @@ export const icons = {
     + ' 2.89543 2 4 2H7.5ZM7.5 13H4C3.44772 13 3 12.5523 3 12V4C3 3.44772 3.44772 3 4 3H7.5V13Z"'
     + ' fill="currentColor" stroke="none"/>',
 
+  // expui/actions/minimap.svg. Four bars of alternating length: the platform's
+  // minimap mark, grey rewritten to currentColor like the rest of the set.
+  minimap: '<rect x="2" y="3" width="12" height="1" rx="0.5" fill="currentColor" stroke="none"/>'
+    + '<rect x="2" y="6" width="8" height="1" rx="0.5" fill="currentColor" stroke="none"/>'
+    + '<rect x="2" y="9" width="12" height="1" rx="0.5" fill="currentColor" stroke="none"/>'
+    + '<rect x="2" y="12" width="8" height="1" rx="0.5" fill="currentColor" stroke="none"/>',
+
   // The same mark turned a quarter turn, so the solid column comes to rest along
   // the bottom: the platform's "split down" reading.
   "split-down": '<g transform="rotate(90 8 8)">'

@@ -51,6 +51,7 @@
     --accent-pressed: #2b65d9;
     --accent-selection: #273355;
     --accent-outline: #4b6eaf;
+    --match-bg: color-mix(in srgb, var(--accent) 30%, transparent);
 
     /* Semantic */
     --error: #db5c5c;

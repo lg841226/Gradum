@@ -124,7 +124,15 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
 
   // The split toggles sit beside the theme toggle: one opens a second view to the
   // right, the other stacks it below. They share the one split the editor keeps,
-  // so the pressed one is always the direction in force.
+  // so the pressed one is always the direction in force. The minimap toggle
+  // leads them: it folds the overview strip away and grows it back, and it is
+  // pressed while the strip is in view.
+  const minimapButton = createIconButton({
+    icon: "minimap",
+    tooltip: copy.tooltip.hideMinimap,
+    onClick: () => store.setState({minimapHidden: !store.getState().minimapHidden}),
+  });
+
   const splitButton = createIconButton({
     icon: "split",
     tooltip: copy.tooltip.split,
@@ -139,7 +147,7 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
 
   const rightGroup = document.createElement("div");
   rightGroup.className = "menubar-group menubar-right";
-  rightGroup.append(splitButton, splitDownButton, themeButton);
+  rightGroup.append(minimapButton, splitButton, splitDownButton, themeButton);
 
   bar.append(leftGroup, widget, rightGroup);
   canvas.appendChild(bar);
@@ -244,6 +252,16 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
       splitDownButton,
       splitDownOn,
       splitDownOn ? copy.tooltip.unsplit : copy.tooltip.splitDown,
+    );
+
+    // The minimap follows the open document the way the splits do, and its
+    // pressed look is the strip in view: the tooltip names the way out while
+    // it shows and the way back once it is gone.
+    minimapButton.disabled = !activeName;
+    setToggle(
+      minimapButton,
+      !state.minimapHidden,
+      state.minimapHidden ? copy.tooltip.showMinimap : copy.tooltip.hideMinimap,
     );
 
     if (!measured) {

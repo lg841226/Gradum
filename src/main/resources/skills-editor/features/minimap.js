@@ -11,7 +11,8 @@ import {activeDoc} from "../core/store.js";
 // dragging anywhere in it scrolls the editor to that point, centred under the
 // pointer. The clone refreshes on every keystroke and on document switches;
 // squiggle bands are carried over as overview markers while the current-line
-// band is dropped, because it belongs to the editor pane alone.
+// band and the selection and match boxes are dropped, because they belong to
+// the editor pane alone.
 export function mountMinimap(store, {container, source, highlightCode}) {
   const strip = document.createElement("div");
   strip.className = "minimap";
@@ -32,10 +33,9 @@ export function mountMinimap(store, {container, source, highlightCode}) {
 
   function clone() {
     content.innerHTML = highlightCode.innerHTML;
-    content.querySelectorAll(".active, .has-selection").forEach((lineNode) => {
-      lineNode.classList.remove("active", "has-selection");
-      lineNode.style.removeProperty("--selection-left");
-      lineNode.style.removeProperty("--selection-width");
+    content.querySelectorAll(".band, .match").forEach((node) => node.remove());
+    content.querySelectorAll(".active").forEach((lineNode) => {
+      lineNode.classList.remove("active");
     });
     update();
   }
@@ -114,9 +114,21 @@ export function mountMinimap(store, {container, source, highlightCode}) {
   let renderedDocId;
   let renderedDiagnostics;
   let renderedRevision = -1;
+  let renderedHidden = null;
   const render = (state) => {
     const doc = activeDoc(state);
-    strip.hidden = !doc;
+
+    // The strip shows only while a document is open and the menubar's toggle
+    // wants it: a reveal re-measures once, because the strip cannot learn its
+    // scale from inside the hidden state it just left.
+    const hidden = !doc || Boolean(state.minimapHidden);
+    if (hidden !== renderedHidden) {
+      renderedHidden = hidden;
+      strip.hidden = hidden;
+      if (!hidden) {
+        update();
+      }
+    }
 
     const id = doc ? doc.id : null;
     const diagnostics = doc ? doc.diagnostics : [];

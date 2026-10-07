@@ -48,6 +48,12 @@ export function mountStatusBar(store, {canvas}) {
   const position = document.createElement("span");
   position.className = "statusbar-item";
 
+  // The file's indent unit, in spaces: a property of the whole buffer — how
+  // wide one level is written — read from the editor and held steady while
+  // the caret moves, with the default four for a file that indents nothing.
+  const indent = document.createElement("span");
+  indent.className = "statusbar-item";
+
   // Line ending and encoding. Both hold fixed text for now because nothing on
   // the document carries either one yet, and neither is wired to a click: this
   // is the space and the hit area they will take. The hover tips come from the
@@ -63,7 +69,7 @@ export function mountStatusBar(store, {canvas}) {
   // and connection state.
   const right = document.createElement("div");
   right.className = "statusbar-right";
-  right.append(position, lineEnding, encoding);
+  right.append(position, indent, lineEnding, encoding);
 
   bar.append(left, right);
   canvas.appendChild(bar);
@@ -88,23 +94,42 @@ export function mountStatusBar(store, {canvas}) {
       position.textContent = "";
       position.removeAttribute("aria-label");
       position.removeAttribute("data-tooltip");
+      indent.textContent = "";
+      indent.removeAttribute("aria-label");
+      indent.removeAttribute("data-tooltip");
       return;
     }
 
+    const indentText = copy.statusBar.indent(state.indent);
+    indent.textContent = indentText;
+    const indentLabel = copy.statusBar.indentLabel(state.indent);
+    indent.setAttribute("aria-label", indentLabel);
+    indent.dataset.tooltip = indentLabel;
+
     const {line, column} = state.cursor;
-    // The strip shows the bare "line:column" a code window uses, followed by
-    // the selection's size in parentheses while a range is selected. The label
-    // spells the position out for screen readers, which the shorthand does not
+    // The strip shows the bare "line:column" a code window uses — until the
+    // buffer holds several carets, where no single one of them is *the*
+    // position, so the whole readout becomes the headcount instead. The
+    // selection's size in parentheses trails either lead. The label spells
+    // the readout out for screen readers, which the shorthand does not
     // convey, and carries the counts beside it the same way the strip does.
     const {selection} = state;
     const summary = selection
       ? ` (${copy.statusBar.selection(selection.characters, selection.newlines)})`
       : "";
-    position.textContent = copy.statusBar.position(line, column) + summary;
-    position.setAttribute("aria-label", copy.statusBar.positionLabel(line, column) + summary);
-    // The tip follows the caret, so it always spells out the position the
+    const multiple = state.cursorCount > 1;
+    const lead = multiple
+      ? copy.statusBar.cursors(state.cursorCount)
+      : copy.statusBar.position(line, column);
+    position.textContent = lead + summary;
+    position.setAttribute(
+      "aria-label",
+      (multiple ? lead : copy.statusBar.positionLabel(line, column)) + summary,
+    );
+    // The tip follows the caret, so it always spells out the readout the
     // strip currently shows.
-    position.dataset.tooltip = copy.statusBar.positionTip(line, column) + summary;
+    position.dataset.tooltip =
+      (multiple ? lead : copy.statusBar.positionTip(line, column)) + summary;
   };
 
   store.subscribe(render);

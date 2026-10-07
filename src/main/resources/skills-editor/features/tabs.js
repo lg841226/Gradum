@@ -203,5 +203,5 @@ export function mountTabs(store, {strips}) {
   store.subscribe(render);
   render(store.getState());
 
-  return {open, create, close, closeActive, activate, rename, render};
+  return {open, create, close, closeActive, render};
 }
