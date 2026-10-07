@@ -47,10 +47,18 @@ html.is-booting * {
     color: var(--text-dim);
 }
 
+/* Both bottom pages — Problems and Output — keep scrolling but drop their
+   bar, the way the completion list does: the rows and the panel's own padding
+   do the framing. */
 .panel-body {
     flex: 1 1 auto;
     min-height: 0;
     overflow: auto;
+    scrollbar-width: none;
+}
+
+.panel-body::-webkit-scrollbar {
+    display: none;
 }
 
 /* View menu: the views as plain text in a bar across the top, the way a desktop
@@ -730,8 +738,12 @@ body.is-dragging .code-pane {
     position: relative;
     overflow-y: auto;
     max-height: 200px;
-    scrollbar-width: thin;
+    scrollbar-width: none;
     animation: completion-grow var(--motion-fast) var(--ease-standard);
+}
+
+.completion-list::-webkit-scrollbar {
+    display: none;
 }
 
 /* The fade rides the panel because its place is a translate only JS writes —
