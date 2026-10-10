@@ -1,5 +1,5 @@
-// Snapshot undo for the whole editor. Every committed edit: a native
-// keystroke, a multi-cursor splice, a Tab indent, a restored state — pushes
+// Snapshot undo for the whole editor. Every committed edit (a native
+// keystroke, a multi-cursor splice, a Tab indent, a restored state) pushes
 // the same kind of record, so one stack per document answers Cmd+Z from
 // anywhere and the tab indent no longer wipes the platform's private history
 // out from under the user. Snapshots carry the cursors with the text, so an

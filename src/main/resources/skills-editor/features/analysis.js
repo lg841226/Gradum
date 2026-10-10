@@ -81,8 +81,8 @@ function bracketPartner(brackets, origin) {
   return null;
 }
 
-// The pairs to box: one per caret that touches a bracket — the character
-// before it first, the one under it otherwise — deduplicated, because two
+// The pairs to box: one per caret that touches a bracket (the character
+// before it first, the one under it otherwise), deduplicated, because two
 // cursors standing on one pair light the same two boxes.
 export function matchPairs(text, cursors) {
   const brackets = bracketRuns(text);
@@ -123,7 +123,7 @@ export function matchPairs(text, cursors) {
 }
 
 // The nesting a caret sits in: opens minus closes over the brackets before
-// it — strings and comments skipped by the same scan the match boxes use —
+// it (strings and comments skipped by the same scan the match boxes use),
 // so Enter lays the next line at that level, two spaces a level the way Tab
 // indents. A run with more closes than opens reads as zero rather than a
 // negative hang.
@@ -142,10 +142,10 @@ export function bracketDepth(text, offset) {
 // The file's indent unit: the width one level is written in, a property of
 // the whole buffer rather than of any caret. Candidates run from the widest
 // leading run in the file down to two, and the first one at least eighty
-// percent of the indented lines are a multiple of wins — a KDoc ` * ` line or
+// percent of the indented lines are a multiple of wins: a KDoc ` * ` line or
 // a string continuation with an odd offset does not drag the answer to one,
 // while a file laid out in fours reads four however the carets wander. A file
-// that indents nothing — empty or flat — reads the default of four, so the
+// that indents nothing (empty or flat) reads the default of four, so the
 // strip never has to say zero.
 export function indentWidth(text) {
   const leads = new Map();
@@ -180,7 +180,7 @@ export function indentWidth(text) {
 
 // The lines an edit has touched since the buffer's baseline, as one-based
 // numbers in document order: a line counts as modified when the longest
-// common subsequence of baseline and buffer lines cannot claim it — an
+// common subsequence of baseline and buffer lines cannot claim it: an
 // insertion marks the new line, a rewrite marks the line that replaced the
 // old one, and the walk runs backwards so the answer comes out in order.
 // Skill files are small, so the table fits; a file big enough to make it a

@@ -178,7 +178,7 @@ export const icons = {
     + ' 7.5 8.72386 7.5 9V11C7.5 11.2761 7.72386 11.5 8 11.5C8.27614 11.5 8.5 11.2761 8.5 11'
     + ' V9C8.5 8.72386 8.27614 8.5 8 8.5Z" fill="currentColor" stroke="none"/>',
 
-  // expui/status/infoOutline.svg / infoOutline_dark.svg — the hollow info
+  // expui/status/infoOutline.svg / infoOutline_dark.svg: the hollow info
   // mark. The platform grays it per theme; the gray is rewritten to
   // currentColor so whoever hosts it decides the paint.
   "info-outline": '<path fill-rule="evenodd" clip-rule="evenodd"'
@@ -194,8 +194,8 @@ export const icons = {
   // for the other does not read as a change in weight.
   spinner: '<path d="M13.5 8a5.5 5.5 0 1 1-3.8-5.23" stroke-width="1"/>',
 
-  // Completion row marks: the platform's own round letter icons, one per kind
-  // — a property, a method, a class, a live template, a plain variable. These
+  // Completion row marks: the platform's own round letter icons, one per kind:
+  // a property, a method, a class, a live template, a plain variable. These
   // keep their own palette instead of following currentColor, the way the Kotlin
   // brand mark does: the disc and the ink each read an --icon-node-* token, so
   // the theme swap paints the _dark.svg twin of every mark.

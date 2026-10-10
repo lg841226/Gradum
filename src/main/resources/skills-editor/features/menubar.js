@@ -165,8 +165,8 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
   let leftGap = 0;
 
   // Read with every entry still unfolded, so the numbers are their natural
-  // size. The entries never shrink — the stylesheet holds them at their content
-  // width: so nothing is squeezed while this runs.
+  // size. The entries never shrink: the stylesheet holds them at their content
+  // width, so nothing is squeezed while this runs.
   function measure() {
     bar.classList.add("is-measuring");
     entryWidths = items.map((item) => item.button.offsetWidth);

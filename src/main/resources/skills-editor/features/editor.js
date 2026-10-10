@@ -11,7 +11,7 @@ import {createCodePane} from "./pane.js";
 const MAX_LOG_PROBLEMS = 6;
 
 // The share of the body the first pane keeps when the divider is dragged. Held
-// between a fifth and four fifths, so neither pane can be dragged shut — closing
+// between a fifth and four fifths, so neither pane can be dragged shut: closing
 // one outright is what the split toggle is for.
 const MIN_SHARE = 0.2;
 const MAX_SHARE = 0.8;
@@ -261,7 +261,7 @@ export function mountEditor(store, {canvas, showPanel}) {
     }
   }
 
-  // The pane the user typed in redraws its own overlay here — a keystroke has
+  // The pane the user typed in redraws its own overlay here: a keystroke has
   // already mutated its textarea natively, so only the derived layers need to
   // catch up. The other pane is reconciled by `render`, which sees the store
   // change to write just produced.
@@ -334,7 +334,7 @@ export function mountEditor(store, {canvas, showPanel}) {
     }
 
     // A deployment swaps the baseline without moving a byte of the buffer, so the
-    // modified-line bars have to be redrawn by hand — nothing below would
+    // modified-line bars have to be redrawn by hand: nothing below would
     // otherwise notice.
     const baselineChanged = !idChanged && baseline !== renderedBaseline;
     renderedBaseline = baseline;

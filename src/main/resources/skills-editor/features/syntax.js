@@ -70,7 +70,7 @@ export function tokenize(text) {
 // as an ASCII ( at a glance: the two are near-identical at code size and the
 // glyph shape alone does not separate them. Escaping runs first, so the tags
 // added here are never themselves boxed and an entity's ASCII characters are
-// left alone — only the glyphs the file actually holds are wrapped.
+// left alone: only the glyphs the file actually holds are wrapped.
 export function markGlyphs(text) {
   return escapeHtml(text).replace(
     /[^\x00-\x7F]+/g,

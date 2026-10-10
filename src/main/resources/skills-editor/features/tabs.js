@@ -16,7 +16,7 @@ function isNameTaken(state, name, exceptId = null) {
 }
 
 // Owns the open documents: open, create, close, activate and rename. The tab
-// strip containers belong to the editor island and are handed in by main.js —
+// strip containers belong to the editor island and are handed in by main.js,
 // one per editor pane, all listing the same documents. Each view may bring its
 // own close handler; a pane without one closes the document itself.
 export function mountTabs(store, {strips}) {

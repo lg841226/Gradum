@@ -62,7 +62,7 @@ export function loadLayout() {
 // last wrote, because the store also reports the caret on every move and there is
 // no reason to touch storage for a change the layout did not make. The open file
 // is read from the focused document as the state changes; until a document
-// exists — the first writes of a fresh boot — the value loaded from storage
+// exists (the first writes of a fresh boot), the value loaded from storage
 // stands in, so those writes cannot blank out what the last session remembered.
 export function createLayoutWriter() {
   let lastWritten = "";

@@ -33,7 +33,7 @@ function restartBlink() {
 
 // One code surface: the gutter, the syntax overlay, the marker layer, the drawn
 // caret, and the textarea that owns the real caret and selection. Two of these
-// are mounted side by side to show the same buffer twice — each keeps its own
+// are mounted side by side to show the same buffer twice: each keeps its own
 // tab strip, scroll, selection and caret, and redraws only its own overlay.
 export function createCodePane(store, {onInput, onFocus, onRun}) {
   const root = document.createElement("div");
@@ -89,8 +89,8 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
   }
 
   // The caret and the squiggles are drawn, not laid out by the text layer, so
-  // their horizontal offsets are read back off the highlight overlay — the very
-  // glyphs on screen — instead of being predicted from a font. Neither counting
+  // their horizontal offsets are read back off the highlight overlay (the very
+  // glyphs on screen) instead of being predicted from a font. Neither counting
   // columns nor measuring with a canvas survives a fallback: a CJK glyph is
   // drawn by whatever font the stack falls through to, and its advance is
   // whatever that font says, which the model has no way to know. A Range over
@@ -148,7 +148,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
 
   // Writing the list to the textarea is the only way the platform can learn
   // about the primary range. The reverse read must not mistake that echo for
-  // a user action — the low and high edges compare equal — so the anchors
+  // a user action (the low and high edges compare equal), so the anchors
   // behind them, and every caret after them, survive the round trip.
   function writeCursors() {
     const first = cursors[0];
@@ -198,7 +198,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
   // so it lines up with the glyphs rather than the line box. A selection that
   // runs past a line's end simply stops there: the band is the selected
   // characters, and a line break holds no characters of its own. Each range
-  // gets its own child span — not a pseudo-element — because several carets
+  // gets its own child span, not a pseudo-element, because several carets
   // can share a line and a line owns only one ::before. The span stays empty,
   // so the TreeWalker that places the caret never sees it. The bracket pair
   // each collapsed caret touches is boxed the same way, in the same pass: the
@@ -248,7 +248,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
       drawMatch(text, close);
     }
 
-    // Where two boxes meet — an empty pair reads as one merged block — their
+    // Where two boxes meet (an empty pair reads as one merged block), their
     // facing borders would double into a seam, so those two edges come off and
     // only the outer frame remains. Boxes are compared by measured position
     // rather than by drawing order, because the drawing follows the pairs and
@@ -329,7 +329,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
   let publishedWidth = 4;
 
   // Drawn carets, pooled: one per collapsed cursor, grown on demand and
-  // hidden — never destroyed — when the list shrinks. The first entry is the
+  // hidden, never destroyed, when the list shrinks. The first entry is the
   // caret element mounted with the pane.
   const carets = [caret];
   const drawnOffsets = [-1];
@@ -366,11 +366,11 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     const focused = document.activeElement === source;
 
     // The status bar reads the caret position from the store, so every caret
-    // move publishes it — but only for the pane the user is actually in, so the
+    // move publishes it, but only for the pane the user is actually in, so the
     // readout follows the focused view rather than whichever pane drew last.
     // The selection rides along in the same patch: the strip appends its length
     // in characters and newlines while a range is selected. The position is the
-    // primary range — cursors[0], the one the textarea mirrors — so a screen of
+    // primary range (cursors[0], the one the textarea mirrors), so a screen of
     // carets still reports the one the platform calls home.
     if (focused) {
       const position = {line: lineIndex + 1, column: column + 1};
@@ -417,7 +417,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     }
 
     // The file's indent unit belongs to the text, not the caret, so it is
-    // published whenever the buffer reads a different width — and only then,
+    // published whenever the buffer reads a different width, and only then,
     // since the strip has no use for the same number twice. Focus does not
     // enter into it: the strip reports the open document even with the pane
     // clicked away.
@@ -428,7 +428,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     }
 
     // Which carets are drawable right now: focused, editable, on screen. Only
-    // collapsed cursors take a bar — a range shows as its band instead. Each
+    // collapsed cursors take a bar: a range shows as its band instead. Each
     // entry also says whether it is a shadow: everything past the primary, the
     // one the textarea mirrors, gets dressed in the accent blue.
     const wanted = [];
@@ -479,7 +479,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
 
     // The completion list rides the caret's coattails: every caret draw
     // revalidates it, so a click, an undo or the other pane's edit dismisses
-    // or refreshes the popup in the same frame the caret moves — while the
+    // or refreshes the popup in the same frame the caret moves, while the
     // keystroke that may *raise* it answers only from the input, never from
     // this echo.
     completion.onCaretMove();
@@ -534,7 +534,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     lines.push(line);
 
     // The gutter wears a bar over every run of lines the buffer has changed
-    // since the baseline — computed here because this is the one place the
+    // since the baseline: computed here because this is the one place the
     // gutter's markup is rebuilt: opening, typing and deploying all land in
     // it, and a bar survives none of them by accident. Consecutive lines are
     // fused into one element, so a block of changes is one pill with a round
@@ -596,7 +596,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     }
   }
 
-  // Writes a buffer this pane did not produce itself — the other pane's typing —
+  // Writes a buffer this pane did not produce itself (the other pane's typing)
   // while keeping this pane's own scroll and (clamped) selection, so a reader's
   // place is not thrown away by an edit on the far side.
   function adoptText(text) {
@@ -656,7 +656,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     completion.onEdit();
   }
 
-  // A restored snapshot travels the same road an edit does — minus the
+  // A restored snapshot travels the same road an edit does, minus the
   // history push, which the undo or redo already accounted for.
   function restoreHistory(snapshot) {
     if (!snapshot) {
@@ -670,7 +670,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
   }
 
   // A caret on the line below (or above) the outermost one, at the same
-  // display column — the shortcut marches through the file one line per
+  // display column: the shortcut marches through the file one line per
   // press, and a line the file does not have leaves the list alone.
   function addCursorVertical(direction) {
     const text = source.value;
@@ -687,9 +687,9 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     setCursors([...cursors, {anchor: head, head}]);
   }
 
-  // Click point → buffer offset: the line comes from the vertical metrics the
-  // caret already trusts, the column from a binary search over `advance` —
-  // the same measurement the caret draws with — so a planted caret lands on
+  // Click point to buffer offset: the line comes from the vertical metrics the
+  // caret already trusts, the column from a binary search over `advance` (the
+  // same measurement the caret draws with), so a planted caret lands on
   // the glyph the pointer hit.
   function offsetFromPoint(clientX, clientY) {
     const text = source.value;
@@ -780,7 +780,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
   });
 
   source.addEventListener("input", (event) => {
-    // A native edit — typing, pasting, cutting with one caret — has already
+    // A native edit (typing, pasting, cutting with one caret) has already
     // moved the platform's range, so the list collapses to match and the
     // state joins the history as its own entry. Inputs inside a composition
     // skip the record; compositionend books the finished word once.
@@ -830,8 +830,8 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
   });
 
   // Cmd/Ctrl-click plants another caret without disturbing the one the
-  // textarea holds: the default is suppressed — the native selection would
-  // otherwise jump to the click and collapse the list — the point is mapped
+  // textarea holds: the default is suppressed (the native selection would
+  // otherwise jump to the click and collapse the list), the point is mapped
   // to an offset, and the list grows. A plain press first drops the extras;
   // the platform's own selection change finishes the collapse a moment later.
   source.addEventListener("mousedown", (event) => {

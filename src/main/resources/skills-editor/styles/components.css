@@ -369,7 +369,7 @@
 
 /* The branch indents past the root's twisty, so the skills line up under the
    folder label rather than under its arrow, and stacks its rows with the same
-   gap the list uses — a plain block would leave them flush. */
+   gap the list uses: a plain block would leave them flush. */
 .tree-children {
     display: flex;
     flex: 0 0 auto;
@@ -606,8 +606,8 @@
     position: fixed;
     place-items: center;
     padding: var(--space-4);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
     animation: unlock-fade var(--motion-fast) var(--ease-standard);
 }
 
@@ -616,7 +616,7 @@
 }
 
 /* The entrance runs in two beats: the backdrop fades its blur in first, then
-   the card pops after it — the pop waits out one motion-fast and carries its
+   the card pops after it: the pop waits out one motion-fast and carries its
    own start state through the wait. The display flip that opens the dialog
    replays both on every open. */
 @keyframes unlock-fade {
@@ -728,15 +728,15 @@
 }
 
 .unlock-submit {
-    background: var(--accent);
     color: #fff;
+    background: var(--accent);
 }
 
 .unlock-submit:hover {
     background: var(--accent-hover);
 }
 
-/* The accent face stays put while the button is disabled — the generic
+/* The accent face stays put while the button is disabled: the generic
    disabled-hover rule would otherwise wash it out on the way to gray. */
 .unlock-submit:disabled,
 .unlock-submit.btn:disabled:hover {

@@ -100,6 +100,16 @@
     --bottom-height: 200px;
     --minimap-width: 128px;
     --blur-popup: 10px;
+
+    /* Layout values written from script at runtime: the menubar measures each
+       entry's width, the editor's divider drag re-shares --split-ratio, and the
+       tooltip positioner flips its edge. The declarations here are the states
+       before any of those writes lands, so the CSS reads the same tokens the
+       JS sets. */
+    --menu-entry-width: 12em;
+    --split-ratio: 0.5;
+    --tooltip-origin: bottom;
+    --tooltip-shift: 0;
 }
 
 /* Light theme. The page puts data-theme="light" on <html> when the user picks

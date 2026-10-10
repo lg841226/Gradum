@@ -160,7 +160,7 @@ export function createUnlock({onToken, onCode} = {}) {
 
   // A run of characters longer than one cell (a paste that slipped past the
   // paste handler, a drop) spreads forward from the cell it landed in. A full
-  // row only arms the button — Unlock or Enter does the submitting.
+  // row only arms the button: Unlock or Enter does the submitting.
   const distributeFrom = (start, chars) => {
     let written = 0;
     for (let index = start; index < CODE_LENGTH && written < chars.length; index += 1) {

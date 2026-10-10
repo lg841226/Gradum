@@ -2,7 +2,7 @@
 // written as complete sentences; control labels stay short verb phrases.
 //
 // Style: lines stay under 100 characters. Long sentences break at clause
-// boundaries inside a parenthesized `+` chain, one clause per line. Branching
+// boundaries inside a parenthesized + chain, one clause per line. Branching
 // copy uses if/return instead of a wide ternary, so each variant reads as its
 // own block. The fragments must reassemble to the exact same output string.
 
@@ -100,12 +100,12 @@ export const copy = {
     submit: "Unlock",
     cancel: "Cancel",
     title: "Enable Editing",
-    placeholder: "Server token",
+    placeholder: "Enter server token",
     codePlaceholder: "Pairing code",
     invalid: "Sorry, the token did not match, please try again",
     codeInvalid: "Sorry, the code was incorrect, please try again",
     codeHint: "Enter the pairing code shown on the Gradum console.",
-    hint: "Paste the server token ~/.gradum/server.token to exit reader mode.",
+    hint: "Paste server token ~/.gradum/server.token to exit reader mode.",
   },
 
   problems: {
@@ -229,7 +229,7 @@ export const copy = {
     unreachable: () =>
       (
         `Gradum server at ${location.host} did not respond. ` +
-        `Check that it is still running (./gradlew run) and reload workspace.`
+        `Check that it is still running and reload workspace.`
       ),
   },
 };

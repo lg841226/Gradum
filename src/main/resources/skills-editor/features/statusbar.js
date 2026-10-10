@@ -50,8 +50,8 @@ export function mountStatusBar(store, {canvas}) {
   const position = document.createElement("span");
   position.className = "statusbar-item";
 
-  // The file's indent unit, in spaces: a property of the whole buffer — how
-  // wide one level is written — read from the editor and held steady while
+  // The file's indent unit, in spaces: a property of the whole buffer (how
+  // wide one level is written), read from the editor and held steady while
   // the caret moves, with the default four for a file that indents nothing.
   const indent = document.createElement("span");
   indent.className = "statusbar-item";
@@ -78,7 +78,7 @@ export function mountStatusBar(store, {canvas}) {
 
   // The reader switch rides the far right end of the strip. A click flips the
   // local view when the session carries a token, and opens the unlock dialog
-  // when it does not — a token-less session can never unlock itself by
+  // when it does not: a token-less session can never unlock itself by
   // clicking, which is the whole point of reader mode. How that dialog
   // unlocks follows the page's host: the token itself on this machine, the
   // five-character pairing code everywhere else.
@@ -93,7 +93,7 @@ export function mountStatusBar(store, {canvas}) {
     },
     onCode: (code) => {
       // A correct code comes back as the auth cookie, so navigating to the
-      // bare page (query dropped — including any ?lock=1) lands in editing;
+      // bare page (query dropped, including any ?lock=1) lands in editing;
       // a wrong one reopens the dialog with why.
       pair(code).then((ok) => {
         if (ok) {

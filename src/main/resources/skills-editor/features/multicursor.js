@@ -20,7 +20,7 @@ function rangeOf(cursor) {
 // Sorted by the low edge, clamped, overlap-free. The textarea mirrors the
 // first entry, so the lowest range leads. Two ranges that touch at a point or
 // overlap become one union, because two carets in the same place have nothing
-// between them; adjacent non-empty ranges stay apart — [0,5) and [5,10) are
+// between them; adjacent non-empty ranges stay apart: [0,5) and [5,10) are
 // two selections, not one. Direction survives everything but a merge, where
 // the union is freshly forward.
 function normalize(cursors, text) {
@@ -104,7 +104,7 @@ function charKind(char) {
   return "punct";
 }
 
-// Left end of the run — letters, punctuation or whitespace — that ends at
+// Left end of the run (letters, punctuation or whitespace) that ends at
 // `offset`, stepping over a whole run so one press crosses one word.
 function wordLeftAt(text, offset) {
   if (offset <= 0) {
@@ -161,8 +161,8 @@ function offsetAtColumn(text, targetLine, column) {
 }
 
 // One motion applied to one cursor. A plain (unshifted) motion with a live
-// selection collapses it to an empty caret at the side it travels toward —
-// left and word-left to the start, right and word-right to the end — before
+// selection collapses it to an empty caret at the side it travels toward
+// (left and word-left to the start, right and word-right to the end) before
 // any traveling happens. With shift the anchor stays planted and the head
 // moves.
 function moveCursor(text, cursor, motion, extend) {
@@ -218,8 +218,8 @@ function moveCursor(text, cursor, motion, extend) {
 // The insertion at every cursor: each selection is replaced by `insert`, each
 // empty cursor just receives it, and every caret lands after what it just
 // gained. `insert` may be a function of the untouched buffer and this range's
-// start, so each caret can lay down something of its own — Enter's indent
-// differs per position — while the rebuild still runs left to right. Ranges
+// start, so each caret can lay down something of its own (Enter's indent
+// differs per position) while the rebuild still runs left to right. Ranges
 // are known disjoint, so the buffer is rebuilt with one running shift.
 function insertText(text, cursors, insert) {
   let buffer = text;
@@ -290,8 +290,8 @@ function deleteRanges(text, cursors, direction, grain) {
 }
 
 // The edit a bracket key asks for, as pure as the rest of this file. An opener
-// lays its pair down with the caret kept between the two characters — one
-// commit, one undo step for both — and a closer already sitting in front of an
+// lays its pair down with the caret kept between the two characters (one
+// commit, one undo step for both), and a closer already sitting in front of an
 // empty caret is stepped over, so typing ')' completes the pair instead of
 // doubling it. A selection types over itself and never steps; cursors that
 // disagree on the spot take the mixed road, the ones before a closer travelling

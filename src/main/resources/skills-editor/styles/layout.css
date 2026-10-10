@@ -47,7 +47,7 @@ html.is-booting * {
     color: var(--text-dim);
 }
 
-/* Both bottom pages — Problems and Output — keep scrolling but drop their
+/* Both bottom pages (Problems and Output) keep scrolling but drop their
    bar, the way the completion list does: the rows and the panel's own padding
    do the framing. */
 .panel-body {
@@ -99,7 +99,7 @@ html.is-booting * {
 }
 
 /* The two side groups take an equal share of the space, which is what puts the
-   widget's own track at the middle of the bar — auto margins would centre it in
+   widget's own track at the middle of the bar: auto margins would centre it in
    the room left over instead, and the menu is far wider than the toggle, so that
    reads as off-centre to the right. The toggle's group cannot shrink past its
    button, so as the window narrows the menu's share gives way first and the
@@ -132,7 +132,7 @@ html.is-booting * {
 /* A menu entry folds shut on its own rather than vanishing at a breakpoint:
    the width cap runs to zero while the padding, the gap it holds open and its
    opacity follow, so the entries to its left slide over as it goes. The cap
-   starts at the entry's own measured width — written from script — so the run
+   starts at the entry's own measured width (written from script), so the run
    covers the entry's real size instead of a guess; the fallback only has to be
    wider than any label for the first measurement. The entry is taken out of
    flex shrinking, so only the cap decides its width and the label is never
@@ -159,14 +159,14 @@ html.is-booting * {
     margin-left: calc(-1 * var(--space-1));
 }
 
-/* Measured with every entry at the selected weight — the widest any of them can
-   ever get — so a fold cap never clips a label. */
+/* Measured with every entry at the selected weight (the widest any of them can
+   ever get), so a fold cap never clips a label. */
 .menubar.is-measuring .btn[data-variant="menu"] {
     font-weight: var(--weight-semibold);
 }
 
-/* The rail and its splitter span from the editor row to the bottom tool window
-   — up to the line before the gap above the status strip, which they must not
+/* The rail and its splitter span from the editor row to the bottom tool window,
+   up to the line before the gap above the status strip, which they must not
    underlap. */
 .rail {
     grid-column: 1;
@@ -268,7 +268,7 @@ html.is-booting * {
     color: var(--text-dim);
 }
 
-/* Splitter drag must be immediate — each pixel writes a new track size and a
+/* Splitter drag must be immediate: each pixel writes a new track size and a
    transition lag would feel slippery. Only fold/unfold toggles animate. */
 body.is-dragging .canvas,
 body.is-dragging .panel,
@@ -341,7 +341,7 @@ body.is-dragging .code-pane {
 /* Every panel header's icon actions read at the title's own brightness rather
    than the muted default, so the whole header sits at one level. The actions
    themselves stay out of the way until the pointer is anywhere over the panel,
-   not just its header — the whole group is revealed by opacity alone, so the bar
+   not just its header: the whole group is revealed by opacity alone, so the bar
    rests as a plain title and no action shifts the others as it comes forward.
    Keyboard focus brings the group back the same way. */
 .panel-header .btn[data-variant="icon"] {
@@ -448,7 +448,7 @@ body.is-dragging .code-pane {
 }
 
 /* The split runs left to right by default; the "down" direction stacks the two
-   panes instead. Only the axis the flex lines are laid on turns — the folded
+   panes instead. Only the axis the flex lines are laid on turns: the folded
    second pane, the hairline and the share all read the same either way. */
 .editor-body.is-split-down {
     flex-direction: column;
@@ -475,7 +475,7 @@ body.is-dragging .code-pane {
     align-self: stretch;
     /* Lift the divider and its grab strip above both panes: the panes are
        positioned siblings that would otherwise paint over the strip's outer
-       half — the right half in a row split — and swallow the press that was
+       half (the right half in a row split) and swallow the press that was
        aimed at the handle. */
     z-index: 5;
     background: color-mix(in srgb, var(--border) 45%, transparent);
@@ -573,7 +573,7 @@ body.is-dragging .code-pane {
     z-index: 1;
     overflow: hidden;
     pointer-events: none;
-    /* What the syntax classes do not claim — the plain runs — reads in the softer
+    /* What the syntax classes do not claim (the plain runs) reads in the softer
        code tone rather than inheriting the UI's --text. The minimap's clone takes
        this rule too, so the two surfaces stay the same tone. */
     color: var(--code-text);
@@ -592,7 +592,7 @@ body.is-dragging .code-pane {
 
 /* A line is its own stacking context, so the selection band below can be pushed
    behind the line's text with a negative z-index while still sitting on top of
-   the line's own background — the one slot between "line is painted" and "line's
+   the line's own background: the one slot between "line is painted" and "line's
    glyphs are painted". */
 .highlight .line {
     display: block;
@@ -723,11 +723,11 @@ body.is-dragging .code-pane {
 }
 
 /* The completion panel floats inside the same code box the caret draws in, as a
-   sibling of the text layers — a re-render of the highlight never touches it —
+   sibling of the text layers (a re-render of the highlight never touches it)
    and takes its position from JS, since only the caret's own measurement knows
    which side of the line has room. Rows are one code line tall, so the list
    reads as a continuation of the text rather than a menu dropped over it. The
-   panel is a fixed frame — padding, border, shadow — sized to its widest row
+   panel is a fixed frame (padding, border, shadow) sized to its widest row
    up to a cap; the list inside it is what scrolls, so the air between the
    rows and the rounded border holds still while the rows travel. The sheet is
    frosted: its colour stands at 65% over a blur of whatever code lies behind
@@ -759,8 +759,8 @@ body.is-dragging .code-pane {
 }
 
 /* The scroll surface: ten code lines tall before it moves, and `relative` so a
-   row's offset measures against the list itself — the keep-in-view arithmetic
-   needs exactly that. It carries the other half of the open animation. */
+   row's offset measures against the list itself, which the keep-in-view
+   arithmetic needs exactly. It carries the other half of the open animation. */
 .completion-list {
     position: relative;
     overflow-y: auto;
@@ -773,8 +773,8 @@ body.is-dragging .code-pane {
     display: none;
 }
 
-/* The fade rides the panel because its place is a translate only JS writes —
-   a scale in the same property would drag that translate with it — so the
+/* The fade rides the panel because its place is a translate only JS writes (a
+   scale in the same property would drag that translate with it), so the
    scale rides the list, which carries no transform of its own. The display
    flip that opens the panel replays both on every open. */
 @keyframes completion-fade {
@@ -791,7 +791,7 @@ body.is-dragging .code-pane {
 
 /* Every row carries a side margin, so the selected row's highlight reads as a
    rounded swatch floating inside the popup instead of a band welded to its
-   edges — and because all rows carry it, selection never shifts the text. */
+   edges, and because all rows carry it, selection never shifts the text. */
 .completion-row {
     gap: var(--space-2);
     display: flex;
@@ -804,17 +804,17 @@ body.is-dragging .code-pane {
 /* The swatch must lift off the popup rather than sink into it: the selection
    token is tuned for the canvas and reads darker than the night popup now is,
    so the row would disappear. Mixing the accent into the popup's own surface
-   keeps the brand blue visible on both themes — a pale wash over paper, a lit
-   blue over night — and tracks whatever background the panel is given. */
+   keeps the brand blue visible on both themes (a pale wash over paper, a lit
+   blue over night) and tracks whatever background the panel is given. */
 .completion-row.is-selected {
     background: color-mix(in srgb, var(--accent) 25%, var(--bg-popup));
     border-radius: 5px;
 }
 
-/* One mark per kind — the platform's round letter icons, disc and ink carried
+/* One mark per kind: the platform's round letter icons, disc and ink carried
    by --icon-node-* tokens so the theme swap paints each mark's dark twin: a
    purple property, a red method, a blue class, an orange variable. The keyword
-   rows carry a letter instead of a glyph — the K is the mark, the token colour
+   rows carry a letter instead of a glyph: the K is the mark, the token colour
    says the rest. */
 .completion-kind-kw {
     color: var(--syn-keyword);
@@ -836,7 +836,7 @@ body.is-dragging .code-pane {
     text-overflow: ellipsis;
 }
 
-/* The letters the prefix matched take the brand blue — the row's own kind
+/* The letters the prefix matched take the brand blue: the row's own kind
    colour carries the icon and the type line, not the match. */
 .completion-label .match {
     color: var(--accent);
@@ -882,7 +882,7 @@ body.is-dragging .code-pane {
 /* The slider over the visible code. It rides above the scaled clone, so it never
    scales with it, and reads as a plain scrollbar thumb: a square translucent grey
    block with no accent tint or outline to compete with the code beneath. It takes
-   the pointer — the strip below it handles every gesture the same way — and firms
+   the pointer (the strip below it handles every gesture the same way) and firms
    up under hover, the grey standing heavier the way a thumb does when the mouse
    finds it. */
 .minimap-viewport {

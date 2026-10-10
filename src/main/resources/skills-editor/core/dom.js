@@ -21,7 +21,7 @@ export function formatTime(date = new Date()) {
 export const FALLBACK_METRICS = {lineHeight: 20, padTop: 0, padLeft: 0};
 
 // Vertical metrics of the code surface. Horizontal offsets are never derived
-// from a font — they are read back off the rendered overlay — so only the
+// from a font: they are read back off the rendered overlay, so only the
 // line box and the padding are needed here.
 export function codeMetrics(surface) {
   const style = getComputedStyle(surface);

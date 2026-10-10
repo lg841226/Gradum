@@ -6,7 +6,7 @@ import {insertText} from "./multicursor.js";
 import {KOTLIN_KEYWORDS, tokenize} from "./syntax.js";
 
 // Code completion: a local popup over the buffer's own words, the skill API,
-// Kotlin keywords and a few skeletons — filtered as the caret types, accepted
+// Kotlin keywords and a few skeletons: filtered as the caret types, accepted
 // with Enter or Tab, dismissed with Escape. The list lives inside `.code`
 // beside the text layers, so re-rendering the highlight never touches it, and
 // it takes its position from the same measurement the drawn caret uses.
@@ -15,7 +15,7 @@ import {KOTLIN_KEYWORDS, tokenize} from "./syntax.js";
 // predictable, and an empty result leaves the popup closed rather than showing
 // a shell. The pane drives the popup from three calls: `onTextInput` after a
 // native insert (the only one that may raise it), `onEdit` after an edit the
-// editor made itself, and `onCaretMove` from the caret draw — a refresh or a
+// editor made itself, and `onCaretMove` from the caret draw: a refresh or a
 // dismissal, never a new opening, so the caret echo of a keystroke cannot
 // reopen a list the keystroke decided against.
 
@@ -43,7 +43,7 @@ export function createCompletion({
   popup.hidden = true;
   code.appendChild(popup);
 
-  // The panel is a fixed frame — padding, border, shadow — and the list inside
+  // The panel is a fixed frame (padding, border, shadow) and the list inside
   // it is what scrolls, so the air between the rows and the rounded border
   // holds still while the rows travel. The listbox role lives on the list: it
   // is the surface the options actually sit in, the way a native select
@@ -93,8 +93,8 @@ export function createCompletion({
     IDENTIFIER.lastIndex = 0;
     let match;
     while ((match = IDENTIFIER.exec(chunk)) !== null) {
-      // A run opening with a digit is a numeric literal — `900`, `0xFF`,
-      // `123L` — not a name the caret could reach for, so it never enters the
+      // A run opening with a digit is a numeric literal (`900`, `0xFF`,
+      // `123L`), not a name the caret could reach for, so it never enters the
       // word source. Letter- and underscore-led runs are names by the lexer's
       // own rule and stay.
       if (!/^\d/.test(match[0])) {
@@ -125,7 +125,7 @@ export function createCompletion({
     return words;
   }
 
-  // The identifier run ending at the offset — the range an accept replaces.
+  // The identifier run ending at the offset: the range an accept replaces.
   function wordStartAt(text, offset) {
     let start = offset;
     while (start > 0 && IDENTIFIER_CHAR.test(text[start - 1])) {
@@ -136,8 +136,8 @@ export function createCompletion({
 
   // Where the caret stands, or null when it stands somewhere the popup must
   // not speak: inside a string or comment the typed run is content, not a
-  // name. A dot just before the run switches the list to members — what can
-  // follow a dot — with no keywords and no snippets.
+  // name. A dot just before the run switches the list to members (what can
+  // follow a dot) with no keywords and no snippets.
   function contextAt(text, caret) {
     const {guards} = scan(text);
     for (const guard of guards) {
@@ -197,7 +197,7 @@ export function createCompletion({
 
   // The match tiers, the best first: the prefix as typed, the prefix ignoring
   // case, then a camel subsequence so `sbn` finds `skillBookName`. The
-  // positions come back with the tier — they are the letters to paint.
+  // positions come back with the tier: they are the letters to paint.
   function matchOf(label, prefix, lowerPrefix) {
     if (label.startsWith(prefix)) {
       return {tier: 0, matched: prefixIndices(prefix.length)};
@@ -227,7 +227,7 @@ export function createCompletion({
   }
 
   // Tier first, then where the label came from, then the shorter spelling and
-  // finally the alphabet — short exact words in front of long lookalikes, and
+  // finally the alphabet: short exact words in front of long lookalikes, and
   // a stable order between keystrokes. Capped so one letter cannot drag a wall
   // of rows into the pane.
   function collect(text, context) {
@@ -290,7 +290,7 @@ export function createCompletion({
     );
   }
 
-  // The label with its matched letters wrapped — the prefix as a run for the
+  // The label with its matched letters wrapped: the prefix as a run for the
   // first two tiers, scattered characters for a camel subsequence.
   function labelHtml(label, matched) {
     let html = "";
@@ -413,7 +413,7 @@ export function createCompletion({
   }
 
   // Accept runs through the pane's own edit path: the identifier run before
-  // each caret — not only the primary's — is replaced by the item's insert
+  // each caret (not only the primary's) is replaced by the item's insert
   // text, so several carets spell the same word in one stroke and one undo
   // takes the stroke back. Ranges that would overlap (two carets inside one
   // word) fall back to the selections themselves rather than corrupt the
@@ -451,8 +451,8 @@ export function createCompletion({
     commit(insertText(text, replacements, entry.item.insert));
   }
 
-  // The popup answers for a small set of keys while it is up — navigation,
-  // accept, dismiss — and asks for Ctrl+Space whether it is up or not. Every
+  // The popup answers for a small set of keys while it is up (navigation,
+  // accept, dismiss) and asks for Ctrl+Space whether it is up or not. Every
   // other key falls through to the pane's own matrix: arrows still move the
   // caret (and the caret move revalidates the list), typed characters reach
   // the textarea and come back through the input event.
@@ -494,8 +494,8 @@ export function createCompletion({
     return false;
   }
 
-  // A press on a row accepts it — and is suppressed first, so the textarea
-  // never loses the focus to accept is about to use. A press on the popup's
+  // A press on a row accepts it, and is suppressed first, so the textarea
+  // never loses the focus accept is about to use. A press on the popup's
   // own empty space is left alone: it blurs like any click, and the blur
   // closes the list.
   popup.addEventListener("mousedown", (event) => {

@@ -1,5 +1,5 @@
 // The Gradum skill API as the completion list knows it: a hand-kept mirror of
-// Skill.kt, SkillContext, AgentConfiguration and the schema DSL — grown the
+// Skill.kt, SkillContext, AgentConfiguration and the schema DSL, grown the
 // way the docs are, by hand. Every row carries the kind its icon paints with
 // and the type the right edge reports; `member` marks what belongs after a
 // dot, where keywords and snippets do not.
@@ -42,7 +42,7 @@ export const API_SYMBOLS = [
   {label: "kind", kind: "val", detail: "ToolDisplayKind", member: true},
 
   // The schema block: what SchemaBuilder and the SchemaAdapter extensions
-  // resolve inside schemaProperties — string and friends called bare inside
+  // resolve inside schemaProperties: string and friends called bare inside
   // the lambda, cloudOnly and simpleOnly after a dot on the builder.
   {label: "SchemaBuilder", kind: "type", detail: "class", member: false},
   {label: "SkillParameter", kind: "type", detail: "class", member: false},
@@ -75,7 +75,7 @@ export const API_SYMBOLS = [
 ];
 
 // Three skeletons the list offers ahead of the words. `insert` is what lands
-// in the buffer — newlines included — and the caret ends up after it.
+// in the buffer (newlines included), and the caret ends up after it.
 export const SNIPPETS = [
   {
     label: "skillClass",

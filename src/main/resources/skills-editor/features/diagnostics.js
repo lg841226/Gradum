@@ -142,7 +142,7 @@ export function mountDiagnostics(store, {body, editor}) {
     }
 
     // The problem row steals focus from the textarea, so the pane the user was
-    // last in is the one to scroll — that is what `activePane()` falls back to.
+    // last in is the one to scroll: that is what `activePane()` falls back to.
     const pane = editor.activePane();
     const source = pane.source;
     let offset = 0;
