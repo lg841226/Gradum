@@ -125,6 +125,52 @@ The fat JAR will be at `build/libs/gradum@0.9.2.jar`.
 The plugin requires vendored JARs from IntelliJ IDEA 2026.2. See the
 [plugin README](plugin/README.md#special-build-setup) for detailed instructions.
 
+### Build Pitfalls
+
+Gradum is not a single-JDK single-command build. It targets two JDKs at once, leans on IDE-copied
+jars, and packages a fat jar, so a plain `./gradlew build` on a fresh machine hits several traps.
+If a build fails, work through this list first.
+
+#### 1. Two JDKs are required
+
+- The root **server** module declares `jvmToolchain(21)` (see `build.gradle.kts`).
+- The **IntelliJ plugin** module requires `jvmToolchain(25)` (`plugin/build.gradle.kts`).
+
+On Windows/ARM64 you need matching **ARM64** builds of **both** JDK 21 and JDK 25 (or let Gradle
+toolchains auto-provision them). A missing JDK 21 surfaces as:
+
+```
+Cannot find a Java installation ... {languageVersion=21}
+```
+
+CI builds the server alone with `./gradlew :test -Pgradum.skipPlugin` for exactly this reason; use
+the same flag if your machine cannot satisfy the plugin's JDK 25.
+
+#### 2. The server fat-jar task conflicts with Gradle 9.5.1
+
+The `io.ktor.plugin` fat-jar task (`:shadowDistTar`) uses a `mainClassName` property that Gradle
+9.5.1 removed, so a full `./gradlew build` can fail at the packaging step. The tasks you usually
+want (`compileKotlin`, `test`, `run`, `buildFatJar`) never touch the shadow jar and work fine.
+
+#### 3. Do not enable Gradle configuration-cache
+
+Setting `org.gradle.configuration-cache=true` breaks the `:plugin:generateBuildConfig` task, which
+closes over non-serializable Gradle script objects. Leave it disabled.
+
+#### 4. Missing `plugin/libs/` jars are warnings, not errors
+
+`plugin/build.gradle.kts` resolves Compose for Desktop from Maven (`composeUI()`) and loads the
+matching Jewel jars from `plugin/libs/*.jar` (copied from the IDE's `Contents/lib/`). On non-macOS
+those files may not exist, so you'll see a list like:
+
+```
+w: Specified Dependency Does Not Exist ... intellij.libraries.compose.foundation.desktop.jar
+```
+
+These are **warnings**; the plugin still compiles. Jewel and Compose are shipped *inside* the plugin
+so that the theme bridge, Markdown modules, and Compose resources all resolve on the plugin
+classloader (see the comments in `plugin/build.gradle.kts`); the IDE only supplies the platform APIs.
+
 ## Coding Standards
 
 All Kotlin code must follow the conventions in:
