@@ -473,6 +473,11 @@ body.is-dragging .code-pane {
     cursor: col-resize;
     touch-action: none;
     align-self: stretch;
+    /* Lift the divider and its grab strip above both panes: the panes are
+       positioned siblings that would otherwise paint over the strip's outer
+       half — the right half in a row split — and swallow the press that was
+       aimed at the handle. */
+    z-index: 5;
     background: color-mix(in srgb, var(--border) 45%, transparent);
     transition: flex-basis var(--motion-fast) var(--ease-standard),
     visibility var(--motion-fast) var(--ease-standard);
