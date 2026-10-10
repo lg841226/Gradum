@@ -159,6 +159,37 @@ export const icons = {
   "theme-dark": '<path d="M14 8.53A6 6 0 1 1 7.47 2A4.67 4.67 0 0 0 14 8.53Z" stroke-width="1.2"'
     + ' stroke-linejoin="round"/>',
 
+  // expui/general/locked.svg / locked_dark.svg
+  locked: '<path fill-rule="evenodd" clip-rule="evenodd"'
+    + ' d="M5 5C5 3.34315 6.34315 2 8 2C9.65685 2 11 3.34315 11 5V6C12.1046 6 13 6.89543 13 8V12C13'
+    + ' 13.1046 12.1046 14 11 14H5C3.89543 14 3 13.1046 3 12V8C3 6.89543 3.89543 6 5 6V5ZM10'
+    + ' 5V6H6V5C6 3.89543 6.89543 3 8 3C9.10457 3 10 3.89543 10 5ZM5 7C4.44772 7 4 7.44772 4'
+    + ' 8V12C4 12.5523 4.44772 13 5 13H11C11.5523 13 12 12.5523 12 12V8C12 7.44772 11.5523 7 11'
+    + ' 7H5ZM8 8.5C7.72386 8.5 7.5 8.72386 7.5 9V11C7.5 11.2761 7.72386 11.5 8 11.5C8.27614 11.5'
+    + ' 8.5 11.2761 8.5 11V9C8.5 8.72386 8.27614 8.5 8 8.5Z" fill="currentColor" stroke="none"/>',
+
+  // expui/general/unlocked.svg / unlocked_dark.svg
+  unlocked: '<path fill-rule="evenodd" clip-rule="evenodd"'
+    + ' d="M10 5C10 3.34315 11.3431 2 13 2C14.6569 2 16 3.34315 16 5V6.5C16 6.77614 15.7761 7 15.5'
+    + ' 7C15.2239 7 15 6.77614 15 6.5V5C15 3.89543 14.1046 3 13 3C11.8954 3 11 3.89543 11'
+    + ' 5V6C12.1046 6 13 6.89543 13 8V12C13 13.1046 12.1046 14 11 14H5C3.89543 14 3 13.1046 3'
+    + ' 12V8C3 6.89543 3.89543 6 5 6H10V5ZM5 7H10.5H11C11.5523 7 12 7.44772 12 8V12C12 12.5523'
+    + ' 11.5523 13 11 13H5C4.44772 13 4 12.5523 4 12V8C4 7.44772 4.44772 7 5 7ZM8 8.5C7.72386 8.5'
+    + ' 7.5 8.72386 7.5 9V11C7.5 11.2761 7.72386 11.5 8 11.5C8.27614 11.5 8.5 11.2761 8.5 11'
+    + ' V9C8.5 8.72386 8.27614 8.5 8 8.5Z" fill="currentColor" stroke="none"/>',
+
+  // expui/status/infoOutline.svg / infoOutline_dark.svg — the hollow info
+  // mark. The platform grays it per theme; the gray is rewritten to
+  // currentColor so whoever hosts it decides the paint.
+  "info-outline": '<path fill-rule="evenodd" clip-rule="evenodd"'
+    + ' d="M8 1C4.13401 1 1 4.13401 1 8C1 11.866 4.13401 15 8 15C11.866 15 15 11.866 15 8'
+    + 'C15 4.13401 11.866 1 8 1ZM8 2C4.68629 2 2 4.68629 2 8C2 11.3137 4.68629 14 8 14'
+    + 'C11.3137 14 14 11.3137 14 8C14 4.68629 11.3137 2 8 2Z" fill="currentColor" stroke="none"/>'
+    + '<path d="M7 11C7 11.5523 7.44772 12 8 12C8.55228 12 9 11.5523 9 11L9 8'
+    + 'C9 7.94771 8.55228 7 8 7C7.44771 7 7 7.44772 7 8L7 11Z" fill="currentColor" stroke="none"/>'
+    + '<path d="M8 4C7.44771 4 7 4.44772 7 5C7 5.55228 7.44771 6 8 6C8.55228 6 9 5.55228 9 5'
+    + 'C9 4.44772 8.55228 4 8 4Z" fill="currentColor" stroke="none"/>',
+
   // Drawn at the same 1 stroke as the run icon it stands in for, so swapping one
   // for the other does not read as a change in weight.
   spinner: '<path d="M13.5 8a5.5 5.5 0 1 1-3.8-5.23" stroke-width="1"/>',

@@ -78,6 +78,11 @@ export function mountTabs(store, {strips}) {
 
   function create() {
     const state = store.getState();
+    // Reader mode has no editing to start: the rail button is disabled and the
+    // shortcut lands here too, so this is the one gate either path crosses.
+    if (state.reader) {
+      return;
+    }
     addDoc({
       id: state.nextId,
       name: nextName(state),

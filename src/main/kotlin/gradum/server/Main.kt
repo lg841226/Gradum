@@ -16,6 +16,8 @@ import kotlinx.coroutines.runBlocking
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.net.BindException
+import java.net.InetAddress
+import java.net.UnknownHostException
 
 private val logger: Logger = LoggerFactory.getLogger("Main")
 
@@ -85,15 +87,38 @@ private fun startHttp(arguments: Array<String>) {
   val runtime = initRuntime()
   val settings = runtime.settings
 
-  if (!ServerAuth.isLoopbackBindHost(settings.host)) {
+  val exposedToNetwork: Boolean = !ServerAuth.isLoopbackBindHost(settings.host)
+  if (exposedToNetwork && !settings.allowRemote) {
     logger.error(
-      "server.host is set to '${settings.host}', which is not a loopback address. " +
-        "Gradum serves the local machine only; set server.host to localhost, 127.0.0.1, " +
-        "or ::1 in ~/.gradum/settings.json and restart."
+      "server.host is '${settings.host}', which is not a loopback address, and server.allowRemote is off. " +
+        "Set \"allowRemote\": true in ~/.gradum/settings.json to serve other machines on this network, " +
+        "or keep server.host on localhost, 127.0.0.1, or ::1 to serve this machine only."
     )
     runtime.skillWatcher.close()
     runtime.mcpManager.close()
     return
+  }
+  if (exposedToNetwork) {
+    logger.warn(
+      "server.allowRemote is on: Gradum is reachable from other machines on this network. " +
+        "Every request still requires the bearer token in ${ServerAuth.tokenFile().absolutePath}. " +
+        "Set server.allowRemote to false to go back to serving this machine only."
+    )
+    try {
+      InetAddress.getByName(settings.host)
+    } catch (_: UnknownHostException) {
+      logger.error(
+        "server.host '${settings.host}' does not resolve to an address this machine can bind; " +
+          "fix it in ~/.gradum/settings.json and restart."
+      )
+      runtime.skillWatcher.close()
+      runtime.mcpManager.close()
+      return
+    }
+  } else if (settings.allowRemote) {
+    logger.info(
+      "server.allowRemote is on, but server.host is '${settings.host}' — still serving this machine only"
+    )
   }
 
   val resolvedPort: Int =
@@ -125,11 +150,11 @@ private fun startHttp(arguments: Array<String>) {
   val authToken: String = ServerAuth.resolveToken()
 
   val serverConfiguration = ServerConfiguration(
+    authToken = authToken,
     portNumber = resolvedPort,
     plugins = settings.plugins,
     hostAddress = settings.host,
     defaultApiKey = runtime.resolvedApiKey,
-    authToken = authToken,
     defaultBaseUrl = settings.defaultBaseUrl,
     defaultModelName = settings.defaultModelName,
     defaultThinkEnabled = settings.defaultThinkEnabled,
@@ -138,11 +163,19 @@ private fun startHttp(arguments: Array<String>) {
 
   val server: GradumServer = createServerInstance(serverConfiguration)
 
-  val editorHost: String = if (settings.host.contains(':')) "[${settings.host}]" else settings.host
-  logger.info(
-    "Skill editor: http://$editorHost:$resolvedPort/skills/editor" +
-      "?${ServerAuth.TOKEN_QUERY_PARAM}=$authToken"
-  )
+  val editorPath = "/skills/editor?${ServerAuth.TOKEN_QUERY_PARAM}=$authToken"
+  if (exposedToNetwork) {
+    logger.info("Skill editor (this machine): http://localhost:$resolvedPort$editorPath")
+    for (address in ServerAuth.localAddresses()) {
+      val urlHost: String = if (address.contains(':')) "[$address]" else address
+      logger.info("Skill editor (LAN): http://$urlHost:$resolvedPort$editorPath")
+    }
+  } else {
+    val editorHost: String =
+      if (settings.host.contains(':')) "[${settings.host}]"
+      else settings.host
+    logger.info("Skill editor: http://$editorHost:$resolvedPort$editorPath")
+  }
 
   Runtime.getRuntime().addShutdownHook(Thread {
     runtime.skillWatcher.close()

@@ -230,6 +230,16 @@ html.is-booting * {
     display: none;
 }
 
+/* The lock switch is a real button, so it turns up in the strip wearing the
+   user agent's own face: these lines hand its background, border and font back
+   to the chip rules every sibling already follows. */
+.statusbar-lock {
+    border: 0;
+    font: inherit;
+    background: none;
+    color: inherit;
+}
+
 /* The reported values, held together at the right end and packed tighter than
    the bar's own gap: each item already carries padding, and the bar gap would
    read as a hole between them. */
@@ -866,15 +876,22 @@ body.is-dragging .code-pane {
 
 /* The slider over the visible code. It rides above the scaled clone, so it never
    scales with it, and reads as a plain scrollbar thumb: a square translucent grey
-   block with no accent tint or outline to compete with the code beneath. */
+   block with no accent tint or outline to compete with the code beneath. It takes
+   the pointer — the strip below it handles every gesture the same way — and firms
+   up under hover, the grey standing heavier the way a thumb does when the mouse
+   finds it. */
 .minimap-viewport {
     top: 0;
     left: 1px;
     right: 1px;
     min-height: 2px;
     position: absolute;
-    pointer-events: none;
     background: var(--scroll-thumb);
+    transition: background var(--motion-fast) var(--ease-standard);
+}
+
+.minimap-viewport:hover {
+    background: var(--scroll-thumb-hover);
 }
 
 

@@ -21,8 +21,16 @@ private val logger: Logger = LoggerFactory.getLogger("GradumServer")
 /** Liveness route that stays reachable without a token. */
 private const val HEALTH_PATH: String = "/health"
 
-/** Editor page route; it enforces its own credential check (see Routes.kt). */
+/** Editor page route; it decides full access vs. reader mode (see Routes.kt). */
 private const val EDITOR_PAGE_PATH: String = "/skills/editor"
+
+/**
+ * The GET routes a token-less session may read so the editor can show code:
+ * the skill-source list and a single skill's source. Everything else — every
+ * POST included — keeps demanding the token, which is what makes that session
+ * read-only.
+ */
+private val READER_PATHS: Set<String> = setOf("/skills/sources", "/skills/source")
 
 typealias GradumServer = EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>
 
@@ -37,9 +45,13 @@ fun createServerInstance(serverConfiguration: ServerConfiguration): GradumServer
 
 /**
  * Ktor module that wires JSON content negotiation and registers all
- * application routes defined in [registerAllRoutes].
+ * application routes defined in [registerAllRoutes]. [pairingCode] fixes the
+ * five-character unlock code (tests use it); a null default generates a fresh
+ * one per start, printed below with the editor URLs.
  */
-fun Application.module(serverConfiguration: ServerConfiguration) {
+fun Application.module(serverConfiguration: ServerConfiguration, pairingCode: String? = null) {
+  val pairingState = PairingState(pairingCode ?: PairingState.generatePairingCode())
+
   install(plugin = ContentNegotiation) {
     json(Json {
       prettyPrint = false
@@ -50,7 +62,7 @@ fun Application.module(serverConfiguration: ServerConfiguration) {
 
   installRequestGuard(serverConfiguration)
 
-  registerAllRoutes(serverConfiguration)
+  registerAllRoutes(serverConfiguration, pairingState = pairingState)
   val skills = SkillRegistry.getAllSkills().sortedBy { it.skillName }
   if (skills.isNotEmpty()) {
     logger.info("Available skills: ${skills.count()}")
@@ -60,23 +72,27 @@ fun Application.module(serverConfiguration: ServerConfiguration) {
     logger.info("\u2514\u2500\u2500 ${skillLabel(skills.last())}")
   }
   logger.info("Gradum Server starting on ${serverConfiguration.hostAddress}:${serverConfiguration.portNumber}")
+  logger.info("Pairing code (unlock editing from other devices): ${pairingState.code}")
 }
 
 /**
  * Installs the Host whitelist and bearer-token check.
  *
  * Runs in the `Plugins` phase, before routing, so an unauthorized call is
- * rejected before any handler body executes. Two routes bypass the token
- * check: `/health` (used by the build's readiness probe and monitoring)
- * and `GET /skills/editor` (the page enforces its own credential check so
- * it can set the auth cookie and return a human-readable hint; its static
- * assets remain guarded here).
+ * rejected before any handler body executes. Four kinds of route bypass the
+ * token check: `/health` (the build's readiness probe and monitoring),
+ * `POST /skills/pair` (the pairing-code exchange that *earns* the token), and
+ * — reader mode — `GET` for the editor page with its static assets plus the
+ * two skill-source reads that put code on screen. Everything else, every POST
+ * included, still carries the token check below, and since the mutating
+ * routes are all POSTs, that is exactly what makes a token-less session
+ * read-only.
  */
 private fun Application.installRequestGuard(serverConfiguration: ServerConfiguration) {
   intercept(ApplicationCallPipeline.Plugins) {
     val requestHost: String =
       call.request.headers[HttpHeaders.Host] ?: call.request.host()
-    if (!ServerAuth.isAllowedHostHeader(requestHost)) {
+    if (!ServerAuth.isAllowedHostHeader(requestHost, serverConfiguration.hostAddress)) {
       call.respondText(
         text = JsonUtil.encodeMap(mapOf("error" to "forbidden host")),
         status = HttpStatusCode.Forbidden,
@@ -90,7 +106,15 @@ private fun Application.installRequestGuard(serverConfiguration: ServerConfigura
 
     val requestPath: String = call.request.path()
     if (requestPath == HEALTH_PATH) return@intercept
-    if (requestPath == EDITOR_PAGE_PATH && call.request.httpMethod == HttpMethod.Get) return@intercept
+    if (requestPath == ServerAuth.PAIR_PATH) return@intercept
+
+    val isGet = call.request.httpMethod == HttpMethod.Get
+    if (isGet) {
+      if (requestPath == EDITOR_PAGE_PATH || requestPath.startsWith("$EDITOR_PAGE_PATH/")) {
+        return@intercept
+      }
+      if (requestPath in READER_PATHS) return@intercept
+    }
 
     val candidateToken: String? =
       bearerToken(call.request)

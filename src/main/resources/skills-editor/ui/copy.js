@@ -82,6 +82,8 @@ export const copy = {
     label: "Status bar",
     encodingTip: "Text stored as UTF-8",
     lineEndingTip: "Lines end with LF (\\n)",
+    lockedTip: "Make the skill file editable",
+    unlockedTip: "Make the skill file read only and lock it",
     position: (line, column) => `${line}:${column}`,
     indent: (count) => `${count} ${plural(count, "space")}`,
     errors: (count) => `${count} ${plural(count, "error")}`,
@@ -92,6 +94,18 @@ export const copy = {
     positionTip: (line, column) => `Caret at line ${line}, column ${column}`,
     selection: (count, lineCount) =>
       `${count} ${plural(count, "char")}, ${lineCount} ${plural(lineCount, "break")}`,
+  },
+
+  unlock: {
+    submit: "Unlock",
+    cancel: "Cancel",
+    title: "Enable Editing",
+    placeholder: "Server token",
+    codePlaceholder: "Pairing code",
+    invalid: "Sorry, the token did not match, please try again",
+    codeInvalid: "Sorry, the code was incorrect, please try again",
+    codeHint: "Enter the pairing code shown on the Gradum console.",
+    hint: "Paste the server token ~/.gradum/server.token to exit reader mode.",
   },
 
   problems: {

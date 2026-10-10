@@ -226,13 +226,13 @@ data class ConfigOverrides(
     fun fromRequestMap(rawConfig: Map<String, String>?): ConfigOverrides {
       if (rawConfig == null) return ConfigOverrides()
       return ConfigOverrides(
-        numCtx = rawConfig["numCtx"]?.toIntOrNull(),
-        topP = rawConfig["topP"]?.toDoubleOrNull(),
-        timeout = rawConfig["timeout"]?.toIntOrNull(),
-        think = rawConfig["think"]?.toBoolean(),
-        numPredict = rawConfig["numPredict"]?.toIntOrNull(),
         baseUrl = rawConfig["baseUrl"],
         provider = rawConfig["provider"],
+        think = rawConfig["think"]?.toBoolean(),
+        topP = rawConfig["topP"]?.toDoubleOrNull(),
+        numCtx = rawConfig["numCtx"]?.toIntOrNull(),
+        timeout = rawConfig["timeout"]?.toIntOrNull(),
+        numPredict = rawConfig["numPredict"]?.toIntOrNull(),
         temperature = rawConfig["temperature"]?.toDoubleOrNull(),
         apiKey = rawConfig["apiKey"]?.trim()?.takeIf { it.isNotEmpty() },
         chatCompletionsPath = rawConfig["chatCompletionsPath"]?.trim()?.takeIf { it.isNotEmpty() },
@@ -270,6 +270,9 @@ internal fun inferChatCompletionsPath(baseUrl: String): String {
 @Serializable
 internal data class SkillDeployRequest(val name: String, val source: String)
 
+@Serializable
+internal data class PairRequestBody(val code: String = "")
+
 /**
  * Registers every HTTP route the Gradum server exposes:
  * - `POST /events`: streams an agent run as NDJSON.
@@ -279,6 +282,7 @@ internal data class SkillDeployRequest(val name: String, val source: String)
  * - `GET /skills` : registered Skill implementations.
  * - `POST /skills/deploy` : write one external skill source and return compile diagnostics.
  * - `POST /skills/build` : compile one external skill source without writing or loading it.
+ * - `POST /skills/pair` : trade the five-character pairing code for the auth cookie.
  * - `GET /skills/sources` : list the external skill source names.
  * - `GET /skills/source`  : read one external skill source.
  * - `GET /skills/editor`  : the bundled skill editor page.
@@ -287,6 +291,7 @@ internal data class SkillDeployRequest(val name: String, val source: String)
 fun Application.registerAllRoutes(
   serverConfiguration: ServerConfiguration = ServerConfiguration(),
   pendingQuestions: gradum.skill.PendingQuestions = gradum.skill.PendingQuestions(),
+  pairingState: PairingState = PairingState(),
 ) {
   val serverStartTime: LocalDateTime = LocalDateTime.now()
   val activeSessions: ConcurrentHashMap<String, SessionEntry> = ConcurrentHashMap()
@@ -861,6 +866,26 @@ fun Application.registerAllRoutes(
       call.respondSkillCompileResult(buildResult)
     }
 
+    post(ServerAuth.PAIR_PATH) {
+      val requestBody: PairRequestBody = call.receive<PairRequestBody>()
+      if (!pairingState.tryUnlock(requestBody.code)) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "bad pairing code")),
+          status = HttpStatusCode.Unauthorized,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+      val authToken: String? = serverConfiguration.authToken?.takeIf { it.isNotEmpty() }
+      if (authToken != null) {
+        call.response.header(HttpHeaders.SetCookie, ServerAuth.authCookieHeader(authToken))
+      }
+      call.respondText(
+        text = JsonUtil.encodeMap(mapOf("ok" to true)),
+        contentType = ContentType.Application.Json,
+      )
+    }
+
     get("/skills/editor") {
       val editorHtml: String? = readBundledResource("/skills-editor/index.html")
       if (editorHtml == null) {
@@ -870,37 +895,50 @@ fun Application.registerAllRoutes(
         )
         return@get
       }
+
+      if (call.request.queryParameters["lock"] == "1") {
+        call.response.header(HttpHeaders.CacheControl, "no-store")
+        call.respondText(
+          text = editorHtml.replaceFirst("<html", "<html data-reader"),
+          contentType = ContentType.Text.Html,
+        )
+        return@get
+      }
       val authToken: String? = serverConfiguration.authToken?.takeIf { it.isNotEmpty() }
       if (authToken != null) {
         val queryToken: String? = call.request.queryParameters[ServerAuth.TOKEN_QUERY_PARAM]
         val cookieToken: String? = call.request.cookies[ServerAuth.TOKEN_COOKIE_NAME]
         if (ServerAuth.tokenMatches(queryToken, authToken)) {
-          call.response.header(
-            HttpHeaders.SetCookie,
-            "${ServerAuth.TOKEN_COOKIE_NAME}=$authToken; Path=/; HttpOnly; SameSite=Strict"
-          )
+          call.response.header(HttpHeaders.SetCookie, ServerAuth.authCookieHeader(authToken))
         } else if (!ServerAuth.tokenMatches(cookieToken, authToken)) {
+          val marker =
+            if (queryToken != null) " data-reader=\"invalid\""
+            else " data-reader"
+
+          call.response.header(HttpHeaders.CacheControl, "no-store")
           call.respondText(
-            text = editorUnauthorizedMessage(),
-            status = HttpStatusCode.Unauthorized,
-            contentType = ContentType.Text.Plain,
+            text = editorHtml.replaceFirst("<html", "<html$marker"),
+            contentType = ContentType.Text.Html,
           )
           return@get
         }
       }
+      call.response.header(HttpHeaders.CacheControl, "no-store")
       call.respondText(text = editorHtml, contentType = ContentType.Text.Html)
     }
 
     get("/skills/editor/{asset...}") {
       val segments: List<String> = call.parameters.getAll("asset").orEmpty()
       val asset: String = segments.joinToString("/")
-      val contentType: ContentType? = when {
-        asset.endsWith(".css") -> ContentType.Text.CSS
-        asset.endsWith(".js") -> ContentType.Text.JavaScript
-        asset.endsWith(".svg") -> ContentType.Image.SVG
-        asset.endsWith(".html") -> ContentType.Text.Html
-        else -> null
-      }
+      val contentType: ContentType? =
+        when {
+          asset.endsWith(".css") -> ContentType.Text.CSS
+          asset.endsWith(".js") -> ContentType.Text.JavaScript
+          asset.endsWith(".svg") -> ContentType.Image.SVG
+          asset.endsWith(".html") -> ContentType.Text.Html
+          else -> null
+        }
+
       val isSafe: Boolean = segments.isNotEmpty() && segments.all { segment ->
         segment.isNotBlank() && segment != "." && segment != ".." && !segment.contains('\\')
       }
@@ -948,13 +986,3 @@ private fun readBundledResource(resourcePath: String): String? =
   SkillDeployRequest::class.java.getResourceAsStream(resourcePath)
     ?.bufferedReader()
     ?.use { reader -> reader.readText() }
-
-/** Plain-text body shown when the editor page is opened without a token. */
-private fun editorUnauthorizedMessage(): String =
-  """
-  |Unauthorized. Open the skill editor with a valid token, for example:
-  |  http://localhost:8765/skills/editor?token=<token>
-  |
-  |The token is stored at ~/.gradum/server.token; read it with:
-  |  cat ~/.gradum/server.token
-  """.trimMargin()

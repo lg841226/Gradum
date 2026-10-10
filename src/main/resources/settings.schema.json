@@ -159,6 +159,11 @@
           "description": "Host address to bind (use '0.0.0.0' to listen on all interfaces)",
           "default": "localhost"
         },
+        "allowRemote": {
+          "type": "boolean",
+          "description": "Explicit opt-in for serving other machines. With false the server only ever binds loopback; setting host past loopback without this refuses to start. When on, every request still requires the bearer token.",
+          "default": false
+        },
         "port": {
           "type": "integer",
           "description": "Port number to bind",

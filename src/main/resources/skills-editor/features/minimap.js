@@ -7,8 +7,9 @@ import {activeDoc} from "../core/store.js";
 //
 // The scale fits the visible code width to the strip, so a line that fills the
 // code pane reaches the far edge of the strip and longer lines clip. The strip
-// itself slides to keep the viewport rectangle in view, and pressing or
-// dragging anywhere in it scrolls the editor to that point, centred under the
+// slides with the editor's own progress through the document, so the rectangle
+// travels the map top to bottom instead of resting in its middle, and pressing
+// or dragging anywhere in it scrolls the editor to that point, centred under the
 // pointer. The clone refreshes on every keystroke and on document switches;
 // squiggle bands are carried over as overview markers while the current-line
 // band and the selection and match boxes are dropped, because they belong to
@@ -52,15 +53,15 @@ export function mountMinimap(store, {container, source, highlightCode}) {
     const scaledContent = source.scrollHeight * scale;
     const viewTop = source.scrollTop * scale;
     const viewHeight = source.clientHeight * scale;
+    const overflow = scaledContent - stripHeight;
+    const maxScroll = source.scrollHeight - source.clientHeight;
 
-    if (scaledContent <= stripHeight) {
-      windowOffset = 0;
+    if (overflow > 0 && maxScroll > 0) {
+      windowOffset = (source.scrollTop / maxScroll) * overflow;
     } else {
-      windowOffset = Math.max(
-        0,
-        Math.min(viewTop - (stripHeight - viewHeight) / 2, scaledContent - stripHeight),
-      );
+      windowOffset = 0;
     }
+
     content.style.transform = `translateY(${-windowOffset}px) scale(${scale})`;
 
     const rectTop = Math.min(Math.max(0, viewTop - windowOffset), stripHeight - 2);
@@ -85,8 +86,14 @@ export function mountMinimap(store, {container, source, highlightCode}) {
     dragging = true;
     document.body.classList.add("is-dragging");
     const stripTop = strip.getBoundingClientRect().top;
+    const documentY = (event.clientY - stripTop + windowOffset) / scale;
+
+    source.scrollTop = Math.max(
+      0,
+      Math.min(documentY - source.clientHeight / 2, source.scrollHeight),
+    );
+    update();
     grabOffset = (event.clientY - stripTop + windowOffset) / scale - source.scrollTop;
-    scrollToPointer(event.clientY);
   });
   window.addEventListener("mousemove", (event) => {
     if (dragging) {

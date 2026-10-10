@@ -595,3 +595,153 @@
     transition: opacity var(--motion-fast) var(--ease-standard),
     transform var(--motion-fast) var(--ease-standard);
 }
+
+/* The unlock dialog: reader mode's way out when the session carries no token.
+   A wash over the page keeps the code behind it as context rather than a
+   second thing to close first, and the card sits centered on it. */
+.unlock-backdrop {
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    position: fixed;
+    place-items: center;
+    padding: var(--space-4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(4px);
+    animation: unlock-fade var(--motion-fast) var(--ease-standard);
+}
+
+.unlock-backdrop[hidden] {
+    display: none;
+}
+
+/* The entrance runs in two beats: the backdrop fades its blur in first, then
+   the card pops after it — the pop waits out one motion-fast and carries its
+   own start state through the wait. The display flip that opens the dialog
+   replays both on every open. */
+@keyframes unlock-fade {
+    from {
+        opacity: 0;
+    }
+}
+
+@keyframes unlock-pop {
+    from {
+        opacity: 0;
+        scale: .95;
+    }
+}
+
+.unlock-card {
+    display: grid;
+    gap: var(--space-3);
+    width: min(440px, 100%);
+    padding: var(--space-6);
+    background: var(--bg-popup);
+    box-shadow: var(--shadow-popup);
+    border-radius: var(--radius-dialog);
+    border: 1px solid var(--border-strong);
+    animation: unlock-pop var(--motion-fast) var(--ease-standard) var(--motion-fast) both;
+}
+
+.unlock-title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.unlock-title-row .icon {
+    color: var(--accent);
+}
+
+.unlock-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.unlock-hint {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: var(--font-size-ui);
+}
+
+.unlock-input {
+    width: 100%;
+    color: var(--text);
+    padding: 6px var(--space-2);
+    background: var(--bg-raised);
+    font-size: var(--font-size-ui);
+    border-radius: var(--radius-control);
+    border: 1px solid var(--border-strong);
+}
+
+.unlock-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+/* The pairing code splits into six single-digit cells: fixed 44px boxes in a
+   centered row, sized to fit the card, wrapping instead of overflowing on a
+   narrow screen. */
+.unlock-codes {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-2);
+}
+
+.unlock-codes[hidden] {
+    display: none;
+}
+
+.unlock-code {
+    padding: 0;
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+    text-align: center;
+    text-transform: uppercase;
+    color: var(--text);
+    background: var(--bg-raised);
+    border-radius: var(--radius-control);
+    border: 1px solid var(--border-strong);
+    font-family: var(--font-mono), monospace;
+}
+
+.unlock-code:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.unlock-error {
+    margin: 0;
+    color: var(--error);
+    font-size: var(--font-size-ui);
+}
+
+.unlock-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+}
+
+.unlock-submit {
+    background: var(--accent);
+    color: #fff;
+}
+
+.unlock-submit:hover {
+    background: var(--accent-hover);
+}
+
+/* The accent face stays put while the button is disabled — the generic
+   disabled-hover rule would otherwise wash it out on the way to gray. */
+.unlock-submit:disabled,
+.unlock-submit.btn:disabled:hover {
+    color: #fff;
+    opacity: .5;
+    cursor: default;
+    background: var(--accent);
+}

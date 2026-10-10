@@ -35,6 +35,9 @@ export function mountRail(store, {canvas, onOpen, onCreate}) {
 
   let signature = null;
   const render = (state) => {
+
+    newButton.disabled = Boolean(state.reader);
+
     const names = [...new Set([...state.files, ...state.docs.map((doc) => doc.name)])];
     const activeName = state.docs.find((doc) => doc.id === state.activeId)?.name ?? null;
     const next = JSON.stringify([names, activeName, state.files, state.treeCollapsed]);

@@ -2,6 +2,7 @@ package gradum.server
 
 import gradum.AgentConfiguration
 import gradum.mcp.McpServerConfig
+import gradum.server.ServerSettingsStore.warnUnknownKeys
 import gradum.utils.CommandFilterConfig
 import gradum.utils.JsonUtil
 import gradum.utils.ProtectedPathsConfig
@@ -22,6 +23,13 @@ private val logger: Logger = LoggerFactory.getLogger("ServerSettingsStore")
  */
 data class ServerSettings(
   val host: String,
+  /**
+   * Explicit opt-in for serving other machines. With `false` (the default) a
+   * non-loopback [host] refuses to start, so the server can never be exposed
+   * by accident; `true` is what allows the bind past loopback and the LAN
+   * `Host` names that come with it (see gradum.server.Main).
+   */
+  val allowRemote: Boolean,
   val port: Int,
   /** Path to a file whose first non-blank line is used as the default API key. */
   val apiKeyFile: String?,
@@ -45,7 +53,7 @@ data class ServerSettings(
   /**
    * Whether the user has completed the interactive setup wizard at least once.
    * Written as a top-level `configured` flag on the first successful setup; the
-   * ACP transport uses it to ask a fresh install to run setup before a session.
+   * ACP transport uses it to ask a fresh installation to run setup before a session.
    */
   val isConfigured: Boolean,
 )
@@ -137,6 +145,16 @@ object ServerSettingsStore {
     if (rawHost != null) {
       if (rawHost is String && rawHost.isNotBlank()) host = rawHost
       else issues += ValidationIssue("server.host", Severity.ERROR, "expected a non-empty host string; got ${describe(rawHost)}")
+    }
+
+    var allowRemote = false
+    val rawAllowRemote: Any? = serverGroup["allowRemote"]
+    if (rawAllowRemote != null) {
+      if (rawAllowRemote is Boolean) allowRemote = rawAllowRemote
+      else issues += ValidationIssue(
+        "server.allowRemote", Severity.ERROR,
+        "expected a boolean (true/false); got ${describe(rawAllowRemote)}"
+      )
     }
 
     var port: Int = ServerConfiguration.DEFAULT_PORT_NUMBER
@@ -249,16 +267,17 @@ object ServerSettingsStore {
     return ServerSettings(
       host = host,
       port = port,
+      plugins = plugins,
       apiKeyFile = apiKeyFile,
       mcpServers = mcpServers,
+      allowRemote = allowRemote,
+      isConfigured = isConfigured,
       commandFilter = commandFilter,
       defaultBaseUrl = defaultBaseUrl,
       autoDetectPort = autoDetectPort,
       defaultModelName = defaultModelName,
       defaultThinkEnabled = defaultThinkEnabled,
-      defaultKeepAliveMinutes = defaultKeepAliveMinutes,
-      plugins = plugins,
-      isConfigured = isConfigured
+      defaultKeepAliveMinutes = defaultKeepAliveMinutes
     )
   }
 
@@ -300,7 +319,7 @@ object ServerSettingsStore {
     "deepseek.baseUrl", "deepseek.apiKey", "deepseek.allowRemote",
     "minimax.baseUrl", "minimax.apiKey", "minimax.allowRemote",
   )
-  private val SERVER_KEYS: Set<String> = setOf("host", "port", "autoDetectPort", "apiKeyFile")
+  private val SERVER_KEYS: Set<String> = setOf("host", "allowRemote", "port", "autoDetectPort", "apiKeyFile")
   private val LLM_KEYS: Set<String> = setOf("baseUrl", "model", "think")
 
   private fun logIssues(issues: List<ValidationIssue>) {

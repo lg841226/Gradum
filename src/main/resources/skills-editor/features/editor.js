@@ -117,6 +117,11 @@ export function mountEditor(store, {canvas, showPanel}) {
     if (!doc) {
       return;
     }
+    // Reader mode never compiles or installs: the run widget is disabled, and
+    // a keyboard path that reached here anyway stops at the same line.
+    if (state.reader) {
+      return;
+    }
 
     // The buffer is read from the store, not from a textarea: the store is the
     // single source of truth, `onInput` has already written every keystroke
@@ -195,6 +200,9 @@ export function mountEditor(store, {canvas, showPanel}) {
     const state = store.getState();
     const doc = activeDoc(state);
     if (!doc) {
+      return;
+    }
+    if (state.reader) {
       return;
     }
 
@@ -344,6 +352,14 @@ export function mountEditor(store, {canvas, showPanel}) {
       } else if (baselineChanged && pane.source.value === text) {
         pane.renderHighlight(text);
       }
+    }
+
+    // Reader mode locks both surfaces; a document-less surface was already
+    // read-only. Written on every render because the flag flips while the same
+    // document stays open, and loadDoc only runs when the document changes.
+    const locked = Boolean(state.reader);
+    for (const pane of panes) {
+      pane.source.readOnly = locked || !doc;
     }
 
     const splitOn = Boolean(state.split) && Boolean(doc);

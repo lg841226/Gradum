@@ -44,6 +44,7 @@ class ServerSettingsStoreTest {
     val settings: ServerSettings = ServerSettingsStore.load()
 
     assertEquals(ServerConfiguration.DEFAULT_HOST_ADDRESS, settings.host)
+    assertFalse(settings.allowRemote)
     assertEquals(ServerConfiguration.DEFAULT_PORT_NUMBER, settings.port)
     assertFalse(settings.autoDetectPort)
     assertNull(settings.apiKeyFile)
@@ -123,6 +124,15 @@ class ServerSettingsStoreTest {
 
     assertEquals(ServerConfiguration.DEFAULT_PORT_NUMBER, settings.port)
     assertEquals(ServerConfiguration.DEFAULT_HOST_ADDRESS, settings.host)
+  }
+
+  @Test
+  fun `load parses allowRemote and falls back when it is not a boolean`() {
+    File(tempDir, "settings.json").writeText("""{"server": {"host": "0.0.0.0", "allowRemote": true}}""")
+    assertTrue(ServerSettingsStore.load().allowRemote)
+
+    File(tempDir, "settings.json").writeText("""{"server": {"allowRemote": "yes"}}""")
+    assertFalse(ServerSettingsStore.load().allowRemote)
   }
 
   @Test

@@ -14,11 +14,15 @@ The plugin communicates only with the Gradum runtime that you run on your own ma
 HTTP on localhost (default `http://localhost:8765`). Your code, prompts, and attachments are
 sent to that local runtime. They are not sent to the plugin authors.
 
-The local HTTP endpoint is not open: it answers only requests whose `Host` header names a
-loopback address and that carry the per-machine bearer token. The runtime generates that token
+The local HTTP endpoint is not open: by default it binds loopback only and answers only requests whose `Host`
+header names a loopback address and that carry the per-machine bearer token. The one opt-in that changes this is
+`"server.allowRemote": true` together with a non-loopback `server.host`, which lets the server answer its own
+machine's addresses on the local network — still only requests carrying the token. The runtime generates that token
 on first start and stores it at `~/.gradum/server.token` with owner-only permissions (`0600`);
-it can be overridden with the `GRADUM_SERVER_TOKEN` environment variable. Only the `/health`
-liveness route is reachable without a token.
+it can be overridden with the `GRADUM_SERVER_TOKEN` environment variable. Without a token, a request can only
+read the skill editor in read-only viewer mode; editing unlocks either with the token or — from another device —
+with a five-character pairing code that the server prints to the host's console at startup and regenerates on every
+restart. Only the `/health` liveness route and the pairing-code exchange itself are reachable without a token.
 
 ## Where your data goes
 

@@ -232,7 +232,7 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
       runButton.replaceChildren(createIcon({name: runIcon}));
     }
 
-    const actionable = Boolean(activeName) && !state.busy;
+    const actionable = Boolean(activeName) && !state.busy && !state.reader;
     buildButton.disabled = !actionable;
     runButton.disabled = !actionable;
 

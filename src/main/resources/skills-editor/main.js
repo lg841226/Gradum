@@ -20,6 +20,11 @@ const DEFAULT_SKILL = "HelloSkill.kt";
 
 const canvas = document.getElementById("canvas");
 
+// The server marks the page it served without a token session. That mark makes
+// the workspace boot locked: reader mode on, no token to flip with. The same
+// switch exists for a token session, where it is a local view choice only.
+const readerMark = document.documentElement.getAttribute("data-reader");
+
 const store = createStore({
   log: [],
   docs: [],
@@ -49,6 +54,8 @@ const store = createStore({
   splitDirection: "right",
   splitRatio: 0.5,
   ...loadLayout(),
+  authed: readerMark === null,
+  reader: readerMark !== null,
 });
 
 store.subscribe(createLayoutWriter());

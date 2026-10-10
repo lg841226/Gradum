@@ -64,3 +64,15 @@ export function deploySkill(name, source) {
 export function buildSkill(name, source) {
   return postSkill("/skills/build", name, source);
 }
+
+// Trades a pairing code for the auth cookie: how a device on another machine
+// leaves reader mode without ever seeing the long server token. The code is
+// shown on the host's console at startup and resets on every restart.
+export async function pair(code) {
+  const response = await fetch("/skills/pair", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({code}),
+  });
+  return response.ok;
+}

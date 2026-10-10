@@ -2,6 +2,7 @@
   "$schema": "./settings.schema.json",
   "server": {
     "host": "localhost",
+    "allowRemote": false,
     "port": 8765,
     "autoDetectPort": false,
     "apiKeyFile": null

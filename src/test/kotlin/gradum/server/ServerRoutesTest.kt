@@ -95,20 +95,127 @@ class ServerRoutesTest {
   }
 
   @Test
-  fun `editor page rejects a missing token and sets a cookie for a valid one`(): Unit = testApplication {
+  fun `editor page serves a reader page without a token and a full page for a valid one`(): Unit = testApplication {
     application { module(ServerConfiguration(authToken = "secret-token")) }
 
+    // No token: the page ships, marked for reader mode, with no cookie set.
     val denied: HttpResponse = client.get("/skills/editor")
-    assertEquals(HttpStatusCode.Unauthorized, denied.status)
+    assertEquals(HttpStatusCode.OK, denied.status)
+    assertContains(denied.bodyAsText(), "data-reader")
+    assertNull(denied.headers[HttpHeaders.SetCookie])
 
+    // A token that misses: the same page, marked invalid so the unlock dialog
+    // can report the failed try.
+    val wrong: HttpResponse = client.get("/skills/editor?token=wrong")
+    assertEquals(HttpStatusCode.OK, wrong.status)
+    assertContains(wrong.bodyAsText(), "data-reader=\"invalid\"")
+
+    // A valid query token: the full page plus the auth cookie.
     val allowed: HttpResponse = client.get("/skills/editor?token=secret-token")
     assertEquals(HttpStatusCode.OK, allowed.status)
+    assertFalse(allowed.bodyAsText().contains("data-reader"))
     val setCookie: String = assertNotNull(allowed.headers[HttpHeaders.SetCookie])
     assertContains(setCookie, "gradum_token=secret-token")
 
+    // A browser already holding the cookie gets the full page too.
     val withCookie: HttpResponse = client.get("/skills/editor") {
       header(HttpHeaders.Cookie, "gradum_token=secret-token")
     }
     assertEquals(HttpStatusCode.OK, withCookie.status)
+    assertFalse(withCookie.bodyAsText().contains("data-reader"))
+  }
+
+  @Test
+  fun `reader mode exposes editor assets and source reads but no writes`(): Unit = testApplication {
+    application { module(ServerConfiguration(authToken = "secret-token")) }
+
+    val asset: HttpResponse = client.get("/skills/editor/main.js")
+    assertEquals(HttpStatusCode.OK, asset.status)
+
+    val sources: HttpResponse = client.get("/skills/sources")
+    assertEquals(HttpStatusCode.OK, sources.status)
+
+    val source: HttpResponse = client.get("/skills/source?name=whatever")
+    assertNotEquals(HttpStatusCode.Unauthorized, source.status)
+
+    val deploy: HttpResponse = client.post("/skills/deploy")
+    assertEquals(HttpStatusCode.Unauthorized, deploy.status)
+
+    val skills: HttpResponse = client.get("/skills")
+    assertEquals(HttpStatusCode.Unauthorized, skills.status)
+    val models: HttpResponse = client.get("/models")
+    assertEquals(HttpStatusCode.Unauthorized, models.status)
+  }
+
+  @Test
+  fun `lock query forces the reader view even for a valid cookie`(): Unit = testApplication {
+    application { module(ServerConfiguration(authToken = "secret-token")) }
+
+    val full: HttpResponse = client.get("/skills/editor") {
+      header(HttpHeaders.Cookie, "gradum_token=secret-token")
+    }
+    assertEquals(HttpStatusCode.OK, full.status)
+    assertFalse(full.bodyAsText().contains("data-reader"))
+
+    val forced: HttpResponse = client.get("/skills/editor?lock=1") {
+      header(HttpHeaders.Cookie, "gradum_token=secret-token")
+    }
+    assertEquals(HttpStatusCode.OK, forced.status)
+    assertContains(forced.bodyAsText(), "data-reader lang=")
+    assertNull(forced.headers[HttpHeaders.SetCookie])
+  }
+
+  @Test
+  fun `pairing refuses a wrong code and accepts the printed one without any token`(): Unit = testApplication {
+    application {
+      module(ServerConfiguration(authToken = "secret-token"), pairingCode = "K7X2P")
+    }
+
+    val wrong: HttpResponse = client.post("/skills/pair") {
+      contentType(ContentType.Application.Json)
+      setBody("""{"code":"ZZZZZ"}""")
+    }
+    assertEquals(HttpStatusCode.Unauthorized, wrong.status)
+    assertNull(wrong.headers[HttpHeaders.SetCookie])
+
+    val allowed: HttpResponse = client.post("/skills/pair") {
+      contentType(ContentType.Application.Json)
+      setBody("""{"code":"k7x2p"}""")
+    }
+    assertEquals(HttpStatusCode.OK, allowed.status)
+    val setCookie: String = assertNotNull(allowed.headers[HttpHeaders.SetCookie])
+    assertContains(setCookie, "gradum_token=secret-token")
+    assertContains(setCookie, "HttpOnly")
+
+    val page: HttpResponse = client.get("/skills/editor") {
+      header(HttpHeaders.Cookie, "gradum_token=secret-token")
+    }
+    assertEquals(HttpStatusCode.OK, page.status)
+    assertFalse(page.bodyAsText().contains("data-reader"))
+
+    val deploy: HttpResponse = client.post("/skills/build") {
+      header(HttpHeaders.Cookie, "gradum_token=secret-token")
+    }
+    assertNotEquals(HttpStatusCode.Unauthorized, deploy.status)
+  }
+
+  @Test
+  fun `pairing stays out of reach of a script after three wrong codes`(): Unit = testApplication {
+    application {
+      module(ServerConfiguration(authToken = "secret-token"), pairingCode = "K7X2P")
+    }
+
+    repeat(times = 3) {
+      client.post("/skills/pair") {
+        contentType(ContentType.Application.Json)
+        setBody("""{"code":"ZZZZZ"}""")
+      }
+    }
+
+    val throttled: HttpResponse = client.post("/skills/pair") {
+      contentType(ContentType.Application.Json)
+      setBody("""{"code":"k7x2p"}""")
+    }
+    assertEquals(HttpStatusCode.Unauthorized, throttled.status)
   }
 }

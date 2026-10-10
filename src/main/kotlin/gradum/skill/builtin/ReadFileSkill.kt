@@ -18,7 +18,7 @@ private const val MAXIMUM_FILE_SIZE: Int = GradumConfig.READ_MAX_FILE_SIZE
  * Files exceeding [MAXIMUM_FILE_SIZE] or [MAXIMUM_LINES] return
  * `FILE_TOO_LARGE` to keep conversation context bounded.
  *
- * **History retention: `Int.MAX_VALUE` + `emptyList()` (never
+ * **History retention: `Int.MAX_VALUE` and `emptyList()` (never
  * strip).** Even though [gradum.skill.Skill.compactHistory] only
  * strips OLDER history (the current call's result is always
  * returned to the LLM in full), `read_file` is the one skill

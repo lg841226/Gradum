@@ -85,7 +85,7 @@ response advertises a `terminal` auth method that runs `gradum setup` in the use
 
 ```jsonc
 {
-  "server": { "host": "localhost", "port": 8765, "autoDetectPort": false, "apiKeyFile": null },
+  "server": { "host": "localhost", "allowRemote": false, "port": 8765, "autoDetectPort": false, "apiKeyFile": null },
   "llm":    { "baseUrl": "http://localhost:11434", "model": "", "think": false },
   "commandFilter": { "blockedExecutables": ["reboot", "shutdown", ...], "protectedPaths": { ... } },
   "mcpServers": [ { "name": "idea", "command": "...", "workingDir": "...", "env": {} } ],
@@ -97,7 +97,9 @@ response advertises a `terminal` auth method that runs `gradum setup` in the use
 ```
 
 Unknown keys are reported at startup rather than silently ignored, and the file is validated as a compact issue tree
-(`Invalid gradum.settings (fix ~/.gradum/settings.json)`). Server logs go to stdout plus rotating files under
+(`Invalid gradum.settings (fix ~/.gradum/settings.json)`). To reach the editor from other devices on your LAN, set
+`"host": "0.0.0.0"` **and** `"allowRemote": true` — a non-loopback host without that opt-in refuses to start, and
+every request still carries the per-machine bearer token. Server logs go to stdout plus rotating files under
 `~/.gradum/logs/` (the ACP transport additionally writes `~/.gradum/logs/acp.log`).
 
 ## Building from Source Pitfalls

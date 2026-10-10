@@ -1,8 +1,13 @@
 package gradum.server
 
+import gradum.server.ServerAuth.ALLOWED_HOST_NAMES
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.net.InetAddress
+import java.net.NetworkInterface
+import java.net.SocketException
+import java.net.UnknownHostException
 import java.nio.file.Files
 import java.nio.file.attribute.PosixFileAttributeView
 import java.nio.file.attribute.PosixFilePermissions
@@ -19,7 +24,9 @@ private val logger: Logger = LoggerFactory.getLogger("ServerAuth")
  * other local processes (or a DNS-rebinding browser page) from calling
  * the dangerous routes (`POST /skills/deploy`, `POST /events`). Every
  * request therefore has to carry a per-machine token, and the `Host`
- * header has to name a loopback host.
+ * header has to name this machine: a loopback name always, and once
+ * `server.allowRemote` lifts the bind past loopback, the machine's own
+ * LAN addresses and names as well.
  *
  * The token is a 32-byte [SecureRandom] value encoded as unpadded
  * base64url. It is persisted to `~/.gradum/server.token` with `0600`
@@ -42,6 +49,9 @@ object ServerAuth {
   /** Cookie the editor page sets so its static assets pass auth. */
   const val TOKEN_COOKIE_NAME: String = "gradum_token"
 
+  /** The POST that trades a pairing code for the auth cookie. */
+  const val PAIR_PATH: String = "/skills/pair"
+
   /** Prefix of the `Authorization` header value. */
   const val BEARER_PREFIX: String = "Bearer "
 
@@ -60,7 +70,7 @@ object ServerAuth {
     return base64UrlEncoder.encodeToString(tokenBytes)
   }
 
-  /** The token file inside the resolved config directory (`~/.gradum`). */
+  /** The token file inside the resolved config directory (`/.gradum`). */
   fun tokenFile(): File = File(ServerSettingsStore.configDir(), TOKEN_FILE_NAME)
 
   /**
@@ -100,8 +110,7 @@ object ServerAuth {
       if (Files.getFileAttributeView(tokenPath, PosixFileAttributeView::class.java) != null) {
         Files.setPosixFilePermissions(tokenPath, PosixFilePermissions.fromString("rw-------"))
       }
-    } catch (unsupported: UnsupportedOperationException) {
-      // Non-POSIX filesystem; nothing to restrict.
+    } catch (_: UnsupportedOperationException) {
     } catch (failure: Exception) {
       logger.warn("Failed to restrict server token permissions: {}", failure.message)
     }
@@ -112,25 +121,92 @@ object ServerAuth {
    * one. Blank candidates fail without touching [expectedToken].
    */
   fun tokenMatches(candidate: String?, expectedToken: String): Boolean {
-    if (candidate.isNullOrEmpty()) return false
-    return MessageDigest.isEqual(
+    return !candidate.isNullOrEmpty() && MessageDigest.isEqual(
       candidate.toByteArray(Charsets.UTF_8),
       expectedToken.toByteArray(Charsets.UTF_8)
     )
   }
 
   /**
-   * Whether a `Host` header value names a loopback host. Strips the port
-   * and unwraps `[::1]` style IPv6 literals before comparing.
+   * Whether a `Host` header value may answer this request. Loopback names
+   * pass everywhere — they are what the local plugin and the build's health
+   * probe dial. When the bind address is not loopback (which only happens
+   * with `server.allowRemote` on), the machine's own addresses and names pass
+   * too, so a LAN client can dial by IP or hostname; any other name stays a
+   * rebinding attempt and is refused. [machineNames] is a test seam for
+   * [localMachineHostNames].
    */
-  fun isAllowedHostHeader(hostHeader: String?): Boolean {
+  fun isAllowedHostHeader(
+    hostHeader: String?,
+    bindHost: String = ServerConfiguration.DEFAULT_HOST_ADDRESS,
+    machineNames: Set<String>? = null,
+  ): Boolean {
     if (hostHeader.isNullOrBlank()) return false
-    return extractHostName(hostHeader).lowercase() in ALLOWED_HOST_NAMES
+    val hostName: String = extractHostName(hostHeader).lowercase()
+    if (hostName in ALLOWED_HOST_NAMES) return true
+    if (isLoopbackBindHost(bindHost)) return false
+    return hostName in (machineNames ?: localMachineHostNames())
   }
 
   /** Whether a configured bind host stays on the loopback interface. */
   fun isLoopbackBindHost(host: String): Boolean =
     host.trim().lowercase() in ALLOWED_HOST_NAMES
+
+  /**
+   * Addresses this machine answers on — the ones a LAN client puts in its
+   * `Host` header once the server binds past loopback. Loopback is skipped
+   * (it is already in [ALLOWED_HOST_NAMES]) and so is the link-local range,
+   * whose zone-qualified IPv6 forms never appear in a browser's Host line.
+   */
+  fun localAddresses(): List<String> {
+    val addresses: MutableList<String> = mutableListOf()
+    try {
+      val interfaces = NetworkInterface.getNetworkInterfaces() ?: return addresses
+      for (networkInterface in interfaces) {
+        if (!networkInterface.isUp) continue
+        for (address in networkInterface.inetAddresses) {
+          if (address.isLoopbackAddress || address.isLinkLocalAddress) continue
+          val literal: String = address.hostAddress?.substringBefore('%')?.lowercase() ?: continue
+          if (literal !in addresses) addresses += literal
+        }
+      }
+    } catch (interfaceFailure: SocketException) {
+      logger.warn("Failed to enumerate network interfaces: {}", interfaceFailure.message)
+    }
+    return addresses
+  }
+
+  /**
+   * Every name a LAN client may legally use for `Host` when the server binds
+   * past loopback: the addresses above plus the local DNS name in its full,
+   * first-label, and `.local` mDNS forms. Enumerated per check — the set is
+   * tiny and interfaces can appear after boot (Wi-Fi joining later). A
+   * rebound attacker domain matches none of these, so the guard holds.
+   */
+  fun localMachineHostNames(): Set<String> {
+    val names: MutableSet<String> = localAddresses().toMutableSet()
+    try {
+      val hostName: String = InetAddress.getLocalHost().hostName.lowercase()
+      if (hostName.isNotEmpty()) {
+        names += hostName
+        val firstLabel: String = hostName.substringBefore('.')
+        if (firstLabel.isNotEmpty()) {
+          names += firstLabel
+          names += "$firstLabel.local"
+        }
+      }
+    } catch (lookupFailure: UnknownHostException) {
+      logger.debug("Local hostname lookup failed: {}", lookupFailure.message)
+    }
+    return names
+  }
+
+  /**
+   * The auth cookie every credential path sets: host-only, invisible to
+   * scripts, and closed to cross-site requests.
+   */
+  fun authCookieHeader(authToken: String): String =
+    "$TOKEN_COOKIE_NAME=$authToken; Path=/; HttpOnly; SameSite=Strict"
 
   /** Extracts the host name from a `Host` header, dropping the port. */
   private fun extractHostName(hostHeader: String): String {
@@ -145,5 +221,70 @@ object ServerAuth {
       return trimmedHost.substring(0, colonIndex)
     }
     return trimmedHost
+  }
+}
+
+/**
+ * The five-character code a device on another machine types to leave reader
+ * mode. It exists because a 43-character token is what the host machine
+ * pastes, while a phone or tablet can only reasonably type five characters;
+ * the code is printed to the host's console at startup and regenerated on
+ * every restart, so it never lives in a file or a URL. Letters and digits,
+ * uppercase, without the confusable pairs (0/O, 1/I/L) a person would
+ * retype wrong.
+ *
+ * Three wrong tries in a row pause every try for ten seconds, which keeps
+ * the code's space out of reach of a script. Comparison is constant-time
+ * (through [ServerAuth.tokenMatches]) so response timing leaks nothing, and
+ * candidates are matched case-insensitively so lowercase typing still lands.
+ */
+class PairingState(val code: String = generatePairingCode()) {
+
+  private var failures: Int = 0
+
+  private var cooldownUntilMillis: Long = 0L
+
+  /** True when [candidate] is the code (either case) and no cooldown runs. */
+  @Synchronized
+  fun tryUnlock(candidate: String?): Boolean {
+    val nowMillis: Long = System.currentTimeMillis()
+    if (nowMillis < cooldownUntilMillis) return false
+    val normalized: String? = candidate?.trim()?.uppercase(Locale.ROOT)
+    if (ServerAuth.tokenMatches(normalized, code)) {
+      failures = 0
+      return true
+    }
+    if (!normalized.isNullOrBlank()) {
+      failures += 1
+      if (failures >= MAX_FAILURES) {
+        cooldownUntilMillis = nowMillis + COOLDOWN_MILLIS
+        failures = 0
+      }
+    }
+    return false
+  }
+
+  companion object {
+    /** Characters a code draws from: no 0/O, 1/I/L to mistype. */
+    const val CODE_ALPHABET: String = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+
+    /** How many characters a code holds. */
+    const val CODE_LENGTH: Int = 5
+
+    /** Wrong tries before every try pauses. */
+    private const val MAX_FAILURES: Int = 3
+
+    /** How long the pause lasts, in milliseconds. */
+    private const val COOLDOWN_MILLIS: Long = 10_000L
+
+    /** A fresh random five-character code, uppercase. */
+    fun generatePairingCode(): String {
+      val secureRandom = SecureRandom()
+      return buildString(CODE_LENGTH) {
+        repeat(CODE_LENGTH) {
+          append(CODE_ALPHABET[secureRandom.nextInt(CODE_ALPHABET.length)])
+        }
+      }
+    }
   }
 }

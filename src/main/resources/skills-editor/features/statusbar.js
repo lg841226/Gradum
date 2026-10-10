@@ -1,5 +1,7 @@
 import {activeDoc} from "../core/store.js";
+import {pair} from "../data/skillsApi.js";
 import {createIcon} from "../ui/components/icon.js";
+import {createUnlock} from "../ui/components/unlock.js";
 import {copy} from "../ui/copy.js";
 
 // A problem counter: a hollow severity icon beside its count. Both marks are
@@ -74,6 +76,67 @@ export function mountStatusBar(store, {canvas}) {
   bar.append(left, right);
   canvas.appendChild(bar);
 
+  // The reader switch rides the far right end of the strip. A click flips the
+  // local view when the session carries a token, and opens the unlock dialog
+  // when it does not — a token-less session can never unlock itself by
+  // clicking, which is the whole point of reader mode. How that dialog
+  // unlocks follows the page's host: the token itself on this machine, the
+  // five-character pairing code everywhere else.
+  const lock = document.createElement("button");
+  lock.type = "button";
+  lock.className = "statusbar-item statusbar-lock";
+  right.appendChild(lock);
+
+  const unlock = createUnlock({
+    onToken: (token) => {
+      location.assign(`/skills/editor?token=${encodeURIComponent(token)}`);
+    },
+    onCode: (code) => {
+      // A correct code comes back as the auth cookie, so navigating to the
+      // bare page (query dropped — including any ?lock=1) lands in editing;
+      // a wrong one reopens the dialog with why.
+      pair(code).then((ok) => {
+        if (ok) {
+          location.assign(location.pathname);
+          return;
+        }
+        unlock.show(copy.unlock.codeInvalid, "code");
+      }).catch(() => {
+        unlock.show(copy.unlock.codeInvalid, "code");
+      });
+    },
+  });
+
+  const renderLock = (state) => {
+    const locked = Boolean(state.reader);
+    const tip = locked ? copy.statusBar.lockedTip : copy.statusBar.unlockedTip;
+    if (lock.dataset.tooltip !== tip) {
+      lock.dataset.tooltip = tip;
+      lock.setAttribute("aria-label", tip);
+      lock.replaceChildren(createIcon({name: locked ? "locked" : "unlocked"}));
+    }
+  };
+
+  lock.addEventListener("click", () => {
+    const state = store.getState();
+    if (!state.authed) {
+      unlock.show();
+      return;
+    }
+    store.setState({reader: !state.reader});
+  });
+
+  store.subscribe(renderLock);
+  renderLock(store.getState());
+
+  // A token was typed and still missed, so the page came back marked invalid:
+  // say so above the field instead of reopening the dialog as if nothing had
+  // happened. The marker can only come from a ?token= attempt, so the dialog
+  // reopens in token mode wherever the page was opened from.
+  if (document.documentElement.getAttribute("data-reader") === "invalid") {
+    unlock.show(copy.unlock.invalid, "token");
+  }
+
   const render = (state) => {
     const doc = activeDoc(state);
 
@@ -107,12 +170,6 @@ export function mountStatusBar(store, {canvas}) {
     indent.dataset.tooltip = indentLabel;
 
     const {line, column} = state.cursor;
-    // The strip shows the bare "line:column" a code window uses — until the
-    // buffer holds several carets, where no single one of them is *the*
-    // position, so the whole readout becomes the headcount instead. The
-    // selection's size in parentheses trails either lead. The label spells
-    // the readout out for screen readers, which the shorthand does not
-    // convey, and carries the counts beside it the same way the strip does.
     const {selection} = state;
     const summary = selection
       ? ` (${copy.statusBar.selection(selection.characters, selection.newlines)})`
