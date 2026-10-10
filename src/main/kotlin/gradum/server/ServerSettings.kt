@@ -348,11 +348,9 @@ object ServerSettingsStore {
   }
 
   private fun describe(value: Any?): String =
-    when (value) {
-      null -> "null"
-      is String -> "\"$value\""
-      else -> value.toString()
-    }
+    value?.let {
+      if (it is String) "\"$it\"" else it.toString()
+    } ?: "null"
 
   private fun integerValue(value: Any?): Int? =
     when (value) {

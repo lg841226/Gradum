@@ -108,6 +108,7 @@ internal fun runTuiSetup(): Boolean {
 
   val shutdownHook = Thread { restoreTerminal(terminal) }
   Runtime.getRuntime().addShutdownHook(shutdownHook)
+
   try {
     terminal.enterRawMode()
     val writer = terminal.writer()
@@ -167,6 +168,7 @@ private fun runEventLoop(terminal: Terminal, state: WizardState, colored: Boolea
     writer.flush()
 
     val pressedKey: Key = readKey(reader)
+
     if (pressedKey == Key.Quit) return false
 
     if (state.editing) {
@@ -285,12 +287,13 @@ private class WizardState(private val root: Map<String, Any?>) {
   var step: Int = STEP_PROVIDER
   private val editBuffer: StringBuilder = StringBuilder()
 
-  fun fieldCount(): Int = when (step) {
-    STEP_PROVIDER -> PROVIDER_CHOICES.size
-    STEP_CREDENTIALS -> 2
-    STEP_CONNECTION -> 1
-    else -> 0
-  }
+  fun fieldCount(): Int =
+    when (step) {
+      STEP_PROVIDER -> PROVIDER_CHOICES.size
+      STEP_CREDENTIALS -> 2
+      STEP_CONNECTION -> 1
+      else -> 0
+    }
 
   fun moveStep(delta: Int) {
     editing = false
@@ -304,8 +307,10 @@ private class WizardState(private val root: Map<String, Any?>) {
       focus = providerIndex
       return
     }
+
     val fieldTotal = fieldCount()
     if (fieldTotal == 0) return
+
     focus = ((focus + delta) % fieldTotal + fieldTotal) % fieldTotal
   }
 
@@ -313,6 +318,7 @@ private class WizardState(private val root: Map<String, Any?>) {
     val providerTotal = PROVIDER_CHOICES.size
     val nextIndex = ((providerIndex + delta) % providerTotal + providerTotal) % providerTotal
     if (nextIndex == providerIndex) return
+
     providerIndex = nextIndex
     baseUrl = existingString(root, "${provider.key}.baseUrl").ifBlank { provider.baseUrl }
     apiKey = existingString(root, "${provider.key}.apiKey")
@@ -329,6 +335,7 @@ private class WizardState(private val root: Map<String, Any?>) {
         STEP_CREDENTIALS if focus == 0 -> apiKey
         else -> ""
       }
+
     editBuffer.setLength(0)
     editBuffer.append(initialText)
     cursor = editBuffer.length
@@ -342,6 +349,7 @@ private class WizardState(private val root: Map<String, Any?>) {
       STEP_CREDENTIALS if focus == 0 -> apiKey = editedText
       else -> Unit
     }
+
     editing = false
   }
 

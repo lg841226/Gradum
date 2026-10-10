@@ -3,11 +3,11 @@ package gradum.server
 import gradum.utils.JsonUtil
 import java.io.File
 
-private const val ESC: String = "\u001B"
 private const val INDENT: String = "  "
 private const val ROW_INDENT: String = "   "
 private const val LABEL_JOIN: String = " : "
 private const val GLYPH_ACTIVE: String = "*"
+private const val ESC: String = "\u001B"
 private const val GLYPH_DOT: String = "\u00B7"
 private const val DOT_JOIN: String = "  $GLYPH_DOT  "
 private const val ANSI_MUTED: String = "$ESC[38;5;245m"
@@ -155,10 +155,14 @@ private fun promptValue(label: String, defaultValue: String, useColor: Boolean):
 }
 
 private fun promptApiKey(skippable: Boolean, useColor: Boolean): String {
-  val hintText: String = if (skippable) paint(" (blank to skip)", ANSI_MUTED, useColor) else ""
+  val hintText: String =
+    if (skippable) paint(" (blank to skip)", ANSI_MUTED, useColor)
+    else ""
+
   print(INDENT + fieldLabel(API_KEY_LABEL, useColor) + hintText + LABEL_JOIN)
 
   val systemConsole = System.console()
+
   return if (systemConsole != null) {
     val secretValue = String(systemConsole.readPassword()).trim()
     println()
@@ -175,6 +179,7 @@ private fun promptThinking(defaultValue: Boolean, useColor: Boolean): Boolean {
   val answerText: String = readAnswer(
     prompt = INDENT + fieldLabel(THINKING_LABEL, useColor) + " $hintText" + LABEL_JOIN
   )
+
   return when (answerText.lowercase()) {
     "" -> defaultValue
     "y", "yes" -> true

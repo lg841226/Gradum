@@ -110,28 +110,28 @@ class ServerAuthTest {
   fun `isAllowedHostHeader accepts this machine's names when bound past loopback`() {
     val machineNames = setOf("192.168.1.7", "studio.local", "studio")
 
-    assertTrue(ServerAuth.isAllowedHostHeader("192.168.1.7:8765", "0.0.0.0", machineNames))
-    assertTrue(ServerAuth.isAllowedHostHeader("Studio.local", "192.168.1.7", machineNames))
-    assertTrue(ServerAuth.isAllowedHostHeader("studio:8765", "0.0.0.0", machineNames))
-    assertTrue(ServerAuth.isAllowedHostHeader("localhost:8765", "0.0.0.0", machineNames))
+    assertTrue(ServerAuth.isAllowedHostHeader("192.168.1.7:8765", machineNames, "0.0.0.0"))
+    assertTrue(ServerAuth.isAllowedHostHeader("Studio.local", machineNames, "192.168.1.7"))
+    assertTrue(ServerAuth.isAllowedHostHeader("studio:8765", machineNames, "0.0.0.0"))
+    assertTrue(ServerAuth.isAllowedHostHeader("localhost:8765", machineNames, "0.0.0.0"))
   }
 
   @Test
   fun `isAllowedHostHeader still rejects foreign hosts when bound past loopback`() {
     val machineNames = setOf("192.168.1.7")
 
-    assertFalse(ServerAuth.isAllowedHostHeader("evil.com:8765", "0.0.0.0", machineNames))
-    assertFalse(ServerAuth.isAllowedHostHeader("192.168.1.8", "0.0.0.0", machineNames))
-    assertFalse(ServerAuth.isAllowedHostHeader(null, "0.0.0.0", machineNames))
-    assertFalse(ServerAuth.isAllowedHostHeader("", "0.0.0.0", machineNames))
+    assertFalse(ServerAuth.isAllowedHostHeader("evil.com:8765", machineNames, "0.0.0.0"))
+    assertFalse(ServerAuth.isAllowedHostHeader("192.168.1.8", machineNames, "0.0.0.0"))
+    assertFalse(ServerAuth.isAllowedHostHeader(null, machineNames, "0.0.0.0"))
+    assertFalse(ServerAuth.isAllowedHostHeader("", machineNames, "0.0.0.0"))
   }
 
   @Test
   fun `isAllowedHostHeader ignores machine names on a loopback bind`() {
     val machineNames = setOf("192.168.1.7")
 
-    assertFalse(ServerAuth.isAllowedHostHeader("192.168.1.7", "localhost", machineNames))
-    assertFalse(ServerAuth.isAllowedHostHeader("192.168.1.7", "127.0.0.1", machineNames))
+    assertFalse(ServerAuth.isAllowedHostHeader("192.168.1.7", machineNames, "localhost"))
+    assertFalse(ServerAuth.isAllowedHostHeader("192.168.1.7", machineNames, "127.0.0.1"))
   }
 
   @Test

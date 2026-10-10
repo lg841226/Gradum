@@ -83,15 +83,17 @@ object ServerAuth {
     System.getenv(ENV_TOKEN)?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
 
     val file: File = tokenFile()
-    val existingToken: String? = try {
-      if (file.isFile) file.readText(Charsets.UTF_8).trim().takeIf { it.isNotEmpty() } else null
-    } catch (readFailure: Exception) {
-      logger.warn("Failed to read server token file {}: {}", file.absolutePath, readFailure.message)
-      null
-    }
+    val existingToken: String? =
+      try {
+        if (file.isFile) file.readText(Charsets.UTF_8).trim().takeIf { it.isNotEmpty() } else null
+      } catch (readFailure: Exception) {
+        logger.warn("Failed to read server token file {}: {}", file.absolutePath, readFailure.message)
+        null
+      }
     if (existingToken != null) return existingToken
 
     val generatedToken: String = generateToken()
+
     try {
       file.parentFile?.mkdirs()
       file.writeText(generatedToken, Charsets.UTF_8)
@@ -100,6 +102,7 @@ object ServerAuth {
     } catch (writeFailure: Exception) {
       logger.warn("Failed to persist server token to {}: {}", file.absolutePath, writeFailure.message)
     }
+
     return generatedToken
   }
 
@@ -138,14 +141,17 @@ object ServerAuth {
    */
   fun isAllowedHostHeader(
     hostHeader: String?,
-    bindHost: String = ServerConfiguration.DEFAULT_HOST_ADDRESS,
     machineNames: Set<String>? = null,
+    bindHost: String = ServerConfiguration.DEFAULT_HOST_ADDRESS
   ): Boolean {
     if (hostHeader.isNullOrBlank()) return false
-    val hostName: String = extractHostName(hostHeader).lowercase()
-    if (hostName in ALLOWED_HOST_NAMES) return true
-    if (isLoopbackBindHost(bindHost)) return false
-    return hostName in (machineNames ?: localMachineHostNames())
+    val hostName = extractHostName(hostHeader).lowercase()
+
+    return when {
+      hostName in ALLOWED_HOST_NAMES -> true
+      isLoopbackBindHost(bindHost) -> false
+      else -> hostName in (machineNames ?: localMachineHostNames())
+    }
   }
 
   /** Whether a configured bind host stays on the loopback interface. */

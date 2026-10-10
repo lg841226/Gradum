@@ -340,9 +340,6 @@ fun Application.registerAllRoutes(
         ?: ModelIdentity.discoverModels().firstOrNull { it.available }?.modelName
         ?: ""
 
-      // Same resolver the ACP path uses, so both ends pick the same
-      // provider / base URL / key from one config. Explicit request config
-      // wins, then the model's own server entry, then the server defaults.
       val resolvedTarget: ModelIdentity.ResolvedModelTarget = ModelIdentity.resolveModelTarget(
         modelName = resolvedModelName,
         overrideApiKey = configOverrides.apiKey,
@@ -356,22 +353,22 @@ fun Application.registerAllRoutes(
       val resolvedBaseUrl: String = resolvedTarget.baseUrl
 
       val agentConfiguration = AgentConfiguration(
-        modelName = resolvedModelName,
-        provider = resolvedProvider,
         baseUrl = resolvedBaseUrl,
+        provider = resolvedProvider,
+        toolMode = resolvedToolMode,
+        modelName = resolvedModelName,
         apiKey = resolvedTarget.apiKey,
+        projectRoot = projectRootPath.toString(),
         chatCompletionsPath = configOverrides.chatCompletionsPath
           ?: inferChatCompletionsPath(resolvedBaseUrl),
         topPValue = configOverrides.topP ?: AgentConfiguration.DEFAULT_TOP_P,
-        toolMode = resolvedToolMode,
-        enableThinking = configOverrides.think ?: serverConfiguration.defaultThinkEnabled,
         promptVariant = PromptVariant.fromStringOrDefault(requestBody.promptVariant),
-        temperatureValue = configOverrides.temperature ?: AgentConfiguration.DEFAULT_TEMPERATURE,
+        enableThinking = configOverrides.think ?: serverConfiguration.defaultThinkEnabled,
         timeoutSeconds = configOverrides.timeout ?: AgentConfiguration.DEFAULT_TIMEOUT_SECONDS,
+        temperatureValue = configOverrides.temperature ?: AgentConfiguration.DEFAULT_TEMPERATURE,
         contextWindowSize = configOverrides.numCtx ?: AgentConfiguration.DEFAULT_CONTEXT_WINDOW_SIZE,
-        maxTokensToGenerate = configOverrides.numPredict ?: AgentConfiguration.DEFAULT_MAX_TOKENS_TO_GENERATE,
         keepAliveMinutes = configOverrides.keepAliveMinutes ?: serverConfiguration.defaultKeepAliveMinutes,
-        projectRoot = projectRootPath.toString(),
+        maxTokensToGenerate = configOverrides.numPredict ?: AgentConfiguration.DEFAULT_MAX_TOKENS_TO_GENERATE,
         sessionId = resolvedSessionId
       )
 
@@ -533,8 +530,7 @@ fun Application.registerAllRoutes(
 
         targetEntry.childSessionIds.removeAll(childIdsToRemove.toSet())
 
-        for (agent: Agent in agentsToStop)
-          agent.abort()
+        for (agent: Agent in agentsToStop) agent.abort()
 
         call.respondText(
           text = JsonUtil.encodeMap(
@@ -642,6 +638,7 @@ fun Application.registerAllRoutes(
       val projectRootPath: Path = Paths.get(rawProjectRoot).toAbsolutePath().normalize()
       val sessionsRoot: Path = projectRootPath.resolve(".gradum").resolve("sessions").normalize()
       val sessionDir: Path = sessionsRoot.resolve(sessionKey).normalize()
+
       if (sessionKey == "." || sessionKey == ".." || !sessionDir.startsWith(sessionsRoot) ||
         sessionDir.parent != sessionsRoot
       ) {
@@ -904,10 +901,12 @@ fun Application.registerAllRoutes(
         )
         return@get
       }
+
       val authToken: String? = serverConfiguration.authToken?.takeIf { it.isNotEmpty() }
       if (authToken != null) {
         val queryToken: String? = call.request.queryParameters[ServerAuth.TOKEN_QUERY_PARAM]
         val cookieToken: String? = call.request.cookies[ServerAuth.TOKEN_COOKIE_NAME]
+
         if (ServerAuth.tokenMatches(queryToken, authToken)) {
           call.response.header(HttpHeaders.SetCookie, ServerAuth.authCookieHeader(authToken))
         } else if (!ServerAuth.tokenMatches(cookieToken, authToken)) {
@@ -942,11 +941,15 @@ fun Application.registerAllRoutes(
       val isSafe: Boolean = segments.isNotEmpty() && segments.all { segment ->
         segment.isNotBlank() && segment != "." && segment != ".." && !segment.contains('\\')
       }
-      val body: String? = if (isSafe) readBundledResource("/skills-editor/$asset") else null
+
+      val body: String? =
+        if (isSafe) readBundledResource("/skills-editor/$asset")
+        else null
+
       if (body == null || contentType == null) {
         call.respondText(
-          text = "Unknown editor asset: $asset",
           status = HttpStatusCode.NotFound,
+          text = "Unknown editor asset: $asset"
         )
         return@get
       }

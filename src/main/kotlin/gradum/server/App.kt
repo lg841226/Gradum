@@ -92,7 +92,7 @@ private fun Application.installRequestGuard(serverConfiguration: ServerConfigura
   intercept(ApplicationCallPipeline.Plugins) {
     val requestHost: String =
       call.request.headers[HttpHeaders.Host] ?: call.request.host()
-    if (!ServerAuth.isAllowedHostHeader(requestHost, serverConfiguration.hostAddress)) {
+    if (!ServerAuth.isAllowedHostHeader(requestHost, bindHost = serverConfiguration.hostAddress)) {
       call.respondText(
         text = JsonUtil.encodeMap(mapOf("error" to "forbidden host")),
         status = HttpStatusCode.Forbidden,
