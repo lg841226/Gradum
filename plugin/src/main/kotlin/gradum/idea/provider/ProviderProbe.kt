@@ -62,6 +62,7 @@ class ProviderProbe(
       requestBuilder.header("Authorization", "Bearer $token")
     }
     val request: HttpRequest = requestBuilder.build()
+
     try {
       val response: HttpResponse<String> =
         client.send(request, HttpResponse.BodyHandlers.ofString())

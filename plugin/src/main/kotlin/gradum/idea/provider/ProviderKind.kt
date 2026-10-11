@@ -14,46 +14,46 @@ import org.jetbrains.jewel.ui.icon.IconKey
  * it deletes its persisted URL / API key.
  */
 enum class ProviderKind(
+  val icon: IconKey?,
+  val isCloud: Boolean,
   val displayKey: String,
   val configKey: String,
-  val defaultBaseUrl: String,
-  val isCloud: Boolean,
-  val icon: IconKey?,
+  val defaultBaseUrl: String
 ) {
   OLLAMA(
+    icon = null,
+    isCloud = false,
     displayKey = "gradum.settings.provider.ollama",
     configKey = "ollama",
     defaultBaseUrl = "http://localhost:11434",
-    isCloud = false,
-    icon = null,
   ),
   LM_STUDIO(
+    icon = null,
+    isCloud = false,
     displayKey = "gradum.settings.provider.lmstudio",
     configKey = "lmstudio",
     defaultBaseUrl = "http://localhost:1234",
-    isCloud = false,
-    icon = null,
   ),
   ZHIPU(
+    icon = GradumIcons.ProviderZhipuai,
+    isCloud = true,
     displayKey = "gradum.settings.provider.zhipu",
     configKey = "zhipu",
     defaultBaseUrl = "https://open.bigmodel.cn/api/paas/v4",
-    isCloud = true,
-    icon = GradumIcons.ProviderZhipuai,
   ),
   DEEPSEEK(
+    icon = GradumIcons.ProviderDeepseek,
+    isCloud = true,
     displayKey = "gradum.settings.provider.deepseek",
     configKey = "deepseek",
     defaultBaseUrl = "https://api.deepseek.com/v1",
-    isCloud = true,
-    icon = GradumIcons.ProviderDeepseek,
   ),
   MINIMAX(
+    icon = GradumIcons.ProviderMinimax,
+    isCloud = true,
     displayKey = "gradum.settings.provider.minimax",
     configKey = "minimax",
     defaultBaseUrl = "https://api.minimaxi.com/v1",
-    isCloud = true,
-    icon = GradumIcons.ProviderMinimax,
   );
 
   /** Wire name sent to the server's `/provider/probe` endpoint. */

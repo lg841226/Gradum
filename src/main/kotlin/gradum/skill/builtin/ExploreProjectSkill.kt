@@ -171,19 +171,20 @@ class ExploreProjectSkill : Skill() {
         ),
       )
 
-    val resolvedPath: Path = try {
-      Paths.get(projectRoot).toAbsolutePath().normalize()
-    } catch (pathException: Exception) {
-      logger.warn("Invalid project root path '$projectRoot': ${pathException.message}")
-      return makeFailure(
-        code = ErrorCode.INVALID_PARAMETER,
-        message = buildXmlError(
-          code = "INVALID_PARAMETER",
-          message = "Invalid project root path: $projectRoot",
-          fixHint = "Check that the project root path is valid and accessible."
+    val resolvedPath: Path =
+      try {
+        Paths.get(projectRoot).toAbsolutePath().normalize()
+      } catch (pathException: Exception) {
+        logger.warn("Invalid project root path '$projectRoot': ${pathException.message}")
+        return makeFailure(
+          code = ErrorCode.INVALID_PARAMETER,
+          message = buildXmlError(
+            code = "INVALID_PARAMETER",
+            message = "Invalid project root path: $projectRoot",
+            fixHint = "Check that the project root path is valid and accessible."
+          )
         )
-      )
-    }
+      }
 
     val rootFile: File = resolvedPath.toFile()
     if (!rootFile.exists())

@@ -9,8 +9,10 @@ import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.*
-import org.jetbrains.jewel.ui.component.styling.LocalBadgeStyle
+import org.jetbrains.jewel.ui.component.Icon
+import org.jetbrains.jewel.ui.component.PopupMenu
+import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.separator
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 /**
@@ -183,14 +185,7 @@ fun PermissionSelector(
             )
             Spacer(modifier = Modifier.width(GradumSpacing.md))
             Column(modifier = Modifier.weight(1f)) {
-              Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = message("gradum.debug.mode"))
-                Spacer(modifier = Modifier.width(GradumSpacing.sm))
-                Badge(
-                  content = { Text(message("gradum.new")) },
-                  style = LocalBadgeStyle.current.graySecondary
-                )
-              }
+              Text(text = message("gradum.debug.mode"))
               Text(
                 text = message("gradum.debug.info"),
                 color = JewelTheme.globalColors.text.info

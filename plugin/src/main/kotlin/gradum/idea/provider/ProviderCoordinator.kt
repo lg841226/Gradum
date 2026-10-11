@@ -63,7 +63,7 @@ object ProviderCoordinator {
     private val kind: ProviderKind,
     private val appScope: CoroutineScope,
     private val probe: ProviderProbeContract,
-    private val onProbeSucceeded: (ProviderKind) -> Unit,
+    private val onProbeSucceeded: (ProviderKind) -> Unit
   ) {
     private val probeMutex: Mutex = Mutex()
     private val configMutex: Mutex = Mutex()
@@ -129,9 +129,7 @@ object ProviderCoordinator {
   }
 
   private data class ProviderConfig(val kind: ProviderKind, val baseUrl: String, val apiKey: String) {
-    val isValid: Boolean
-      get() = baseUrl.isNotBlank()
-        && isValidBaseUrl(value = baseUrl, kind)
+    val isValid: Boolean get() = baseUrl.isNotBlank() && isValidBaseUrl(value = baseUrl, kind)
   }
 }
 
@@ -153,22 +151,29 @@ object ProviderCoordinator {
 internal fun isValidBaseUrl(value: String, kind: ProviderKind? = null): Boolean {
   val trimmed: String = value.trim()
   if (trimmed.isEmpty()) return false
-  val uri: URI = try {
-    URI(trimmed)
-  } catch (_: Exception) {
-    return false
-  }
+
+  val uri: URI =
+    try {
+      URI(trimmed)
+    } catch (_: Exception) {
+      return false
+    }
+
   val scheme: String = uri.scheme ?: return false
+
   if (!scheme.equals(other = "http", ignoreCase = true)
     && !scheme.equals(other = "https", ignoreCase = true)
   ) {
     return false
   }
+
   val host: String = uri.host ?: return false
+  val path: String = uri.path ?: ""
+
   if (!isValidHost(host)) return false
   if (uri.port != -1 && (uri.port !in 1..65535)) return false
   if (uri.query != null || uri.fragment != null || uri.userInfo != null) return false
-  val path: String = uri.path ?: ""
+
   return kind?.isCloud == true || path.isEmpty() || path == "/" || path == "/v1" || path == "/v1/"
 }
 
