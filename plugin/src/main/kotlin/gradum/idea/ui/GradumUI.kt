@@ -1,19 +1,9 @@
 package gradum.idea.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.input.delete
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -29,10 +19,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
-import gradum.idea.BannerSeverity
-import gradum.idea.GradumBanner
-import gradum.idea.GradumToolWindowFactory
-import gradum.idea.PluginConfig
+import gradum.idea.*
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
 import gradum.idea.chat.model.ChatMessage
@@ -49,7 +36,6 @@ import gradum.idea.chat.ui.common.DiffViewer.showFileDiff
 import gradum.idea.chat.ui.home.WelcomeScreen
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.editor.*
-import gradum.idea.encodeImageToAttachment
 import gradum.idea.provider.ProviderSettings
 import gradum.idea.settings.AppearanceSettings
 import gradum.idea.settings.ProvideAppearance
@@ -131,15 +117,17 @@ private fun sendPlaybackXml(
 private fun sendPlaybackScenario(
   session: GradumChatSession, currentFile: VirtualFile, coroutineScope: CoroutineScope
 ) {
-  val scenarioXml: String = try {
-    String(bytes = currentFile.contentsToByteArray(), charset = StandardCharsets.UTF_8)
-  } catch (ioError: IOException) {
-    logger.error("IO error reading scenario file: ${currentFile.name}", ioError); return
-  } catch (securityError: SecurityException) {
-    logger.error("Security error accessing scenario file: ${currentFile.name}", securityError); return
-  } catch (generalError: Exception) {
-    logger.warn("Unexpected error reading scenario file: ${currentFile.name}", generalError); return
-  }
+  val scenarioXml: String =
+    try {
+      String(bytes = currentFile.contentsToByteArray(), charset = StandardCharsets.UTF_8)
+    } catch (ioError: IOException) {
+      logger.error("IO error reading scenario file: ${currentFile.name}", ioError); return
+    } catch (securityError: SecurityException) {
+      logger.error("Security error accessing scenario file: ${currentFile.name}", securityError); return
+    } catch (generalError: Exception) {
+      logger.warn("Unexpected error reading scenario file: ${currentFile.name}", generalError); return
+    }
+
   sendPlaybackXml(scenarioXml, scenarioLabel = currentFile.name, session, coroutineScope)
 }
 
