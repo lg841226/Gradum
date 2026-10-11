@@ -32,6 +32,9 @@ object ProviderConfigFile {
   private val configFile: File
     get() = File(configDir, "settings.json")
 
+  /** Absolute path of the shared settings file, for UI actions that open it in the IDE editor. */
+  val settingsFile: File get() = configFile
+
   private val providerDottedKeys: List<String>
     get() = KNOWN_CONFIG_KEYS.flatMap { configKey ->
       listOf("$configKey.baseUrl", "$configKey.apiKey", "$configKey.allowRemote")
@@ -109,9 +112,9 @@ object ProviderConfigFile {
 
   /**
    * Loads the current settings file as raw [JsonElement]s, applies
-   * [transform] to the mutable key→element map, and stores the result
-   * back. Values keep their original JSON types byte-exact — no
-   * round trip through untyped Kotlin objects — so string arrays and
+   * [transform] to the mutable key to element map, and stores the result
+   * back. Values keep their original JSON types byte-exact: no
+   * round trip through untyped Kotlin objects: so string arrays and
    * string-valued objects such as `mcpServers` can never drift to
    * numbers. Keys the [transform] does not touch are written back as
    * the original elements. Failures are swallowed by design: see KDoc
@@ -128,7 +131,7 @@ object ProviderConfigFile {
   }
 
   /**
-   * Create-dirs → read → [transform] → write dance shared by every
+   * Create-dirs to read to [transform] to write dance shared by every
    * mutator. Failures are swallowed, same contract as [editConfigFile].
    */
   private fun editRootJson(transform: (JsonObject) -> JsonObject) {
@@ -157,7 +160,7 @@ object ProviderConfigFile {
     val name: String,
     val command: List<String>,
     val workingDir: String?,
-    val env: Map<String, String>
+    val env: Map<String, String> = emptyMap()
   )
 
   /**
@@ -185,10 +188,10 @@ object ProviderConfigFile {
         }
       }
       McpServerEntry(
+        env = env,
         name = name,
-        command = readMcpCommand(element["command"]),
         workingDir = workingDir,
-        env = env
+        command = readMcpCommand(element["command"])
       )
     }
   }
@@ -228,15 +231,21 @@ object ProviderConfigFile {
           val base: JsonObject = previous.getOrNull(index) ?: buildJsonObject { }
           add(
             buildJsonObject {
-              for ((key, value) in base) if (key !in knownKeys) put(key, value)
+              for ((key, value) in base)
+                if (key !in knownKeys) put(key, value)
+
               put("name", JsonPrimitive(server.name))
               put("command", buildJsonArray { server.command.forEach { token -> add(JsonPrimitive(token)) } })
+
               val workingDir: String? = server.workingDir?.takeIf { it.isNotBlank() }
               if (workingDir != null) put("workingDir", JsonPrimitive(workingDir))
               else put("workingDir", JsonNull)
+
               put(
                 "env",
-                buildJsonObject { server.env.forEach { (key, value) -> put(key, JsonPrimitive(value)) } }
+                buildJsonObject {
+                  server.env.forEach { (key, value) -> put(key, JsonPrimitive(value)) }
+                }
               )
             }
           )
@@ -259,6 +268,7 @@ object ProviderConfigFile {
     var inQuotes = false
     var tokenStarted = false
     var index = 0
+
     while (index < raw.length) {
       val char: Char = raw[index]
       when {
@@ -289,6 +299,7 @@ object ProviderConfigFile {
       }
       index++
     }
+
     if (inQuotes) return emptyList()
     if (tokenStarted) tokens += current.toString()
     return tokens
