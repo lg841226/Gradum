@@ -13,23 +13,49 @@ import gradum.idea.utils.GradumSpacing
  * punched out of it with [BlendMode.DstOut]: fully opaque at the very edge
  * (content ends at zero alpha) and ramping to transparent over [fadeLength],
  * so the cut reads as a gentle fade instead of a razor-sharp rectangle edge.
- * Only the layer's own pixels are affected, never the chat background behind
- * it, and no shadow/drop-shadow is involved.
+ * Each edge can be disabled independently via [fadeTop] / [fadeBottom] — a
+ * list scrolled to its top has no hidden content above, so its top edge does
+ * not need the fade. Only the layer's own pixels are affected, never the chat
+ * background behind it, and no shadow/drop-shadow is involved.
  */
-fun Modifier.verticalEdgeFade(fadeLength: Dp = GradumSpacing.xl): Modifier =
+fun Modifier.verticalEdgeFade(
+  fadeLength: Dp = GradumSpacing.xl,
+  fadeTop: Boolean = true,
+  fadeBottom: Boolean = true,
+): Modifier =
   this.graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
     .drawWithContent {
       drawContent()
       if (size.height <= 0f) return@drawWithContent
+      if (!fadeTop && !fadeBottom) return@drawWithContent
       val fadeProgress: Float = (fadeLength.toPx() / size.height).coerceIn(0f, 0.5f)
       if (fadeProgress <= 0f) return@drawWithContent
+      val stops: List<Pair<Float, Color>> =
+        when {
+          fadeTop && fadeBottom ->
+            listOf(
+              0f to Color.Black,
+              fadeProgress to Color.Transparent,
+              1f - fadeProgress to Color.Transparent,
+              1f to Color.Black
+            )
+
+          fadeTop ->
+            listOf(
+              0f to Color.Black,
+              fadeProgress to Color.Transparent,
+              1f to Color.Transparent
+            )
+
+          else ->
+            listOf(
+              0f to Color.Transparent,
+              1f - fadeProgress to Color.Transparent,
+              1f to Color.Black
+            )
+        }
       drawRect(
-        brush = Brush.verticalGradient(
-          0f to Color.Black,
-          fadeProgress to Color.Transparent,
-          1f - fadeProgress to Color.Transparent,
-          1f to Color.Black
-        ),
+        brush = Brush.verticalGradient(*stops.toTypedArray()),
         blendMode = BlendMode.DstOut
       )
     }
