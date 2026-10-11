@@ -273,6 +273,7 @@ private fun SettingsPanel(
       )
     }
     ApiProviderSettings()
+    McpServersSettings()
     GroupHeader(
       text = message("gradum.settings.appearance")
     )
