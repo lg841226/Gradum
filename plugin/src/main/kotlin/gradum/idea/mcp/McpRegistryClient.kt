@@ -1,6 +1,7 @@
 package gradum.idea.mcp
 
 import gradum.idea.PluginConfig
+import gradum.idea.mcp.McpRegistryClient.SEARCH_LIMIT
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -45,10 +46,10 @@ data class McpRegistryResult(
   val command: List<String>?,
   val envHints: List<McpRegistryEnvHint>,
   val version: String? = null,
+  val publishedAt: String? = null,
   val packageLine: String? = null,
   val registryType: String? = null,
-  val repositoryUrl: String? = null,
-  val publishedAt: String? = null,
+  val repositoryUrl: String? = null
 ) {
   val shortName: String get() = name.substringAfterLast(delimiter = '/')
 }
@@ -127,10 +128,10 @@ internal object McpRegistryClient {
         command = stdioPackage?.let(::buildCommand),
         envHints = stdioPackage?.let(::envHints).orEmpty(),
         version = server.string(key = "version")?.takeIf { it.isNotBlank() },
+        publishedAt = server.officialPublishedAt(),
         packageLine = displayPackage?.let(::packageLine),
         registryType = displayPackage?.string(key = "registryType"),
         repositoryUrl = repositoryUrl,
-        publishedAt = server.officialPublishedAt(),
       )
     }.distinctBy { it.name }.sortedBy { it.command == null }
   }
@@ -162,6 +163,7 @@ internal object McpRegistryClient {
     val registryType: String = pkg.string(key = "registryType") ?: return null
     val runtime: String = pkg.string(key = "runtimeHint") ?: inferRuntime(registryType = registryType)
     ?: return null
+
     return buildList {
       add(runtime)
       addAll(pkg.argTokens(key = "runtimeArguments"))

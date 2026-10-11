@@ -84,11 +84,11 @@
         <applicationService serviceImplementation="gradum.idea.settings.AppearanceSettings"/>
 
         <!--
-            Notification group used by the image upload pipeline to
-            surface size/format/slot-limit errors as IDE balloons. The
-            group id matches the string looked up in
-            NotificationGroupManager.getInstance().getNotificationGroup
-            from `GradumToolWindowFactory`.
+            Balloon group for settings-side hints: after an MCP server
+            lands in settings.json a bottom-right balloon reminds the
+            user that the embedded runtime reads `mcpServers` only at
+            startup. Looked up by id from `McpServersSettings`.
         -->
+        <notificationGroup id="Gradum" displayType="BALLOON"/>
     </extensions>
 </idea-plugin>

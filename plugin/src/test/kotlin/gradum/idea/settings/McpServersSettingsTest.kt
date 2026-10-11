@@ -30,7 +30,7 @@ class McpServersSettingsTest {
 
   @Test
   fun `splice prefers provided env over the file and falls back to disk`() {
-    val entry: McpServerEntry =
+    val entry =
       McpServerEntry(name = "fs", command = listOf("npx"), workingDir = null)
     val fileEnvs: Map<String, Map<String, String>> =
       mapOf("fs" to mapOf("HOME" to "/tmp"), "other" to mapOf("X" to "1"))
@@ -74,7 +74,7 @@ class McpServersSettingsTest {
 
   @Test
   fun `toItem round-trips the command back into the working copy`() {
-    val entry: McpServerEntry = McpServerEntry(
+    val entry = McpServerEntry(
       name = "fs",
       command = listOf("node", "-e", "print(\"x\")"),
       workingDir = null

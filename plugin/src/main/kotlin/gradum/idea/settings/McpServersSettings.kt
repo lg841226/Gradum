@@ -20,6 +20,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.intellij.ide.BrowserUtil
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.WriteIntentReadAction
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.ScrollType
@@ -35,6 +37,7 @@ import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.PluginConfig
+import gradum.idea.chat.ui.common.SelectorButton
 import gradum.idea.chat.ui.common.verticalEdgeFade
 import gradum.idea.mcp.McpRegistryClient
 import gradum.idea.mcp.McpRegistryResult
@@ -54,6 +57,8 @@ import org.jetbrains.jewel.ui.theme.badgeStyle
 import org.jetbrains.jewel.ui.typography
 import java.awt.datatransfer.StringSelection
 import java.io.File
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import kotlin.time.Duration.Companion.milliseconds
 
 private const val MCP_TAB_ADD_KEY = "mcp-tab-add"
@@ -62,6 +67,7 @@ private const val MCP_FIELD_WIDTH_DP: Int = 480
 private const val MCP_REGISTRY_RESULTS_MAX_HEIGHT_DP: Int = 320
 private const val MCP_REGISTRY_SCROLLBAR_RESERVE_DP: Int = 18
 private const val MCP_INPUT_DEBOUNCE_MS: Long = PluginConfig.INPUT_DEBOUNCE_MS
+private const val NOTIFICATION_GROUP_ID: String = "Gradum"
 
 /**
  * In-session working copy of one `mcpServers[]` entry. The file stays
@@ -110,7 +116,7 @@ internal fun McpServerItem.toEntryOrNull(): McpServerEntry? {
  */
 internal fun uniqueMcpTabName(base: String, existing: Set<String>): String {
   var candidate: String = base
-  var suffix: Int = 2
+  var suffix = 2
   while (candidate in existing) {
     candidate = "$base-$suffix"
     suffix++
@@ -215,6 +221,7 @@ internal fun McpServersSettings() {
     persist(items + item)
     selectedId = item.id
     pendingNameFocus = true
+    notifyServerAdded(name = item.name)
   }
 
   fun onRemove(id: Long) {
@@ -251,6 +258,7 @@ internal fun McpServersSettings() {
       providedEnvs = mapOf(finalName to result.envHints.associate { it.name to it.value })
     )
     selectedId = item.id
+    notifyServerAdded(name = finalName)
   }
 
   Column {
@@ -536,7 +544,27 @@ private fun FieldRow(label: String, field: @Composable () -> Unit) {
 }
 
 /**
- * Opens `~/.gradum/settings.json` in the IDE editor and lands the caret
+ * Bottom-right balloon after a server lands in settings.json: the
+ * embedded runtime reads `mcpServers` only at startup, so the entry
+ * stays inert until the runtime restarts. Without an open project
+ * (settings opened from the welcome screen) there is no window to
+ * anchor the balloon on and the restart hint under the form already
+ * says the same, so the notification is skipped.
+ */
+private fun notifyServerAdded(name: String) {
+  val project: Project = ProjectManager.getInstance().openProjects.firstOrNull() ?: return
+  val notification = NotificationGroupManager.getInstance()
+    .getNotificationGroup(NOTIFICATION_GROUP_ID)
+    .createNotification(
+      title = message("gradum.settings.mcp.added.title", name),
+      content = message("gradum.settings.mcp.added.restart"),
+      type = NotificationType.INFORMATION
+    )
+  notification.notify(project)
+}
+
+/**
+ * Opens `../.gradum/settings.json` in the IDE editor and lands the caret
  * on the selected server's entry (falling back to the `mcpServers`
  * header), so environment variables are edited in a real editor against
  * the single source of truth. Creates a minimal `{}` file first when none
@@ -583,7 +611,9 @@ private fun openSettingsFileInIdeEditor(serverName: String) {
  * empty result line, or a scrollable result panel capped at
  * [MCP_REGISTRY_RESULTS_MAX_HEIGHT_DP]; each cut-off edge fades only while
  * content is still hidden beyond it and clears when that edge is reached.
- * Choosing a result hands it to [onAdd],
+ * Three dropdowns to the field's left narrow the hits by
+ * importability, package ecosystem, and publish window before they reach
+ * the panel. Choosing a result hands it to [onAdd],
  * which writes a new entry into settings.json. Remote only servers render
  * with their import disabled.
  */
@@ -591,10 +621,13 @@ private fun openSettingsFileInIdeEditor(serverName: String) {
 private fun McpRegistrySearch(onAdd: (McpRegistryResult) -> Unit) {
   val searchState: TextFieldState = remember { TextFieldState() }
   val query: String = searchState.text.toString().trim()
-  var results: List<McpRegistryResult>? by remember { mutableStateOf(value = null) }
-  var failed: Boolean by remember { mutableStateOf(value = false) }
-  var searching: Boolean by remember { mutableStateOf(value = false) }
   var searchTick: Int by remember { mutableStateOf(value = 0) }
+  var failed: Boolean by remember { mutableStateOf(value = false) }
+  var ecosystem: String? by remember { mutableStateOf(value = null) }
+  var searching: Boolean by remember { mutableStateOf(value = false) }
+  var importableOnly: Boolean by remember { mutableStateOf(value = false) }
+  var publishedWithin: String? by remember { mutableStateOf(value = null) }
+  var results: List<McpRegistryResult>? by remember { mutableStateOf(value = null) }
 
   LaunchedEffect(query, searchTick) {
     if (query.isEmpty()) {
@@ -617,32 +650,72 @@ private fun McpRegistrySearch(onAdd: (McpRegistryResult) -> Unit) {
   }
 
   Column {
+    val anyLabel: String = message("gradum.settings.mcp.registry.filter.any")
     Box(
       modifier = Modifier.fillMaxWidth(),
       contentAlignment = Alignment.Center
     ) {
-      TextField(
-        state = searchState,
-        textStyle = JewelTheme.editorTextStyle,
-        modifier = Modifier.width(MCP_FIELD_WIDTH_DP.dp),
-        outline = Outline.None,
-        placeholder = { Text(text = message("gradum.settings.mcp.registry.search")) },
-        trailingIcon = {
-          if (searching) {
-            CircularProgressIndicator(modifier = Modifier.size(size = 16.dp))
-          } else {
-            Tooltip(
-              tooltip = { Text(text = message("gradum.settings.mcp.registry.search.button")) }
-            ) {
-              Icon(
-                key = GradumIcons.Search,
-                contentDescription = message("gradum.settings.mcp.registry.search.button"),
-                modifier = Modifier.clickable { searchTick++ }
-              )
+      Row(
+        horizontalArrangement = Arrangement.spacedBy(space = GradumSpacing.sml),
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        McpRegistryFilterDropdown(
+          label = message("gradum.settings.mcp.registry.filter.importable"),
+          selected = importableOnly,
+          anyValue = false,
+          options = listOf(
+            false to anyLabel,
+            true to message("gradum.settings.mcp.registry.filter.only")
+          ),
+          onSelect = { importableOnly = it }
+        )
+        McpRegistryFilterDropdown(
+          label = message("gradum.settings.mcp.registry.filter.ecosystem"),
+          selected = ecosystem,
+          anyValue = null,
+          options = listOf(
+            null to anyLabel,
+            "npm" to "npm",
+            "pypi" to "pypi",
+            "oci" to "oci",
+            "nuget" to "nuget"
+          ),
+          onSelect = { ecosystem = it }
+        )
+        McpRegistryFilterDropdown(
+          label = message("gradum.settings.mcp.registry.filter.published"),
+          selected = publishedWithin,
+          anyValue = null,
+          options = listOf(
+            null to anyLabel,
+            "30d" to message("gradum.settings.mcp.registry.filter.last30d"),
+            "1y" to message("gradum.settings.mcp.registry.filter.last1y")
+          ),
+          onSelect = { publishedWithin = it }
+        )
+        TextField(
+          state = searchState,
+          textStyle = JewelTheme.editorTextStyle,
+          modifier = Modifier.width(MCP_FIELD_WIDTH_DP.dp),
+          outline = Outline.None,
+          placeholder = { Text(text = message("gradum.settings.mcp.registry.search")) },
+          trailingIcon = {
+            if (searching) {
+              CircularProgressIndicator(modifier = Modifier.size(size = 16.dp))
+            } else {
+              Tooltip(
+                tooltip = { Text(text = message("gradum.settings.mcp.registry.search.button")) }
+              ) {
+                Icon(
+                  key = GradumIcons.Search,
+                  contentDescription = message("gradum.settings.mcp.registry.search.button"),
+                  modifier = Modifier.clickable { searchTick++ }
+                )
+              }
             }
           }
-        }
-      )
+        )
+      }
     }
     Spacer(Modifier.height(GradumSpacing.sm))
 
@@ -654,52 +727,144 @@ private fun McpRegistrySearch(onAdd: (McpRegistryResult) -> Unit) {
         text = message("gradum.settings.mcp.registry.error")
       )
 
-      list.isEmpty() -> Text(
-        color = JewelTheme.globalColors.text.info,
-        text = message("gradum.settings.mcp.registry.empty")
-      )
-
       else -> {
-        val scrollState = rememberScrollState()
-        val scrollable: Boolean =
-          scrollState.canScrollForward || scrollState.canScrollBackward
-        Box(
-          modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(max = MCP_REGISTRY_RESULTS_MAX_HEIGHT_DP.dp)
-            .then(
-              if (scrollable)
-                Modifier.verticalEdgeFade(
-                  fadeTop = scrollState.canScrollBackward,
-                  fadeBottom = scrollState.canScrollForward
-                )
-              else Modifier
-            )
-        ) {
-          Column(
+        val cutoff: String? = publishedCutoff(within = publishedWithin)
+        val filtered: List<McpRegistryResult> = list.filter { result ->
+          result.matchesFilters(
+            cutoff = cutoff,
+            ecosystem = ecosystem,
+            importableOnly = importableOnly
+          )
+        }
+        if (filtered.isEmpty()) {
+          Text(
+            color = JewelTheme.globalColors.text.info,
+            text = message("gradum.settings.mcp.registry.empty")
+          )
+        } else {
+          McpRegistryResults(list = filtered, onAdd = onAdd)
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Scrollable results panel for [McpRegistrySearch]: capped at
+ * [MCP_REGISTRY_RESULTS_MAX_HEIGHT_DP], with a directional edge fade on
+ * whichever cut still hides content and a scrollbar on the right.
+ */
+@Composable
+private fun McpRegistryResults(
+  list: List<McpRegistryResult>,
+  onAdd: (McpRegistryResult) -> Unit
+) {
+  val scrollState = rememberScrollState()
+  val scrollable: Boolean =
+    scrollState.canScrollForward || scrollState.canScrollBackward
+  Box(
+    modifier = Modifier
+      .fillMaxWidth()
+      .heightIn(max = MCP_REGISTRY_RESULTS_MAX_HEIGHT_DP.dp)
+      .then(
+        if (scrollable)
+          Modifier.verticalEdgeFade(
+            fadeTop = scrollState.canScrollBackward,
+            fadeBottom = scrollState.canScrollForward
+          )
+        else Modifier
+      )
+  ) {
+    Column(
+      modifier = Modifier
+        .fillMaxWidth()
+        .verticalScroll(scrollState)
+        .padding(
+          start = GradumSpacing.sm,
+          top = GradumSpacing.sm,
+          bottom = GradumSpacing.sm,
+          end =
+            if (scrollable) MCP_REGISTRY_SCROLLBAR_RESERVE_DP.dp
+            else GradumSpacing.sm
+        ),
+      verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)
+    ) {
+      list.forEach { result ->
+        McpRegistryResultRow(result = result, onAdd = onAdd)
+      }
+    }
+    if (scrollable) {
+      VerticalScrollbar(
+        scrollState = scrollState,
+        modifier = Modifier
+          .align(Alignment.CenterEnd)
+          .fillMaxHeight()
+      )
+    }
+  }
+}
+
+/**
+ * Compact filter dropdown for the registry search: a [SelectorButton]
+ * whose face shows the filter name while [anyValue] is selected and the
+ * chosen option afterward (the tooltip always names the filter),
+ * opening a [PopupMenu] with a header row and one selectable row per
+ * option (the selected row stays bold).
+ */
+@Composable
+private fun <T> McpRegistryFilterDropdown(
+  selected: T,
+  anyValue: T,
+  label: String,
+  onSelect: (T) -> Unit,
+  options: List<Pair<T, String>>
+) {
+  var showMenu by remember { mutableStateOf(value = false) }
+  val dismiss: () -> Unit = { showMenu = false }
+  Box {
+    SelectorButton(
+      text =
+        if (selected == anyValue) label
+        else options.first { option -> option.first == selected }.second,
+      onClick = { showMenu = true },
+      contentDescription = label,
+      color =
+        if (selected == anyValue) JewelTheme.globalColors.text.info
+        else JewelTheme.globalColors.text.normal
+    )
+    if (showMenu) {
+      PopupMenu(
+        onDismissRequest = { dismiss(); true },
+        horizontalAlignment = Alignment.Start
+      ) {
+        passiveItem {
+          Row(
             modifier = Modifier
               .fillMaxWidth()
-              .verticalScroll(scrollState)
               .padding(
-                start = GradumSpacing.sm,
-                top = GradumSpacing.sm,
-                bottom = GradumSpacing.sm,
-                end =
-                  if (scrollable) MCP_REGISTRY_SCROLLBAR_RESERVE_DP.dp
-                  else GradumSpacing.sm
-              ),
-            verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)
+                vertical = GradumSpacing.sm,
+                horizontal = GradumSpacing.md
+              )
           ) {
-            list.forEach { result ->
-              McpRegistryResultRow(result = result, onAdd = onAdd)
-            }
+            Text(fontWeight = FontWeight.SemiBold, text = label)
           }
-          if (scrollable) {
-            VerticalScrollbar(
-              scrollState = scrollState,
+        }
+        options.forEach { (value, text) ->
+          selectableItem(
+            selected = value == selected,
+            onClick = { onSelect(value); dismiss() }
+          ) {
+            Text(
+              fontWeight =
+                if (value == selected) FontWeight.SemiBold
+                else FontWeight.Normal,
+              text = text,
               modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight()
+                .fillMaxWidth()
+                .padding(
+                  vertical = GradumSpacing.xs,
+                  horizontal = GradumSpacing.md
+                )
             )
           }
         }
@@ -709,7 +874,34 @@ private fun McpRegistrySearch(onAdd: (McpRegistryResult) -> Unit) {
 }
 
 /**
- * One registry hit: icon + name + version chip + ecosystem badge + status
+ * Publish-time filter cutoff as a `yyyy-MM` month string, or null when
+ * [within] picks no window. Month granularity matches the registry's
+ * publishedAt field, so the comparison stays a plain string order.
+ */
+private fun publishedCutoff(within: String?): String? {
+  val days: Long =
+    when (within) {
+      "30d" -> 30L
+      "1y" -> 365L
+      else -> return null
+    }
+  return LocalDate.now()
+    .minusDays(days)
+    .format(DateTimeFormatter.ofPattern("yyyy-MM"))
+}
+
+private fun McpRegistryResult.matchesFilters(
+  cutoff: String?, ecosystem: String?, importableOnly: Boolean
+): Boolean =
+  when {
+    importableOnly && command == null -> false
+    ecosystem != null && !registryType.equals(ecosystem, ignoreCase = true) -> false
+    cutoff != null && (publishedAt == null || publishedAt < cutoff) -> false
+    else -> true
+  }
+
+/**
+ * One registry hit: icon and name and version chip and ecosystem badge and status
  * mark (the verified badge when the server is importable, the provider
  * row's failed-connection icon when it is not) and a two-line description.
  * Below them a meta line shows the installable package in the editor font
@@ -739,28 +931,41 @@ private fun McpRegistryResultRow(
           contentDescription = null
         )
         Text(
-          fontWeight = FontWeight.SemiBold, text = result.shortName
+          text = result.shortName,
+          fontWeight = FontWeight.SemiBold
         )
-        result.version?.let { version -> McpVersionChip(version = version) }
-        result.registryType?.let { type -> McpRegistryTypeBadge(registryType = type) }
+        result.version?.let { version ->
+          Badge(style = JewelTheme.badgeStyle.graySecondary) {
+            Text(text = version)
+          }
+        }
+
+        result.registryType?.let { type ->
+          Badge(style = JewelTheme.badgeStyle.blueSecondary) {
+            Text(text = registryLabel(registryType = type))
+          }
+        }
 
         if (result.command != null) {
-          Icon(
-            key = GradumIcons.BadgeVerified,
-            contentDescription = message("gradum.settings.mcp.badge.verified")
-          )
+          Tooltip(tooltip = { Text(text = message("gradum.settings.mcp.badge.verified")) }) {
+            Icon(
+              key = GradumIcons.BadgeVerified,
+              contentDescription = message("gradum.settings.mcp.badge.verified")
+            )
+          }
         } else {
-          Icon(
-            key = AllIconsKeys.Vcs.Ignore_file,
-            contentDescription = message("gradum.settings.mcp.registry.unsupported"),
-          )
+          Tooltip(tooltip = { Text(text = message("gradum.settings.mcp.registry.unsupported")) }) {
+            Icon(
+              key = AllIconsKeys.Vcs.Ignore_file,
+              contentDescription = message("gradum.settings.mcp.registry.unsupported")
+            )
+          }
         }
       }
       Text(
         maxLines = 2,
         text = result.description,
         overflow = TextOverflow.Ellipsis,
-        color = JewelTheme.globalColors.text.info,
         style = JewelTheme.typography.labelTextStyle
       )
       val hasMeta: Boolean =
@@ -815,20 +1020,6 @@ private fun McpRegistryResultRow(
         }
       }
     }
-  }
-}
-
-@Composable
-private fun McpVersionChip(version: String) {
-  Badge(style = JewelTheme.badgeStyle.graySecondary) {
-    Text(text = "v$version")
-  }
-}
-
-@Composable
-private fun McpRegistryTypeBadge(registryType: String) {
-  Badge(style = JewelTheme.badgeStyle.blueSecondary) {
-    Text(text = registryLabel(registryType = registryType))
   }
 }
 
