@@ -70,8 +70,8 @@ Sections most readers look for first: [§2.9 Model Identity](#29-model-identity-
 
 ### 1.1 Principles
 
-1. **Local-first**: No external network dependencies (except the LLM server). The file system and shell are the only
-   external surfaces the agent directly touches.
+1. **Rooted on your machine**: No external network dependencies (except the LLM server). The file system and shell are
+   the only external surfaces the agent directly touches.
 2. **Observable by default**: Every state transition emits a structured NDJSON event, enabling log replay, debug
    tracing, and downstream UI rendering without internal state coupling.
 3. **Tools as code**: Each skill is a Kotlin implementation of the `Skill` abstract class, centrally registered by

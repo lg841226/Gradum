@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Gradum is a local-first tool. This page describes what the Gradum IntelliJ IDEA plugin does
+Gradum is rooted on your machine. This page describes what the Gradum IntelliJ IDEA plugin does
 with your data.
 
 ## What the plugin collects

@@ -27,6 +27,7 @@ import gradum.idea.provider.ProviderConfigFile.McpServerEntry
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
+import gradum.idea.utils.findExecutable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jetbrains.jewel.foundation.theme.JewelTheme

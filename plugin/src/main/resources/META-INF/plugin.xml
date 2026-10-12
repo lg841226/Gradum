@@ -17,8 +17,9 @@
     ]]></change-notes>
 
     <description><![CDATA[
-        Local-first AI code assistant for IntelliJ IDEA.
-        Supports Ollama and any OpenAI-compatible inference server.
+        Rooted on your machine: a local runtime for extensible AI agents, packaged for
+        IntelliJ IDEA. Coding is the skill set it ships with. Supports Ollama and any
+        OpenAI-compatible inference server.
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>

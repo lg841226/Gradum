@@ -12,9 +12,9 @@ be bound by the terms of this Statement. If you do not agree with any
 provision of this Statement, you must immediately cease using the
 Plugin and uninstall it from all your devices.
 
-**2. Local-First Architecture and Zero Network Transmission**
+**2. Rooted-on-Your-Machine Architecture and Zero Network Transmission**
 
-Gradum is engineered with a strict "local-first" privacy paradigm.
+Gradum is engineered with a strict "rooted on your machine" privacy paradigm.
 All code analysis, commit history parsing, metric calculation, and
 result generation occur exclusively on the User's local machine (the
 "Current Device"). The Plugin does not establish any outbound network
