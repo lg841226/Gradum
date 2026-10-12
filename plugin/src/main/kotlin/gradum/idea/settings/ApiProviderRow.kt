@@ -39,13 +39,13 @@ private const val INPUT_DEBOUNCE_MS: Long = PluginConfig.INPUT_DEBOUNCE_MS
 /**
  * Settings row for a single model provider.
  *
- * Renders the URL field, API key field, optional extra toggle, a manual
- * probe button, and a status badge. All connection-state work is
- * delegated to [ProviderCoordinator]: this composable only reads the
- * latest [ProviderStatus] / `isTesting` flag and forwards user edits
- * through [onUrlChange] / [onApiKeyChange], both debounced by
- * [INPUT_DEBOUNCE_MS] so the coordinator is not reconfigured on every
- * keystroke.
+ * Renders the URL field, API key field, optional extra toggle, optional
+ * [beforeAction] content, a manual probe button, and a status badge.
+ * All connection-state work is delegated to [ProviderCoordinator]: this
+ * composable only reads the latest [ProviderStatus] / `isTesting` flag and
+ * forwards user edits through [onUrlChange] / [onApiKeyChange], both
+ * debounced by [INPUT_DEBOUNCE_MS] so the coordinator is not reconfigured
+ * on every keystroke.
  *
  * @param kind which provider this row edits.
  * @param baseUrlState Compose state backing the URL text field.
@@ -53,6 +53,8 @@ private const val INPUT_DEBOUNCE_MS: Long = PluginConfig.INPUT_DEBOUNCE_MS
  * @param onUrlChange invoked [INPUT_DEBOUNCE_MS] after the URL stops changing.
  * @param onApiKeyChange invoked [INPUT_DEBOUNCE_MS] after the API key stops changing.
  * @param extraToggle optional extra checkbox rendered below the API key field.
+ * @param beforeAction optional content rendered between [extraToggle] and the
+ * probe action row, e.g. an app-level setting that belongs to this provider.
  * @param onExtraToggleChange invoked when [extraToggle] is toggled.
  */
 @Composable
@@ -64,6 +66,7 @@ fun ApiProviderRow(
   onUrlChange: (String) -> Unit,
   onApiKeyChange: (String) -> Unit,
   extraToggle: ExtraToggle? = null,
+  beforeAction: (@Composable () -> Unit)? = null,
   onExtraToggleChange: ((Boolean) -> Unit)? = null
 ) {
   val status: ProviderStatus by ProviderCoordinator.statusFlow(kind).collectAsState()
@@ -94,6 +97,7 @@ fun ApiProviderRow(
         label = message(extraToggle.messageKey)
       )
     }
+    beforeAction?.invoke()
     ActionRow(
       status = status,
       isTesting = isTesting,

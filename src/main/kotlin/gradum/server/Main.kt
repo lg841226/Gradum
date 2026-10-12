@@ -21,10 +21,8 @@ import java.net.UnknownHostException
 
 private val logger: Logger = LoggerFactory.getLogger("Main")
 
-/** First CLI argument that switches the entry point to the ACP stdio server. */
 private const val ACP_ARGUMENT: String = "acp"
 
-/** First CLI argument that launches the interactive provider setup wizard. */
 private const val SETUP_ARGUMENT: String = "setup"
 
 fun main(arguments: Array<String>) {
@@ -216,7 +214,7 @@ private fun apiKeySourceLabel(settings: ServerSettings): String =
 private fun printUsage() {
   println(
     """
-    |Gradum
+    |Gradum Runtime
     |
     |Usage: gradum [command] [--help]
     |
@@ -258,7 +256,6 @@ private fun printUsage() {
   )
 }
 
-/** Prints the startup logo to stdout; HTTP mode only, since ACP stays silent. */
 private fun printStartupBanner() {
   val workDir: String = abbreviatePath(System.getProperty("user.dir") ?: "?")
 

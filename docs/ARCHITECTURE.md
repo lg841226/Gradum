@@ -1,6 +1,6 @@
 # Gradum
 
-## Local-First AI Coding Agent (Kotlin Edition)
+## Local Runtime for Extensible AI Agents (Kotlin Edition)
 
 ### Technical Architecture White Paper
 
@@ -22,9 +22,13 @@
 
 ## Abstract
 
-Gradum is a local-first AI code assistant that exposes carefully designed filesystem tools and shell execution
-interfaces to a local language model through LLM Function Calling. Its goal is to complete the full engineering task
-loop, "Read → Plan → Edit → Test → Run", within the local code repository.
+Gradum is a local runtime for extensible AI agents. It runs on the developer's own machine and gives every connected
+client the same core: a model of your choice (local Ollama or LM Studio, or your own API key to Zhipu BigModel,
+DeepSeek, MiniMax, or any OpenAI-compatible endpoint); hot-swappable skills that read and edit files, explore project
+structure, and run shell commands; and a safety layer that intercepts destructive actions before they execute. Skills
+are invoked through LLM Function Calling. Coding is the skill set Gradum ships with, not the shape it is locked to:
+as a coding agent it completes the full engineering task loop "Read → Plan → Edit → Test → Run" within the local code
+repository.
 
 Unlike cloud-hosted AI assistants, Gradum's design is centered on **deterministic tool behavior**, **observable
 execution**, and **defensive prompt injection protection**. Because the agent runs on the developer's local machine with
@@ -33,11 +37,13 @@ implementation layer. This filter examines every shell command (parsing executab
 and rejects dangerous operations before they reach `ProcessBuilder`.
 
 Gradum is implemented using Kotlin 2.3.0, exposes its streaming API over Ktor 3.0.3 HTTP, and manages streaming
-responses through kotlinx-coroutines. Besides HTTP, the same agent core is reachable through an **ACP stdio server**
-(`gradum acp`, Agent Client Protocol for IDE agents) and configured through an **interactive setup wizard**
-(`gradum setup`). Conversation context is encrypted and persisted to `<projectRoot>/.gradum/context.json`
-using a custom HMAC-CTR scheme on the local filesystem, ensuring cross-run continuity while preventing context
-injection.
+responses through kotlinx-coroutines. Clients connect through the IntelliJ IDEA plugin, the built-in browser skill
+editor (`GET /skills/editor`), or any ACP-capable IDE client: besides HTTP, the same agent core is reachable through
+an **ACP stdio server** (`gradum acp`, Agent Client Protocol for IDE agents) and configured through an **interactive
+setup wizard** (`gradum setup`). Your code, conversations, and API keys never leave your machine. Conversation context
+is encrypted and persisted under `<projectRoot>/.gradum/` (one directory per session; the legacy
+`<projectRoot>/.gradum/context.json` stays as the fallback for old clients) using a custom HMAC-CTR scheme on the
+local filesystem, ensuring cross-run continuity while preventing context injection.
 
 ---
 
@@ -77,8 +83,8 @@ Sections most readers look for first: [§2.9 Model Identity](#29-model-identity-
    pre-check in `RunCommandSkill`), not in the prompt.
 5. **Symmetric result handling**: Each skill returns a uniformly shaped `SkillResult`, `Success(Map)` or
    `Failure(code, message, context?)`. The agent main loop doesn't need branch-by-skill type handling.
-6. **No silent confirmation**: In environments without a UI confirmation, "requires confirmation" is equivalent to "
-   directly block."
+6. **No silent confirmation**: In environments without a UI confirmation, "requires confirmation" is equivalent to
+   "directly block."
 
 ### 1.2 Goals
 
@@ -787,20 +793,12 @@ flowchart TD
   goes through the TTL-cached discovery, so resolving per message never re-probes. `ModelDisplayLabel` formats the
   resulting provider/model pair for display.
 - **Cache invalidation**: `ProviderConfigStore.fingerprint()` derives `"mtime:length"` from `~/.gradum/settings.json`,
-  where
-  provider overrides live as VS Code style dotted top-level keys (`ollama.baseUrl`, `lmstudio.apiKey`,
+  where provider overrides live as VS Code style dotted top-level keys (`ollama.baseUrl`, `lmstudio.apiKey`,
   `zhipu.allowRemote`, ...). The legacy `~/.gradum/provider.env` was migrated into settings.json once on first access.
   `HealthCache` compares it on every request; when the file changes (URL / API key edited on the settings page), the
   cache is dropped and the next `/models` call re-probes the providers, so a URL edit surfaces in the model list within
   one poll cycle instead of waiting out the 60s TTL. The `configured` flag in settings.json gates the first ACP
   session until `gradum setup` (or the plugin settings page) has written a provider.
-- **Cache invalidation**: `ProviderConfigStore.fingerprint()` derives `"mtime:length"` from `~/.gradum/settings.json`,
-  where
-  provider overrides live as VS Code style dotted top-level keys (`ollama.baseUrl`, `lmstudio.apiKey`,
-  `zhipu.allowRemote`, ...). The legacy `~/.gradum/provider.env` was migrated into settings.json once on first access.
-  `HealthCache` compares it on every request; when the file changes (URL / API key edited on the settings page), the
-  cache is dropped and the next `/models` call re-probes the providers, so a URL edit surfaces in the model list within
-  one poll cycle instead of waiting out the 60s TTL.
 - **Ollama cloud availability**: models whose name contains `"cloud"` (case-insensitive) get a live
   `POST /api/chat` probe (`num_predict=1`) and are marked `available=false` with an `UnavailableReason`
   (`AUTH / QUOTA_EXCEEDED / RATE_LIMIT / NETWORK / OTHER`).
@@ -2508,18 +2506,14 @@ sequenceDiagram
 **Contract details that matter:**
 
 - **No timeout, by design.** A question may stay open indefinitely (matching mainstream agent CLIs);
-  `PendingQuestions.await`
-  parks the agent's IO thread with `runBlocking`, since `Skill.execute` is non-suspend.
+  `PendingQuestions.await` parks the agent's IO thread with `runBlocking`, since `Skill.execute` is non-suspend.
 - **The server never ships display copy.** Titles and choice labels travel as `L10nText` (`key` + args, or `raw` +
   `sourceLang`) and as stable semantics (`allow_once`/`allow_always`/`reject`); the plugin resolves them through its own
   `GradumBundle`. An optional per-choice `labelKey` lets the server pin a specific bundle entry when the generic
-  semantic
-  mapping is not enough (e.g. the `write_file` authorization card).
+  semantic mapping is not enough (e.g. the `write_file` authorization card).
 - **Idempotent response.** `200 {"status":"delivered"}` on success, `400` when `sessionId`/`requestId` is missing or
-  more
-  than one of `choice`/`text`/`cancelled` is supplied, `404 {"status":"not_found"}` for unknown or already-resolved
-  ids —
-  a duplicate click is a no-op for the client.
+  more than one of `choice`/`text`/`cancelled` is supplied, `404 {"status":"not_found"}` for unknown or
+  already-resolved ids — a duplicate click is a no-op for the client.
 - **`scope == null` means refuse.** Unit tests and sub-agents (`DelegateSkill` spawns `Agent` without an
   `askScopeHolder`) must not block on a user who cannot answer, so the skill falls back to
   `Failure(PERMISSION_DENIED)` instead of hanging.
@@ -2533,7 +2527,7 @@ sequenceDiagram
 | `write_file` | Target resolves outside `projectRoot`                | write this path  | add path to `authorizedWritePaths`                                 | `PERMISSION_DENIED` |
 
 `always` grants live only in the `SkillContext` body of the running session (never persisted; a restart asks again) and
-are checked **before** asking, so a granted command or path is not re-asked. `Commands already classified `Blocked`
+are checked **before** asking, so a granted command or path is not re-asked. Commands already classified `Blocked`
 never reach the ask stage — they are refused outright with `COMMAND_BLOCKED`.
 
 **Plugin side** (`plugin/…/chat/`): `ChatEventHandlers.handleAskInteractionEvent` parses the wire payload, resolves

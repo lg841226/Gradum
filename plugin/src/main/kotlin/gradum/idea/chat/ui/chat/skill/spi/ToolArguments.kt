@@ -35,10 +35,3 @@ fun Map<String, Any?>.boolean(key: String, defaultValue: Boolean = false): Boole
 /** Extract a [Double] value, returning [defaultValue] if missing or wrong type. */
 fun Map<String, Any?>.double(key: String, defaultValue: Double = 0.0): Double =
   (get(key) as? Number)?.toDouble() ?: defaultValue
-
-/** Extract a nested map, returning empty map if missing or wrong type. */
-fun Map<String, Any?>.nested(key: String): Map<String, Any?> {
-  val raw = get(key)
-  @Suppress("UNCHECKED_CAST")
-  return raw as? Map<String, Any?> ?: emptyMap()
-}

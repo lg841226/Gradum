@@ -3,7 +3,10 @@ package gradum.idea.mcp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
+import java.io.IOException
+import java.util.concurrent.CompletableFuture
 
 class McpRegistryClientTest {
 
@@ -262,5 +265,39 @@ class McpRegistryClientTest {
 
     assertEquals(1, results.size)
     assertEquals("first", results.single().description)
+  }
+
+  @Test
+  fun `awaitSuccess takes the first success even after a failed attempt`() {
+    val failed: CompletableFuture<List<McpRegistryResult>> =
+      CompletableFuture<List<McpRegistryResult>>().apply {
+        completeExceptionally(IOException("boom"))
+      }
+    val ok: CompletableFuture<List<McpRegistryResult>> =
+      CompletableFuture<List<McpRegistryResult>>().apply { complete(emptyList()) }
+
+    val result: List<McpRegistryResult> =
+      McpRegistryClient.awaitSuccess(attempts = listOf(failed, ok))
+
+    assertTrue(result.isEmpty())
+  }
+
+  @Test
+  fun `awaitSuccess rethrows the first failure when every attempt fails`() {
+    val first: CompletableFuture<List<McpRegistryResult>> =
+      CompletableFuture<List<McpRegistryResult>>().apply {
+        completeExceptionally(IOException("boom"))
+      }
+    val second: CompletableFuture<List<McpRegistryResult>> =
+      CompletableFuture<List<McpRegistryResult>>().apply {
+        completeExceptionally(IOException("bust"))
+      }
+
+    try {
+      McpRegistryClient.awaitSuccess(attempts = listOf(first, second))
+      fail("expected the first failure to be rethrown")
+    } catch (e: IOException) {
+      assertEquals("boom", e.message)
+    }
   }
 }

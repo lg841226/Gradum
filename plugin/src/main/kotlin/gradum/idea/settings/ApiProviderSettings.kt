@@ -111,33 +111,32 @@ internal fun ApiProviderSettings() {
           checked = state.ollamaAutoFilter,
           messageKey = "gradum.settings.provider.ollama.autofilter"
         ),
+        beforeAction = {
+          KeepAliveRow(
+            checked = state.keepAliveEnabled,
+            onCheckedChange = { isChecked ->
+              val transform: (ProviderSettings.State) -> Unit = { s ->
+                s.keepAliveEnabled = isChecked
+              }
+              settings.update(transform, persistToDisk = false)
+            },
+            state = keepAliveState,
+            onKeepAliveChange = { value ->
+              value.toIntOrNull()?.let { minutes ->
+                val transform: (ProviderSettings.State) -> Unit = { s ->
+                  s.keepAliveMinutes = minutes
+                }
+                settings.update(transform, persistToDisk = false)
+              }
+            }
+          )
+        },
       ) { isChecked ->
         val transform: (ProviderSettings.State) -> Unit = { s ->
           s.ollamaAutoFilter = isChecked
         }
         settings.update(transform, persistToDisk = false)
       }
-
-      Spacer(Modifier.height(GradumSpacing.md))
-
-      KeepAliveRow(
-        checked = state.keepAliveEnabled,
-        onCheckedChange = { isChecked ->
-          val transform: (ProviderSettings.State) -> Unit = { s ->
-            s.keepAliveEnabled = isChecked
-          }
-          settings.update(transform, persistToDisk = false)
-        },
-        state = keepAliveState,
-        onKeepAliveChange = { value ->
-          value.toIntOrNull()?.let { minutes ->
-            val transform: (ProviderSettings.State) -> Unit = { s ->
-              s.keepAliveMinutes = minutes
-            }
-            settings.update(transform, persistToDisk = false)
-          }
-        }
-      )
 
       Spacer(Modifier.height(GradumSpacing.ml))
 
@@ -526,10 +525,10 @@ private fun pushKindToCoordinator(settings: ProviderSettings, kind: ProviderKind
 
 /**
  * App-level row for the Ollama keep-alive, mirroring [AutoDetectRow]:
- * a checkbox + short field on one line, with a one-line hint below. The
+ * a checkbox and short field on one line, with a one-line hint below. The
  * field holds a whole number of minutes (`12`, or `-1` for always-on);
  * values push up through [onKeepAliveChange] after a short debounce so the
- * request builder always reads the persisted [keepAliveMinutes].
+ * request builder always reads the persisted keepAliveMinutes.
  */
 @Composable
 private fun KeepAliveRow(

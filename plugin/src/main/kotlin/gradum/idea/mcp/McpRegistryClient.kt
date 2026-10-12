@@ -12,6 +12,12 @@ import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /**
  * An environment variable an imported server expects up front: required
@@ -69,9 +75,18 @@ internal object McpRegistryClient {
   private const val BASE_URL: String = "https://registry.modelcontextprotocol.io/v0.1/servers"
   private const val SEARCH_LIMIT: Int = 20
 
+  /** When the hedged second attempt starts racing the first one. */
+  private const val HEDGE_DELAY_MS: Long = 3_000
+
+  private const val HEDGE_POLL_MS: Long = 100
+
   private val client: HttpClient = HttpClient.newBuilder()
     .connectTimeout(PluginConfig.API_CONNECT_TIMEOUT)
     .build()
+
+  private val searchExecutor: ExecutorService = Executors.newCachedThreadPool { runnable ->
+    Thread(runnable, "mcp-registry-search").apply { isDaemon = true }
+  }
 
   /**
    * Search endpoint for [query]: the term is URL-encoded (space becomes
@@ -87,9 +102,65 @@ internal object McpRegistryClient {
    * Searches the registry by name substring and returns importable results.
    * `version=latest` keeps one row per server; failures (network, non-200,
    * malformed body) throw so callers can distinguish empty from broken.
+   *
+   * The registry link swings between ~1s and ~17s, so the first attempt is
+   * hedged: after [HEDGE_DELAY_MS] without an answer a second identical
+   * request starts racing it (and a fast outright failure retries the same
+   * way), and whichever attempt succeeds first wins.
    */
   fun search(query: String): List<McpRegistryResult> {
-    val request: HttpRequest = HttpRequest.newBuilder(URI.create(searchUrl(query)))
+    val url: String = searchUrl(query)
+    val first: CompletableFuture<List<McpRegistryResult>> = attempt(url = url)
+    try {
+      return first.get(HEDGE_DELAY_MS, TimeUnit.MILLISECONDS)
+    } catch (e: TimeoutException) {
+      return awaitSuccess(attempts = listOf(first, attempt(url = url)))
+    } catch (e: ExecutionException) {
+      return awaitSuccess(attempts = listOf(first, attempt(url = url)))
+    } catch (e: InterruptedException) {
+      Thread.currentThread().interrupt()
+      throw IOException("registry search interrupted", e)
+    }
+  }
+
+  /**
+   * Returns the first attempt to finish successfully. Every attempt ends
+   * on its own through the per-request timeout; once all of them are done
+   * without a success, rethrows the first attempt's failure.
+   */
+  internal fun awaitSuccess(
+    attempts: List<CompletableFuture<List<McpRegistryResult>>>
+  ): List<McpRegistryResult> {
+    while (true) {
+      val done: List<CompletableFuture<List<McpRegistryResult>>> =
+        attempts.filter { attempt -> attempt.isDone }
+      for (attempt: CompletableFuture<List<McpRegistryResult>> in done) {
+        if (!attempt.isCompletedExceptionally) return attempt.get()
+      }
+      if (done.size == attempts.size) {
+        val error: Throwable =
+          runCatching { attempts.first().get() }
+            .exceptionOrNull()
+            ?.let { failure ->
+              if (failure is ExecutionException) failure.cause ?: failure else failure
+            }
+            ?: IOException("registry search failed")
+        throw error
+      }
+      Thread.sleep(HEDGE_POLL_MS)
+    }
+  }
+
+  /** One blocking fetch + parse of the list endpoint, off the caller thread. */
+  private fun attempt(url: String): CompletableFuture<List<McpRegistryResult>> =
+    CompletableFuture.supplyAsync(
+      { parse(json = fetch(url = url)) },
+      searchExecutor
+    )
+
+  /** Blocking GET returning the body; throws on transport errors or a non-200. */
+  private fun fetch(url: String): String {
+    val request: HttpRequest = HttpRequest.newBuilder(URI.create(url))
       .timeout(PluginConfig.API_REQUEST_TIMEOUT)
       .GET()
       .build()
@@ -97,7 +168,7 @@ internal object McpRegistryClient {
       client.send(request, HttpResponse.BodyHandlers.ofString())
     if (response.statusCode() != 200)
       throw IOException("registry search failed: HTTP ${response.statusCode()}")
-    return parse(json = response.body())
+    return response.body()
   }
 
   /**

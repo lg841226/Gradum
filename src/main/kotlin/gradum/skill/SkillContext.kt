@@ -15,11 +15,11 @@ import gradum.agent.Agent
  * skills to pick schema variants.
  *
  * [agentConfiguration] and [emitEvent] are added for skills that need
- * to create sub-agents (e.g. [DelegateSkill]).
+ * to create sub-agents (e.g. [gradum.skill.builtin.DelegateSkill]).
  *
  * [registerChildSession] and [unregisterChildSession] enable skills
  * that spawn sub-agents to register them in the server's session
- * hierarchy ([gradum.server.Routes.SessionEntry]), so that stopping
+ * hierarchy ([gradum.server]), so that stopping
  * the parent session via `POST /stop` cascades to all child sessions
  * and terminates them on the server side: not just in the plugin UI.
  */
@@ -31,7 +31,7 @@ data class SkillContext(
 
   /**
    * The full [AgentConfiguration] for the current session. Skills
-   * that spawn sub-agents (e.g. [DelegateSkill])
+   * that spawn sub-agents (e.g. [gradum.skill.builtin.DelegateSkill])
    * use this to derive the sub-agent's configuration.
    */
   val agentConfiguration: AgentConfiguration? = null,
@@ -57,7 +57,7 @@ data class SkillContext(
   /**
    * Callback to register a sub-agent in the server's session
    * hierarchy. When non-null, skills that spawn sub-agents
-   * (e.g. [DelegateSkill]) call this with a unique child session
+   * (e.g. [gradum.skill.builtin.DelegateSkill]) call this with a unique child session
    * ID and the [Agent] instance so that [POST /stop] on the parent
    * session cascades to terminate the sub-agent.
    *
@@ -69,7 +69,7 @@ data class SkillContext(
   /**
    * Callback to unregister a sub-agent from the server's session
    * hierarchy after it completes or errors. Paired with
-   * [registerChildSession]; the [DelegateSkill] calls this in
+   * [registerChildSession]; the [gradum.skill.builtin.DelegateSkill] calls this in
    * a `finally` block to guarantee cleanup.
    */
   val unregisterChildSession: ((childSessionId: String) -> Unit)? = null,
@@ -111,7 +111,7 @@ data class SkillContext(
   /**
    * Session-scoped cache of dangerous command *categories* the user approved
    * "always" (e.g. `rm:delete`, `chmod:recursive`, `dd:device-write`) after a
-   * [CommandVerdict.NeedsApproval] verdict on `run_cmd`. In-memory only, never
+   * [gradum.utils.CommandVerdict] verdict on `run_cmd`. In-memory only, never
    * persisted; a session restart asks again. Not part of the
    * constructor/equality: it lives for the lifetime of the per-session
    * [SkillContext] instance.
