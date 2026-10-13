@@ -246,4 +246,4 @@ MIT License, see [LICENSE](LICENSE)
 
 ## Gradum Version
 
-Server 1.0.2, Plugin 1.0.3
+Server 1.0.2, Plugin 1.0.4

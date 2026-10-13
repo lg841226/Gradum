@@ -101,6 +101,7 @@ dependencies {
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
   implementation("org.jline:jline:3.30.17")
+  implementation("org.xerial:sqlite-jdbc:3.50.3.0")
   implementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.3.0")
   implementation("ch.qos.logback:logback-classic:1.6.3")
   testImplementation("io.ktor:ktor-server-test-host-jvm:3.0.3")
