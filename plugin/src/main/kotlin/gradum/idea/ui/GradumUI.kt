@@ -749,6 +749,8 @@ private fun rememberChatSessionState(
     isWaitingForResponse = session.isWaitingForResponse,
     inputState = ChatInputState(
       editorContext = editorContext,
+      sessionContextTokens =
+        session.messages.lastOrNull { it.tokenUsage != null }?.tokenUsage?.contextTokens ?: 0,
       isFocused = session.isFocused,
       isSending = session.isSending,
       isExpanded = session.isExpanded,

@@ -376,14 +376,10 @@ class GradumChatSession : Disposable {
       clearConversationState()
     }
 
-    // Refill the withdrawn text back into the input so the user can re-edit
-    // and re-send; it is prepended so any freshly typed draft is preserved.
-    // Done after the empty-conversation branch above because
-    // clearConversationState() resets the text state.
     if (withdrawnContent.isNotBlank()) {
       textState.edit { replace(start = 0, end = 0, withdrawnContent) }
     }
-    // Truncate the server-side context to match the local withdrawal.
+
     val sessionKey: String? = activeSessionId
     val projectRoot: String? = project?.basePath
     if (sessionKey != null && projectRoot != null && messageId.isNotBlank()) {

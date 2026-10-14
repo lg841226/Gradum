@@ -27,6 +27,7 @@ import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry
 import gradum.idea.chat.ui.chat.skill.spi.parseJsonResult
+import gradum.idea.chat.ui.common.formatTokenCount
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.chat.ui.input.formatModelName
 import gradum.idea.chat.ui.markdown.GradumMarkdown
@@ -457,14 +458,5 @@ private fun ErrorBlock(block: RenderBlock.Error) {
         color = textErrorColor
       )
     )
-  }
-}
-
-
-private fun formatTokenCount(count: Int): String {
-  return when {
-    count >= 1_000_000 -> String.format("%.1fM", count / 1_000_000.0)
-    count >= 1_000 -> String.format("%.1fK", count / 1_000.0)
-    else -> count.toString()
   }
 }

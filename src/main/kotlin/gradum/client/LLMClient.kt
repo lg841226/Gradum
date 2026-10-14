@@ -693,6 +693,11 @@ private fun recordTokenUsage(
 
   if (promptTokens <= 0 && completionTokens <= 0) return currentUsage
 
+  logger.info(
+    "LLM call usage: prompt={} completion={} (running context watermark={})",
+    promptTokens, completionTokens, promptTokens
+  )
+
   return currentUsage.copy(
     promptTokens = currentUsage.promptTokens + promptTokens,
     completionTokens = currentUsage.completionTokens + completionTokens,

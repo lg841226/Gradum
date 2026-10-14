@@ -23,6 +23,11 @@ data class ModelInfo(
    */
   val available: Boolean = true
 ) {
+  companion object {
+    /** Fallback window size for models that do not report a context limit. */
+    const val DEFAULT_CONTEXT_LIMIT: Int = 200_000
+  }
+
   /**
    * True when this entry identifies the same model as [other]: same
    * display name on the same server. Used everywhere the code needs a

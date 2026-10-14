@@ -1,6 +1,10 @@
 package gradum.utils
 
+import gradum.mcp.McpToolCatalog
 import gradum.server.ChatDb
+import gradum.skill.Skill
+import gradum.skill.SkillRegistry
+import gradum.skill.ToolDisplay
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -11,15 +15,6 @@ import java.nio.file.StandardCopyOption
 
 private val logger: org.slf4j.Logger = LoggerFactory.getLogger("ContextManager")
 private val jsonFormatter: Json = Json { prettyPrint = true }
-
-/**
- * Maximum number of messages to keep in persisted context history.
- *
- * Single source of truth is [MAX_HISTORY_MESSAGES] in
- * MessageHistoryTruncator, shared with the in-memory
- * truncation in `Agent` so both budgets can never drift apart.
- */
-const val MAX_CONTEXT_MESSAGES: Int = MAX_HISTORY_MESSAGES
 
 /**
  * Persists the agent's conversation history and the set of files that have
@@ -213,27 +208,40 @@ class ContextManager(private val outputDirectory: Path) {
     }
   }
 
+  /**
+   * Prepares history for persistence. Text turns (user / assistant) are kept
+   * in full; tool results are replaced with compact action stubs carrying
+   * only what the skill's [ToolDisplay] declares (label + key argument) plus
+   * the result size. Raw outputs are volatile snapshots (file contents,
+   * command output change over time), so they are deliberately not stored:
+   * the model re-runs a tool when it needs fresh data.
+   *
+   * System messages are dropped here because they are re-injected fresh on
+   * every request. No message-count truncation happens on this path; the
+   * request-side budget (MessageHistoryTruncator) decides how much history
+   * is re-sent to the model.
+   */
   private fun cleanMessageHistory(messages: List<Map<String, Any>>): List<Map<String, Any>> {
+    val toolCallsByCallId: Map<String, Map<String, Any>> = collectToolCallsByCallId(messages)
     val cleanedMessages: MutableList<Map<String, Any>> = mutableListOf()
-    val preservedToolCallIds: Set<String> = collectPreservedToolCallIds(messages)
 
     for (message in messages) {
       val role: String = message["role"] as? String ?: ""
       val rawContent: Any? = message["content"]
       val content: String = rawContent as? String ?: ""
-      val isSystemOrEmptyAssistant: Boolean =
-        (role == "system") ||
-          (role == "assistant" && content.isBlank() && readListOfMaps(message["tool_calls"]).isEmpty())
-
-      if (isSystemOrEmptyAssistant) continue
 
       when (role) {
-        "tool" -> {
-          val callId: String = message["tool_call_id"] as? String ?: ""
-          if (callId in preservedToolCallIds) cleanedMessages.add(message)
+        // Re-injected fresh on every request; storing stale copies is pointless.
+        "system" -> continue
+
+        // Empty assistant shells (no text, no calls) carry no information.
+        "assistant" -> {
+          if (content.isNotBlank() || readListOfMaps(message["tool_calls"]).isNotEmpty()) {
+            cleanedMessages.add(message)
+          }
         }
 
-        "assistant" -> cleanAssistantMessage(message, content, preservedToolCallIds, cleanedMessages)
+        "tool" -> cleanedMessages.add(buildToolStub(message, toolCallsByCallId))
 
         // Keep the original content structure: multimodal user messages
         // carry content as a List (text + images): casting to String
@@ -244,70 +252,84 @@ class ContextManager(private val outputDirectory: Path) {
             put("role", role)
             put("content", rawContent ?: "")
             // Preserve the plugin-generated message id so a "rewind"
-            // (withdraw) can locate this exact message in context.json.
+            // (withdraw) can locate this exact message in the store.
             message["id"]?.let { put("id", it) }
           }
         )
       }
     }
-    return takeLastTurns(cleanedMessages, MAX_CONTEXT_MESSAGES)
+    return cleanedMessages
   }
 
   /**
-   * Collects the call ids of `read_file` / `explore_project` tool calls
-   * that must survive cleanup because the LLM routinely refers back to
-   * their results.
+   * Maps every tool call id to its call entry (`function` name + JSON
+   * arguments), read from the assistant messages, so a tool result can be
+   * reduced to a stub that still names the action it belongs to.
    */
-  private fun collectPreservedToolCallIds(messages: List<Map<String, Any>>): Set<String> {
-    val preservedToolCallIds: MutableSet<String> = mutableSetOf()
+  private fun collectToolCallsByCallId(messages: List<Map<String, Any>>): Map<String, Map<String, Any>> {
+    val callsByCallId: MutableMap<String, Map<String, Any>> = mutableMapOf()
     for (message in messages) {
-      val role: String = message["role"] as? String ?: ""
-      if (role != "assistant") continue
-
+      if (message["role"] != "assistant") continue
       for (toolCall: Map<String, Any> in readListOfMaps(message["tool_calls"])) {
-        val function: Map<String, Any> = readStringMap(toolCall["function"])
-        if (function.isEmpty()) continue
-        val functionName: String = function["name"] as? String ?: ""
         val callId: String = toolCall["id"] as? String ?: ""
-
-        if (functionName in listOf("read_file", "explore_project") && callId.isNotBlank()) {
-          preservedToolCallIds.add(callId)
-        }
+        if (callId.isNotBlank()) callsByCallId[callId] = toolCall
       }
     }
-    return preservedToolCallIds
+    return callsByCallId
   }
 
-  private fun cleanAssistantMessage(
-    message: Map<String, Any>,
-    content: String,
-    preservedToolCallIds: Set<String>,
-    cleanedMessages: MutableList<Map<String, Any>>,
-  ) {
-    val toolCalls: List<Map<String, Any>> = readListOfMaps(message["tool_calls"])
-    if (toolCalls.isEmpty()) {
-      cleanedMessages.add(mapOf("role" to "assistant", "content" to content))
-      return
+  /**
+   * Builds the stored stand-in for a tool result: the skill's display label
+   * and key argument from its [ToolDisplay] declaration, plus the payload
+   * size. Falls back to the raw function name when the skill (or its
+   * display) is unknown. The original output is never persisted.
+   */
+  private fun buildToolStub(
+    toolMessage: Map<String, Any>,
+    toolCallsByCallId: Map<String, Map<String, Any>>,
+  ): Map<String, Any> {
+    val callId: String = toolMessage["tool_call_id"] as? String ?: ""
+    val toolCall: Map<String, Any> = toolCallsByCallId[callId] ?: emptyMap()
+    val function: Map<String, Any> = readStringMap(toolCall["function"])
+    val functionName: String = function["name"] as? String ?: ""
+
+    // Same resolution order as ToolExecutor: built-in registry first, then MCP adapters.
+    val skillInstance: Skill? = functionName.takeIf { it.isNotBlank() }?.let {
+      SkillRegistry.getSkill(skillName = it) ?: McpToolCatalog.adapterFor(name = it)
+    }
+    val toolDisplay: ToolDisplay? = skillInstance?.toolDisplay
+    val displayLabel: String = toolDisplay?.label?.takeIf { it.isNotBlank() } ?: functionName.ifBlank { "tool" }
+
+    val stubBuilder: StringBuilder = StringBuilder("[$displayLabel]")
+    val paramKey: String = toolDisplay?.paramKey ?: ""
+    val paramValue: String = readArgumentValue(function["arguments"], paramKey)
+    if (paramKey.isNotBlank() && paramValue.isNotBlank()) {
+      stubBuilder.append(" ").append(paramKey).append("=").append(paramValue)
     }
 
-    val preservedCalls: List<Map<String, Any>> = toolCalls.filter { toolCall ->
-      val callId: String = toolCall["id"] as? String ?: ""
-      callId in preservedToolCallIds
-    }
-    val trimmedContent: String = content
+    val resultSizeKb: Int = (toolMessage["content"] as? String)?.length ?: 0
+    stubBuilder.append(" (result not stored, ").append(resultSizeKb).append(" bytes)")
 
-    if (preservedCalls.isNotEmpty()) {
-      cleanedMessages.add(
-        mapOf(
-          "role" to "assistant",
-          "content" to trimmedContent,
-          "tool_calls" to preservedCalls
-        )
-      )
-    } else {
-      cleanedMessages.add(
-        mapOf("role" to "assistant", "content" to trimmedContent)
-      )
+    return buildMap {
+      put("role", "tool")
+      put("tool_call_id", callId)
+      put("content", stubBuilder.toString())
+    }
+  }
+
+  /**
+   * Extracts the [paramKey] field from a tool call's JSON `arguments`
+   * string, shortened for display. Returns an empty string when anything
+   * is missing or unparseable — the stub stays readable either way.
+   */
+  private fun readArgumentValue(rawArguments: Any?, paramKey: String): String {
+    if (paramKey.isBlank() || rawArguments !is String) return ""
+    return try {
+      val parsedArguments: JsonObject = jsonFormatter.parseToJsonElement(rawArguments).jsonObject
+      val rawValue: String = parsedArguments[paramKey]?.jsonPrimitive?.contentOrNull ?: ""
+      if (rawValue.length > 120) rawValue.take(120) + "..." else rawValue
+    } catch (_: Exception) {
+      ""
     }
   }
 

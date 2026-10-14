@@ -37,6 +37,11 @@ data class ChatInputState(
    * precondition, so the dropdown is always enabled.
    */
   val thinkingLevel: ThinkingLevel = ThinkingLevel.MEDIUM,
+  /**
+   * Tokens currently occupied by the session context, taken from the
+   * latest assistant response; feeds the usage ring in the toolbar.
+   */
+  val sessionContextTokens: Int = 0,
 ) {
   /**
    * `true` if the currently selected model can accept image
