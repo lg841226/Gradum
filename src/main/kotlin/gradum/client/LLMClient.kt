@@ -102,7 +102,11 @@ sealed class LLMResponseChunk {
 data class TokenUsageSnapshot(
   val totalTokens: Int = 0,
   val promptTokens: Int = 0,
-  val completionTokens: Int = 0
+  val completionTokens: Int = 0,
+  /** Raw prompt tokens of the most recent single request, i.e. the live context window size. */
+  val lastPromptTokens: Int = 0,
+  /** Raw completion tokens of the most recent single request. */
+  val lastCompletionTokens: Int = 0
 )
 
 /**
@@ -677,6 +681,8 @@ private fun formatLlmError(
  *
  * Each provider reports usage under different field names (Ollama:
  * `prompt_eval_count`/`eval_count`; OpenAI: `prompt_tokens`/`completion_tokens`).
+ * The `last*` fields keep the raw values of the latest request only, so callers
+ * can read the current context window size instead of the cumulative sum.
  * Returns [currentUsage] unchanged when neither field is positive.
  */
 private fun recordTokenUsage(
@@ -690,6 +696,8 @@ private fun recordTokenUsage(
   return currentUsage.copy(
     promptTokens = currentUsage.promptTokens + promptTokens,
     completionTokens = currentUsage.completionTokens + completionTokens,
-    totalTokens = currentUsage.totalTokens + promptTokens + completionTokens
+    totalTokens = currentUsage.totalTokens + promptTokens + completionTokens,
+    lastPromptTokens = promptTokens,
+    lastCompletionTokens = completionTokens
   )
 }

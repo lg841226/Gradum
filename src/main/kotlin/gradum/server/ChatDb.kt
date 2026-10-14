@@ -1,5 +1,6 @@
 package gradum.server
 
+import gradum.server.ChatDb.chainHash
 import gradum.utils.JsonUtil
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -40,7 +41,7 @@ object ChatDb {
     projectRoot: Path,
     sessionId: String,
     modelName: String,
-    messages: List<Map<String, Any>>,
+    messages: List<Map<String, Any>>
   ): Boolean {
     val activeConnection: Connection = connectionFor(projectRoot)
     val nowMillis: Long = System.currentTimeMillis()
@@ -177,9 +178,6 @@ object ChatDb {
       DriverManager.getConnection("jdbc:sqlite:${databaseFile.toAbsolutePath()}")
     try {
       openedConnection.createStatement().use { statement ->
-        // Rollback journal mode: at rest only gradum.db exists, no -wal/-shm
-        // sidecar files next to the project. Explicitly set (not just left at
-        // the default) so databases previously created in WAL mode convert back.
         statement.execute("PRAGMA journal_mode=DELETE")
         statement.execute("PRAGMA foreign_keys=ON")
         statement.execute("CREATE TABLE IF NOT EXISTS schema_info (version INTEGER NOT NULL)")

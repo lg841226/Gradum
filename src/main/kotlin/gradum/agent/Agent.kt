@@ -283,7 +283,8 @@ class Agent(
     val tokenUsage = mapOf(
       "promptTokens" to activeClient.tokenUsage.promptTokens,
       "completionTokens" to activeClient.tokenUsage.completionTokens,
-      "totalTokens" to activeClient.tokenUsage.totalTokens
+      "totalTokens" to activeClient.tokenUsage.totalTokens,
+      "contextTokens" to activeClient.tokenUsage.lastPromptTokens
     )
     sessionManager.abort(reason, tokenUsage)
   }
@@ -323,7 +324,8 @@ class Agent(
             "content" to content,
             "promptTokens" to snapshot.promptTokens,
             "completionTokens" to snapshot.completionTokens,
-            "totalTokens" to snapshot.totalTokens
+            "totalTokens" to snapshot.totalTokens,
+            "contextTokens" to snapshot.lastPromptTokens
           )
         )
       }
@@ -336,8 +338,6 @@ class Agent(
     // blocked while streaming. Not safe to convert until `processLlmTurn` and all 9 skill
     // execute() paths are suspend-clean; tracked as the "Agent.runBlocking removal" item.
     runBlocking {
-      // Stop mid-stream once canceled; without this the whole answer keeps
-      // streaming to completion before the outer loop notices isAborted.
       responseFlow.takeWhile { !sessionManager.isAborted }.collect { chunk ->
         when (chunk) {
           is LLMResponseChunk.TextContent -> {
@@ -388,7 +388,8 @@ class Agent(
     val tokenUsage = mapOf(
       "promptTokens" to activeClient.tokenUsage.promptTokens,
       "completionTokens" to activeClient.tokenUsage.completionTokens,
-      "totalTokens" to activeClient.tokenUsage.totalTokens
+      "totalTokens" to activeClient.tokenUsage.totalTokens,
+      "contextTokens" to activeClient.tokenUsage.lastPromptTokens
     )
     sessionManager.abort(revokeReason, tokenUsage)
     return true

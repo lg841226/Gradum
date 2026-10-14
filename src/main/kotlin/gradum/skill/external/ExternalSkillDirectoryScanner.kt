@@ -3,6 +3,7 @@ package gradum.skill.external
 import gradum.skill.Skill
 import gradum.skill.SkillRegistry
 import gradum.skill.SkillStore
+import gradum.utils.JsonUtil
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -39,9 +40,11 @@ internal const val BUILD_DIRECTORY_NAME: String = ".build"
  * source whose hash still matches keeps its .class output and its diagnostics
  * untouched; a source whose recorded output went missing, a new source, or an
  * edited source is recompiled; a deleted source has its output removed. When
- * nothing changed the compiler is skipped entirely. The first pass inside a
- * process starts from a clean .build because no output has been attributed
- * yet. Each changed source is compiled on its own into .build-staging, which
+ * nothing changed the compiler is skipped entirely. The incremental state
+ * (hashes, outputs, diagnostics) is persisted in `.build-manifest.json` beside
+ * `.build`, so the first pass of a process restores the previous process's
+ * state and unchanged skills load their existing classes without recompiling;
+ * only an unreadable manifest falls back to a clean first pass. Each changed source is compiled on its own into .build-staging, which
  * lives outside .build so the classloader never scans it, with .build on the
  * classpath so unchanged skills still resolve. Only a successful compile is
  * swapped into .build: a failed compile keeps the previous working .class
@@ -66,6 +69,7 @@ class ExternalSkillDirectoryScanner(
   val skillsDirectory: File = homeDirectory.resolve(".gradum").resolve(SKILLS_DIRECTORY_NAME)
   private val externalOwned: ConcurrentHashMap<String, Skill> = ConcurrentHashMap()
   private val stagingDirectory: File = skillsDirectory.resolve(".build-staging")
+  private val manifestFile: File = skillsDirectory.resolve(".build-manifest.json")
   private val compiledSourceHashes: MutableMap<String, String> = mutableMapOf()
   private val outputsBySource: MutableMap<String, MutableSet<String>> = mutableMapOf()
   private val diagnosticsBySource: MutableMap<String, List<ExternalDiagnostic>> = mutableMapOf()
@@ -120,9 +124,7 @@ class ExternalSkillDirectoryScanner(
     try {
       val sourceFile = buildRoot.resolve(safeName)
       sourceFile.writeText(sourceText)
-      // The previously deployed output sits on the classpath so a source that
-      // references another installed skill still resolves, exactly as it would
-      // during a deployment compile.
+
       val previousOutput = skillsDirectory.resolve(BUILD_DIRECTORY_NAME)
       val compileResult = skillCompiler.compile(
         outputDirectory = buildRoot.resolve("out"),
@@ -173,6 +175,7 @@ class ExternalSkillDirectoryScanner(
     val outputDirectory = skillsDirectory.resolve(BUILD_DIRECTORY_NAME)
     if (sourceFiles.isEmpty()) {
       wipeOutputDirectory(outputDirectory)
+      manifestFile.delete()
       compiledSourceHashes.clear()
       outputsBySource.clear()
       diagnosticsBySource.clear()
@@ -189,7 +192,7 @@ class ExternalSkillDirectoryScanner(
   }
 
   private fun refreshCompiledSources(sourceFiles: List<File>, outputDirectory: File) {
-    if (compiledSourceHashes.isEmpty()) {
+    if (compiledSourceHashes.isEmpty() && !restoreBuildManifest(sourceFiles, outputDirectory)) {
       wipeOutputDirectory(outputDirectory)
     }
 
@@ -221,7 +224,106 @@ class ExternalSkillDirectoryScanner(
       val sourceHash = currentHashes.getValue(sourceFile.name)
       compileSourceFile(sourceFile, sourceHash, outputDirectory)
     }
+    saveBuildManifest()
   }
+
+  /**
+   * Restores the incremental compile state written by a previous process.
+   * A source is only trusted when its recorded hash still matches the file on
+   * disk and every recorded output file exists under [outputDirectory]; the
+   * rest recompile through the normal changed-source path. Any output file
+   * that no restored source owns is deleted, so a partially restored cache
+   * can never leave stale classes behind for the classloader to pick up.
+   * Returns `true` when a manifest existed and parsed, even if it matched
+   * nothing; only an unreadable manifest falls back to the clean rebuild.
+   */
+  private fun restoreBuildManifest(sourceFiles: List<File>, outputDirectory: File): Boolean {
+    if (!manifestFile.isFile) return false
+    val manifest: Map<String, Any?> = try {
+      JsonUtil.decodeMap(manifestFile.readText())
+    } catch (readException: Exception) {
+      logger.warn("Ignoring unreadable skill build manifest: {}", readException.message)
+      return false
+    }
+
+    val manifestSources: Map<*, *> = manifest["sources"] as? Map<*, *> ?: return false
+    val currentHashes: Map<String, String> =
+      sourceFiles.associate { sourceFile -> sourceFile.name to hashSourceFile(sourceFile) }
+
+    for (sourceFile in sourceFiles) {
+      val sourceEntry: Map<*, *> = manifestSources[sourceFile.name] as? Map<*, *> ?: continue
+      val recordedHash: String = sourceEntry["hash"] as? String ?: continue
+      if (recordedHash != currentHashes.getValue(sourceFile.name)) continue
+
+      val recordedOutputs: List<String> =
+        (sourceEntry["outputs"] as? List<*>)?.filterIsInstance<String>().orEmpty()
+      if (recordedOutputs.isEmpty()) continue
+      if (recordedOutputs.any { relativePath -> !outputDirectory.resolve(relativePath).isFile }) continue
+
+      compiledSourceHashes[sourceFile.name] = recordedHash
+      outputsBySource[sourceFile.name] = recordedOutputs.toMutableSet()
+      diagnosticsBySource[sourceFile.name] = decodeDiagnostics(sourceEntry["diagnostics"])
+    }
+
+    val ownedOutputs: Set<String> = outputsBySource.values.flatten().toSet()
+    outputDirectory.walkTopDown().filter { cachedFile -> cachedFile.isFile }.forEach { cachedFile ->
+      if (cachedFile.relativeTo(outputDirectory).path !in ownedOutputs) cachedFile.delete()
+    }
+
+    if (compiledSourceHashes.isNotEmpty()) {
+      logger.info(
+        "Restored {} of {} external skill(s) from build cache; recompile skipped",
+        compiledSourceHashes.size, sourceFiles.size
+      )
+    }
+    return true
+  }
+
+  /** Persists the incremental state so the next process start can skip recompiles. */
+  private fun saveBuildManifest() {
+    if (compiledSourceHashes.isEmpty()) {
+      manifestFile.delete()
+      return
+    }
+
+    val manifestSources: Map<String, Any> = compiledSourceHashes.keys.associateWith { sourceName ->
+      mapOf(
+        "hash" to compiledSourceHashes.getValue(sourceName),
+        "outputs" to outputsBySource[sourceName].orEmpty().toList(),
+        "diagnostics" to diagnosticsBySource[sourceName].orEmpty().map { diagnostic ->
+          mapOf(
+            "severity" to diagnostic.severity.name,
+            "message" to diagnostic.message,
+            "line" to diagnostic.line,
+            "column" to diagnostic.column,
+          )
+        },
+      )
+    }
+
+    try {
+      manifestFile.writeText(
+        JsonUtil.encodeMap(input = mapOf("version" to 1, "sources" to manifestSources), prettyPrint = true)
+      )
+    } catch (writeException: Exception) {
+      logger.warn("Failed to write skill build manifest: {}", writeException.message)
+    }
+  }
+
+  private fun decodeDiagnostics(rawDiagnostics: Any?): List<ExternalDiagnostic> =
+    (rawDiagnostics as? List<*>).orEmpty().mapNotNull { rawDiagnostic ->
+      val diagnostic: Map<*, *> = rawDiagnostic as? Map<*, *> ?: return@mapNotNull null
+      val severity: ExternalDiagnosticSeverity =
+        (diagnostic["severity"] as? String)
+          ?.let { severityName -> runCatching { ExternalDiagnosticSeverity.valueOf(severityName) }.getOrNull() }
+          ?: return@mapNotNull null
+      ExternalDiagnostic(
+        severity = severity,
+        message = diagnostic["message"] as? String ?: "",
+        line = (diagnostic["line"] as? Number)?.toInt(),
+        column = (diagnostic["column"] as? Number)?.toInt(),
+      )
+    }
 
   private fun compileSourceFile(sourceFile: File, sourceHash: String, outputDirectory: File): Boolean {
     wipeOutputDirectory(stagingDirectory)
@@ -234,9 +336,7 @@ class ExternalSkillDirectoryScanner(
     compileResult.compileWarnings.forEach { compileWarning ->
       logger.warn("External skill compile warning: {}", compileWarning)
     }
-    // Recorded together, because a skip is decided by the hash alone: the two
-    // must describe the same attempt, or a skip would serve the previous
-    // attempt's diagnostics.
+   
     diagnosticsBySource[sourceFile.name] = compileResult.diagnostics
     compiledSourceHashes[sourceFile.name] = sourceHash
     if (!compileResult.isSuccess) {

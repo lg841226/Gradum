@@ -1,10 +1,16 @@
 package gradum.utils
 
 import gradum.server.ChatDb
+import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
+import java.io.File
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 
 private val logger: org.slf4j.Logger = LoggerFactory.getLogger("ContextManager")
+private val jsonFormatter: Json = Json { prettyPrint = true }
 
 /**
  * Maximum number of messages to keep in persisted context history.
@@ -20,21 +26,29 @@ const val MAX_CONTEXT_MESSAGES: Int = MAX_HISTORY_MESSAGES
  * been fully read, so a later session can resume where the previous one
  * left off without re-reading the same files.
  */
-class ContextManager(outputDirectory: Path) {
+class ContextManager(private val outputDirectory: Path) {
 
-  /** Session id taken from the output directory name (convention: .../sessions/<sessionId>/). */
+  /**
+   * Session id taken from the output directory name
+   * (convention: .../sessions/<sessionId>/ or .../.gradum/ for legacy).
+   */
   private val sessionId: String = outputDirectory.fileName.toString()
 
   /**
-   * Project root derived from the output directory layout: the session
-   * layout lives at `<root>/.gradum/sessions/<sessionId>/`, the legacy
-   * layout directly at `<root>/.gradum/`. Both are inside the project, so
-   * the per-project database lands in the same `.gradum` folder that
-   * already holds the session files.
+   * Project root derived from the output directory layout:
+   * - Session layout: `<root>/.gradum/sessions/<sessionId>/`
+   * - Legacy layout: `<root>/.gradum/`
+   * In both cases the per-project database lives in the same `.gradum` folder
+   * that already holds the session files.
+   * Falls back to the current working directory if the parent chain is shorter
+   * than expected (e.g., when running in tests with minimal paths).
    */
   private val projectRoot: Path =
-    if (sessionId == ".gradum") outputDirectory.parent
-    else outputDirectory.parent.parent.parent
+    if (sessionId == ".gradum") {
+      outputDirectory.parent ?: Path.of(".")
+    } else {
+      outputDirectory.parent?.parent?.parent ?: Path.of(".")
+    }
 
   /**
    * Cached decrypted messages to avoid re-reading and decrypting from
@@ -49,31 +63,117 @@ class ContextManager(outputDirectory: Path) {
   @Volatile
   private var cachedMessages: List<Map<String, Any>>? = null
 
-  fun loadContext(): List<Map<String, Any>> {
-    cachedMessages?.let { return it }
+  /**
+   * Whether to use the H2 database backend instead of the legacy JSON file.
+   * Controlled by the system property `-Dgradum.db.path=<path>`.
+   */
+  private val useDatabase: Boolean = System.getProperty("gradum.db.path") != null
 
+  private val contextFilePath: Path = outputDirectory.resolve("context.json")
+  private val contextTempFilePath: Path = outputDirectory.resolve("context.json.tmp")
+
+  fun loadContext(): List<Map<String, Any>> = if (useDatabase) {
+    // Database mode: delegate to ChatDb
     val storedMessages: List<Map<String, Any>> = ChatDb.loadContext(
       projectRoot = projectRoot, sessionId = sessionId
     ).mapNotNull { message ->
       decryptMessageIfNeeded(message = LinkedHashMap(message))
     }
+    logMessageStats(storedMessages)
+    cachedMessages = storedMessages
+    storedMessages
+  } else {
+    // Legacy file mode
+    cachedMessages?.let { return it }
 
-    logMessageStats(storedMessages); cachedMessages = storedMessages
-    return storedMessages
+    val contextFile: File = contextFilePath.toFile()
+
+    if (!contextFile.exists()) {
+      return emptyList()
+    }
+
+    return try {
+      val rawContent: String = contextFile.readText(Charsets.UTF_8)
+      val parsedJson: JsonObject = jsonFormatter.parseToJsonElement(rawContent).jsonObject
+
+      val rawMessages: JsonArray = parsedJson["messages"]?.jsonArray ?: run {
+        logger.warn("Context file has no 'messages' field"); return emptyList()
+      }
+
+      var decryptionFailures = 0
+      val decryptedMessages: List<Map<String, Any>> = rawMessages.mapNotNull { element ->
+        val messageMap: MutableMap<String, Any> = parseJsonObject(element.jsonObject)
+        val decrypted: Map<String, Any>? = decryptMessageIfNeeded(messageMap)
+        if (decrypted == null) {
+          decryptionFailures++; null
+        } else decrypted
+      }
+      if (decryptionFailures > 0) {
+        logger.warn(
+          "Dropped $decryptionFailures message(s) that failed to decrypt"
+        )
+      }
+
+      logMessageStats(decryptedMessages); cachedMessages = decryptedMessages
+      decryptedMessages
+    } catch (loadException: Exception) {
+      logger.error("Failed to load context: ${loadException.javaClass.simpleName}: ${loadException.message}")
+      emptyList()
+    }
   }
 
-  fun saveContext(messages: List<Map<String, Any>>, modelName: String): Boolean {
+  fun saveContext(messages: List<Map<String, Any>>, modelName: String): Boolean = if (useDatabase) {
+    // Database mode
     cachedMessages = null
     val cleanedMessages: List<Map<String, Any>> = cleanMessageHistory(messages)
     val serializedMessages: List<Map<String, Any>> = cleanedMessages.map { message ->
       encryptMessageIfNeeded(message)
     }
-    return ChatDb.saveContext(
+    ChatDb.saveContext(
       sessionId = sessionId,
       modelName = modelName,
       projectRoot = projectRoot,
       messages = serializedMessages
     )
+  } else {
+    // Legacy file mode
+    outputDirectory.toFile().mkdirs()
+    cachedMessages = null
+
+    val cleanedMessages: List<Map<String, Any>> = cleanMessageHistory(messages)
+    val droppedCount: Int = messages.size - cleanedMessages.size
+
+    val serializedMessages: List<Map<String, Any>> = cleanedMessages.map { message ->
+      encryptMessageIfNeeded(message)
+    }
+
+    val contextMap: Map<String, Any> =
+      mapOf("version" to "1", "model" to modelName, "messages" to serializedMessages)
+    val contextJson: String = JsonUtil.encodeMap(contextMap)
+
+    return try {
+      val tempFile: File = contextTempFilePath.toFile()
+      tempFile.writeText(contextJson, Charsets.UTF_8)
+      try {
+        Files.move(
+          contextTempFilePath,
+          contextFilePath,
+          StandardCopyOption.REPLACE_EXISTING,
+          StandardCopyOption.ATOMIC_MOVE,
+        )
+      } catch (moveException: AtomicMoveNotSupportedException) {
+        logger.warn("ATOMIC_MOVE not supported on this filesystem; falling back: ${moveException.message}")
+        Files.move(contextTempFilePath, contextFilePath, StandardCopyOption.REPLACE_EXISTING)
+      }
+      val writtenSize: Long = contextFilePath.toFile().length()
+
+      logger.info(
+        "{} to {} messages (dropped {}, model={}), {} bytes encrypted",
+        messages.size, cleanedMessages.size, droppedCount, modelName, writtenSize
+      ); true
+    } catch (saveException: Exception) {
+      logger.error("Failed to save context: ${saveException.javaClass.simpleName}: ${saveException.message}"); false
+    }
   }
 
   /**
@@ -83,11 +183,34 @@ class ContextManager(outputDirectory: Path) {
    * trace in the resumed context. Returns `true` only when the id was found
    * and the store was updated; `false` when the target is absent (no change).
    */
-  fun rewindTo(messageId: String): Boolean {
+  fun rewindTo(messageId: String): Boolean = if (useDatabase) {
     if (messageId.isBlank()) return false
-
-    return ChatDb.rewindTo(projectRoot = projectRoot, sessionId = sessionId, messageId = messageId)
+    ChatDb.rewindTo(projectRoot = projectRoot, sessionId = sessionId, messageId = messageId)
       .also { rewound -> if (rewound) cachedMessages = null }
+  } else {
+    if (messageId.isBlank()) return false
+    val messages: List<Map<String, Any>> = loadContext()
+    val targetIndex: Int = messages.indexOfFirst { it["id"] == messageId }
+    if (targetIndex < 0) return false
+    saveContext(messages.subList(0, targetIndex), modelName = modelName())
+  }
+
+  /** Reads the `model` field from the context header (blank when absent/unreadable). */
+  private fun modelName(): String = if (useDatabase) {
+    // In database mode the model name is embedded in the encrypted blob;
+    // we don't have a separate header field, so return empty string.
+    ""
+  } else {
+    val contextFile: File = contextFilePath.toFile()
+    if (!contextFile.exists()) return ""
+    return try {
+      val parsedJson: JsonObject =
+        jsonFormatter.parseToJsonElement(contextFile.readText(Charsets.UTF_8)).jsonObject
+      parsedJson["model"]?.jsonPrimitive?.contentOrNull ?: ""
+    } catch (readException: Exception) {
+      logger.warn("Failed to read model field: ${readException.message}")
+      ""
+    }
   }
 
   private fun cleanMessageHistory(messages: List<Map<String, Any>>): List<Map<String, Any>> {
@@ -112,10 +235,16 @@ class ContextManager(outputDirectory: Path) {
 
         "assistant" -> cleanAssistantMessage(message, content, preservedToolCallIds, cleanedMessages)
 
+        // Keep the original content structure: multimodal user messages
+        // carry content as a List (text + images): casting to String
+        // would wipe it. And don't trim(): trailing newlines are
+        // meaningful when this history is re-sent to the model.
         else -> cleanedMessages.add(
           buildMap {
             put("role", role)
             put("content", rawContent ?: "")
+            // Preserve the plugin-generated message id so a "rewind"
+            // (withdraw) can locate this exact message in context.json.
             message["id"]?.let { put("id", it) }
           }
         )
@@ -183,10 +312,11 @@ class ContextManager(outputDirectory: Path) {
   }
 
   /**
-   * Runtime-safe coercion of a `Any?` value (typically a message map
-   * decoded from stored JSON) into a `Map<String, Any>`. Non-`String` keys
-   * are dropped, null values become empty strings. Returns an empty map if
-   * the input is not a map at all.
+   * Runtime-safe coercion of a `Any?` value (typically read from a
+   * `Map<String, Any>` produced by [convertJsonElement]) into a
+   * `Map<String, Any>`. Non-`String` keys are dropped, null values
+   * become empty strings. Returns an empty map if the input is not a
+   * map at all.
    */
   private fun readStringMap(rawMap: Any?): Map<String, Any> {
     if (rawMap !is Map<*, *>) return emptyMap()
@@ -206,6 +336,24 @@ class ContextManager(outputDirectory: Path) {
       if (stringMap.isNotEmpty()) parsedMaps.add(stringMap)
     }
     return parsedMaps
+  }
+
+  private fun parseJsonObject(jsonObject: JsonObject): MutableMap<String, Any> {
+    val parsedMap: MutableMap<String, Any> = mutableMapOf()
+    for ((key: String, jsonElement) in jsonObject) parsedMap[key] = convertJsonElement(jsonElement)
+    return parsedMap
+  }
+
+  private fun convertJsonElement(element: JsonElement): Any {
+    return when (element) {
+      is JsonPrimitive if element.isString -> element.content
+      is JsonPrimitive -> JsonUtil.fromJsonElement(element) ?: element.toString()
+      // Preserve the structured Map / List (tool_calls, multimodal
+      // content arrays). Calling .toString() here flattens them into the
+      // Kotlin container's toString() (e.g. `[{id=call_1, ...}]`) which
+      // corrupts the wire shape when this history is re-sent to the LLM.
+      is JsonArray, is JsonObject -> JsonUtil.fromJsonElement(element) ?: ""
+    }
   }
 
   private fun decryptMessageIfNeeded(message: MutableMap<String, Any>): MutableMap<String, Any>? {

@@ -32,7 +32,7 @@ import kotlinx.serialization.json.*
  * <user message text, verbatim>
  *
  * ## assistant
- * <!-- gradum-msg role="assistant" id="..." timestamp="..." model="..." provider="..." server="..." promptTokens=".." completionTokens=".." totalTokens=".." -->
+ * <!-- gradum-msg role="assistant" id="..." timestamp="..." model="..." provider="..." server="..." promptTokens=".." completionTokens=".." totalTokens=".." contextTokens=".." -->
  * <!-- gradum-thinking -->
  * <thinking text, verbatim>
  * <!-- gradum-toolcall name="..." alias="..." id="..." success="true" errorMessage=".." errorDetail=".." -->
@@ -339,9 +339,15 @@ object ChatTranscript {
           val promptTokens: Int = attributeMap["promptTokens"]?.toIntOrNull() ?: 0
           val completionTokens: Int = attributeMap["completionTokens"]?.toIntOrNull() ?: 0
           val totalTokens: Int = attributeMap["totalTokens"]?.toIntOrNull() ?: 0
+          val contextTokens: Int = attributeMap["contextTokens"]?.toIntOrNull() ?: 0
           workingTokens =
             if (totalTokens > 0)
-              TokenUsage(promptTokens, completionTokens, totalTokens)
+              TokenUsage(
+                promptTokens = promptTokens,
+                completionTokens = completionTokens,
+                totalTokens = totalTokens,
+                contextTokens = contextTokens
+              )
             else null
           if (messageRole == "user") {
             blockType = "user"
@@ -428,6 +434,7 @@ object ChatTranscript {
         markerBuilder.append(" promptTokens=\"").append(usage.promptTokens).append('"')
           .append(" completionTokens=\"").append(usage.completionTokens).append('"')
           .append(" totalTokens=\"").append(usage.totalTokens).append('"')
+          .append(" contextTokens=\"").append(usage.contextTokens).append('"')
       }
     }
     markerBuilder.append(" -->")

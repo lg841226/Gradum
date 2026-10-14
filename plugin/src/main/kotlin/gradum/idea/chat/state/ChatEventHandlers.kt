@@ -35,7 +35,8 @@ internal fun GradumChatSession.handleResponseEvent(responseData: JsonObject?) {
       tokenUsage = TokenUsage(
         totalTokens = totalTokens,
         promptTokens = responseData["promptTokens"]?.jsonPrimitive?.intOrNull ?: 0,
-        completionTokens = responseData["completionTokens"]?.jsonPrimitive?.intOrNull ?: 0
+        completionTokens = responseData["completionTokens"]?.jsonPrimitive?.intOrNull ?: 0,
+        contextTokens = responseData["contextTokens"]?.jsonPrimitive?.intOrNull ?: 0
       )
     )
   }

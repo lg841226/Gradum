@@ -14,6 +14,8 @@ data class TokenUsage(
   val promptTokens: Int = 0,
   val completionTokens: Int = 0,
   val totalTokens: Int = 0,
+  /** Prompt tokens of the most recent single request, i.e. the live context window size. */
+  val contextTokens: Int = 0,
 )
 
 /** A single tool invocation within a message. */

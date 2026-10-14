@@ -135,17 +135,19 @@ fun AssistantChatBubble(
         }
       }
 
-      val tokenCount: Int = message.tokenUsage?.totalTokens ?: 0
+      val contextTokenCount: Int = message.tokenUsage?.contextTokens ?: 0
+      val totalTokenCount: Int = message.tokenUsage?.totalTokens ?: 0
       val showTokenStatus: Boolean =
         if (isDebugMode) isLoading
-        else isLoading || tokenCount > 0
+        else isLoading || totalTokenCount > 0
 
       if (showTokenStatus) {
         if (hasContentBefore) Spacer(modifier = Modifier.height(GradumSpacing.lg))
         hasContentBefore = true
         TokenStatusRow(
           isLoading = isLoading,
-          tokenCount = tokenCount,
+          contextTokenCount = contextTokenCount,
+          totalTokenCount = totalTokenCount,
           sendingPhase =
             if (isLoading) sendingPhase
             else sendingPhase.takeIf { it.isNotBlank() } ?: message("gradum.done")
@@ -304,13 +306,17 @@ fun ToolCallBlock(
 
 @Composable
 private fun TokenStatusRow(
-  isLoading: Boolean, sendingPhase: String, tokenCount: Int = 0
+  isLoading: Boolean, sendingPhase: String, contextTokenCount: Int = 0, totalTokenCount: Int = 0
 ) {
-  val tokenText: String =
-    if (tokenCount > 0)
-      "$sendingPhase & ${message("gradum.tokens.used", formatTokenCount(tokenCount))}"
-    else
-      sendingPhase.ifEmpty { "..." }
+  val tokenText: String = when {
+    contextTokenCount > 0 ->
+      "$sendingPhase & ${message("gradum.tokens.used", formatTokenCount(contextTokenCount))}"
+
+    totalTokenCount > 0 ->
+      "$sendingPhase & ${message("gradum.tokens.used", formatTokenCount(totalTokenCount))}"
+
+    else -> sendingPhase.ifEmpty { "..." }
+  }
 
   val fadeAlpha = remember { Animatable(initialValue = 1f) }
   var displayText: String by remember { mutableStateOf(value = sendingPhase) }
@@ -335,13 +341,24 @@ private fun TokenStatusRow(
   ) {
     if (isLoading) CircularProgressIndicator(modifier = Modifier.size(16.dp))
 
-    SweepLightText(
-      text = displayText,
-      enabled = isLoading,
-      modifier = Modifier.graphicsLayer {
-        this.alpha = fadeAlpha.value
-      }
-    )
+    val tokenTextContent: @Composable () -> Unit = {
+      SweepLightText(
+        text = displayText,
+        enabled = isLoading,
+        modifier = Modifier.graphicsLayer {
+          this.alpha = fadeAlpha.value
+        }
+      )
+    }
+    if (contextTokenCount > 0 && totalTokenCount > 0) {
+      Tooltip(
+        tooltip = {
+          Text(text = message("gradum.tokens.total.tooltip", formatTokenCount(totalTokenCount)))
+        }
+      ) { tokenTextContent() }
+    } else {
+      tokenTextContent()
+    }
   }
 }
 
