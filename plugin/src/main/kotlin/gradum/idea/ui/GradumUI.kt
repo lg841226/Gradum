@@ -7,6 +7,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.ScrollType.CENTER
@@ -29,6 +30,7 @@ import gradum.idea.chat.model.ThinkingLevel
 import gradum.idea.chat.state.ChatSessionState
 import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.chat.state.GradumChatSession.Companion.MAX_ATTACHMENTS
+import gradum.idea.chat.state.RuntimeFailureCause
 import gradum.idea.chat.state.sendMessage
 import gradum.idea.chat.ui.ChatScreen
 import gradum.idea.chat.ui.chat.copyToClipboard
@@ -131,9 +133,6 @@ private fun sendPlaybackScenario(
   sendPlaybackXml(scenarioXml, scenarioLabel = currentFile.name, session, coroutineScope)
 }
 
-/**
- * Main composable for the Gradum chat interface.
- */
 @Composable
 fun GradumUI(
   toolWindow: ToolWindow? = null,
@@ -161,7 +160,10 @@ fun GradumUI(
   ) {
     if (session.runtimeUnreachable) {
       Spacer(modifier = Modifier.height(GradumSpacing.md))
-      RuntimeUnreachableBanner(runtimeErrorMessage = session.runtimeErrorMessage)
+      RuntimeUnreachableBanner(
+        runtimeErrorMessage = session.runtimeErrorMessage,
+        failureCause = session.runtimeFailureCause
+      )
     }
     Box(
       modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
@@ -188,40 +190,69 @@ fun GradumUI(
 }
 
 /**
- * Error banner shown when the local Gradum runtime is unreachable, with a
- * "copy error" entry that puts the failure diagnostics on the clipboard.
+ * Banner shown when the local Gradum runtime could not be reached. The text
+ * names the classified cause, so "not started" reads differently from "running
+ * but stuck"; a copy entry puts the raw failure diagnostics on the clipboard.
  */
 @Composable
-private fun RuntimeUnreachableBanner(runtimeErrorMessage: String) {
+private fun RuntimeUnreachableBanner(
+  runtimeErrorMessage: String,
+  failureCause: RuntimeFailureCause?
+) {
   val coroutineScope: CoroutineScope = rememberCoroutineScope()
   val isCopied = remember { mutableStateOf(false) }
 
+  val isMissingInstall: Boolean =
+    failureCause == RuntimeFailureCause.NOT_INSTALLED ||
+      failureCause == RuntimeFailureCause.NOT_STARTED
+
   GradumBanner(
-    text = message("gradum.runtime.unreachable"),
+    text = message(
+      when (failureCause) {
+        RuntimeFailureCause.NOT_INSTALLED -> "gradum.runtime.not.installed"
+        RuntimeFailureCause.NOT_STARTED -> "gradum.runtime.not.started"
+        RuntimeFailureCause.NOT_RESPONDING -> "gradum.runtime.not.responding"
+        else -> "gradum.runtime.unreachable"
+      }
+    ),
     modifier = Modifier.fillMaxWidth().padding(horizontal = GradumSpacing.sml),
-    severity = BannerSeverity.Error,
+    severity =
+      if (isMissingInstall) BannerSeverity.Warning
+      else BannerSeverity.Error,
     icon = {
-      Icon(contentDescription = null, key = AllIconsKeys.General.Error)
+      Icon(
+        contentDescription = null,
+        key =
+          if (isMissingInstall) AllIconsKeys.General.Warning
+          else AllIconsKeys.General.Error
+      )
     },
     linkContent = {
       Box(
         modifier = Modifier.height(GradumSpacing.xxl),
         contentAlignment = Alignment.Center
       ) {
-        Link(
-          text = if (isCopied.value) message("gradum.error.copied")
-          else message("gradum.runtime.copy.error"),
-          onClick = {
-            if (!isCopied.value && runtimeErrorMessage.isNotBlank()) {
-              copyToClipboard(
-                text = runtimeErrorMessage,
-                scope = coroutineScope,
-                onCopied = { isCopied.value = true },
-                onReset = { isCopied.value = false }
-              )
+        if (failureCause == RuntimeFailureCause.NOT_INSTALLED) {
+          Link(
+            text = message("gradum.runtime.install"),
+            onClick = { BrowserUtil.browse(PluginConfig.RUNTIME_RELEASES_URL) }
+          )
+        } else {
+          Link(
+            text = if (isCopied.value) message("gradum.error.copied")
+            else message("gradum.runtime.copy.error"),
+            onClick = {
+              if (!isCopied.value && runtimeErrorMessage.isNotBlank()) {
+                copyToClipboard(
+                  text = runtimeErrorMessage,
+                  scope = coroutineScope,
+                  onCopied = { isCopied.value = true },
+                  onReset = { isCopied.value = false }
+                )
+              }
             }
-          }
-        )
+          )
+        }
       }
     }
   )

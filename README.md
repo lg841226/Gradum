@@ -1,6 +1,10 @@
 <h2 align="center">Gradum</h2>
 
 <p align="center">
+  English | <a href="README.zh-CN.md">简体中文</a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/License-MIT-brightgreen?style=flat" alt="MIT License"/>
   <img src="https://img.shields.io/badge/Language-Kotlin-7F52FF?style=flat&logo=kotlin&logoColor=white" alt="Kotlin"/>
   <img src="https://img.shields.io/badge/Release-v1.0.2-6f42c1?style=flat" alt="v1.0.2"/>
@@ -246,4 +250,4 @@ MIT License, see [LICENSE](LICENSE)
 
 ## Gradum Version
 
-Server 1.0.2, Plugin 1.0.3
+Server 1.0.2, Plugin 1.0.4

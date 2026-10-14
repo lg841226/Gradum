@@ -6,33 +6,32 @@
     <idea-version since-build="251.2"/>
 
     <change-notes><![CDATA[
+        <h3>1.0.4</h3>
+        <ul>
+            <li>Improved runtime unreachable banner with classified cause and one click installation link.</li>
+            <li>MCP server support: connect any MCP server in Settings and its tools become callable skills immediately.</li>
+            <li>Chat in editor tabs: open Gradum chat as a full editor tab with a vertical minimap for jump to turn navigation.</li>
+        </ul>
         <h3>1.0.3</h3>
         <ul>
-            <li>Chat with Ollama and any OpenAI-compatible server.</li>
+            <li>Chat with Ollama and any OpenAI compatible server.</li>
             <li>Agentic tool calling: file, search, and process tools.</li>
-            <li>Project-aware context with per-session history.</li>
+            <li>Project aware context with persession history.</li>
             <li>MCP server support.</li>
             <li>Git history analysis tool window.</li>
         </ul>
     ]]></change-notes>
 
     <description><![CDATA[
-        Local-first AI code assistant for IntelliJ IDEA.
-        Supports Ollama and any OpenAI-compatible inference server.
+        Rooted on your machine: a local runtime for extensible AI agents, packaged for
+        IntelliJ IDEA. Coding is the skill set it ships with. Supports Ollama and any
+        OpenAI-compatible inference server.
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.compose</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <!--
-            The `applicationConfigurable` EP ONLY accepts `instance` or
-            `provider` (see Settings Guide → Settings Declaration
-            Attributes). Using `implementation=...` looks plausible but
-            is silently ignored: the Configurable never registers in
-            the Settings tree, so clicking "Gradum" in Tools simply
-            shows the parent Tools page instead. Always use `instance`.
-        -->
         <applicationConfigurable
             parentId="tools"
             displayName="Gradum"

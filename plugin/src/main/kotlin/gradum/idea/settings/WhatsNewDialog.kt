@@ -562,26 +562,14 @@ private fun featureImageCache(baseImageName: String?): ImageBitmap? {
 private fun featureItems(): List<FeatureItem> = listOf(
   FeatureItem(
     badgeIsNew = true,
-    imagePath = "Cloud",
+    imagePath = "MCP",
     titleKey = "gradum.whatsnew.feature1.title",
     descriptionKey = "gradum.whatsnew.feature1.description"
   ),
   FeatureItem(
     badgeIsNew = true,
-    imagePath = "GitAudit",
+    imagePath = "EditorPanel",
     titleKey = "gradum.whatsnew.feature2.title",
     descriptionKey = "gradum.whatsnew.feature2.description"
-  ),
-  FeatureItem(
-    badgeIsNew = false,
-    imagePath = "Premissions",
-    titleKey = "gradum.whatsnew.feature3.title",
-    descriptionKey = "gradum.whatsnew.feature3.description"
-  ),
-  FeatureItem(
-    badgeIsNew = true,
-    imagePath = "History",
-    titleKey = "gradum.whatsnew.feature4.title",
-    descriptionKey = "gradum.whatsnew.feature4.description"
   )
 )

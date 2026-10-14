@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.gradum.idea"
-version = "1.0.3"
+version = "1.0.4"
 
 val gitStatsVersion: String = "1.1.0"
 
@@ -51,11 +51,11 @@ dependencies {
   implementation(files("libs/intellij.libraries.compose.runtime.desktop.jar"))
   implementation(files("libs/intellij.libraries.compose.foundation.desktop.jar"))
 
-  // Jewel's markdown modules are internal content modules of IDEA CORE: they
+  // Jewel's Markdown modules are internal content modules of IDEA CORE: they
   // are not exposed through `com.intellij.modules.compose`, they can only be
   // declared as `<depends>` if registered as `<module value="...">` (which
   // they are not), and the platform ships no plugin gateway for them. So the
-  // platform cannot provide them to a third-party plugin at runtime and they
+  // platform cannot provide them to a third-party plugin at runtime, and they
   // must be shipped with the plugin.
   implementation(files("libs/intellij.platform.jewel.markdown.core.jar"))
   implementation(files("libs/intellij.platform.jewel.markdown.ideLafBridgeStyling.jar"))

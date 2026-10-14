@@ -83,7 +83,7 @@ data class ServerConfiguration(
 
   /**
    * Per-skill plugin config sections (`plugins.<skillName>`), carried from the
-   * server's settings to each [Agent] session so skills can read their own
+   * server's settings to each [gradum.agent.Agent] session so skills can read their own
    * slice through the `gradum.skill.dsl` settings DSL. Empty when nothing is
    * configured.
    */

@@ -2,7 +2,7 @@
   "id": "gradum",
   "name": "Gradum",
   "version": "1.0.2",
-  "description": "Local-first coding agent that runs on your machine and speaks ACP to your editor.",
+  "description": "Rooted on your machine: an extensible AI agent runtime that ships coding skills and speaks ACP to your editor.",
   "repository": "https://github.com/lg841226/Gradum",
   "authors": ["Ge Wangyang"],
   "license": "MIT",

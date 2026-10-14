@@ -25,16 +25,34 @@ import gradum.idea.provider.ProviderCoordinator
 import gradum.idea.provider.ProviderSettings
 import gradum.idea.settings.AppearanceSettings
 import gradum.idea.utils.GradumBundle.message
+import gradum.idea.utils.isRuntimeInstalled
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.Json
+import java.net.ConnectException
+import java.net.SocketTimeoutException
 import java.nio.file.Path
 import java.util.*
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
+
+
+/**
+ * Why the runtime could not be reached, classified when a call fails. The
+ * chat banner names the actual cause instead of one vague message: nothing
+ * on the machine means the runtime was never installed, nothing listening
+ * means it is installed but not started, a read timeout means it is running
+ * but stuck, and anything else stays a generic failure.
+ */
+enum class RuntimeFailureCause {
+  NOT_INSTALLED,
+  NOT_STARTED,
+  NOT_RESPONDING,
+  UNREACHABLE
+}
 
 @Service(Service.Level.PROJECT)
 class GradumChatSession : Disposable {
@@ -138,6 +156,10 @@ class GradumChatSession : Disposable {
 
   /** Diagnostic text of the last runtime failure, shown when copied. */
   var runtimeErrorMessage: String by mutableStateOf("")
+    private set
+
+  /** The classified cause of the last runtime failure; null while reachable. */
+  var runtimeFailureCause: RuntimeFailureCause? by mutableStateOf(null)
     private set
 
   val isAttachmentLimitReached: Boolean
@@ -436,16 +458,34 @@ class GradumChatSession : Disposable {
     if (runtimeUnreachable) {
       runtimeUnreachable = false
       runtimeErrorMessage = ""
+      runtimeFailureCause = null
     }
   }
 
   private fun markRuntimeUnreachable(exception: Exception) {
     runtimeUnreachable = true
+    val cause: RuntimeFailureCause = classifyFailure(exception)
+    runtimeFailureCause =
+      if (cause == RuntimeFailureCause.NOT_STARTED && !isRuntimeInstalled()) {
+        RuntimeFailureCause.NOT_INSTALLED
+      } else {
+        cause
+      }
     runtimeErrorMessage = buildString {
       append("Failed to connect to Gradum Runtime at ${apiClient.baseUrl}")
       val reason: String? = exception.message
       if (!reason.isNullOrBlank()) append(": ").append(reason)
     }
+  }
+
+  private fun classifyFailure(exception: Exception): RuntimeFailureCause = when {
+    exception is ConnectException || exception.cause is ConnectException ->
+      RuntimeFailureCause.NOT_STARTED
+
+    exception is SocketTimeoutException || exception.cause is SocketTimeoutException ->
+      RuntimeFailureCause.NOT_RESPONDING
+
+    else -> RuntimeFailureCause.UNREACHABLE
   }
 
   private fun applyModelList(newModels: List<ModelInfo>) {

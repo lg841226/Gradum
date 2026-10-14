@@ -89,4 +89,7 @@ object PluginConfig {
 
   /** Input debounce delay before re-validating URL/key fields. */
   const val INPUT_DEBOUNCE_MS: Long = 500
+
+  /** Where the chat banner sends users to install a missing runtime. */
+  const val RUNTIME_RELEASES_URL: String = "https://github.com/lg841226/Gradum/releases/latest"
 }
