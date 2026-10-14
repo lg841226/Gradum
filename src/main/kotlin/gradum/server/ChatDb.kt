@@ -1,6 +1,5 @@
 package gradum.server
 
-import gradum.server.ChatDb.chainHash
 import gradum.utils.JsonUtil
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
