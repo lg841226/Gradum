@@ -161,6 +161,62 @@ object ChatDb {
   }
 
   /**
+   * Removes a session's `sessions` row and all of its `messages` rows in one
+   * transaction. Returns `false` when the project has no database file yet
+   * (nothing to clean; the file is deliberately not created as a side effect)
+   * or when to delete failed.
+   */
+  fun deleteSession(projectRoot: Path, sessionId: String): Boolean {
+    val databaseFile: Path = projectRoot.resolve(".gradum").resolve("db").resolve("gradum.db")
+    if (!Files.exists(databaseFile)) return false
+    val activeConnection: Connection = connectionFor(projectRoot)
+
+    activeConnection.autoCommit = false
+    try {
+      activeConnection.prepareStatement("DELETE FROM messages WHERE session_id = ?").use { clearMessages ->
+        clearMessages.setString(1, sessionId)
+        clearMessages.executeUpdate()
+      }
+      activeConnection.prepareStatement("DELETE FROM sessions WHERE id = ?").use { clearSession ->
+        clearSession.setString(1, sessionId)
+        return clearSession.executeUpdate() > 0
+      }
+    } catch (deleteException: SQLException) {
+      activeConnection.rollback()
+      logger.error("Failed to delete session {} rows: {}", sessionId, deleteException.message)
+      return false
+    } finally {
+      activeConnection.autoCommit = true
+    }
+  }
+
+  /**
+   * Reads the session row's `created_at` / `updated_at` pair (in that order),
+   * or `null` when the session row or the database file does not exist. Used
+   * by the transcript writer to keep a session's `createdAt` stable across
+   * saves; never creates the database as a side effect.
+   */
+  fun sessionTimestamps(projectRoot: Path, sessionId: String): Pair<Long, Long>? {
+    val databaseFile: Path = projectRoot.resolve(".gradum").resolve("db").resolve("gradum.db")
+    if (!Files.exists(databaseFile)) return null
+    val activeConnection: Connection = connectionFor(projectRoot)
+
+    return try {
+      activeConnection.prepareStatement(
+        "SELECT created_at, updated_at FROM sessions WHERE id = ?"
+      ).use { query ->
+        query.setString(1, sessionId)
+        query.executeQuery().use { rows ->
+          if (rows.next()) Pair(rows.getLong("created_at"), rows.getLong("updated_at")) else null
+        }
+      }
+    } catch (readException: SQLException) {
+      logger.warn("Failed to read session timestamps for {}: {}", sessionId, readException.message)
+      null
+    }
+  }
+
+  /**
    * Opens (or reuses) the project's own connection, creating the database
    * file and its schema on first touch. Sessions of one project share the
    * connection; another project gets its own file and connection.

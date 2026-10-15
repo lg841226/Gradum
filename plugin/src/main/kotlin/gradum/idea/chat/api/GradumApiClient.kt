@@ -15,9 +15,11 @@ import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStream
 import java.net.URI
+import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.nio.charset.StandardCharsets
 
 /**
  * HTTP client for the Gradum backend REST API (models and streaming NDJSON at `POST /events`).
@@ -98,7 +100,15 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     val loadContext: Boolean = true,
     val promptVariant: String? = null,
     val modelParams: Map<String, String>? = null,
-    val imageAttachments: List<ApiImageAttachment> = emptyList()
+    /**
+     * Requested thinking effort for this turn (`low` / `medium` / `high`),
+     * decoded server-side into a structured thinking parameter. Null keeps
+     * the server default; replaces the old prompt-suffix injection.
+     */
+    val thinkingLevel: String? = null,
+    val imageAttachments: List<ApiImageAttachment> = emptyList(),
+    /** Raw user input for transcript display; [message] carries the prompt-wrapped view sent to the model. */
+    val displayText: String? = null
   )
 
   /** Lenient parser used for NDJSON lines so a missing `type` field does not throw. */
@@ -227,8 +237,8 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     }
 
   /**
-   * Deletes a session's entire directory on the server (transcript cascade
-   * is handled locally by [gradum.idea.chat.history.ChatSessionStore]).
+   * Deletes a session on the server: the transcript directory under
+   * `<projectRoot>/.gradum/sessions/` and the matching chat DB row.
    *
    * @param projectRoot The project the session belongs to.
    * @param sessionId The client-generated conversation session id.
@@ -256,6 +266,144 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
         false
       }
     }
+
+  /**
+   * One session row from `GET /sessions`, mirroring the server's
+   * transcript-header metadata (`id` / `title` / `model` / `createdAt` /
+   * `updatedAt`).
+   */
+  data class ApiSessionSummary(
+    val sessionId: String,
+    val title: String,
+    val modelName: String,
+    val createdAt: Long,
+    val updatedAt: Long
+  )
+
+  /**
+   * Lists every saved session for [projectRoot], most recently updated first.
+   * The server reads only each transcript's leading header lines, so the
+   * plugin gets the same cheap listing it used to build from local files.
+   *
+   * @throws java.net.ConnectException If the server is not running.
+   * @throws IOException On any non-2xx response.
+   */
+  suspend fun listSessions(projectRoot: String): List<ApiSessionSummary> =
+    withContext(Dispatchers.IO) {
+      val encodedRoot: String = URLEncoder.encode(projectRoot, StandardCharsets.UTF_8)
+      val response: HttpResponse<String> =
+        sendWithAuthRetry(HttpResponse.BodyHandlers.ofString()) {
+          newRequest("$baseUrl/sessions?projectRoot=$encodedRoot").GET().build()
+        }
+
+      if (response.statusCode() !in 200..299) {
+        throw IOException(
+          "Server returned HTTP ${response.statusCode()} for GET $baseUrl/sessions"
+        )
+      }
+
+      val parsed: JsonElement = ndjsonParser.parseToJsonElement(response.body())
+      (parsed as? JsonArray)?.mapNotNull { element: JsonElement ->
+        val sessionRow: JsonObject = element as? JsonObject ?: return@mapNotNull null
+        val rowId: String = sessionRow["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
+        ApiSessionSummary(
+          sessionId = rowId,
+          title = sessionRow["title"]?.jsonPrimitive?.content ?: "",
+          modelName = sessionRow["model"]?.jsonPrimitive?.content ?: "",
+          createdAt = sessionRow["createdAt"]?.jsonPrimitive?.longOrNull ?: 0L,
+          updatedAt = sessionRow["updatedAt"]?.jsonPrimitive?.longOrNull ?: 0L
+        )
+      } ?: emptyList()
+    }
+
+  /**
+   * Loads one session's full transcript markdown from the server.
+   *
+   * @return The raw `conversation.md` text, or `null` when the session does
+   *   not exist or the request failed.
+   */
+  suspend fun loadTranscript(projectRoot: String, sessionId: String): String? =
+    withContext(Dispatchers.IO) {
+      val encodedRoot: String = URLEncoder.encode(projectRoot, StandardCharsets.UTF_8)
+      try {
+        val response: HttpResponse<String> =
+          sendWithAuthRetry(HttpResponse.BodyHandlers.ofString()) {
+            newRequest("$baseUrl/session/transcript?projectRoot=$encodedRoot&sessionId=$sessionId")
+              .GET()
+              .build()
+          }
+        if (response.statusCode() == 200) response.body() else null
+      } catch (loadException: Exception) {
+        log.warn("Failed to load transcript for session $sessionId on server", loadException)
+        null
+      }
+    }
+
+  /**
+   * Renames a session by rewriting the title in its transcript header.
+   *
+   * @return `true` when the server renamed the session, `false` when the
+   *   session was not found or the request failed.
+   */
+  suspend fun renameSession(projectRoot: String, sessionId: String, title: String): Boolean =
+    withContext(Dispatchers.IO) {
+      val requestBody: JsonObject = buildJsonObject {
+        put("projectRoot", projectRoot)
+        put("sessionId", sessionId)
+        put("title", title)
+      }
+
+      try {
+        val response: HttpResponse<String> =
+          sendWithAuthRetry(HttpResponse.BodyHandlers.ofString()) {
+            newRequest("$baseUrl/session/rename")
+              .header("Content-Type", "application/json")
+              .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
+              .build()
+          }
+        response.statusCode() == 200
+      } catch (renameException: Exception) {
+        log.warn("Failed to rename session $sessionId on server", renameException)
+        false
+      }
+    }
+
+  /**
+   * Uploads a full transcript markdown for [sessionId] (used by the merge
+   * flow, which weaves several sessions into a new one). The server stores
+   * [content] verbatim under `<projectRoot>/.gradum/sessions/<sessionId>/`
+   * and stamps [title] into the session header when non-blank.
+   *
+   * @return `true` when the server persisted the transcript, `false` when
+   *   the request failed.
+   */
+  suspend fun saveTranscript(
+    projectRoot: String,
+    sessionId: String,
+    title: String,
+    content: String
+  ): Boolean = withContext(Dispatchers.IO) {
+    val requestBody: JsonObject = buildJsonObject {
+      put("projectRoot", projectRoot)
+      put("sessionId", sessionId)
+      put("title", title)
+      put("content", content)
+    }
+
+    try {
+      val response: HttpResponse<String> =
+        sendWithAuthRetry(HttpResponse.BodyHandlers.ofString()) {
+          newRequest("$baseUrl/session/save")
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
+            .build()
+        }
+      response.statusCode() == 200
+    } catch (saveException: Exception) {
+      log.warn("Failed to save transcript for session $sessionId on server", saveException)
+      false
+    }
+  }
 
   /**
    * Sends a chat message and returns a streaming response of pre-parsed NDJSON events.
@@ -290,6 +438,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
       put("loadContext", request.loadContext)
 
       if (request.toolMode != null) put("toolMode", request.toolMode)
+      if (request.thinkingLevel != null) put("thinkingLevel", request.thinkingLevel)
       if (request.sessionId != null) put("sessionId", request.sessionId)
       if (request.messageId != null) put("messageId", request.messageId)
       if (request.toolCallXml != null) put("toolCallXml", request.toolCallXml)

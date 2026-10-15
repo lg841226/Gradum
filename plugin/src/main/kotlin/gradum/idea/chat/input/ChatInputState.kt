@@ -25,16 +25,16 @@ data class ChatInputState(
   val isMenuVisible: Boolean,
   val showAddMenu: Boolean,
   /**
-   * Strength of the reasoning hint the plugin will append to the next
-   * outgoing user message. Defaults to [ThinkingLevel.MEDIUM] so a
-   * brand-new session gets a balanced hint out of the box; the user
-   * dials it down to [ThinkingLevel.LOW] for cheap-and-fast or up to
-   * [ThinkingLevel.HIGH] for refactors and architecture questions.
+   * Strength of the reasoning the model should apply on the next turn.
+   * Defaults to [ThinkingLevel.MEDIUM] so a brand-new session gets a
+   * balanced effort out of the box; the user dials it down to
+   * [ThinkingLevel.LOW] for cheap-and-fast or up to [ThinkingLevel.HIGH]
+   * for refactors and architecture questions.
    *
-   * The hint is implemented as plain prompt suffix in
-   * [gradum.idea.chat.ui.util.ThinkingPromptInjector] and therefore
-   * works on every model: the catalog `reasoning` flag is not a
-   * precondition, so the dropdown is always enabled.
+   * The level is sent to the server as a structured field and translated
+   * per provider (Ollama `think`, OpenAI-style `reasoning_effort`), so
+   * the dropdown is always enabled: the catalog `reasoning` flag is not
+   * a precondition.
    */
   val thinkingLevel: ThinkingLevel = ThinkingLevel.MEDIUM,
   /**

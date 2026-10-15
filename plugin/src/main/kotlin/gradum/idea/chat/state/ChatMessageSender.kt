@@ -5,7 +5,6 @@ import gradum.idea.chat.history.ChatSessionStore
 import gradum.idea.chat.model.ChatEvent
 import gradum.idea.chat.model.ErrorCode
 import gradum.idea.chat.model.ModelInfo
-import gradum.idea.chat.ui.util.ThinkingPromptInjector
 import gradum.idea.editor.AttachedContext
 import gradum.idea.editor.AttachedFile
 import gradum.idea.editor.AttachedImage
@@ -49,16 +48,7 @@ internal suspend fun GradumChatSession.sendMessage(
     }
   }
 
-  val systemRule = """
-      <Rule>
-        - Answer in English by default. Use another language only if the user asks.
-        - No use emojis in anywhere (eg: Code or Text).
-        - Do not use text-based drawings.
-      </Rule>
-  """.trimIndent()
-
-  val messageWithHint: String = "${prefix}${userMessage}\n\n$systemRule" +
-    "\n\n${ThinkingPromptInjector.guideFor(thinkingLevel)}"
+  val messageWithHint: String = "${prefix}${userMessage}"
 
   sendingPhase = message("gradum.phase.synthesizing")
   val validationStart: Long = System.currentTimeMillis()
@@ -175,7 +165,9 @@ internal suspend fun GradumChatSession.sendMessage(
         toolCallXml = toolCallXml,
         loadContext = loadContext,
         modelParams = modelConfig,
-        imageAttachments = imageAttachments
+        thinkingLevel = thinkingLevel.name.lowercase(),
+        imageAttachments = imageAttachments,
+        displayText = userMessage
       )
     ).catch { exception: Throwable ->
       if (exception is CancellationException) {
@@ -255,7 +247,6 @@ internal suspend fun GradumChatSession.sendMessage(
           currentJob = null
           sessionId = null
           sendingPhase = ""
-          saveCurrentSession()
           processPendingQueue()
         }
       }
@@ -308,7 +299,6 @@ internal suspend fun GradumChatSession.sendMessage(
       currentJob = null
       sessionId = null
       isWaitingForResponse = false
-      saveCurrentSession()
       processPendingQueue()
     }
   }

@@ -45,45 +45,45 @@ private fun JsonObject.optObject(key: String): JsonObject =
   this[key]?.jsonObject ?: JsonObject(emptyMap())
 
 /**
- * Per-provider wire-format quirks for OpenAI-compatible chat APIs.
+ * Per-provider wire-format quirks for OpenAI-compatible chat APIs that are
+ * keyed by base URL rather than by [gradum.Provider].
  *
  * Most providers we proxy to (Zhipu BigModel, OpenAI, OpenRouter, local
  * LM Studio / vLLM / LocalAI) follow the OpenAI spec to the letter, so
- * the [Default] row covers them. DeepSeek and MiniMax deviate in two
- * narrow spots, the thinking field shape and the token-cap field name,
- * and DeepSeek / MiniMax both surface the model's reasoning in a
- * separate `reasoning_content` delta alongside `content`. Without this
- * table we'd either drop native thinking (waste DeepSeek-R1) or send
- * `max_tokens` to MiniMax (silently ignored → unbounded completion).
+ * the [Default] row covers them. MiniMax silently ignores `max_tokens`
+ * (unbounded completion), so it renames the token cap to
+ * `max_completion_tokens`. The thinking field and the reasoning delta
+ * field are not table rows anymore: [ProviderProfile] owns them per
+ * provider, so a future model change on the same host keeps working
+ * without touching this file.
  *
  * Match is by substring against [AgentConfiguration.baseUrl] rather
- * than a hard enum so a future model change on the same host keeps
- * working without touching this file.
+ * than a hard enum.
  */
 internal data class ProviderHints(
-  val reasoningDeltaField: String? = null,
-  val maxTokensFieldName: String = "max_tokens",
-  val thinkingFieldValue: Map<String, Any?>? = null
+  val maxTokensFieldName: String = DEFAULT_MAX_TOKENS_FIELD
 ) {
   companion object {
+    const val DEFAULT_MAX_TOKENS_FIELD: String = "max_tokens"
+
     val Default: ProviderHints = ProviderHints()
 
     fun forBaseUrl(baseUrl: String): ProviderHints = when {
-      baseUrl.contains(other = "api.deepseek.com", ignoreCase = true) -> ProviderHints(
-        reasoningDeltaField = "reasoning_content",
-        thinkingFieldValue = mapOf("type" to "enabled")
-      )
-
-      baseUrl.contains(other = "api.minimaxi.com", ignoreCase = true) -> ProviderHints(
-        reasoningDeltaField = "reasoning_content",
-        maxTokensFieldName = "max_completion_tokens",
-        thinkingFieldValue = mapOf("type" to "adaptive")
-      )
+      baseUrl.contains(other = "api.minimaxi.com", ignoreCase = true) ->
+        ProviderHints(maxTokensFieldName = "max_completion_tokens")
 
       else -> Default
     }
   }
 }
+
+/**
+ * Resolve the wire thinking level for a request: the legacy master switch
+ * still gates thinking off entirely, [AgentConfiguration.thinkingLevel]
+ * only matters while [AgentConfiguration.enableThinking] is true.
+ */
+private fun effectiveThinkingLevel(configuration: AgentConfiguration): ThinkingLevel =
+  if (configuration.enableThinking) configuration.thinkingLevel else ThinkingLevel.OFF
 
 data class ToolCallEntry(
   val functionName: String,
@@ -221,7 +221,28 @@ private fun projectToOpenAi(parts: List<Map<String, Any>>): Map<String, Any> {
 private fun projectHistoryForBackend(
   messageHistory: List<Map<String, Any>>, target: Provider
 ): List<Map<String, Any>> = messageHistory.map { message ->
-  projectMessageForBackend(message, target)
+  sanitizeMessageForWire(projectMessageForBackend(message, target))
+}
+
+/**
+ * Wire-format keys each message role may carry. The in-memory history maps
+ * hold extra bookkeeping fields (`modelName`, `thinking`, `tokenUsage`,
+ * `attachments`, `alias`) used by persistence and the session transcript;
+ * they are stripped here so the request payload stays inside the
+ * providers' documented message schema.
+ */
+private val WIRE_MESSAGE_KEYS: Map<String, Set<String>> = mapOf(
+  "system" to setOf("role", "content"),
+  "user" to setOf("role", "content", "images"),
+  "assistant" to setOf("role", "content", "tool_calls"),
+  "tool" to setOf("role", "content", "tool_call_id"),
+)
+
+private fun sanitizeMessageForWire(message: Map<String, Any>): Map<String, Any> {
+  val messageRole: String = message["role"] as? String ?: return message
+  val allowedKeys: Set<String> = WIRE_MESSAGE_KEYS[messageRole] ?: return message
+  if (message.keys.all { it in allowedKeys }) return message
+  return message.filterKeys { it in allowedKeys }
 }
 
 /**
@@ -240,7 +261,15 @@ class OllamaClient(
     messageHistory: List<Map<String, Any>>, toolDefinitions: List<Map<String, Any>>?
   ): Flow<LLMResponseChunk> = flow {
     val requestUrl = "${configuration.baseUrl}/api/chat"
-    val shouldThink: Boolean = configuration.enableThinking
+    val wireProfile: ProviderProfile = profileFor(Provider.OLLAMA)
+    val thinkingLevel: ThinkingLevel = effectiveThinkingLevel(configuration)
+    val generationParams = GenerationParams(
+      temperature = configuration.temperatureValue,
+      topP = configuration.topPValue,
+      contextWindow = configuration.contextWindowSize,
+      maxTokens = configuration.maxTokensToGenerate,
+      keepAliveMinutes = configuration.keepAliveMinutes
+    )
 
     val projectedHistory: List<Map<String, Any>> =
       projectHistoryForBackend(messageHistory, target = Provider.OLLAMA)
@@ -249,22 +278,12 @@ class OllamaClient(
       "model" to configuration.modelName,
       "messages" to projectedHistory,
       "stream" to true,
-      "options" to mapOf(
-        "top_p" to configuration.topPValue,
-        "num_ctx" to configuration.contextWindowSize,
-        "temperature" to configuration.temperatureValue,
-        "num_predict" to configuration.maxTokensToGenerate
-      ),
     )
-    // Local-first: keep the model resident so consecutive turns skip the
-    // cold re-load. Minutes go to Ollama as whole seconds; -1 pins it
-    // until the server stops, 0 leaves the field unset (Ollama default).
-    if (configuration.keepAliveMinutes != 0)
-      requestPayload["keep_alive"] =
-        if (configuration.keepAliveMinutes < 0) -1 else configuration.keepAliveMinutes * 60
+
+    requestPayload.putAll(wireProfile.requestFields(params = generationParams))
+    requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel))
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
-    if (shouldThink) requestPayload["think"] = true
     var lastError: Exception? = null
     var emittedAnyChunk = false
 
@@ -375,10 +394,9 @@ class OllamaClient(
  *
  * The "Thinking Mode" toggle is dual-channel: the system prompt's
  * "Think first, then act" instruction is sent for every model, and
- * when the matched [ProviderHints] declares a native
- * `thinking` field, the request also carries that native shape
- * (DeepSeek: `{"type":"enabled"}`; MiniMax: `{"type":"adaptive"}`).
- * The native channel's reasoning tokens are surfaced as
+ * [OpenAiProfile] adds the native `reasoning_effort` field whenever the
+ * resolved [ThinkingLevel] is above off. Reasoning tokens streamed in
+ * the profile's `reasoning_content` delta surface as
  * [LLMResponseChunk.ReasoningContent] so the UI can render them.
  */
 class OpenAICompatibleClient(
@@ -402,6 +420,14 @@ class OpenAICompatibleClient(
         "$base/$path"
       }
     val hints: ProviderHints = ProviderHints.forBaseUrl(configuration.baseUrl)
+    val wireProfile: ProviderProfile = profileFor(configuration.provider)
+    val thinkingLevel: ThinkingLevel = effectiveThinkingLevel(configuration)
+    val generationParams = GenerationParams(
+      topP = configuration.topPValue,
+      temperature = configuration.temperatureValue,
+      contextWindow = configuration.contextWindowSize,
+      maxTokens = configuration.maxTokensToGenerate
+    )
 
     val projectedHistory: List<Map<String, Any>> =
       projectHistoryForBackend(messageHistory, target = Provider.OPENAI)
@@ -409,19 +435,18 @@ class OpenAICompatibleClient(
     val requestPayload: MutableMap<String, Any> = mutableMapOf(
       "stream" to true,
       "messages" to projectedHistory,
-      "top_p" to configuration.topPValue,
       "model" to configuration.modelName,
-      "temperature" to configuration.temperatureValue,
       "stream_options" to mapOf("include_usage" to true),
-      hints.maxTokensFieldName to configuration.maxTokensToGenerate
     )
+    requestPayload.putAll(wireProfile.requestFields(params = generationParams))
+    // BaseUrl quirks (MiniMax) rename the token-cap field after profile encoding.
+    if (hints.maxTokensFieldName != ProviderHints.DEFAULT_MAX_TOKENS_FIELD) {
+      requestPayload.remove(key = "max_tokens")
+      requestPayload[hints.maxTokensFieldName] = configuration.maxTokensToGenerate
+    }
+    requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel))
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
-
-
-    if (configuration.enableThinking && hints.thinkingFieldValue != null) {
-      requestPayload["thinking"] = hints.thinkingFieldValue
-    }
 
     var lastError: Exception? = null
     var emittedAnyChunk = false
@@ -443,7 +468,8 @@ class OpenAICompatibleClient(
           break
         }
 
-        val streamedChunks: Flow<LLMResponseChunk> = parseServerSentEvents(httpResponse, hints)
+        val streamedChunks: Flow<LLMResponseChunk> =
+          parseServerSentEvents(httpResponse, wireProfile)
         streamedChunks.collect { chunk ->
           emittedAnyChunk = true
           emit(value = chunk)
@@ -479,7 +505,7 @@ class OpenAICompatibleClient(
   }
 
   private fun parseServerSentEvents(
-    httpResponse: HttpResponse, hints: ProviderHints
+    httpResponse: HttpResponse, wireProfile: ProviderProfile
   ): Flow<LLMResponseChunk> = flow {
     val accumulatedCalls: MutableMap<Int, MutableMap<String, Any>> = mutableMapOf()
     var streamCompleted = false
@@ -535,11 +561,12 @@ class OpenAICompatibleClient(
       /**
        * Native reasoning surface: DeepSeek and MiniMax both emit
        * thinking in a separate `reasoning_content` delta on the same
-       * choice. Surface it as ReasoningContent so the UI can render
-       * it as a collapsible "thought" block, matching the Ollama
-       * backend's existing `message.thinking` path.
+       * choice, spelled by the provider profile. Surface it as
+       * ReasoningContent so the UI can render it as a collapsible
+       * "thought" block, matching the Ollama backend's existing
+       * `message.thinking` path.
        */
-      hints.reasoningDeltaField?.let { fieldName ->
+      wireProfile.reasoningDeltaField?.let { fieldName ->
         val reasoningDelta: String = deltaFields.optString(key = fieldName)
         if (reasoningDelta.isNotEmpty())
           emit(value = LLMResponseChunk.ReasoningContent(text = reasoningDelta))
@@ -699,10 +726,10 @@ private fun recordTokenUsage(
   )
 
   return currentUsage.copy(
+    lastPromptTokens = promptTokens,
+    lastCompletionTokens = completionTokens,
     promptTokens = currentUsage.promptTokens + promptTokens,
     completionTokens = currentUsage.completionTokens + completionTokens,
-    totalTokens = currentUsage.totalTokens + promptTokens + completionTokens,
-    lastPromptTokens = promptTokens,
-    lastCompletionTokens = completionTokens
+    totalTokens = currentUsage.totalTokens + promptTokens + completionTokens
   )
 }

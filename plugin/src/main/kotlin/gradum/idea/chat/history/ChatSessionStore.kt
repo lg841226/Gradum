@@ -1,15 +1,11 @@
-@file:Suppress("UnstableApiUsage")
-
 package gradum.idea.chat.history
 
 import com.intellij.openapi.diagnostic.Logger
-import gradum.idea.chat.history.ChatSessionStore.Companion.HEADER_LINE_LIMIT
+import gradum.idea.chat.api.GradumApiClient
 import gradum.idea.chat.model.ChatMessage
-import java.nio.file.*
-import java.nio.file.Files.readString
+import java.nio.file.Path
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import java.util.stream.Stream
 import kotlin.random.Random
 
 /**
@@ -25,130 +21,67 @@ data class SessionMeta(
 )
 
 /**
- * Project-scoped file store for chat session transcripts.
- *
- * Every session lives under `<projectRoot>/.gradum/sessions/<sessionId>/`
- * (the same directory rule the server uses for that session's `context.json`,
- * see [docs/CHAT_HISTORY_PLAN.md §1]). The plugin writes a
- * [ChatTranscript] `conversation.md` into it; deleteSession removes the
- * whole directory so server context is cascaded away too.
+ * Project-scoped store for chat session transcripts, backed by the Gradum
+ * server REST API. The server owns `<projectRoot>/.gradum/sessions/` and
+ * writes each session's `conversation.md` itself after every turn, so the
+ * plugin no longer touches those files: it lists/loads via
+ * `GET /sessions` / `GET /session/transcript`, renames/deletes via
+ * `POST /session/rename` / `POST /session/delete`, and only the merge flow
+ * uploads a client-woven transcript via `POST /session/save`
+ * (see [gradum.idea.chat.history.ChatTranscript] for the v1 format).
  *
  * @param projectRoot Absolute path of the IntelliJ project (from
- *   `Project.basePath`). All file operations are relative to it, never
- *   absolute-from-user-input, so deleteSession cannot escape the
- *   `.gradum/sessions/` root.
+ *   `Project.basePath`); sent to the server so it resolves the same
+ *   sessions directory the agent writes to.
+ * @param apiClient HTTP client sharing the chat panel's base URL and
+ *   bearer-token handling.
  */
-class ChatSessionStore(private val projectRoot: Path) {
+class ChatSessionStore(
+  private val projectRoot: Path,
+  private val apiClient: GradumApiClient
+) {
 
   private val log: Logger = Logger.getInstance(ChatSessionStore::class.java)
 
-  /** Root directory holding all session directories: `<root>/.gradum/sessions`. */
-  val sessionsRoot: Path get() = projectRoot.resolve(".gradum").resolve("sessions")
-
-  /** Resolves the directory for one session. Callers must not trust [sessionId] blindly. */
-  fun sessionDir(sessionId: String): Path = sessionsRoot.resolve(sessionId)
-
-  /** Whether a session with [sessionId] currently has a saved transcript. */
-  fun hasSession(sessionId: String): Boolean =
-    Files.exists(sessionDir(sessionId).resolve(TRANSCRIPT_FILE))
-
-  /**
-   * Persists messages as a ChatTranscript for session sessionMeta.sessionId.
-   *
-   * Atomic write (temp file + rename, like the server's `ContextManager`)
-   * so a crash mid-write never leaves a half-written transcript.
-   */
-  fun saveSession(sessionMeta: SessionMeta, messages: List<ChatMessage>) {
-    val sessionDirectory: Path = sessionDir(sessionMeta.sessionId)
-    try {
-      Files.createDirectories(sessionDirectory)
-      val targetFile: Path = sessionDirectory.resolve(TRANSCRIPT_FILE)
-      val content: String = ChatTranscript.generateTranscript(messages, sessionMeta)
-      val tempFile: Path = sessionDirectory.resolve("$TRANSCRIPT_FILE.tmp-${System.nanoTime()}-${Random.nextInt(until = 1_000_000)}")
-
-      Files.writeString(tempFile, content, Charsets.UTF_8)
-      try {
-        Files.move(
-          tempFile, targetFile,
-          StandardCopyOption.ATOMIC_MOVE,
-          StandardCopyOption.REPLACE_EXISTING
-        )
-      } catch (atomicMoveException: AtomicMoveNotSupportedException) {
-        log.warn("ATOMIC_MOVE not supported on this filesystem; falling back", atomicMoveException)
-        Files.move(tempFile, targetFile, StandardCopyOption.REPLACE_EXISTING)
-      }
-    } catch (accessException: AccessDeniedException) {
-      log.warn(
-        "Permission denied while saving session ${sessionMeta.sessionId} to $sessionDirectory. " +
-          "Check that $sessionsRoot is writable.", accessException
-      )
-    } catch (saveException: NoSuchFileException) {
-      log.warn(
-        "Session directory disappeared while saving ${sessionMeta.sessionId} (path: $sessionDirectory). " +
-          "The session will not be persisted until the next save.", saveException
-      )
-    } catch (saveException: Exception) {
-      log.error("Failed to save session ${sessionMeta.sessionId}", saveException)
-    }
-  }
+  private val projectRootPath: String get() = projectRoot.toString()
 
   /**
    * Lists all sessions, most recently updated first.
    *
-   * Reads only each transcript's leading header lines
-   * ([ChatTranscript.parseMeta]), so listing stays cheap even for large
-   * conversations: the full body is never loaded from disk.
+   * @return The server's session list, or an empty list when the server is
+   *   unreachable so the UI degrades to "no history" instead of crashing.
    */
-  fun listSessions(): List<SessionMeta> {
-    if (!Files.isDirectory(sessionsRoot)) return emptyList()
-
-    val sessionList: MutableList<SessionMeta> = mutableListOf()
-    Files.list(sessionsRoot).use { dirStream: Stream<Path> ->
-      dirStream
-        .filter { Files.isDirectory(it) }
-        .forEach { sessionDirectory: Path ->
-          val transcriptFile: Path = sessionDirectory.resolve(TRANSCRIPT_FILE)
-          if (!Files.isRegularFile(transcriptFile)) return@forEach
-          try {
-            val sessionMeta: SessionMeta = ChatTranscript.parseMeta(content = readHeaderLines(transcriptFile))
-            if (sessionMeta.sessionId.isNotEmpty()) sessionList.add(sessionMeta)
-          } catch (listException: Exception) {
-            log.warn("Skipping unreadable session transcript at $transcriptFile", listException)
-          }
-        }
-    }
-    return sessionList.sortedByDescending { it.updatedAt }
-  }
-
-  /** Reads only the leading [HEADER_LINE_LIMIT] lines of a transcript file. */
-  private fun readHeaderLines(transcriptFile: Path): String {
-    val headerBuilder: StringBuilder = StringBuilder()
-    Files.newBufferedReader(transcriptFile, Charsets.UTF_8).use { bufferedReader ->
-      var currentLine: String? = bufferedReader.readLine()
-      var linesRead = 0
-      while (currentLine != null && linesRead < HEADER_LINE_LIMIT) {
-        headerBuilder.append(currentLine).append('\n')
-        currentLine = bufferedReader.readLine()
-        linesRead++
+  suspend fun listSessions(): List<SessionMeta> {
+    return try {
+      apiClient.listSessions(projectRoot = projectRootPath).map { sessionRow: GradumApiClient.ApiSessionSummary ->
+        SessionMeta(
+          title = sessionRow.title,
+          modelName = sessionRow.modelName,
+          sessionId = sessionRow.sessionId,
+          createdAt = sessionRow.createdAt,
+          updatedAt = sessionRow.updatedAt
+        )
       }
+    } catch (listException: Exception) {
+      if (listException is kotlinx.coroutines.CancellationException) throw listException
+      log.warn("Failed to list sessions from ${apiClient.baseUrl}", listException)
+      emptyList()
     }
-    return headerBuilder.toString()
   }
 
   /**
-   * Loads one session's [ChatTranscript.ParsedTranscript] from disk.
+   * Loads one session's [ChatTranscript.ParsedTranscript] from the server.
    *
    * @return The parsed transcript, or `null` when the session does not exist
-   *   or its transcript is unreadable.
+   *   on the server or its transcript cannot be parsed.
    */
-  @Suppress("UseOptimizedEelFunctions")
-  fun loadSession(sessionId: String): ChatTranscript.ParsedTranscript? {
-    val transcriptFile: Path = sessionDir(sessionId).resolve(TRANSCRIPT_FILE)
-    if (!Files.isRegularFile(transcriptFile)) return null
+  suspend fun loadSession(sessionId: String): ChatTranscript.ParsedTranscript? {
+    val transcriptContent: String =
+      apiClient.loadTranscript(projectRoot = projectRootPath, sessionId = sessionId) ?: return null
     return try {
-      ChatTranscript.parseTranscript(content = readString(transcriptFile, Charsets.UTF_8))
-    } catch (loadException: Exception) {
-      log.warn("Failed to loadProperties session $sessionId", loadException)
+      ChatTranscript.parseTranscript(content = transcriptContent)
+    } catch (parseException: Exception) {
+      log.warn("Failed to parse transcript for session $sessionId", parseException)
       null
     }
   }
@@ -159,84 +92,74 @@ class ChatSessionStore(private val projectRoot: Path) {
    * message timestamp ("timeline weave": see [interleaveMessages]).
    *
    * The source sessions are left untouched: merge is non-destructive. The
-   * merged session gets a fresh [nextSessionId], the caller-supplied
-   * [resultTitle], a `createdAt` of the earliest origin, and an `updatedAt`
-   * of now so it surfaces at the top of the recent list.
+   * merged messages are serialized with the v1 [ChatTranscript] format and
+   * uploaded to the server via `POST /session/save`, since the server is the
+   * single writer of the sessions directory. The merged session gets a fresh
+   * [nextSessionId], the caller-supplied [resultTitle], a `createdAt` of the
+   * earliest origin, and an `updatedAt` of now so it surfaces at the top of
+   * the recent list.
    *
-   * @return The new session id, or `null` when any source session is missing
-   *   or its transcript cannot be parsed.
+   * @return The new session id, or `null` when any source session is
+   *   missing, its transcript cannot be parsed, or the upload fails.
    */
-  fun mergeSessions(sessionIds: List<String>, resultTitle: String): String? {
+  suspend fun mergeSessions(sessionIds: List<String>, resultTitle: String): String? {
     val transcripts: List<ChatTranscript.ParsedTranscript> =
       sessionIds.map { transcriptId: String ->
         loadSession(sessionId = transcriptId) ?: return null
       }
     val mergedMessages: List<ChatMessage> = interleaveMessages(conversations = transcripts.map { it.messages })
     val newSessionId: String = nextSessionId()
-    saveSession(
-      SessionMeta(
-        title = resultTitle,
-        sessionId = newSessionId,
-        updatedAt = System.currentTimeMillis(),
-        createdAt = transcripts.minOf { it.sessionMeta.createdAt },
-        modelName = mergedMessages.lastOrNull()?.modelName.orEmpty()
-      ),
-      mergedMessages
+    val saved: Boolean = apiClient.saveTranscript(
+      projectRoot = projectRootPath,
+      sessionId = newSessionId,
+      title = resultTitle,
+      content = ChatTranscript.generateTranscript(
+        messages = mergedMessages,
+        sessionMeta = SessionMeta(
+          title = resultTitle,
+          sessionId = newSessionId,
+          updatedAt = System.currentTimeMillis(),
+          createdAt = transcripts.minOf { it.sessionMeta.createdAt },
+          modelName = mergedMessages.lastOrNull()?.modelName.orEmpty()
+        )
+      )
     )
+    if (!saved) {
+      log.warn("Server rejected merged transcript for session $newSessionId")
+      return null
+    }
     return newSessionId
   }
 
   /**
-   * Rewrites [sessionId]'s transcript header with [newTitle]. The
-   * conversation body is untouched: messages are re-serialized unchanged
-   * into the same session directory.
+   * Renames [sessionId]'s transcript header title on the server. The
+   * conversation body is untouched.
    *
-   * @return `false` when the session does not exist or [newTitle] is blank.
+   * @return `false` when the session does not exist, [newTitle] is blank, or
+   *   the request fails.
    */
-  fun renameSession(sessionId: String, newTitle: String): Boolean {
+  suspend fun renameSession(sessionId: String, newTitle: String): Boolean {
     val trimmedTitle: String = newTitle.trim()
     if (trimmedTitle.isEmpty()) return false
-    val transcript: ChatTranscript.ParsedTranscript = loadSession(sessionId) ?: return false
-    saveSession(sessionMeta = transcript.sessionMeta.copy(title = trimmedTitle), transcript.messages)
-    return true
+    return apiClient.renameSession(
+      projectRoot = projectRootPath,
+      sessionId = sessionId,
+      title = trimmedTitle
+    )
   }
 
   /**
-   * Deletes a session's entire directory (transcript included).
+   * Deletes a session on the server: its transcript directory and the
+   * matching chat DB row.
    *
-   * The path is re-verified against [sessionsRoot] after resolution as a
-   * belt-and-suspenders guard against path traversal: a session id coming
-   * from the UI is trusted, but this must never be able to reach outside
-   * `.gradum/sessions/`.
-   *
-   * @return `true` when the directory existed and was removed.
+   * @return `true` when the server confirmed deletion.
    */
-  fun deleteSession(sessionId: String): Boolean {
-    val sessionDirectory: Path = sessionDir(sessionId).normalize()
-    if (!sessionDirectory.startsWith(sessionsRoot.normalize())) {
-      log.warn("Refusing to delete session outside sessions root: $sessionDirectory")
-      return false
-    }
-    if (!Files.isDirectory(sessionDirectory)) return false
-    return try {
-      Files.walk(sessionDirectory).use { paths ->
-        paths.sorted(Comparator.reverseOrder()).forEach {
-          Files.deleteIfExists(it)
-        }
-      }
-      log.info("Deleted session directory $sessionDirectory")
-      true
-    } catch (deleteException: Exception) {
-      log.error("Failed to delete session $sessionId", deleteException)
-      false
-    }
-  }
+  suspend fun deleteSession(sessionId: String): Boolean =
+    apiClient.deleteSession(projectRoot = projectRootPath, sessionId = sessionId)
 
   companion object {
+    /** Transcript file name the server writes inside each session directory. */
     const val TRANSCRIPT_FILE: String = "conversation.md"
-
-    /** The session header always lives in the first lines; no need to read the body. */
-    private const val HEADER_LINE_LIMIT: Int = 8
 
     /**
      * Chronological interleave of multiple conversations for

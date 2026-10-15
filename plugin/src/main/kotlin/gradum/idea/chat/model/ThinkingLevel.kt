@@ -5,11 +5,12 @@ import kotlinx.serialization.Serializable
 /**
  * Strength of the reasoning the user wants the model to apply on a turn.
  *
- * **Wire contract.** Each level is realized purely on the plugin side:
- * [gradum.idea.chat.ui.util.ThinkingPromptInjector] appends a short
- * instruction suffix to the user message before it crosses the plugin → server
- * boundary. The server is unaware of this enum; lowering the surface area
- * keeps the protocol stable across plugin versions.
+ * **Wire contract.** The selected level crosses the plugin → server
+ * boundary as the lowercase `thinkingLevel` field of the `/events` request
+ * body; the server turns it into the provider's native structured thinking
+ * parameter (Ollama `think`, OpenAI-style `reasoning_effort`). The old
+ * prompt-suffix injection ([gradum.idea.chat.ui.util.ThinkingPromptInjector])
+ * is retired, but the class stays for reference by tests / docs.
  *
  * - [LOW]   : a one-sentence "think briefly" hint is appended. Cheapest,
  *              almost no latency cost; useful for routine questions where

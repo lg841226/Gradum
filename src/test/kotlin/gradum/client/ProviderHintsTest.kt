@@ -2,7 +2,6 @@ package gradum.client
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 
 class ProviderHintsTest {
 
@@ -13,82 +12,40 @@ class ProviderHintsTest {
       "max_tokens",
       hints.maxTokensFieldName
     )
-    assertNull(
-      hints.thinkingFieldValue,
-      "OpenAI standard has no native thinking field"
-    )
-    assertNull(hints.reasoningDeltaField)
   }
 
   @Test
   fun `Zhipu and OpenRouter and local OpenAI-compatible servers all fall back to Default`() {
-    // None of these declare a native thinking field; sending one
-    // would either be ignored or rejected.
+    // None of these need a quirk; thinking and reasoning deltas live in
+    // OpenAiProfile, not in this table.
     val zhipu: ProviderHints = ProviderHints.forBaseUrl("https://open.bigmodel.cn/api/coding/paas/v4")
     val openRouter: ProviderHints = ProviderHints.forBaseUrl("https://openrouter.ai/api/v1")
     val lmStudio: ProviderHints = ProviderHints.forBaseUrl("http://localhost:1234")
 
-    for ((reasoningDeltaField, maxTokensFieldName, thinkingFieldValue) in listOf(zhipu, openRouter, lmStudio)) {
+    for (hints: ProviderHints in listOf(zhipu, openRouter, lmStudio)) {
       assertEquals(
         "max_tokens",
-        maxTokensFieldName
+        hints.maxTokensFieldName
       )
-      assertNull(thinkingFieldValue)
-      assertNull(reasoningDeltaField)
     }
   }
 
   @Test
-  fun `DeepSeek uses enabled thinking and reasoning_content delta`() {
-    val hints: ProviderHints = ProviderHints.forBaseUrl("https://api.deepseek.com/v1")
-    assertEquals(
-      "max_tokens",
-      hints.maxTokensFieldName,
-      "DeepSeek follows OpenAI's max_tokens"
-    )
-    assertEquals(
-      mapOf("type" to "enabled"),
-      hints.thinkingFieldValue
-    )
-    assertEquals(
-      "reasoning_content",
-      hints.reasoningDeltaField
-    )
-  }
-
-  @Test
-  fun `MiniMax uses adaptive thinking and max_completion_tokens`() {
+  fun `MiniMax renames the token cap field`() {
     val hints: ProviderHints = ProviderHints.forBaseUrl("https://api.minimaxi.com/v1")
     assertEquals(
       "max_completion_tokens",
       hints.maxTokensFieldName,
       "MiniMax silently ignores max_tokens — must use Anthropic-style field"
     )
-    assertEquals(
-      mapOf("type" to "adaptive"),
-      hints.thinkingFieldValue
-    )
-    assertEquals(
-      "reasoning_content",
-      hints.reasoningDeltaField
-    )
   }
 
   @Test
-  fun `baseUrl match is case-insensitive and tolerates trailing path`() {
-    val upper: ProviderHints = ProviderHints.forBaseUrl("https://API.DEEPSEEK.COM/v1")
-    val withPath: ProviderHints = ProviderHints.forBaseUrl("https://api.deepseek.com/v1/beta")
+  fun `DeepSeek falls back to Default now the thinking quirks live in OpenAiProfile`() {
+    val hints: ProviderHints = ProviderHints.forBaseUrl("https://api.deepseek.com/v1")
     assertEquals(
-      mapOf("type" to "enabled"),
-      upper.thinkingFieldValue
-    )
-    assertEquals(
-      "reasoning_content",
-      upper.reasoningDeltaField
-    )
-    assertEquals(
-      mapOf("type" to "enabled"),
-      withPath.thinkingFieldValue
+      ProviderHints.Default,
+      hints
     )
   }
 

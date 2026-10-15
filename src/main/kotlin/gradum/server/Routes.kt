@@ -3,6 +3,7 @@ package gradum.server
 import gradum.*
 import gradum.Version
 import gradum.agent.Agent
+import gradum.client.ThinkingLevel
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.skill.SkillRegistry
 import gradum.skill.external.DeployResult
@@ -22,6 +23,8 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ChannelResult
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -75,7 +78,20 @@ data class EventsRequestBody(
   val messageId: String? = null,
   val loadContext: Boolean = true,
   val promptVariant: String? = null,
+  /**
+   * Display-only view of the user input (without the context markers and
+   * thinking-guide wrappers the plugin appends for the model). Persisted
+   * onto the user message so transcripts show what the user actually
+   * typed; never sent back to the LLM.
+   */
+  val displayText: String? = null,
   val config: Map<String, String>? = null,
+  /**
+   * Requested thinking effort for this turn (`low` / `medium` / `high`),
+   * resolved into [ThinkingLevel] when the master think switch is on.
+   * Null or unknown keeps the server default (medium).
+   */
+  val thinkingLevel: String? = null,
   /**
    * Optional tool-call scenario XML (`<tls>` format) that bypasses the LLM
    * entirely: the server executes the described tool calls through the same
@@ -171,6 +187,30 @@ data class DeleteSessionRequestBody(
 
 
 @Serializable
+data class RenameSessionRequestBody(
+  val projectRoot: String,
+  val sessionId: String,
+  /** New session title shown in the recent-chats list. */
+  val title: String
+)
+
+
+/**
+ * Body for `POST /session/save`: persists a full transcript Markdown that
+ * the plugin produced client-side (merge flow) under the session's
+ * directory. [content] is written verbatim; a non-blank [title] is stamped
+ * into the session header first.
+ */
+@Serializable
+data class SaveSessionRequestBody(
+  val content: String,
+  val sessionId: String,
+  val projectRoot: String,
+  val title: String = "",
+)
+
+
+@Serializable
 data class RewindSessionRequestBody(
   val projectRoot: String,
   val sessionId: String,
@@ -191,30 +231,13 @@ data class ConfigOverrides(
   val topP: Double? = null,
   val timeout: Int? = null,
   val think: Boolean? = null,
+  val apiKey: String? = null,
   val numPredict: Int? = null,
   val baseUrl: String? = null,
   val provider: String? = null,
   val temperature: Double? = null,
-  /**
-   * Per-request bearer token. Overrides the server-wide
-   * [ServerConfiguration.defaultApiKey] when non-blank, so a user
-   * with multiple provider accounts can swap keys from the plugin UI
-   * without restarting the server.
-   */
-  val apiKey: String? = null,
-  /**
-   * Path appended to `baseUrl` for chat completions. Default is
-   * `/v1/chat/completions`; Zhipu BigModel uses `/chat/completions`
-   * under its `api/coding/paas/v4` subdomain.
-   */
-  val chatCompletionsPath: String? = null,
-  /**
-   * How long the local model stays loaded in memory, in whole minutes
-   * (Ollama `keep_alive`). A positive value keeps it resident; `-1` keeps
-   * it until the server stops; `0` leaves the request unchanged so
-   * Ollama's own default applies. `null` defers to the server-wide default.
-   */
   val keepAliveMinutes: Int? = null,
+  val chatCompletionsPath: String? = null
 ) {
   companion object {
     /**
@@ -226,17 +249,17 @@ data class ConfigOverrides(
     fun fromRequestMap(rawConfig: Map<String, String>?): ConfigOverrides {
       if (rawConfig == null) return ConfigOverrides()
       return ConfigOverrides(
+        numCtx = rawConfig["numCtx"]?.toIntOrNull(),
+        topP = rawConfig["topP"]?.toDoubleOrNull(),
+        timeout = rawConfig["timeout"]?.toIntOrNull(),
+        think = rawConfig["think"]?.toBoolean(),
+        apiKey = rawConfig["apiKey"]?.trim()?.takeIf { it.isNotEmpty() },
+        numPredict = rawConfig["numPredict"]?.toIntOrNull(),
         baseUrl = rawConfig["baseUrl"],
         provider = rawConfig["provider"],
-        think = rawConfig["think"]?.toBoolean(),
-        topP = rawConfig["topP"]?.toDoubleOrNull(),
-        numCtx = rawConfig["numCtx"]?.toIntOrNull(),
-        timeout = rawConfig["timeout"]?.toIntOrNull(),
-        numPredict = rawConfig["numPredict"]?.toIntOrNull(),
         temperature = rawConfig["temperature"]?.toDoubleOrNull(),
-        apiKey = rawConfig["apiKey"]?.trim()?.takeIf { it.isNotEmpty() },
-        chatCompletionsPath = rawConfig["chatCompletionsPath"]?.trim()?.takeIf { it.isNotEmpty() },
-        keepAliveMinutes = rawConfig["keepAliveMinutes"]?.toIntOrNull()
+        keepAliveMinutes = rawConfig["keepAliveMinutes"]?.toIntOrNull(),
+        chatCompletionsPath = rawConfig["chatCompletionsPath"]?.trim()?.takeIf { it.isNotEmpty() }
       )
     }
   }
@@ -352,6 +375,11 @@ fun Application.registerAllRoutes(
       val resolvedProvider: Provider = Provider.fromStringOrDefault(resolvedTarget.providerType)
       val resolvedBaseUrl: String = resolvedTarget.baseUrl
 
+      // The legacy `think` config override still owns the master switch;
+      // the level only matters while thinking is enabled.
+      val thinkingMasterOn: Boolean =
+        configOverrides.think ?: serverConfiguration.defaultThinkEnabled
+
       val agentConfiguration = AgentConfiguration(
         baseUrl = resolvedBaseUrl,
         provider = resolvedProvider,
@@ -363,7 +391,10 @@ fun Application.registerAllRoutes(
           ?: inferChatCompletionsPath(resolvedBaseUrl),
         topPValue = configOverrides.topP ?: AgentConfiguration.DEFAULT_TOP_P,
         promptVariant = PromptVariant.fromStringOrDefault(requestBody.promptVariant),
-        enableThinking = configOverrides.think ?: serverConfiguration.defaultThinkEnabled,
+        enableThinking = thinkingMasterOn,
+        thinkingLevel = if (thinkingMasterOn)
+          ThinkingLevel.fromStringOrDefault(requestBody.thinkingLevel, default = ThinkingLevel.MEDIUM)
+        else ThinkingLevel.OFF,
         timeoutSeconds = configOverrides.timeout ?: AgentConfiguration.DEFAULT_TIMEOUT_SECONDS,
         temperatureValue = configOverrides.temperature ?: AgentConfiguration.DEFAULT_TEMPERATURE,
         contextWindowSize = configOverrides.numCtx ?: AgentConfiguration.DEFAULT_CONTEXT_WINDOW_SIZE,
@@ -437,6 +468,7 @@ fun Application.registerAllRoutes(
                 filename = attachment.filename,
               )
             },
+            displayText = requestBody.displayText.orEmpty(),
           )
         } finally {
           activeSessions.remove(sessionId)
@@ -597,6 +629,8 @@ fun Application.registerAllRoutes(
         return@post
       }
 
+      ChatDb.deleteSession(projectRoot = projectRootPath, sessionId = sessionKey)
+
       val isDeleted: Boolean = sessionFile.deleteRecursively()
       val resultStatus: String = if (isDeleted) "deleted" else "partial_failure"
       call.respondText(
@@ -669,6 +703,139 @@ fun Application.registerAllRoutes(
             "sessionId" to sessionKey,
             "messageId" to messageId
           )
+        ),
+      )
+    }
+
+    get("/sessions") {
+      val rawProjectRoot: String? = call.request.queryParameters["projectRoot"]
+      if (rawProjectRoot.isNullOrBlank()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "projectRoot is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@get
+      }
+      val projectRootPath: Path = Paths.get(rawProjectRoot).toAbsolutePath().normalize()
+      val sessionList: List<Map<String, Any?>> =
+        SessionTranscriptWriter.listSessions(projectRoot = projectRootPath).map { meta ->
+          mapOf(
+            "id" to meta.sessionId,
+            "title" to meta.title,
+            "model" to meta.modelName,
+            "createdAt" to meta.createdAt,
+            "updatedAt" to meta.updatedAt
+          )
+        }
+      call.respondText(
+        contentType = ContentType.Application.Json,
+        text = Json.encodeToString(JsonElement.serializer(), JsonUtil.toJsonElement(sessionList))
+      )
+    }
+
+    get("/session/transcript") {
+      val rawProjectRoot: String? = call.request.queryParameters["projectRoot"]
+      val sessionKey: String = call.request.queryParameters["sessionId"]?.trim().orEmpty()
+      if (rawProjectRoot.isNullOrBlank() || sessionKey.isEmpty()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "projectRoot and sessionId are required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@get
+      }
+      val projectRootPath: Path = Paths.get(rawProjectRoot).toAbsolutePath().normalize()
+      val transcriptContent: String? =
+        SessionTranscriptWriter.loadTranscript(projectRoot = projectRootPath, sessionId = sessionKey)
+      if (transcriptContent == null) {
+        call.respondText(
+          status = HttpStatusCode.NotFound,
+          contentType = ContentType.Application.Json,
+          text = JsonUtil.encodeMap(mapOf("status" to "not_found", "sessionId" to sessionKey)),
+        )
+        return@get
+      }
+      call.respondText(text = transcriptContent, contentType = ContentType.parse("text/markdown"))
+    }
+
+    post("/session/save") {
+      val requestBody = call.receive<SaveSessionRequestBody>()
+      val rawProjectRoot: String = requestBody.projectRoot
+      if (rawProjectRoot.isBlank()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "projectRoot is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+      val sessionKey: String = requestBody.sessionId.trim()
+      if (sessionKey.isEmpty()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "sessionId is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+
+      val projectRootPath: Path = Paths.get(rawProjectRoot).toAbsolutePath().normalize()
+      val saved: Boolean = SessionTranscriptWriter.saveTranscript(
+        projectRoot = projectRootPath,
+        sessionId = sessionKey,
+        newTitle = requestBody.title,
+        content = requestBody.content
+      )
+      call.respondText(
+        status = if (saved) HttpStatusCode.OK else HttpStatusCode.BadRequest,
+        contentType = ContentType.Application.Json,
+        text = JsonUtil.encodeMap(
+          mapOf("status" to if (saved) "saved" else "rejected", "sessionId" to sessionKey)
+        ),
+      )
+    }
+
+    post("/session/rename") {
+      val requestBody = call.receive<RenameSessionRequestBody>()
+      val rawProjectRoot: String = requestBody.projectRoot
+      if (rawProjectRoot.isBlank()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "projectRoot is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+      val sessionKey: String = requestBody.sessionId.trim()
+      if (sessionKey.isEmpty()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "sessionId is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+      if (requestBody.title.isBlank()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "title is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+
+      val projectRootPath: Path = Paths.get(rawProjectRoot).toAbsolutePath().normalize()
+      val renamed: Boolean = SessionTranscriptWriter.renameSession(
+        projectRoot = projectRootPath,
+        sessionId = sessionKey,
+        newTitle = requestBody.title
+      )
+      call.respondText(
+        status = if (renamed) HttpStatusCode.OK else HttpStatusCode.NotFound,
+        contentType = ContentType.Application.Json,
+        text = JsonUtil.encodeMap(
+          mapOf("status" to if (renamed) "renamed" else "not_found", "sessionId" to sessionKey)
         ),
       )
     }

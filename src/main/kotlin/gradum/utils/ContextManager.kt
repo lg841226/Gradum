@@ -2,6 +2,7 @@ package gradum.utils
 
 import gradum.mcp.McpToolCatalog
 import gradum.server.ChatDb
+import gradum.server.SessionTranscriptWriter
 import gradum.skill.Skill
 import gradum.skill.SkillRegistry
 import gradum.skill.ToolDisplay
@@ -117,57 +118,75 @@ class ContextManager(private val outputDirectory: Path) {
     }
   }
 
-  fun saveContext(messages: List<Map<String, Any>>, modelName: String): Boolean = if (useDatabase) {
-    // Database mode
-    cachedMessages = null
-    val cleanedMessages: List<Map<String, Any>> = cleanMessageHistory(messages)
-    val serializedMessages: List<Map<String, Any>> = cleanedMessages.map { message ->
-      encryptMessageIfNeeded(message)
-    }
-    ChatDb.saveContext(
-      sessionId = sessionId,
-      modelName = modelName,
-      projectRoot = projectRoot,
-      messages = serializedMessages
-    )
-  } else {
-    // Legacy file mode
-    outputDirectory.toFile().mkdirs()
-    cachedMessages = null
-
-    val cleanedMessages: List<Map<String, Any>> = cleanMessageHistory(messages)
-    val droppedCount: Int = messages.size - cleanedMessages.size
-
-    val serializedMessages: List<Map<String, Any>> = cleanedMessages.map { message ->
-      encryptMessageIfNeeded(message)
+  fun saveContext(messages: List<Map<String, Any>>, modelName: String): Boolean {
+    // Session transcript (conversation.md) is written from the full
+    // in-memory history before tool results get stubbed below. Failure to
+    // write it must never block the context save itself.
+    try {
+      SessionTranscriptWriter.writeTranscript(
+        projectRoot = projectRoot,
+        sessionId = sessionId,
+        modelName = modelName,
+        messages = messages
+      )
+    } catch (transcriptException: Exception) {
+      logger.warn(
+        "Failed to write session transcript: ${transcriptException.javaClass.simpleName}: ${transcriptException.message}"
+      )
     }
 
-    val contextMap: Map<String, Any> =
-      mapOf("version" to "1", "model" to modelName, "messages" to serializedMessages)
-    val contextJson: String = JsonUtil.encodeMap(contextMap)
-
-    return try {
-      val tempFile: File = contextTempFilePath.toFile()
-      tempFile.writeText(contextJson, Charsets.UTF_8)
-      try {
-        Files.move(
-          contextTempFilePath,
-          contextFilePath,
-          StandardCopyOption.REPLACE_EXISTING,
-          StandardCopyOption.ATOMIC_MOVE,
-        )
-      } catch (moveException: AtomicMoveNotSupportedException) {
-        logger.warn("ATOMIC_MOVE not supported on this filesystem; falling back: ${moveException.message}")
-        Files.move(contextTempFilePath, contextFilePath, StandardCopyOption.REPLACE_EXISTING)
+    return if (useDatabase) {
+      // Database mode
+      cachedMessages = null
+      val cleanedMessages: List<Map<String, Any>> = cleanMessageHistory(messages)
+      val serializedMessages: List<Map<String, Any>> = cleanedMessages.map { message ->
+        encryptMessageIfNeeded(message)
       }
-      val writtenSize: Long = contextFilePath.toFile().length()
+      ChatDb.saveContext(
+        sessionId = sessionId,
+        modelName = modelName,
+        projectRoot = projectRoot,
+        messages = serializedMessages
+      )
+    } else {
+      // Legacy file mode
+      outputDirectory.toFile().mkdirs()
+      cachedMessages = null
 
-      logger.info(
-        "{} to {} messages (dropped {}, model={}), {} bytes encrypted",
-        messages.size, cleanedMessages.size, droppedCount, modelName, writtenSize
-      ); true
-    } catch (saveException: Exception) {
-      logger.error("Failed to save context: ${saveException.javaClass.simpleName}: ${saveException.message}"); false
+      val cleanedMessages: List<Map<String, Any>> = cleanMessageHistory(messages)
+      val droppedCount: Int = messages.size - cleanedMessages.size
+
+      val serializedMessages: List<Map<String, Any>> = cleanedMessages.map { message ->
+        encryptMessageIfNeeded(message)
+      }
+
+      val contextMap: Map<String, Any> =
+        mapOf("version" to "1", "model" to modelName, "messages" to serializedMessages)
+      val contextJson: String = JsonUtil.encodeMap(contextMap)
+
+      return try {
+        val tempFile: File = contextTempFilePath.toFile()
+        tempFile.writeText(contextJson, Charsets.UTF_8)
+        try {
+          Files.move(
+            contextTempFilePath,
+            contextFilePath,
+            StandardCopyOption.REPLACE_EXISTING,
+            StandardCopyOption.ATOMIC_MOVE,
+          )
+        } catch (moveException: AtomicMoveNotSupportedException) {
+          logger.warn("ATOMIC_MOVE not supported on this filesystem; falling back: ${moveException.message}")
+          Files.move(contextTempFilePath, contextFilePath, StandardCopyOption.REPLACE_EXISTING)
+        }
+        val writtenSize: Long = contextFilePath.toFile().length()
+
+        logger.info(
+          "{} to {} messages (dropped {}, model={}), {} bytes encrypted",
+          messages.size, cleanedMessages.size, droppedCount, modelName, writtenSize
+        ); true
+      } catch (saveException: Exception) {
+        logger.error("Failed to save context: ${saveException.javaClass.simpleName}: ${saveException.message}"); false
+      }
     }
   }
 

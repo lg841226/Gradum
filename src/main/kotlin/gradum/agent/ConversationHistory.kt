@@ -52,15 +52,13 @@ class ConversationHistory {
     )
   }
 
-  fun addUserMessage(text: String, attachments: List<AttachmentPayload>, messageId: String? = null) {
-    if (attachments.isEmpty()) {
-      if (messageId.isNullOrBlank()) {
-        messages.add(mapOf("role" to "user", "content" to text))
-      } else {
-        messages.add(mapOf("id" to messageId, "role" to "user", "content" to text))
-      }
-      return
-    }
+  fun addUserMessage(
+    text: String,
+    attachments: List<AttachmentPayload>,
+    messageId: String? = null,
+    displayText: String = ""
+  ) {
+    val attachmentMetas: MutableList<Map<String, Any>> = mutableListOf()
     val parts = mutableListOf<Map<String, Any>>(
       mapOf("type" to "text", "text" to text)
     )
@@ -77,18 +75,31 @@ class ConversationHistory {
           "filename" to (filename ?: "")
         )
       )
+      attachmentMetas.add(
+        mapOf(
+          "name" to (filename ?: ""),
+          "mime" to (mime ?: "image/jpeg")
+        )
+      )
     }
-    if (messageId.isNullOrBlank()) {
-      messages.add(mapOf("role" to "user", "content" to parts))
-    } else {
-      messages.add(mapOf("id" to messageId, "role" to "user", "content" to parts))
+    val userMessage = buildMap {
+      if (!messageId.isNullOrBlank()) put("id", messageId)
+
+      put("role", "user")
+      put("content", if (attachments.isEmpty()) text else parts)
+
+      if (displayText.isNotBlank() && displayText != text) put("displayText", displayText)
+      if (attachmentMetas.isNotEmpty()) put("attachments", attachmentMetas.toList())
     }
+    messages.add(userMessage)
   }
 
   fun addAssistantMessage(
     content: String,
     modelName: String,
     provider: Provider,
+    thinking: String = "",
+    tokenUsage: Map<String, Int>? = null,
     processedCalls: List<ProcessedToolCall>?
   ) {
     val assistantMessage =
@@ -120,18 +131,22 @@ class ConversationHistory {
               )
             }
           }
-        mapOf(
-          "role" to "assistant",
-          "content" to content,
-          "modelName" to modelName,
-          "tool_calls" to toolCallsList
-        )
+        buildMap {
+          put("role", "assistant")
+          put("content", content)
+          put("modelName", modelName)
+          put("tool_calls", toolCallsList)
+          if (thinking.isNotBlank()) put("thinking", thinking)
+          tokenUsage?.let { usage -> put("tokenUsage", usage) }
+        }
       } else {
-        mapOf(
-          "content" to content,
-          "role" to "assistant",
-          "modelName" to modelName
-        )
+        buildMap {
+          put("content", content)
+          put("role", "assistant")
+          put("modelName", modelName)
+          if (thinking.isNotBlank()) put("thinking", thinking)
+          tokenUsage?.let { usage -> put("tokenUsage", usage) }
+        }
       }
     messages.add(assistantMessage)
   }

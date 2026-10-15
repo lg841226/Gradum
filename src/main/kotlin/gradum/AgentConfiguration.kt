@@ -1,5 +1,7 @@
 package gradum
 
+import gradum.client.ThinkingLevel
+
 /**
  * LLM backend selection, parsed from free-form user input.
  */
@@ -117,6 +119,15 @@ data class AgentConfiguration(
   val maxRepeatedToolCalls: Int = 5,
   val toolMode: ToolMode = ToolMode.AGENT,
   val enableThinking: Boolean = DEFAULT_ENABLE_THINKING,
+
+  /**
+   * How hard the model should reason this turn, translated per provider by
+   * [gradum.client.ProviderProfile] (Ollama `think` level, OpenAI-style
+   * `reasoning_effort`). Only meaningful while [enableThinking] is true:
+   * the clients force this to [ThinkingLevel.OFF] when the master switch
+   * is off, preserving the legacy boolean semantics.
+   */
+  val thinkingLevel: ThinkingLevel = ThinkingLevel.OFF,
   val promptVariant: PromptVariant = PromptVariant.AUTO,
   val temperatureValue: Double = DEFAULT_TEMPERATURE,
   val timeoutSeconds: Int = DEFAULT_TIMEOUT_SECONDS,
@@ -167,10 +178,10 @@ data class AgentConfiguration(
     const val DEFAULT_TEMPERATURE: Double = GradumConfig.DEFAULT_TEMPERATURE
     const val DEFAULT_TIMEOUT_SECONDS: Int = GradumConfig.AGENT_TIMEOUT_SECONDS
     const val DEFAULT_MAX_TOKENS_TO_GENERATE: Int = GradumConfig.DEFAULT_MAX_TOKENS
+    const val DEFAULT_KEEP_ALIVE_MINUTES: Int = 5
     const val DEFAULT_ENABLE_THINKING: Boolean = false
     const val DEFAULT_OLLAMA_BASE_URL: String = GradumConfig.DEFAULT_OLLAMA_BASE_URL
     const val DEFAULT_CHAT_COMPLETIONS_PATH: String = GradumConfig.DEFAULT_CHAT_COMPLETIONS_PATH
     const val DEFAULT_CONTEXT_WINDOW_SIZE: Int = GradumConfig.DEFAULT_CONTEXT_WINDOW_SIZE
-    const val DEFAULT_KEEP_ALIVE_MINUTES: Int = 5
   }
 }

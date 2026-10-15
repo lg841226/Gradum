@@ -161,7 +161,8 @@ class Agent(
     messageId: String? = null,
     toolCallXml: String? = null,
     loadPreviousContext: Boolean = false,
-    attachments: List<AttachmentPayload> = emptyList()
+    attachments: List<AttachmentPayload> = emptyList(),
+    displayText: String = ""
   ): Unit {
     sessionManager.reset()
     guardrailManager.reset()
@@ -192,7 +193,12 @@ class Agent(
       )
     )
 
-    conversationHistory.addUserMessage(text = userInput, attachments, messageId = messageId)
+    conversationHistory.addUserMessage(
+      text = userInput,
+      attachments = attachments,
+      messageId = messageId,
+      displayText = displayText
+    )
 
     if (toolCallXml != null) {
       playToolCallScenario(toolCallXml)
@@ -233,6 +239,8 @@ class Agent(
               "repeatedCount" to guardrailManager.repeatedResponseCount,
               "responses" to guardrailManager.repeatedResponses,
             ),
+            thinkingText = result.thinkingText,
+            turnTokenUsage = result.tokenUsage,
           )
         ) {
           break
@@ -242,7 +250,8 @@ class Agent(
       if (result.toolCalls.isNullOrEmpty()) {
         result.responseText?.let { text ->
           conversationHistory.addAssistantMessage(
-            content = text, configuration.modelName, configuration.provider, processedCalls = null
+            content = text, configuration.modelName, configuration.provider, thinking = result.thinkingText,
+            tokenUsage = result.tokenUsage, processedCalls = null
           )
         }
         break
@@ -253,6 +262,8 @@ class Agent(
         content = result.responseText ?: "",
         configuration.modelName,
         configuration.provider,
+        thinking = result.thinkingText,
+        tokenUsage = result.tokenUsage,
         processedCalls
       )
 
@@ -308,8 +319,13 @@ class Agent(
 
   private fun processLlmTurn(toolSchemas: List<Map<String, Any>>): AgentTurnResult {
     val contentParts: MutableList<String> = mutableListOf()
+    val thinkingParts: MutableList<String> = mutableListOf()
     var toolCallsResult: List<ToolCallEntry>? = null
     var errorMessage: String? = null
+
+    // Latest usage snapshot emitted with a RESPONSE event this turn; the
+    // final flush after the stream ends carries the turn's token usage.
+    var turnUsage: TokenUsageSnapshot = TokenUsageSnapshot()
 
     val responseBuffer = StringBuilder()
 
@@ -317,6 +333,7 @@ class Agent(
       val content: String = responseBuffer.toString()
       responseBuffer.clear()
       val snapshot: TokenUsageSnapshot = activeClient.tokenUsage
+      turnUsage = snapshot
       if (content.isNotEmpty() || snapshot.totalTokens > 0) {
         emitEvent(
           GradumEventType.RESPONSE.wireName,
@@ -347,6 +364,7 @@ class Agent(
           }
 
           is LLMResponseChunk.ReasoningContent -> {
+            thinkingParts.add(chunk.text)
             flushResponse()
             emitEvent(
               GradumEventType.THINKING.wireName,
@@ -369,19 +387,34 @@ class Agent(
 
     flushResponse()
 
+    val usageSnapshot: TokenUsageSnapshot = turnUsage
     return AgentTurnResult(
       errorMessage = errorMessage,
       responseText = contentParts.joinToString(separator = ""),
       toolCalls = toolCallsResult,
+      thinkingText = thinkingParts.joinToString(separator = ""),
+      tokenUsage = if (usageSnapshot.totalTokens > 0) {
+        mapOf(
+          "promptTokens" to usageSnapshot.promptTokens,
+          "completionTokens" to usageSnapshot.completionTokens,
+          "totalTokens" to usageSnapshot.totalTokens,
+          "contextTokens" to usageSnapshot.lastPromptTokens
+        )
+      } else null,
     )
   }
 
   private fun handleGuardrailExceeded(
-    responseText: String?, revokeReason: String, revokeDetails: Map<String, Any>
+    responseText: String?,
+    revokeReason: String,
+    revokeDetails: Map<String, Any>,
+    thinkingText: String = "",
+    turnTokenUsage: Map<String, Int>? = null,
   ): Boolean {
     responseText?.let { text ->
       conversationHistory.addAssistantMessage(
-        content = text, configuration.modelName, configuration.provider, processedCalls = null
+        content = text, configuration.modelName, configuration.provider, thinking = thinkingText,
+        tokenUsage = turnTokenUsage, processedCalls = null
       )
     }
     sessionManager.emitRevoked(revokeReason, revokeDetails)
@@ -551,6 +584,10 @@ class Agent(
   private data class AgentTurnResult(
     val errorMessage: String?,
     val responseText: String?,
-    val toolCalls: List<ToolCallEntry>?
+    val toolCalls: List<ToolCallEntry>?,
+    /** Reasoning text streamed during the turn, persisted on the assistant message. */
+    val thinkingText: String = "",
+    /** Token usage carried by this turn's final RESPONSE event; null when nothing was used. */
+    val tokenUsage: Map<String, Int>? = null
   )
 }

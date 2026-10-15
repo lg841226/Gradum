@@ -3,9 +3,11 @@
 
 package gradum.idea.chat.ui.chat
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -31,6 +33,7 @@ import gradum.idea.chat.ui.common.formatTokenCount
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.chat.ui.input.formatModelName
 import gradum.idea.chat.ui.markdown.GradumMarkdown
+import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.settings.*
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
@@ -102,36 +105,39 @@ fun AssistantChatBubble(
         hasContentBefore = true
       }
 
-      renderBlocks.forEachIndexed { index: Int, block: RenderBlock ->
-        if (block is RenderBlock.ToolCall && block.pending &&
-          !(ToolCallRendererRegistry.find(aliasName = block.alias)?.rendersWhilePending() ?: false)
-        ) return@forEachIndexed
+      buildBubbleItems(renderBlocks).forEach { item: BubbleItem ->
         if (hasContentBefore) {
           Spacer(modifier = Modifier.height(GradumSpacing.lg))
         }
 
         hasContentBefore = true
 
-        key(block.key(index)) {
-          when (block) {
-            is RenderBlock.Thinking -> {
-              val hasNonThinkingAfter: Boolean = renderBlocks
-                .drop(n = index + 1)
-                .any { it !is RenderBlock.Thinking }
-              ThinkingBlock(block, isLoading, onUrlClick, hasResponseAfter = hasNonThinkingAfter)
+        when (item) {
+          is BubbleItem.ToolGroup -> key("toolgroup_${item.calls.first().first}") {
+            ToolCallGroupSection(item, onOpenInEditor, onViewDiff, onSubChatClick)
+          }
+
+          is BubbleItem.Single -> key(item.block.key(item.index)) {
+            when (val block: RenderBlock = item.block) {
+              is RenderBlock.Thinking -> {
+                val hasNonThinkingAfter: Boolean = renderBlocks
+                  .drop(n = item.index + 1)
+                  .any { it !is RenderBlock.Thinking }
+                ThinkingBlock(block, isLoading, onUrlClick, hasResponseAfter = hasNonThinkingAfter)
+              }
+
+              is RenderBlock.ToolCall -> ToolCallBlock(
+                block, onOpenInEditor, onViewDiff, onSubChatClick
+              )
+
+              is RenderBlock.Error -> ErrorBlock(block)
+              is RenderBlock.Response -> ResponseBlock(block, onUrlClick)
+              is RenderBlock.AskInteraction -> AskCard(
+                block,
+                onRespondToAsk,
+                onResponded = { onDismissAsk(block.requestId) }
+              )
             }
-
-            is RenderBlock.ToolCall -> ToolCallBlock(
-              block, onOpenInEditor, onViewDiff, onSubChatClick
-            )
-
-            is RenderBlock.Error -> ErrorBlock(block)
-            is RenderBlock.Response -> ResponseBlock(block, onUrlClick)
-            is RenderBlock.AskInteraction -> AskCard(
-              block,
-              onRespondToAsk,
-              onResponded = { onDismissAsk(block.requestId) }
-            )
           }
         }
       }
@@ -179,6 +185,97 @@ private fun RenderBlock.key(index: Int): String = when (this) {
   is RenderBlock.AskInteraction -> "ask_${index}_${requestId}"
 }
 
+/** A render-flow item inside one assistant bubble: either a standalone block or a run of consecutive tool calls. */
+private sealed interface BubbleItem {
+  data class Single(val block: RenderBlock, val index: Int) : BubbleItem
+  data class ToolGroup(val calls: List<Pair<Int, RenderBlock.ToolCall>>) : BubbleItem
+}
+
+/**
+ * Groups consecutive tool-call blocks into one [BubbleItem.ToolGroup] so the
+ * UI can fold the exploration phase into a single collapsible section while
+ * text, thinking, and answers stay in the main flow. Hidden pending calls
+ * (renderers that opt out of the pending state) are skipped exactly as in
+ * the flat path.
+ */
+private fun buildBubbleItems(renderBlocks: List<RenderBlock>): List<BubbleItem> {
+  val items: MutableList<BubbleItem> = mutableListOf()
+  var collectedCalls: MutableList<Pair<Int, RenderBlock.ToolCall>> = mutableListOf()
+
+  fun flushCalls() {
+    if (collectedCalls.isNotEmpty()) {
+      items.add(BubbleItem.ToolGroup(calls = collectedCalls.toList()))
+      collectedCalls = mutableListOf()
+    }
+  }
+
+  renderBlocks.forEachIndexed { index: Int, block: RenderBlock ->
+    if (block is RenderBlock.ToolCall) {
+      val hiddenWhilePending: Boolean = block.pending &&
+        !(ToolCallRendererRegistry.find(aliasName = block.alias)?.rendersWhilePending() ?: false)
+      if (!hiddenWhilePending) {
+        collectedCalls.add(index to block)
+      }
+      return@forEachIndexed
+    }
+    flushCalls()
+    items.add(BubbleItem.Single(block = block, index = index))
+  }
+  flushCalls()
+
+  return items
+}
+
+/**
+ * A collapsible "process" section holding a run of tool calls. The header
+ * shows the call count; the body expands with a short animation and lists
+ * the individual call blocks. A group that is still running starts
+ * expanded, a finished group starts collapsed.
+ */
+@Composable
+private fun ToolCallGroupSection(
+  group: BubbleItem.ToolGroup,
+  onOpenInEditor: (path: String, startLine: Int, endLine: Int) -> Unit,
+  onViewDiff: (path: String, originalContent: String, modifiedContent: String) -> Unit,
+  onSubChatClick: ((conversationJson: String, toolCallsJson: String, title: String) -> Unit)?
+) {
+  val groupIsRunning: Boolean = group.calls.any { (_, toolCall) -> toolCall.pending }
+  var isExpanded: Boolean by remember { mutableStateOf(groupIsRunning) }
+
+  Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.lg)) {
+    Row(
+      modifier = Modifier
+        .clickable { isExpanded = !isExpanded },
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
+    ) {
+      Icon(
+        key =
+          if (isExpanded) AllIconsKeys.General.ChevronDown
+          else AllIconsKeys.General.ChevronRight,
+        contentDescription = null
+      )
+      Text(
+        text = message(key = "gradum.tool.group", group.calls.size),
+        style = rememberGradumParagraphTextStyle()
+      )
+    }
+
+    AnimatedVisibility(visible = isExpanded) {
+      Column(
+        modifier = Modifier.padding(start = GradumSpacing.xl),
+        verticalArrangement = Arrangement.spacedBy(GradumSpacing.lg)
+      ) {
+        for ((index, toolCall) in group.calls) {
+          key(toolCall.key(index)) {
+            ToolCallBlock(toolCall, onOpenInEditor, onViewDiff, onSubChatClick)
+          }
+        }
+      }
+    }
+  }
+}
+
 @Composable
 private fun ThinkingBlock(
   block: RenderBlock.Thinking, isLoading: Boolean,
@@ -188,8 +285,8 @@ private fun ThinkingBlock(
     onUrlClick = onUrlClick,
     thinking = block.content,
     isTaskComplete = !isLoading,
-    startCollapsed = LocalCollapseThinkingByDefault.current,
     hasResponseAfter = hasResponseAfter,
+    startCollapsed = LocalCollapseThinkingByDefault.current
   )
 }
 

@@ -179,7 +179,7 @@ class GradumChatSession : Disposable {
   val mergeSelection: SnapshotStateList<String> = mutableStateListOf()
 
   private val chatStore: ChatSessionStore?
-    get() = project?.basePath?.let { ChatSessionStore(Path.of(it)) }
+    get() = project?.basePath?.let { ChatSessionStore(Path.of(it), apiClient) }
 
   var sendingPhase: String by mutableStateOf("")
   private var pollingJob: Job? = null
@@ -201,7 +201,6 @@ class GradumChatSession : Disposable {
 
   fun reset() {
     cleanupSubAgent()
-    saveCurrentSession()
     exitMergeMode()
     val cancellableJob = currentJob
     currentJob = null
@@ -221,45 +220,16 @@ class GradumChatSession : Disposable {
     refreshSessions()
   }
 
-  internal fun saveCurrentSession() {
-    if (messages.isEmpty()) return
-    val sessionStore: ChatSessionStore = chatStore ?: return
-    val targetSessionId: String = activeSessionId
-      ?: ChatSessionStore.nextSessionId().also {
-        activeSessionId = it
-      }
-    val createdAt: Long = messages.firstOrNull { it.isUserMessage }
-      ?.timestamp ?: System.currentTimeMillis()
-    val modelName: String = messages.lastOrNull()?.modelName.orEmpty()
-    val sessionTitle: String = currentSessionTitle.ifBlank {
-      ChatTranscript.titleFor(messages)
-    }
-    currentSessionTitle = sessionTitle
-    sessionStore.saveSession(
-      SessionMeta(
-        title = sessionTitle,
-        modelName = modelName,
-        createdAt = createdAt,
-        sessionId = targetSessionId,
-        updatedAt = System.currentTimeMillis()
-      ),
-      messages.toList()
-    )
-  }
-
   fun refreshSessions() {
     val sessionStore: ChatSessionStore = chatStore ?: return
     val coroutineScope: CoroutineScope? = scope
     if (coroutineScope == null) {
       sessions.clear()
-      sessions.addAll(elements = sessionStore.listSessions())
       return
     }
     sessionRefreshJob?.cancel(cause = CancellationException("Gradum, refresh sessions"))
     sessionRefreshJob = coroutineScope.launch {
-      val listedSessions: List<SessionMeta> = withContext(Dispatchers.IO) {
-        sessionStore.listSessions()
-      }
+      val listedSessions: List<SessionMeta> = sessionStore.listSessions()
       sessions.clear()
       sessions.addAll(elements = listedSessions)
     }
@@ -284,9 +254,7 @@ class GradumChatSession : Disposable {
     if (mergeSelection.size < MIN_MERGE_SESSIONS) return false
     val sessionStore: ChatSessionStore = chatStore ?: return false
     val resultTitle: String = nextMergeTitle()
-    withContext(Dispatchers.IO) {
-      sessionStore.mergeSessions(sessionIds = mergeSelection.toList(), resultTitle)
-    } ?: return false
+    sessionStore.mergeSessions(sessionIds = mergeSelection.toList(), resultTitle) ?: return false
     mergeSelection.clear()
     refreshSessions()
     return true
@@ -306,9 +274,7 @@ class GradumChatSession : Disposable {
 
   suspend fun renameSession(sessionId: String, newTitle: String): Boolean {
     val sessionStore: ChatSessionStore = chatStore ?: return false
-    val renamed: Boolean = withContext(Dispatchers.IO) {
-      sessionStore.renameSession(sessionId, newTitle)
-    }
+    val renamed: Boolean = sessionStore.renameSession(sessionId, newTitle)
     if (!renamed) return false
     if (sessionId == activeSessionId) currentSessionTitle = newTitle.trim()
     refreshSessions()
@@ -322,16 +288,14 @@ class GradumChatSession : Disposable {
   suspend fun switchSession(targetSessionId: String): Boolean {
     if (isSending) return false
     val sessionStore: ChatSessionStore = chatStore ?: return false
-    val loadedTranscript: ChatTranscript.ParsedTranscript = withContext(Dispatchers.IO) {
-      sessionStore.loadSession(targetSessionId)
-    } ?: return false
+    val loadedTranscript: ChatTranscript.ParsedTranscript =
+      sessionStore.loadSession(targetSessionId) ?: return false
 
     val job = currentJob
     currentJob = null
     job?.cancel(cause = CancellationException("Gradum: switch session"))
     sessionId = null
     clearSendState()
-    if (activeSessionId != null && messages.isNotEmpty()) saveCurrentSession()
 
     clearConversationState()
     messages.addAll(elements = loadedTranscript.messages)
@@ -343,11 +307,7 @@ class GradumChatSession : Disposable {
 
   fun deleteSession(targetSessionId: String) {
     val sessionStore: ChatSessionStore = chatStore ?: return
-    sessionStore.deleteSession(targetSessionId)
-    val projectRoot: String? = project?.basePath
-    if (projectRoot != null) {
-      scope?.launch { apiClient.deleteSession(projectRoot, targetSessionId) }
-    }
+    scope?.launch { sessionStore.deleteSession(targetSessionId) }
     sessions.removeAll { it.sessionId == targetSessionId }
     if (activeSessionId == targetSessionId) {
       activeSessionId = null
@@ -385,7 +345,6 @@ class GradumChatSession : Disposable {
     if (sessionKey != null && projectRoot != null && messageId.isNotBlank()) {
       scope?.launch { apiClient.rewindSession(projectRoot, sessionKey, messageId) }
     }
-    saveCurrentSession()
   }
 
   fun loadDebugMarkdown(content: String) {
@@ -505,6 +464,7 @@ class GradumChatSession : Disposable {
     }
 
     val selectedEntry: ModelInfo? = selectedModel
+
     when {
       selectedEntry == null -> selectedModel = models.first()
       models.none {

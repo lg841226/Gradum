@@ -1,7 +1,11 @@
 package gradum.acp
 
-import gradum.*
+import gradum.AgentConfiguration
+import gradum.ModelIdentity
+import gradum.PromptVariant
+import gradum.Provider
 import gradum.agent.*
+import gradum.client.ThinkingLevel
 import gradum.mcp.McpServerConfig
 import gradum.mcp.jsonrpc.RpcError
 import gradum.mcp.jsonrpc.RpcResponse
@@ -491,6 +495,9 @@ private fun AcpServer.buildAgentConfiguration(sessionState: AcpSessionState): Ag
     toolMode = sessionState.selectedToolMode,
     modelName = sessionState.selectedModelName,
     enableThinking = settings.defaultThinkEnabled,
+    // No per-turn level on the ACP surface: keep the legacy "think on"
+    // intent as a balanced effort, off otherwise.
+    thinkingLevel = if (settings.defaultThinkEnabled) ThinkingLevel.MEDIUM else ThinkingLevel.OFF,
     keepAliveMinutes = settings.defaultKeepAliveMinutes
   )
 }

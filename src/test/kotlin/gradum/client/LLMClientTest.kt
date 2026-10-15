@@ -475,7 +475,7 @@ class LLMClientTest {
 
     client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))).toList()
 
-    assertTrue(actual = requestBody.contains("\"keep_alive\":120"))
+    assertTrue(actual = requestBody.contains("\"keep_alive\":\"2m\""))
   }
 
   @Test
