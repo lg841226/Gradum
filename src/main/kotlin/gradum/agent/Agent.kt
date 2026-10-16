@@ -144,6 +144,8 @@ class Agent(
   init {
     activeClient = when (configuration.provider) {
       Provider.OPENAI -> openAiClient
+      Provider.DEEPSEEK -> openAiClient
+      Provider.MINIMAX -> openAiClient
       Provider.OLLAMA -> ollamaClient
     }
   }
@@ -234,12 +236,11 @@ class Agent(
         )
         if (handleGuardrailExceeded(
             responseText = result.responseText,
-            revokeReason = "repetitive_loop",
+            thinkingText = result.thinkingText,
             revokeDetails = mapOf(
               "repeatedCount" to guardrailManager.repeatedResponseCount,
               "responses" to guardrailManager.repeatedResponses,
             ),
-            thinkingText = result.thinkingText,
             turnTokenUsage = result.tokenUsage,
           )
         ) {
@@ -325,7 +326,7 @@ class Agent(
 
     // Latest usage snapshot emitted with a RESPONSE event this turn; the
     // final flush after the stream ends carries the turn's token usage.
-    var turnUsage: TokenUsageSnapshot = TokenUsageSnapshot()
+    var turnUsage = TokenUsageSnapshot()
 
     val responseBuffer = StringBuilder()
 
@@ -406,10 +407,9 @@ class Agent(
 
   private fun handleGuardrailExceeded(
     responseText: String?,
-    revokeReason: String,
-    revokeDetails: Map<String, Any>,
     thinkingText: String = "",
-    turnTokenUsage: Map<String, Int>? = null,
+    revokeDetails: Map<String, Any>,
+    turnTokenUsage: Map<String, Int>? = null
   ): Boolean {
     responseText?.let { text ->
       conversationHistory.addAssistantMessage(
@@ -417,14 +417,14 @@ class Agent(
         tokenUsage = turnTokenUsage, processedCalls = null
       )
     }
-    sessionManager.emitRevoked(revokeReason, revokeDetails)
+    sessionManager.emitRevoked("repetitive_loop", revokeDetails)
     val tokenUsage = mapOf(
       "promptTokens" to activeClient.tokenUsage.promptTokens,
       "completionTokens" to activeClient.tokenUsage.completionTokens,
       "totalTokens" to activeClient.tokenUsage.totalTokens,
       "contextTokens" to activeClient.tokenUsage.lastPromptTokens
     )
-    sessionManager.abort(revokeReason, tokenUsage)
+    sessionManager.abort("repetitive_loop", tokenUsage)
     return true
   }
 

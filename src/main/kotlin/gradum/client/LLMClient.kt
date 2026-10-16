@@ -45,39 +45,6 @@ private fun JsonObject.optObject(key: String): JsonObject =
   this[key]?.jsonObject ?: JsonObject(emptyMap())
 
 /**
- * Per-provider wire-format quirks for OpenAI-compatible chat APIs that are
- * keyed by base URL rather than by [gradum.Provider].
- *
- * Most providers we proxy to (Zhipu BigModel, OpenAI, OpenRouter, local
- * LM Studio / vLLM / LocalAI) follow the OpenAI spec to the letter, so
- * the [Default] row covers them. MiniMax silently ignores `max_tokens`
- * (unbounded completion), so it renames the token cap to
- * `max_completion_tokens`. The thinking field and the reasoning delta
- * field are not table rows anymore: [ProviderProfile] owns them per
- * provider, so a future model change on the same host keeps working
- * without touching this file.
- *
- * Match is by substring against [AgentConfiguration.baseUrl] rather
- * than a hard enum.
- */
-internal data class ProviderHints(
-  val maxTokensFieldName: String = DEFAULT_MAX_TOKENS_FIELD
-) {
-  companion object {
-    const val DEFAULT_MAX_TOKENS_FIELD: String = "max_tokens"
-
-    val Default: ProviderHints = ProviderHints()
-
-    fun forBaseUrl(baseUrl: String): ProviderHints = when {
-      baseUrl.contains(other = "api.minimaxi.com", ignoreCase = true) ->
-        ProviderHints(maxTokensFieldName = "max_completion_tokens")
-
-      else -> Default
-    }
-  }
-}
-
-/**
  * Resolve the wire thinking level for a request: the legacy master switch
  * still gates thinking off entirely, [AgentConfiguration.thinkingLevel]
  * only matters while [AgentConfiguration.enableThinking] is true.
@@ -156,6 +123,8 @@ private fun projectMessageForBackend(
   return when (target) {
     Provider.OLLAMA -> projectToOllama(contentParts)
     Provider.OPENAI -> projectToOpenAi(contentParts)
+    Provider.DEEPSEEK -> projectToOpenAi(contentParts)
+    Provider.MINIMAX -> projectToOpenAi(contentParts)
   }
 }
 
@@ -419,7 +388,6 @@ class OpenAICompatibleClient(
       } else {
         "$base/$path"
       }
-    val hints: ProviderHints = ProviderHints.forBaseUrl(configuration.baseUrl)
     val wireProfile: ProviderProfile = profileFor(configuration.provider)
     val thinkingLevel: ThinkingLevel = effectiveThinkingLevel(configuration)
     val generationParams = GenerationParams(
@@ -439,11 +407,6 @@ class OpenAICompatibleClient(
       "stream_options" to mapOf("include_usage" to true),
     )
     requestPayload.putAll(wireProfile.requestFields(params = generationParams))
-    // BaseUrl quirks (MiniMax) rename the token-cap field after profile encoding.
-    if (hints.maxTokensFieldName != ProviderHints.DEFAULT_MAX_TOKENS_FIELD) {
-      requestPayload.remove(key = "max_tokens")
-      requestPayload[hints.maxTokensFieldName] = configuration.maxTokensToGenerate
-    }
     requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel))
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }

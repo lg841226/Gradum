@@ -105,7 +105,7 @@ class ConversationHistory {
     val assistantMessage =
       if (!processedCalls.isNullOrEmpty()) {
         val toolCallsList =
-          if (provider == Provider.OPENAI) {
+          if (provider != Provider.OLLAMA) {
             processedCalls.map { call ->
               mapOf(
                 "id" to call.callIdentifier,
@@ -158,7 +158,9 @@ class ConversationHistory {
       put("role", "tool")
       put("alias", alias)
       put("content", content)
-      if (provider == Provider.OPENAI && toolCallId != null)
+      // Ollama identifies tool results by order alone; every OpenAI-compatible
+      // provider (OpenAI, DeepSeek, MiniMax, …) requires the paired call id.
+      if (provider != Provider.OLLAMA && toolCallId != null)
         put("tool_call_id", toolCallId)
     }
     messages.add(toolMessage)

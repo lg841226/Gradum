@@ -235,8 +235,8 @@ class LLMClientTest {
 
   @Test
   fun `openai usage trailer with empty choices is recorded`() = runBlocking {
-    var sentPayload: String = ""
-    val engine: MockEngine = MockEngine { request ->
+    var sentPayload = ""
+    val engine = MockEngine { request ->
       sentPayload = (request.body as io.ktor.http.content.TextContent).text
       respond(
         status = HttpStatusCode.OK,

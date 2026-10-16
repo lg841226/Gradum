@@ -158,8 +158,6 @@ class ChatSessionStore(
     apiClient.deleteSession(projectRoot = projectRootPath, sessionId = sessionId)
 
   companion object {
-    /** Transcript file name the server writes inside each session directory. */
-    const val TRANSCRIPT_FILE: String = "conversation.md"
 
     /**
      * Chronological interleave of multiple conversations for

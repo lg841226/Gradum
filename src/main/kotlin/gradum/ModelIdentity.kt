@@ -470,7 +470,7 @@ object ModelIdentity {
         configKey = "deepseek",
         apiKeyEnvVar = "DEEPSEEK_API_KEY",
         baseUrl = "https://api.deepseek.com/v1",
-        providerType = Provider.OPENAI.wireType
+        providerType = Provider.DEEPSEEK.wireType
       ),
       ServerDef(
         name = "MiniMax",
@@ -478,7 +478,7 @@ object ModelIdentity {
         configKey = "minimax",
         apiKeyEnvVar = "MiniMax_API_KEY",
         baseUrl = "https://api.minimaxi.com/v1",
-        providerType = Provider.OPENAI.wireType
+        providerType = Provider.MINIMAX.wireType
       ),
     )
 
@@ -525,13 +525,12 @@ object ModelIdentity {
      * they can assert the URL / env-var wiring without poking at
      * private internals via reflection.
      *
-     * The filter is "OpenAI protocol AND not on localhost" so
-     * local OpenAI-compatible servers (LM Studio, vLLM, LocalAI)
-     * that share the [Provider.OPENAI] wire type but have no
-     * host-side `apiKey` stay out of the cloud list.
+     * Hosted providers (every server declaring an `apiKeyEnvVar`) so
+     * local unauthenticated servers (LM Studio, vLLM, LocalAI,
+     * Ollama) stay out of the cloud list.
      */
     fun publicCloudServers(): List<ServerDef> = baseKnownServers.filter {
-      it.providerType == Provider.OPENAI.wireType && it.apiKeyEnvVar != null
+      it.apiKeyEnvVar != null
     }
 
     fun doProbe(): List<ModelEntry> {
@@ -557,7 +556,7 @@ object ModelIdentity {
 
           val effectiveKey: String? = providerKey ?: cloudApiKey
 
-          if (effectiveKey != null && effective.providerType == Provider.OPENAI.wireType) {
+          if (effectiveKey != null && effective.apiKeyEnvVar != null) {
             effective = effective.copy(apiKey = effectiveKey)
           }
         }
@@ -759,13 +758,13 @@ object ModelIdentity {
       val server: ServerDef = baseKnownServers.firstOrNull { it.name == serverName } ?: return null
       server.apiKey?.let { return it }
 
-      if (server.providerType != Provider.OPENAI.wireType) return null
+      if (server.apiKeyEnvVar == null) return null
 
       val providerEnv: Properties = ProviderConfigStore.load()
       val providerKey: String? = ProviderConfigStore.apiKeyKey(server.configKey)
         ?.let { providerEnv.getProperty(it) }?.trim()
         ?.takeIf { it.isNotEmpty() }
-        ?: server.apiKeyEnvVar?.let { resolveEnvVar(envVarName = it) }
+        ?: resolveEnvVar(envVarName = server.apiKeyEnvVar)
       return providerKey ?: resolveCloudApiKey()
     }
 

@@ -48,7 +48,7 @@ internal suspend fun GradumChatSession.sendMessage(
     }
   }
 
-  val messageWithHint: String = "${prefix}${userMessage}"
+  val messageWithHint = "${prefix}${userMessage}"
 
   sendingPhase = message("gradum.phase.synthesizing")
   val validationStart: Long = System.currentTimeMillis()

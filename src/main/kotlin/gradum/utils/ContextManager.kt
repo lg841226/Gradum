@@ -164,7 +164,7 @@ class ContextManager(private val outputDirectory: Path) {
         mapOf("version" to "1", "model" to modelName, "messages" to serializedMessages)
       val contextJson: String = JsonUtil.encodeMap(contextMap)
 
-      return try {
+      try {
         val tempFile: File = contextTempFilePath.toFile()
         tempFile.writeText(contextJson, Charsets.UTF_8)
         try {
