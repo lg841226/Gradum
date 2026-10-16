@@ -1,7 +1,12 @@
-package gradum.server
+package gradum.server.setup
 
+import gradum.ModelIdentity
+import gradum.ServerDef
 import gradum.utils.JsonUtil
 import java.io.File
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 private const val INDENT: String = "  "
 private const val ROW_INDENT: String = "   "
@@ -16,7 +21,6 @@ private const val GLYPH_RULE: Char = '\u2500'
 private const val RULE_WIDTH: Int = 64
 private const val LABEL_WIDTH: Int = 10
 private const val PROVIDER_KIND_WIDTH: Int = 7
-private const val PROVIDER_NAME_WIDTH: Int = 11
 private const val API_KEY_LABEL: String = "API key"
 private const val THINKING_LABEL: String = "Thinking"
 
@@ -32,13 +36,22 @@ internal class ProviderChoice(
   val baseUrl: String
 )
 
-internal val PROVIDER_CHOICES: List<ProviderChoice> = listOf(
-  ProviderChoice("ollama", "local", "Ollama", "http://localhost:11434"),
-  ProviderChoice("lmstudio", "local", "LM Studio", "http://localhost:1234"),
-  ProviderChoice("minimax", "cloud", "MiniMax", "https://api.minimaxi.com/v1"),
-  ProviderChoice("deepseek", "cloud", "DeepSeek", "https://api.deepseek.com/v1"),
-  ProviderChoice("zhipu", "cloud", "Zhipu", "https://open.bigmodel.cn/api/paas/v4")
-)
+/**
+ * Derived from `ModelIdentity.setupServers()` so the wizard can never drift
+ * from server-side discovery; kind follows the hosted (API key) marker.
+ */
+internal val PROVIDER_CHOICES: List<ProviderChoice> =
+  ModelIdentity.setupServers().map { serverDef: ServerDef ->
+    ProviderChoice(
+      key = serverDef.configKey.orEmpty(),
+      kind = if (serverDef.apiKeyEnvVar != null) "cloud" else "local",
+      label = serverDef.name,
+      baseUrl = serverDef.baseUrl
+    )
+  }
+
+/** Column width follows the longest provider label so renaming ServerDefs can't break the table. */
+internal val PROVIDER_NAME_WIDTH: Int = PROVIDER_CHOICES.maxOf { choice -> choice.label.length }
 
 /**
  * Line-based fallback provider wizard, used when there is no attached console
@@ -100,7 +113,12 @@ internal fun runSetup() {
 
 private fun printHeader(useColor: Boolean) {
   println()
-  println(renderGradientBanner(BANNER_ART, colored = useColor))
+  println(
+    renderGradientBanner(
+      BANNER_ART,
+      colored = useColor
+    )
+  )
   println()
   println(INDENT + paint("Gradum", gradientColor(0f), useColor) + paint(DOT_JOIN + "setup guide", ANSI_MUTED, useColor))
   println(INDENT + divider(useColor))
@@ -248,7 +266,13 @@ internal fun dropLegacyFlatLlmKeys(settingsRoot: MutableMap<String, Any?>) {
 
 internal fun writeSettingsRoot(file: File, settingsRoot: MutableMap<String, Any?>) {
   file.parentFile?.mkdirs()
-  file.writeText(JsonUtil.encodeMap(settingsRoot, prettyPrint = true))
+  val tempFile = File(file.parentFile, file.name + ".tmp")
+  tempFile.writeText(JsonUtil.encodeMap(settingsRoot, prettyPrint = true))
+  try {
+    Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+  } catch (_: AtomicMoveNotSupportedException) {
+    Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+  }
 }
 
 internal fun existingString(settingsRoot: Map<String, Any?>, key: String): String =

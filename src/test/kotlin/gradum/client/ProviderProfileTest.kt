@@ -14,10 +14,10 @@ import kotlin.test.assertTrue
 class ProviderProfileTest {
 
   private val sampleParams: GenerationParams = GenerationParams(
-    temperature = 0.7,
     topP = 0.9,
-    contextWindow = 8192,
+    temperature = 0.7,
     maxTokens = 1024,
+    contextWindow = 8192,
     keepAliveMinutes = 2
   )
 

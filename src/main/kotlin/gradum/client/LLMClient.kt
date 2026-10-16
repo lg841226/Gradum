@@ -233,10 +233,10 @@ class OllamaClient(
     val wireProfile: ProviderProfile = profileFor(Provider.OLLAMA)
     val thinkingLevel: ThinkingLevel = effectiveThinkingLevel(configuration)
     val generationParams = GenerationParams(
-      temperature = configuration.temperatureValue,
       topP = configuration.topPValue,
-      contextWindow = configuration.contextWindowSize,
+      temperature = configuration.temperatureValue,
       maxTokens = configuration.maxTokensToGenerate,
+      contextWindow = configuration.contextWindowSize,
       keepAliveMinutes = configuration.keepAliveMinutes
     )
 
@@ -393,8 +393,8 @@ class OpenAICompatibleClient(
     val generationParams = GenerationParams(
       topP = configuration.topPValue,
       temperature = configuration.temperatureValue,
-      contextWindow = configuration.contextWindowSize,
-      maxTokens = configuration.maxTokensToGenerate
+      maxTokens = configuration.maxTokensToGenerate,
+      contextWindow = configuration.contextWindowSize
     )
 
     val projectedHistory: List<Map<String, Any>> =

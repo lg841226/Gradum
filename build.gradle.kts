@@ -113,7 +113,7 @@ dependencies {
 
   constraints {
     implementation("io.netty:netty-codec-http2:4.2.15.Final") {
-      because("CVE-2025-55163 / CVE-2025-58057 / CVE-2026-33871 — HTTP/2 DoS and decompression OOM")
+      because("CVE-2025-55163 / CVE-2025-58057 / CVE-2026-33871, HTTP/2 DoS and decompression OOM")
     }
   }
 }

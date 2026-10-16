@@ -1,8 +1,8 @@
 package gradum.utils
 
 import gradum.mcp.McpToolCatalog
-import gradum.server.ChatDb
-import gradum.server.SessionTranscriptWriter
+import gradum.server.persistence.ChatDb
+import gradum.server.persistence.SessionTranscriptWriter
 import gradum.skill.Skill
 import gradum.skill.SkillRegistry
 import gradum.skill.ToolDisplay

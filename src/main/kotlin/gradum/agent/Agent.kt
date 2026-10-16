@@ -236,11 +236,12 @@ class Agent(
         )
         if (handleGuardrailExceeded(
             responseText = result.responseText,
-            thinkingText = result.thinkingText,
+            revokeReason = "repetitive_loop",
             revokeDetails = mapOf(
               "repeatedCount" to guardrailManager.repeatedResponseCount,
               "responses" to guardrailManager.repeatedResponses,
             ),
+            thinkingText = result.thinkingText,
             turnTokenUsage = result.tokenUsage,
           )
         ) {
@@ -407,9 +408,10 @@ class Agent(
 
   private fun handleGuardrailExceeded(
     responseText: String?,
-    thinkingText: String = "",
+    revokeReason: String,
     revokeDetails: Map<String, Any>,
-    turnTokenUsage: Map<String, Int>? = null
+    thinkingText: String = "",
+    turnTokenUsage: Map<String, Int>? = null,
   ): Boolean {
     responseText?.let { text ->
       conversationHistory.addAssistantMessage(
@@ -417,14 +419,14 @@ class Agent(
         tokenUsage = turnTokenUsage, processedCalls = null
       )
     }
-    sessionManager.emitRevoked("repetitive_loop", revokeDetails)
+    sessionManager.emitRevoked(revokeReason, revokeDetails)
     val tokenUsage = mapOf(
       "promptTokens" to activeClient.tokenUsage.promptTokens,
       "completionTokens" to activeClient.tokenUsage.completionTokens,
       "totalTokens" to activeClient.tokenUsage.totalTokens,
       "contextTokens" to activeClient.tokenUsage.lastPromptTokens
     )
-    sessionManager.abort("repetitive_loop", tokenUsage)
+    sessionManager.abort(revokeReason, tokenUsage)
     return true
   }
 

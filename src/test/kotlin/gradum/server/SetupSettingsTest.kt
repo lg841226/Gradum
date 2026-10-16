@@ -12,12 +12,12 @@ class SetupSettingsTest {
   fun `llm values land in the nested section the loader reads`() {
     val settingsRoot: MutableMap<String, Any?> = mutableMapOf("server" to mutableMapOf("port" to 8080))
 
-    val llm: MutableMap<String, Any?> = llmGroup(settingsRoot)
+    val llm: MutableMap<String, Any?> = _root_ide_package_.gradum.server.setup.llmGroup(settingsRoot)
     llm["baseUrl"] = "http://localhost:11434"
     llm["think"] = true
 
-    assertEquals("http://localhost:11434", llmString(settingsRoot, "baseUrl"))
-    assertEquals(true, llmBoolean(settingsRoot, "think"))
+    assertEquals("http://localhost:11434", _root_ide_package_.gradum.server.setup.llmString(settingsRoot, "baseUrl"))
+    assertEquals(true, _root_ide_package_.gradum.server.setup.llmBoolean(settingsRoot, "think"))
     assertEquals(8080, (settingsRoot["server"] as Map<*, *>)["port"])
     assertTrue("llm.baseUrl" !in settingsRoot)
   }
@@ -31,7 +31,7 @@ class SetupSettingsTest {
       "ollama.baseUrl" to "http://localhost:11434",
     )
 
-    dropLegacyFlatLlmKeys(settingsRoot)
+    _root_ide_package_.gradum.server.setup.dropLegacyFlatLlmKeys(settingsRoot)
 
     assertEquals(setOf("ollama.baseUrl"), settingsRoot.keys)
   }
@@ -41,7 +41,7 @@ class SetupSettingsTest {
     val settingsFile: File = File.createTempFile("settings", ".json")
     try {
       settingsFile.writeText("{ not json")
-      assertNull(readSettingsRoot(settingsFile))
+      assertNull(_root_ide_package_.gradum.server.setup.readSettingsRoot(settingsFile))
     } finally {
       settingsFile.delete()
     }

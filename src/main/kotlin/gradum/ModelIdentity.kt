@@ -411,6 +411,9 @@ object ModelIdentity {
   internal val knownCloudServers: List<ServerDef>
     get() = Discovery.publicCloudServers()
 
+  /** Servers offered by the `gradum setup` wizard: every known server with a pre-fillable base URL. */
+  internal fun setupServers(): List<ServerDef> = Discovery.setupServers()
+
   private object Discovery {
     private val logger: Logger = LoggerFactory.getLogger("ModelIdentity.Discovery")
 
@@ -532,6 +535,13 @@ object ModelIdentity {
     fun publicCloudServers(): List<ServerDef> = baseKnownServers.filter {
       it.apiKeyEnvVar != null
     }
+
+    /**
+     * Servers offered by the `gradum setup` wizard: every known server with
+     * a pre-fillable base URL. Single source of truth so wizard entries can
+     * never drift from discovery.
+     */
+    fun setupServers(): List<ServerDef> = baseKnownServers.filter { it.baseUrl.isNotBlank() }
 
     fun doProbe(): List<ModelEntry> {
       val cloudApiKey: String? = resolveCloudApiKey()

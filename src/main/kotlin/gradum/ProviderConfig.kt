@@ -22,7 +22,7 @@ import java.util.*
  * provider key (see [gradum.ModelIdentity.Discovery.baseKnownServers]):
  * `ollama`, `lmstudio`, `zhipu`, `deepseek`, `minimax`. The rest of the
  * file (`server.*`, `llm.*`, `commandFilter.*`, `$schema`) is owned by
- * [gradum.server.ServerSettingsStore] and left untouched.
+ * [gradum.server.setup.ServerSettingsStore] and left untouched.
  *
  * The legacy `~/.gradum/provider.env` file (`GRADUM_<PROVIDER>_BASE_URL` /
  * `_API_KEY` / `_ALLOW_REMOTE` properties) is migrated into settings.json

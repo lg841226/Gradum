@@ -1,4 +1,4 @@
-package gradum.server
+package gradum.server.setup
 
 /**
  * Shared ANSI styling for Gradum's CLI surfaces: the startup banner and the
@@ -14,7 +14,6 @@ internal const val ANSI_RESET: String = "\u001B[0m"
 internal val BANNER_GRADIENT_TO: IntArray = intArrayOf(168, 85, 247)
 internal val BANNER_GRADIENT_FROM: IntArray = intArrayOf(59, 130, 246)
 
-/** Block-glyph logo; [renderGradientBanner] paints the colors. */
 internal val BANNER_ART: List<String> = listOf(
   "   ██████  ██████    ██████  ██████   ██    ██ ██      ██",
   "  ██       ██   ██  ██    ██ ██   ██  ██    ██ ███    ███",

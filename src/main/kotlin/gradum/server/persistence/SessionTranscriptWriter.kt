@@ -1,7 +1,7 @@
-package gradum.server
+package gradum.server.persistence
 
-import gradum.server.SessionTranscriptWriter.HEADER_LINE_LIMIT
-import gradum.server.SessionTranscriptWriter.parseAttributes
+import gradum.server.persistence.SessionTranscriptWriter.HEADER_LINE_LIMIT
+import gradum.server.persistence.SessionTranscriptWriter.parseAttributes
 import gradum.utils.JsonUtil
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory

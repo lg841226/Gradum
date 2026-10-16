@@ -1,6 +1,7 @@
 package gradum.server
 
 import gradum.server.ServerAuth.ALLOWED_HOST_NAMES
+import gradum.server.setup.ServerSettingsStore
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -40,7 +41,7 @@ object ServerAuth {
   /** Environment variable that overrides the on-disk token. */
   const val ENV_TOKEN: String = "GRADUM_SERVER_TOKEN"
 
-  /** File name inside [ServerSettingsStore.configDir]. */
+  /** File name inside [gradum.server.setup.ServerSettingsStore.configDir]. */
   const val TOKEN_FILE_NAME: String = "server.token"
 
   /** Query parameter that carries the token when opening the editor page. */

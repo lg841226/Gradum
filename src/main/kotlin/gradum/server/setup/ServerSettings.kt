@@ -1,8 +1,9 @@
-package gradum.server
+package gradum.server.setup
 
 import gradum.AgentConfiguration
 import gradum.mcp.McpServerConfig
-import gradum.server.ServerSettingsStore.warnUnknownKeys
+import gradum.server.ServerConfiguration
+import gradum.server.setup.ServerSettingsStore.warnUnknownKeys
 import gradum.utils.CommandFilterConfig
 import gradum.utils.JsonUtil
 import gradum.utils.ProtectedPathsConfig

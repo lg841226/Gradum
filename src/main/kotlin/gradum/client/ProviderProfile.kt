@@ -5,14 +5,11 @@ import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 
 /**
- * Provider-neutral reasoning dial; each [ProviderProfile] translates a level
+ * Provider-neutral reasoning dial. Each [ProviderProfile] translates a level
  * into its backend's wire vocabulary (Ollama `think`, OpenAI `reasoning_effort`).
  */
 enum class ThinkingLevel {
-  OFF,
-  LOW,
-  MEDIUM,
-  HIGH;
+  OFF, LOW, MEDIUM, HIGH;
 
   companion object {
     fun fromStringOrDefault(rawValue: String?, default: ThinkingLevel): ThinkingLevel {
@@ -22,22 +19,33 @@ enum class ThinkingLevel {
   }
 }
 
-/** Generation knobs shared by every provider request, encoded by a [ProviderProfile]. */
+/**
+ * Generation knobs shared by every provider request, resolved from
+ * [gradum.AgentConfiguration] once per turn and handed to a [ProviderProfile]
+ * for wire encoding.
+ */
 data class GenerationParams(
-  val temperature: Double,
   val topP: Double,
-  val contextWindow: Int,
+  val temperature: Double,
   val maxTokens: Int,
-
-  /** Ollama-only model residency in minutes; other providers leave it null. */
+  val contextWindow: Int,
   val keepAliveMinutes: Int? = null
 )
 
+/**
+ * Backing key to value store shared by the request-body and options scopes.
+ * Named delegates write straight into [fields] under the provider's wire key;
+ * the encoded map is merged into the outgoing payload by the LLM clients.
+ */
 internal interface FieldStore {
   val fields: MutableMap<String, Any>
 }
 
-/** Named wire-field delegate; [encode] returning null omits the field (keep_alive unset case). */
+/**
+ * Delegate factory for a named wire field. [encode] maps the declared value
+ * onto its wire shape; returning null skips the field entirely (used by
+ * `keep_alive` for the "leave unset" case).
+ */
 private fun <T> field(key: String, encode: (T) -> Any? = { it }): ReadWriteProperty<FieldStore, T> =
   object : ReadWriteProperty<FieldStore, T> {
     @Suppress("UNCHECKED_CAST")
@@ -49,19 +57,14 @@ private fun <T> field(key: String, encode: (T) -> Any? = { it }): ReadWritePrope
     }
   }
 
-/** Mutable accumulator for one provider request body; delegates write provider wire keys. */
 class RequestBodyScope internal constructor() : FieldStore {
 
   override val fields: MutableMap<String, Any> = mutableMapOf()
 
   var temperature: Double by field(key = "temperature")
-
   var topP: Double by field(key = "top_p")
-
   var maxTokens: Int by field(key = "max_tokens")
-
   var maxCompletionTokens: Int by field(key = "max_completion_tokens")
-
   var reasoningEffort: String by field(key = "reasoning_effort")
 
   fun thinkingSwitch(type: String) {
@@ -70,7 +73,11 @@ class RequestBodyScope internal constructor() : FieldStore {
 
   var reasoningSplit: Boolean by field(key = "reasoning_split")
 
-  /** 0 omits the field, negative pins the model forever, positive becomes "Nm". */
+  /**
+   * Ollama `keep_alive` in whole minutes: `0` omits the field so the server
+   * default applies, a negative value pins the model forever (wire `-1`),
+   * a positive value becomes a duration string (`"5m"`).
+   */
   var keepAlive: Int by field(key = "keep_alive") { minutes: Int ->
     when {
       minutes == 0 -> null
@@ -89,24 +96,24 @@ class RequestBodyScope internal constructor() : FieldStore {
   }
 }
 
-/** Ollama's nested `options` object. */
 class OptionsScope internal constructor() : FieldStore {
 
   override val fields: MutableMap<String, Any> = mutableMapOf()
 
   var temperature: Double by field(key = "temperature")
-
   var topP: Double by field(key = "top_p")
-
   var numCtx: Int by field(key = "num_ctx")
-
   var numPredict: Int by field(key = "num_predict")
 }
 
-/** Declaration side of [providerProfile]: request encoding, thinking encoding, reasoning delta. */
+/**
+ * Declaration side of [providerProfile]. A profile describes:
+ * (a) how [GenerationParams] map onto the request body,
+ * (b) how [ThinkingLevel] maps onto native thinking fields,
+ * (c) which response delta carries the model's reasoning.
+ */
 class ProfileScope internal constructor() {
 
-  /** Response delta carrying native reasoning; null when the provider has none. */
   var reasoningDelta: String? = null
 
   private var requestEncoder: ((GenerationParams) -> Map<String, Any>)? = null
@@ -135,7 +142,10 @@ class ProfileScope internal constructor() {
   )
 }
 
-/** Wire-format profile for one [Provider]: the single place spelling out its request dialect. */
+/**
+ * Wire-format profile for one [Provider]: the single place that knows how
+ * generation knobs and thinking levels are spelled for that backend.
+ */
 class ProviderProfile internal constructor(
   private val requestEncoder: (GenerationParams) -> Map<String, Any>,
   private val thinkingEncoder: (ThinkingLevel) -> Map<String, Any>,
@@ -143,13 +153,18 @@ class ProviderProfile internal constructor(
 ) {
   fun requestFields(params: GenerationParams): Map<String, Any> = requestEncoder(params)
 
-  /** Empty map means "send no thinking field". */
   fun thinkingFields(level: ThinkingLevel): Map<String, Any> = thinkingEncoder(level)
 }
 
 fun providerProfile(configure: ProfileScope.() -> Unit): ProviderProfile =
   ProfileScope().apply(configure).build()
 
+/**
+ * Ollama native `/api/chat` encoding: sampler knobs live in the nested
+ * `options` object, thinking is carried by the `think` field (a boolean
+ * off switch or an effort level), and reasoning streams back through
+ * the `message.thinking` delta.
+ */
 val OllamaProfile: ProviderProfile = providerProfile {
   reasoningDelta = "thinking"
   thinking { level ->
@@ -171,6 +186,12 @@ val OllamaProfile: ProviderProfile = providerProfile {
   }
 }
 
+/**
+ * OpenAI-compatible `/v1/chat/completions` encoding: flat sampler fields,
+ * thinking carried by `reasoning_effort` (omitted entirely at
+ * [ThinkingLevel.OFF] so non-reasoning providers see a plain request),
+ * and reasoning streamed back through the `reasoning_content` delta.
+ */
 val OpenAiProfile: ProviderProfile = providerProfile {
   reasoningDelta = "reasoning_content"
   thinking { level ->
@@ -188,16 +209,20 @@ val OpenAiProfile: ProviderProfile = providerProfile {
   }
 }
 
-/** DeepSeek folds `medium` into `high`, so MEDIUM sends the canonical value; OFF must send `none` (thinking is on by default). */
+/**
+ * DeepSeek: `reasoning_effort` uses `none/low/high/max` (no `medium`),
+ * and thinking is on by default so OFF must explicitly send `none`.
+ */
 val DeepSeekProfile: ProviderProfile = providerProfile {
   reasoningDelta = "reasoning_content"
   thinking { level ->
-    when (level) {
-      ThinkingLevel.OFF -> reasoningEffort = "none"
-      ThinkingLevel.LOW -> reasoningEffort = "low"
-      ThinkingLevel.MEDIUM -> reasoningEffort = "high"
-      ThinkingLevel.HIGH -> reasoningEffort = "max"
-    }
+    reasoningEffort =
+      when (level) {
+        ThinkingLevel.OFF -> "none"
+        ThinkingLevel.LOW -> "low"
+        ThinkingLevel.MEDIUM -> "high"
+        ThinkingLevel.HIGH -> "max"
+      }
   }
   body { params ->
     temperature = params.temperature
@@ -206,8 +231,11 @@ val DeepSeekProfile: ProviderProfile = providerProfile {
   }
 }
 
-/** MiniMax ignores `max_tokens` and has no effort gradation (`thinking` is a binary switch); `reasoning_split`
- * keeps thinking out of the answer text. */
+/**
+ * MiniMax: ignores `max_tokens` (uses `max_completion_tokens`), has no
+ * effort gradation (`thinking` is a binary switch), and uses
+ * `reasoning_split` to keep thinking out of the answer text.
+ */
 val MiniMaxProfile: ProviderProfile = providerProfile {
   reasoningDelta = "reasoning_content"
   thinking { level ->
@@ -226,9 +254,10 @@ val MiniMaxProfile: ProviderProfile = providerProfile {
   }
 }
 
-fun profileFor(provider: Provider): ProviderProfile = when (provider) {
-  Provider.OLLAMA -> OllamaProfile
-  Provider.OPENAI -> OpenAiProfile
-  Provider.DEEPSEEK -> DeepSeekProfile
-  Provider.MINIMAX -> MiniMaxProfile
-}
+fun profileFor(provider: Provider): ProviderProfile =
+  when (provider) {
+    Provider.OLLAMA -> OllamaProfile
+    Provider.OPENAI -> OpenAiProfile
+    Provider.DEEPSEEK -> DeepSeekProfile
+    Provider.MINIMAX -> MiniMaxProfile
+  }

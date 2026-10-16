@@ -1,5 +1,7 @@
 package gradum.server
 
+import gradum.server.setup.ServerSettings
+import gradum.server.setup.ServerSettingsStore
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.*

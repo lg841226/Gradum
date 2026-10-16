@@ -1,7 +1,7 @@
 package gradum
 
 import gradum.mcp.McpConnectionManager
-import gradum.server.ServerSettings
+import gradum.server.setup.ServerSettings
 import gradum.skill.external.ExternalSkillDirectoryScanner
 import gradum.skill.external.ExternalSkillDirectoryWatcher
 

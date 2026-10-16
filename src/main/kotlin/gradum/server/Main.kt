@@ -7,6 +7,7 @@ import gradum.logging.routeAcpLogsToFile
 import gradum.mcp.McpConnectionManager
 import gradum.mcp.McpToolCatalog
 import gradum.mcp.McpToolsSkill
+import gradum.server.setup.*
 import gradum.skill.SkillRegistry
 import gradum.skill.external.ExternalSkillDirectoryScanner
 import gradum.skill.external.ExternalSkillDirectoryWatcher

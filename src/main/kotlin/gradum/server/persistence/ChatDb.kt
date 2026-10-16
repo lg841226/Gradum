@@ -1,6 +1,6 @@
-package gradum.server
+package gradum.server.persistence
 
-import gradum.server.ChatDb.chainHash
+import gradum.server.persistence.ChatDb.chainHash
 import gradum.utils.JsonUtil
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory

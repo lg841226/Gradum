@@ -1,4 +1,4 @@
-package gradum.server
+package gradum.server.setup
 
 import org.jline.terminal.Terminal
 import org.jline.terminal.TerminalBuilder
@@ -40,7 +40,6 @@ private const val LINE_SEPARATOR: String = "\r\n"
 private const val RULE_WIDTH: Int = 64
 private const val LABEL_WIDTH: Int = 10
 private const val PROVIDER_KIND_WIDTH: Int = 7
-private const val PROVIDER_NAME_WIDTH: Int = 11
 private const val INDENT: String = "  "
 private const val TAB_GAP: String = "    "
 private const val INNER_GAP: String = "   "

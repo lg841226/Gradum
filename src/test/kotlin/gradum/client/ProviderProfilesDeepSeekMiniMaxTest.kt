@@ -15,10 +15,10 @@ import kotlin.test.assertFalse
 class ProviderProfilesDeepSeekMiniMaxTest {
 
   private val sampleParams: GenerationParams = GenerationParams(
-    temperature = 0.7,
     topP = 0.9,
-    contextWindow = 8192,
-    maxTokens = 1024
+    temperature = 0.7,
+    maxTokens = 1024,
+    contextWindow = 8192
   )
 
   @Test
