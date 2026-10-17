@@ -291,8 +291,15 @@ class GradumChatSession : Disposable {
   suspend fun switchSession(targetSessionId: String): Boolean {
     if (isSending) return false
     val sessionStore: ChatSessionStore = chatStore ?: return false
-    val loadedTranscript: ChatTranscript.ParsedTranscript =
-      sessionStore.loadSession(targetSessionId) ?: return false
+
+    // The structured projection is the authority; fall back to the Markdown
+    // transcript only when the sidecar is missing (a session that predates it,
+    // or a failed write), so old history still opens.
+    val projection: GradumApiClient.ApiSessionState? = sessionStore.loadSessionState(targetSessionId)
+    val projectedState: GradumApiClient.ApiSessionState? = projection?.takeIf { it.messages.isNotEmpty() }
+    val transcript: ChatTranscript.ParsedTranscript? =
+      if (projectedState != null) null else sessionStore.loadSession(targetSessionId)
+    if (projectedState == null && transcript == null) return false
 
     val job = currentJob
     currentJob = null
@@ -301,10 +308,15 @@ class GradumChatSession : Disposable {
     clearSendState()
 
     clearConversationState()
-    messages.addAll(elements = loadedTranscript.messages)
+    if (projectedState != null) {
+      applyServerProjection(state = projectedState)
+    } else {
+      val loadedTranscript: ChatTranscript.ParsedTranscript = transcript ?: return false
+      messages.addAll(elements = loadedTranscript.messages)
+      currentSessionTitle = loadedTranscript.sessionMeta.title
+      hasSentMessage = loadedTranscript.messages.isNotEmpty()
+    }
     activeSessionId = targetSessionId
-    currentSessionTitle = loadedTranscript.sessionMeta.title
-    hasSentMessage = loadedTranscript.messages.isNotEmpty()
     return true
   }
 

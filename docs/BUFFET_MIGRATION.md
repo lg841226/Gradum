@@ -1,6 +1,6 @@
 # Gradum Buffet: Server-Authoritative State Migration
 
-> Version: **0.1** · Branch: `feature/@gradum-gwy-buffet-projection` · Opened: **2026-10-17** · Status: **Step 1 done**
+> Version: **0.1** · Branch: `feature/@gradum-gwy-buffet-projection` · Opened: **2026-10-17** · Status: **Step 3 done**
 
 "Buffet" is the working name for moving session-state authority from the IDE
 plugin back to the server. The plugin should *serve* state (render it, ask the
@@ -127,23 +127,32 @@ Acceptance: sidecar round-trips every UI field; the endpoint echoes the session,
 reports `isRunning: false` for a finished session, returns the messages, and
 redraws an open ask card.
 
-### Step 3 — Client reconciliation ⬜
+### Step 3 — Client reconciliation ✅
 
-Make the plugin stop trusting its own assembly once a turn is over.
+Make the plugin stop trusting its own assembly once events may have been lost.
 
-- On `session_end`, on `gap > 0`, and when (re)opening a session, call
-  `GET /session/state` and **replace** local messages with the projection.
+- `GET /session/state` is the cold projection. The plugin rebuilds bubbles from
+  its `messages` (the raw agent history), folding each `tool` row into the call
+  that issued it — the same reading `SessionTranscriptWriter` performs — and
+  replays `pendingAsks` onto the last assistant message.
+- Reconcile when a `gap` was seen **after the run ends**, and when (re)opening a
+  session. A clean `session_end` keeps the live view: the projection does not
+  carry UI-only decorations (failed-tool styling, the delegate capsule's
+  transcript), so replacing on every turn would regress them for no correctness
+  gain. Tapping in on `gap`/reopen still removes the local-only divergence.
 - Crash / kill with no `session_end` is covered by the reconnect path, not by a
   terminal event.
-- `GradumChatSession.switchSession` stops parsing the transcript markdown and
-  reads the projection instead.
+- `GradumChatSession.switchSession` reads the projection instead of parsing the
+  transcript markdown, falling back to markdown only when the sidecar is absent
+  (a session saved before it existed, or a failed write), so old history opens.
 
 Acceptance: a forced `gap` or a reopened session yields messages identical to the
 server projection; no local-only divergence.
 
-### Step 3.5 — Optional live resume ⬜ (phase 2)
+### Step 3.5 — Optional live resume ⬜ (deferred, phase 2)
 
-Only if "reconnect mid-run and keep watching" is actually needed: a per-run ring
+Not in scope for now: the default is "reconcile, don't resume". Only if
+"reconnect mid-run and keep watching" is actually needed do we add a per-run ring
 buffer keyed by `runId` + `seq`, plus `GET /events/{runId}?since=seq`. Not
 required for Step 3.
 
@@ -188,8 +197,8 @@ payoff step and the riskiest, so it goes last.
    already carries `seq` / `gap`, and reconciliation goes through the REST
    endpoint (`/session/state`), so SSE's built-in resume buys nothing. The
    envelope stays shaped so a later SSE move would be mechanical.
-3. **Live resume in scope?** Step 3.5 is optional; the default is "reconcile,
-   don't resume".
+3. ~~**Live resume in scope?**~~ **Resolved (Step 3): deferred.** Step 3.5 is
+   phase 2; the default is "reconcile, don't resume", so Step 3 ships without it.
 
 ## 6. Explicit non-goals
 
@@ -206,8 +215,8 @@ payoff step and the riskiest, so it goes last.
 | 2a   | ✅ done     | this PR   | `runId` (per run) vs `sessionId` (durable); `/stop` takes `runId`         |
 | 2b/c | ✅ done     | `f4cda06` | `session-state.json` sidecar + `GET /session/state`; 463 tests green      |
 | 2d   | ✅ done     | this PR   | `/session/state` also serves `tokenUsage`, `pendingAsks`, `subAgents`     |
-| 3    | ⬜          | —         | client reconcile (session_end / gap / reopen)                             |
-| 3.5  | ⬜ optional | —         | live resume via per-run ring buffer                                       |
+| 3    | ✅ done     | this PR   | client reconcile on `gap`/reopen; projection→bubbles; 498 plugin tests green |
+| 3.5  | ⬜ phase 2 | —         | live resume (`runId` ring buffer + `GET /events/{runId}?since=`)           |
 | 4    | ⬜          | —         | transcript / title / error-code single authority                          |
 | 5    | ⬜          | —         | id, merge, availability, rewind authority                                 |
 | 5.5  | ⬜          | —         | thin the plugin (drop event assembly)                                     |

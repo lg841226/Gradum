@@ -3,6 +3,7 @@ package gradum.idea.chat.api
 import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.PluginConfig
 import gradum.idea.server.ServerTokenStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -280,6 +281,82 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
   )
 
   /**
+   * The server's authoritative session projection from `GET /session/state`.
+   *
+   * [messages] are the raw agent-history maps (`session-state.json`); the
+   * caller maps them to bubbles. [pendingAsks] / [subAgents] are live extras
+   * computed per request, and [isRunning] reports whether a run is in flight
+   * for this session.
+   */
+  data class ApiSessionState(
+    val sessionId: String,
+    val runId: String?,
+    val isRunning: Boolean,
+    val lastSeq: Int,
+    val title: String,
+    val modelName: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val messages: List<JsonObject>,
+    val pendingAsks: List<JsonObject>,
+    val subAgents: List<JsonObject>
+  )
+
+  /**
+   * Fetches one session's authoritative projection. [since] drops the messages
+   * at or before that 0-based index; the default (-1) returns the whole history.
+   *
+   * @return The projection, or `null` when the session does not exist or the
+   *   request failed.
+   */
+  suspend fun fetchSessionState(
+    projectRoot: String,
+    sessionId: String,
+    since: Int = -1
+  ): ApiSessionState? = withContext(Dispatchers.IO) {
+    val encodedRoot: String = URLEncoder.encode(projectRoot, StandardCharsets.UTF_8)
+    val encodedSession: String = URLEncoder.encode(sessionId, StandardCharsets.UTF_8)
+    try {
+      val response: HttpResponse<String> =
+        sendWithAuthRetry(HttpResponse.BodyHandlers.ofString()) {
+          newRequest(
+            "$baseUrl/session/state?projectRoot=$encodedRoot&sessionId=$encodedSession&since=$since"
+          )
+            .GET()
+            .build()
+        }
+      if (response.statusCode() != 200) return@withContext null
+      val parsed: JsonObject = ndjsonParser.parseToJsonElement(response.body()) as? JsonObject
+        ?: return@withContext null
+      ApiSessionState(
+        sessionId = parsed.stringOrNull("sessionId") ?: sessionId,
+        runId = parsed.stringOrNull("runId"),
+        isRunning = (parsed["isRunning"] as? JsonPrimitive)?.booleanOrNull ?: false,
+        lastSeq = (parsed["lastSeq"] as? JsonPrimitive)?.intOrNull ?: -1,
+        title = parsed.stringOrNull("title").orEmpty(),
+        modelName = parsed.stringOrNull("modelName").orEmpty(),
+        createdAt = (parsed["createdAt"] as? JsonPrimitive)?.longOrNull ?: 0L,
+        updatedAt = (parsed["updatedAt"] as? JsonPrimitive)?.longOrNull ?: 0L,
+        messages = parsed.objectList("messages"),
+        pendingAsks = parsed.objectList("pendingAsks"),
+        subAgents = parsed.objectList("subAgents")
+      )
+    } catch (fetchException: Exception) {
+      if (fetchException is CancellationException) throw fetchException
+      log.warn("Failed to load session state for session $sessionId on server", fetchException)
+      null
+    }
+  }
+
+  /** Lenient string field: missing or JSON-null both read as `null`. */
+  private fun JsonObject.stringOrNull(key: String): String? =
+    (this[key] as? JsonPrimitive)?.contentOrNull
+
+  /** Elements of an array field, keeping only the objects; missing or non-array fields read as empty. */
+  private fun JsonObject.objectList(key: String): List<JsonObject> =
+    (this[key] as? JsonArray)?.filterIsInstance<JsonObject>() ?: emptyList()
+
+  /**
    * Lists every saved session for [projectRoot], most recently updated first.
    * The server reads only each transcript's leading header lines, so the
    * plugin gets the same cheap listing it used to build from local files.
@@ -416,13 +493,19 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    * Line payload truncated to [MAX_LOGGED_LINE] chars in logs.
    *
    * **Sequence check:** every event carries a monotonic `seq` (plus a `gap`
-   * count); a discontinuity is logged at WARN so a dropped event is visible
-   * instead of silently leaving the client state incomplete.
+   * count); a discontinuity is logged at WARN and reported to [onStreamGap] so
+   * the caller can reconcile against the authoritative projection instead of
+   * trusting an incomplete local view.
    *
    * @param request The chat message and its associated parameters.
+   * @param onStreamGap Invoked with `(expected, received, dropped)` when the
+   *   stream skips an event. Local state may be incomplete from then on.
    * @return A [Flow] of [JsonObject] events. Failed lines are skipped without aborting the flow.
    */
-  fun sendMessage(request: SendMessageRequest): Flow<JsonObject> = flow {
+  fun sendMessage(
+    request: SendMessageRequest,
+    onStreamGap: (expected: Long, received: Long, dropped: Int) -> Unit = { _, _, _ -> }
+  ): Flow<JsonObject> = flow {
     val requestBody: JsonObject = buildJsonObject {
       put("message", request.message)
 
@@ -480,7 +563,9 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
           .filter { it.value.isNotBlank() }
           .forEach { (index: Int, line: String) ->
             val event: JsonObject = parseLine(line, lineNumber = index + 1) ?: return@forEach
-            previousSeq = warnOnStreamGap(event = event, previousSeq = previousSeq)
+            previousSeq = warnOnStreamGap(
+              event = event, previousSeq = previousSeq, onStreamGap = onStreamGap
+            )
             emit(value = event)
           }
       }
@@ -515,7 +600,11 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    * drop, so both `gap > 0` and a sequence jump mean the client is missing
    * events. Returns the sequence to remember for the next event.
    */
-  private fun warnOnStreamGap(event: JsonObject, previousSeq: Long): Long {
+  private fun warnOnStreamGap(
+    event: JsonObject,
+    previousSeq: Long,
+    onStreamGap: (expected: Long, received: Long, dropped: Int) -> Unit
+  ): Long {
     val sequence: Long = (event["seq"] as? JsonPrimitive)?.longOrNull ?: return previousSeq
     if (previousSeq != 0L) {
       val expected: Long = previousSeq + 1
@@ -525,6 +614,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
           "Stream gap: expected event #$expected but received #$sequence " +
             "(server reported $dropped dropped event(s)) \u2014 local state may be incomplete"
         )
+        onStreamGap(expected, sequence, dropped)
       }
     }
     return sequence

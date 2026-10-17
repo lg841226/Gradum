@@ -70,6 +70,15 @@ class ChatSessionStore(
   }
 
   /**
+   * Loads one session's authoritative projection (`GET /session/state`).
+   *
+   * @return The projection, or `null` when the session does not exist on the
+   *   server or the request failed.
+   */
+  suspend fun loadSessionState(sessionId: String): GradumApiClient.ApiSessionState? =
+    apiClient.fetchSessionState(projectRoot = projectRootPath, sessionId = sessionId)
+
+  /**
    * Loads one session's [ChatTranscript.ParsedTranscript] from the server.
    *
    * @return The parsed transcript, or `null` when the session does not exist

@@ -35,6 +35,7 @@ internal suspend fun GradumChatSession.sendMessage(
 ) {
   var wasCancelled = false
   var receivedSessionEnd = false
+  var streamGapDetected = false
   val modelConfig: Map<String, String> = buildModelConfig()
   val textAttachments: List<AttachedText> = attachments.filterIsInstance<AttachedText>()
   val attachmentPaths: List<String> = attachments.filterIsInstance<AttachedFile>().map { it.file.path }
@@ -168,7 +169,8 @@ internal suspend fun GradumChatSession.sendMessage(
         thinkingLevel = thinkingLevel.name.lowercase(),
         imageAttachments = imageAttachments,
         displayText = userMessage
-      )
+      ),
+      onStreamGap = { _, _, _ -> streamGapDetected = true }
     ).catch { exception: Throwable ->
       if (exception is CancellationException) {
         cleanupSubAgent()
@@ -238,7 +240,7 @@ internal suspend fun GradumChatSession.sendMessage(
         "sub_agent:tool_call" -> handleSubAgentToolCall(data = payload)
         "sub_agent:error" -> handleSubAgentError(data = payload)
         "sub_agent:session_end" -> handleSubAgentEnd(data = payload)
-        "ask_interaction" -> handleAskInteractionEvent(eventData = payload)
+        "ask_interaction" -> handleAskInteractionEvent(data = payload)
 
         "session_end" -> {
           receivedSessionEnd = true
@@ -249,6 +251,17 @@ internal suspend fun GradumChatSession.sendMessage(
           sendingPhase = ""
           processPendingQueue()
         }
+      }
+    }
+
+    // The stream lost events, so the locally assembled turn may be missing
+    // pieces. Now that the server has finished and written its sidecar, replace
+    // the messages with its projection rather than keeping a diverged copy.
+    if (streamGapDetected && receivedSessionEnd) {
+      val sessionKey: String? = activeSessionId
+      if (sessionKey != null) {
+        log.warn("Stream gap in session $sessionKey; adopting server projection")
+        adoptServerProjection(sessionId = sessionKey)
       }
     }
   } catch (exception: Exception) {

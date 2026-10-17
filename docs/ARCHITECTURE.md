@@ -1981,7 +1981,8 @@ to third-party plugins at all, so they ship too.
 - `GET /session/state?projectRoot=…&sessionId=…&since=<seq>` returns the session's authoritative rich history as
   structured JSON (role, content, thinking, tool calls, token usage), plus `isRunning` / `runId` for the live run and
   the live extras `pendingAsks` / `subAgents`. A message's `seq` is its 0-based position and `since` asks for the delta
-  after it.
+  after it. The plugin rebuilds bubbles from this projection when a stream `gap` is seen or a session is reopened,
+  instead of trusting its event-stream assembly.
 - `GET /models`, `GET /health`, and `GET /skills` support model polling, server liveness checks, and capability
   discovery
 - `POST /provider/probe` is the settings-page connectivity check: the plugin forwards `{kind, baseUrl, apiKey}` to the

@@ -444,47 +444,59 @@ internal fun GradumChatSession.handleSubAgentEnd(data: JsonObject?) {
  * `input`), resolves title/details/placeholder from their `L10nText` form via
  * the i18n bundle, and appends an ask card to the current assistant message.
  */
-internal fun GradumChatSession.handleAskInteractionEvent(eventData: JsonObject?) {
-  if (eventData == null) return
-  val requestId: String = eventData["requestId"]?.jsonPrimitive?.contentOrNull ?: return
-  val sessionId: String = eventData["sessionId"]?.jsonPrimitive?.contentOrNull ?: ""
-  val titleText: String = resolveL10n(eventData["title"])
-  val detailText: String = resolveL10n(eventData["details"], fallback = "")
-  val defaultValue: String = eventData["default"]?.jsonPrimitive?.contentOrNull ?: ""
+internal fun GradumChatSession.handleAskInteractionEvent(data: JsonObject?) {
+  val interaction: ChatEvent.AskInteraction = parseAskInteraction(data) ?: return
+
+  val assistantIndex: Int = messages.lastIndex
+  if (assistantIndex < 0 || messages[assistantIndex].isUserMessage) return
+
+  messages[assistantIndex] = messages[assistantIndex].appendEvent(interaction)
+}
+
+/**
+ * Decodes an `ask_interaction` wire payload into a renderable
+ * [ChatEvent.AskInteraction]: a live event and a replayed `pendingAsks` entry
+ * from `/session/state` share this shape and this parser.
+ *
+ * Returns `null` for a malformed payload or one carrying neither `choices` nor
+ * `input` (nothing to render as a card).
+ */
+internal fun parseAskInteraction(data: JsonObject?): ChatEvent.AskInteraction? {
+  if (data == null) return null
+  val requestId: String = data["requestId"]?.jsonPrimitive?.contentOrNull ?: return null
+  val sessionId: String = data["sessionId"]?.jsonPrimitive?.contentOrNull ?: ""
+  val titleText: String = resolveL10n(data["title"])
+  val detailText: String = resolveL10n(data["details"], fallback = "")
+  val defaultValue: String = data["default"]?.jsonPrimitive?.contentOrNull ?: ""
 
   val askPrompt: AskPrompt =
     when {
-      eventData["choices"]?.jsonArray != null -> {
-        val choiceOptions: List<AskChoice> = eventData["choices"]!!.jsonArray.mapNotNull { choiceElement: JsonElement ->
+      data["choices"]?.jsonArray != null -> {
+        val choiceOptions: List<AskChoice> = data["choices"]!!.jsonArray.mapNotNull { choiceElement: JsonElement ->
           val choiceObject: JsonObject = choiceElement as? JsonObject ?: return@mapNotNull null
           val semanticCode: String = choiceObject["semantics"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
           val labelKey: String? = choiceObject["labelKey"]?.jsonPrimitive?.contentOrNull
           AskChoice(semantics = semanticCode, labelKey = labelKey)
         }
-        if (choiceOptions.isEmpty()) return
+        if (choiceOptions.isEmpty()) return null
         AskPrompt.Choices(choiceOptions)
       }
 
-      eventData["input"]?.jsonObject != null -> {
-        val placeholderText: String = resolveL10n(eventData["input"]!!.jsonObject["placeholder"], fallback = "")
+      data["input"]?.jsonObject != null -> {
+        val placeholderText: String = resolveL10n(data["input"]!!.jsonObject["placeholder"], fallback = "")
         AskPrompt.Input(placeholderText)
       }
 
-      else -> return
+      else -> return null
     }
 
-  val assistantIndex: Int = messages.lastIndex
-  if (assistantIndex < 0 || messages[assistantIndex].isUserMessage) return
-
-  messages[assistantIndex] = messages[assistantIndex].appendEvent(
-    ChatEvent.AskInteraction(
-      requestId = requestId,
-      sessionId = sessionId,
-      title = titleText,
-      details = detailText,
-      default = defaultValue,
-      prompt = askPrompt
-    )
+  return ChatEvent.AskInteraction(
+    requestId = requestId,
+    sessionId = sessionId,
+    title = titleText,
+    details = detailText,
+    default = defaultValue,
+    prompt = askPrompt
   )
 }
 
