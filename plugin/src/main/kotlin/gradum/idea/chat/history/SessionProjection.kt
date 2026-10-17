@@ -25,6 +25,9 @@ object SessionProjection {
 
   private val jsonParser: Json = Json { ignoreUnknownKeys = true }
 
+  /** Server-side tool name of the delegate skill. */
+  private const val DELEGATE_TOOL_NAME: String = "delegate_task"
+
   /**
    * Maps [projectedMessages] into renderable messages. Every reconstructed
    * message shares [timestamp] because the history carries no per-message clock
@@ -178,6 +181,10 @@ object SessionProjection {
       val toolName: String = function.text("name").ifBlank { call.text("name") }
       val callId: String = call.text("id")
       val toolResult: JsonObject? = takeResult(unmatchedResults, callId)
+      val arguments: Map<String, Any> = toolArguments(function["arguments"] ?: call["arguments"])
+
+      val rebuiltArguments: Map<String, Any> =
+        if (toolName == DELEGATE_TOOL_NAME) arguments + ("pending" to false) else arguments
       ChatEvent.ToolCall(
         info = ToolCallInfo(
           toolName = toolName,
@@ -185,7 +192,7 @@ object SessionProjection {
           toolCallId = callId,
           success = true,
           result = toolResult?.text("content").orEmpty(),
-          arguments = toolArguments(function["arguments"] ?: call["arguments"])
+          arguments = rebuiltArguments
         )
       )
     }

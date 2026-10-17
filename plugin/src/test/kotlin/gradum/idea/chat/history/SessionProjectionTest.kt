@@ -7,8 +7,7 @@ import gradum.idea.chat.model.ToolCallInfo
 import gradum.idea.editor.AttachedText
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Test
 
 /**
@@ -168,6 +167,23 @@ class SessionProjectionTest {
   @Test
   fun `an empty history maps to no messages`() {
     assertTrue(SessionProjection.toMessages(emptyList()).isEmpty())
+  }
+
+  @Test
+  fun `a rebuilt delegate call is finished and carries no sub-chat state`() {
+    val messages: List<ChatMessage> = project(
+      """{"role":"assistant","tool_calls":[{"id":"call-1","type":"function","function":{"name":"delegate_task","arguments":"{\"task\":\"investigate\",\"title\":\"Investigate\"}"}}]}""",
+      """{"role":"tool","alias":"Delegate","tool_call_id":"call-1","content":"sub-agent result"}"""
+    )
+
+    val toolCall: ToolCallInfo = messages.first().events
+      .filterIsInstance<ChatEvent.ToolCall>().first().info
+    assertEquals("delegate_task", toolCall.toolName)
+    assertEquals("Delegate", toolCall.alias)
+    assertEquals("Investigate", toolCall.arguments["title"])
+    assertEquals(false, toolCall.arguments["pending"])
+    assertNull(toolCall.arguments["startTimestamp"])
+    assertNull(toolCall.arguments["subChatMessages"])
   }
 
   private companion object {
