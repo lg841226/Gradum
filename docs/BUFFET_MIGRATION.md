@@ -200,7 +200,7 @@ payoff step and the riskiest, so it goes last.
 |------|-------------|-----------|---------------------------------------------------------------------------|
 | 1    | ✅ done     | `48cf91d` | `seq` + `gap` on `/events`; client WARN on discontinuity; 457 tests green |
 | 2a   | ✅ done     | `8a5b287` | `conversationId` added to the event envelope                              |
-| 2b/c | ✅ done     | _uncommitted_ | `session-state.json` sidecar + `GET /session/state`; 463 tests green   |
+| 2b/c | ✅ done     | `f4cda06` | `session-state.json` sidecar + `GET /session/state`; 463 tests green   |
 | 3    | ⬜          | —         | client reconcile (session_end / gap / reopen)                             |
 | 3.5  | ⬜ optional | —         | live resume via per-run ring buffer                                       |
 | 4    | ⬜          | —         | transcript / title / error-code single authority                          |
