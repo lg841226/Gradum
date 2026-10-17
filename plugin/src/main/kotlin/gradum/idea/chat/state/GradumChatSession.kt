@@ -14,7 +14,6 @@ import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.PluginConfig
 import gradum.idea.chat.api.GradumApiClient
 import gradum.idea.chat.history.ChatSessionStore
-import gradum.idea.chat.history.ChatTranscript
 import gradum.idea.chat.history.SessionMeta
 import gradum.idea.chat.model.ChatEvent
 import gradum.idea.chat.model.ChatMessage
@@ -276,9 +275,7 @@ class GradumChatSession : Disposable {
 
     val projection: GradumApiClient.ApiSessionState? = sessionStore.loadSessionState(targetSessionId)
     val projectedState: GradumApiClient.ApiSessionState? = projection?.takeIf { it.messages.isNotEmpty() }
-    val transcript: ChatTranscript.ParsedTranscript? =
-      if (projectedState != null) null else sessionStore.loadSession(targetSessionId)
-    if (projectedState == null && transcript == null) return false
+    if (projectedState == null) return false
 
     val job = currentJob
     currentJob = null
@@ -287,14 +284,7 @@ class GradumChatSession : Disposable {
     clearSendState()
 
     clearConversationState()
-    if (projectedState != null) {
-      applyServerProjection(state = projectedState)
-    } else {
-      val loadedTranscript: ChatTranscript.ParsedTranscript = transcript ?: return false
-      messages.addAll(elements = loadedTranscript.messages)
-      currentSessionTitle = loadedTranscript.sessionMeta.title
-      hasSentMessage = loadedTranscript.messages.isNotEmpty()
-    }
+    applyServerProjection(state = projectedState)
     activeSessionId = targetSessionId
     return true
   }

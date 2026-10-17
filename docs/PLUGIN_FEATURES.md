@@ -127,7 +127,7 @@ Source: [`UserChatBubble.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat
 
 - Renders an inline sub-agent chat panel when the main agent delegates a task to a sub-agent.
 - Two rendering paths: **runtime** (sub-agent is actively streaming, shows `toolCalls` + live response text) and
-  **history** (sub-agent has completed, renders a static transcript from `ChatTranscript.parseTranscript()`).
+  **history** (sub-agent has completed, renders the structured `subChatMessages` carried by the delegate capsule).
 - Handles 5 sub-agent wire events: `sub_agent:start` (opens the panel), `sub_agent:response` (appends to response text),
   `sub_agent:tool_call` (appends to tool call list), `sub_agent:error` (shows failure state), and
   `sub_agent:session_end` (closes the panel with final status).
@@ -138,7 +138,7 @@ Source: [`SubChatView.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/Su
 private
 `SubChatConversationContent` transcript renderer),
 [`AssistantChatBubble.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/AssistantChatBubble.kt) (`ToolCallBlock`),
-[`ChatTranscript.kt`](../plugin/src/main/kotlin/gradum/idea/chat/history/ChatTranscript.kt).
+[`DelegateRenderer.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/skill/DelegateRenderer.kt).
 
 ---
 
@@ -1060,19 +1060,18 @@ and merging sessions.
 
 ### 20.1 Session persistence (`ChatSessionStore`)
 
-Sessions are stored as JSON files under the project's `.gradum/sessions/` directory. Each session contains a unique ID,
-title, creation timestamp, update timestamp, and the full message transcript. `ChatSessionStore` handles all CRUD
-operations:
+The server owns `<projectRoot>/.gradum/sessions/`: after every turn it writes each session's machine-readable
+`session-state.json` sidecar (the projection the client cold-loads) plus a human-readable `conversation.md` render.
+`ChatSessionStore` is a thin REST client over that store:
 
-| Operation       | Method                                   | Notes                                                  |
-|-----------------|------------------------------------------|--------------------------------------------------------|
-| List all        | `getAllSessions()`                       | Returns `List<SessionMeta>` sorted by `updatedAt`.     |
-| Read transcript | `readTranscript(sessionId)`              | Returns `ChatTranscript` or `null`.                    |
-| Save transcript | `saveTranscript(sessionId, transcript)`  | Creates or overwrites the session file.                |
-| Delete session  | `deleteSession(sessionId)`               | Removes the file from disk.                            |
-| Rename session  | `renameSession(sessionId, newTitle)`     | Updates title in the JSON; returns `false` if missing. |
-| Merge sessions  | `mergeSessions(sessionIds, resultTitle)` | N-way merge; returns the new merged session ID.        |
-| Auto-name       | `generateUniqueTitle()`                  | "New conversation" with collision avoidance.           |
+| Operation | Method                                 | Notes                                                                  |
+|-----------|----------------------------------------|------------------------------------------------------------------------|
+| List all  | `listSessions()`                       | `GET /sessions`; returns `List<SessionMeta>` sorted by `updatedAt`.    |
+| Cold load | `loadSessionState(sessionId)`          | `GET /session/state`; returns the authoritative projection, or `null`. |
+| Merge     | `mergeSessions(sessionIds, baseTitle)` | `POST /sessions/merge`; the server weaves and numbers the title.       |
+| Rename    | `renameSession(sessionId, newTitle)`   | `POST /session/rename`; returns `false` when missing.                  |
+| Delete    | `deleteSession(sessionId)`             | `POST /session/delete`; removes the directory and the chat DB row.     |
+| New id    | `nextSessionId()`                      | `yyyyMMdd-HHmmss-xxxxxx`, lexicographically sortable.                  |
 
 Source: [`ChatSessionStore.kt`](../plugin/src/main/kotlin/gradum/idea/chat/history/ChatSessionStore.kt),
 [`ChatSessionStoreTest.kt`](../plugin/src/test/kotlin/gradum/idea/chat/history/ChatSessionStoreTest.kt).

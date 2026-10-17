@@ -14,20 +14,20 @@ private val logger: Logger = LoggerFactory.getLogger("SessionTranscriptWriter")
 
 /**
  * Server-side writer of the structured-Markdown chat transcript
- * (`conversation.md`) for a session, replacing the plugin's own
- * `ChatSessionStore` writes. The on-disk format is the plugin's v1
- * transcript contract (see `gradum.idea.chat.history.ChatTranscript`):
- * a `gradum-transcript v1` header with a session metadata line, then
- * `## user` / `## assistant` sections whose content blocks are framed by
+ * (`conversation.md`) for a session. The sidecar `session-state.json` is the
+ * machine-readable authority (`SessionStateStore`); this file is its
+ * human-readable render, kept so `GET /sessions` can read the header cheaply.
+ * The format is a `gradum-transcript v1` header with a session metadata line,
+ * then `## user` / `## assistant` sections whose content blocks are framed by
  * `gradum-msg` / `gradum-thinking` / `gradum-toolcall` / `gradum-toolresult`
- * / `gradum-response` / `gradum-attachment` markers, so the plugin parser
- * can read the file back with no fidelity loss.
+ * / `gradum-response` / `gradum-attachment` markers. The client no longer
+ * parses it back; the sidecar is what it cold-loads.
  *
  * Messages arrive as the raw agent history maps (role / content plus the
  * bookkeeping keys `id`, `modelName`, `thinking`, `tokenUsage`,
  * `attachments`, `alias`, `tool_calls`, `tool_call_id`); tool result
  * messages are folded into the toolcall blocks of the assistant message
- * that issued the call, matching how the plugin serializes its events.
+ * that issued the call.
  */
 object SessionTranscriptWriter {
 
@@ -110,19 +110,6 @@ object SessionTranscriptWriter {
     return sessionList.sortedByDescending { it.updatedAt }
   }
 
-  /** Loads one session's full transcript text; null when absent or unreadable. */
-  fun loadTranscript(projectRoot: Path, sessionId: String): String? {
-    val sessionDirectory: Path = sessionDirectory(projectRoot, sessionId) ?: return null
-    val transcriptFile: Path = sessionDirectory.resolve(TRANSCRIPT_FILE)
-    if (!Files.isRegularFile(transcriptFile)) return null
-    return try {
-      Files.readString(transcriptFile, Charsets.UTF_8)
-    } catch (readException: Exception) {
-      logger.warn("Failed to read transcript for session {}: {}", sessionId, readException.message)
-      null
-    }
-  }
-
   /** Header metadata of one session's transcript; null when absent or unparseable. */
   fun readMeta(projectRoot: Path, sessionId: String): TranscriptMeta? {
     val sessionDirectory: Path = sessionDirectory(projectRoot, sessionId) ?: return null
@@ -156,36 +143,6 @@ object SessionTranscriptWriter {
       true
     } catch (renameException: Exception) {
       logger.warn("Failed to rename session {}: {}", sessionId, renameException.message)
-      false
-    }
-  }
-
-  /**
-   * Persists [content] verbatim as the session's transcript
-   * `conversation.md`, creating the session directory when missing. This
-   * backs the plugin's merge flow: the client weaves several transcripts
-   * into a fresh Markdown document and uploads it here, so the server stays
-   * the single writer of `.gradum/sessions/`. When [newTitle] is non-blank
-   * the session marker's `title` attribute is stamped first, matching
-   * [renameSession]'s behavior. Returns `false` when the session id is
-   * unsafe or the write fails.
-   */
-  fun saveTranscript(projectRoot: Path, sessionId: String, newTitle: String, content: String): Boolean {
-    val sessionDirectory: Path = sessionDirectory(projectRoot, sessionId) ?: return false
-    val trimmedTitle: String = newTitle.trim()
-    val transcriptContent: String =
-      if (trimmedTitle.isEmpty()) content
-      else content
-        .lines().joinToString(separator = "\n") { line: String ->
-          if (line.startsWith(SESSION_PREFIX)) sessionMarkerLine(markerLine = line, newTitle = trimmedTitle)
-          else line
-        }
-    return try {
-      Files.createDirectories(sessionDirectory)
-      atomicWrite(targetFile = sessionDirectory.resolve(TRANSCRIPT_FILE), content = transcriptContent)
-      true
-    } catch (saveException: Exception) {
-      logger.warn("Failed to save transcript for session {}: {}", sessionId, saveException.message)
       false
     }
   }
@@ -440,7 +397,7 @@ object SessionTranscriptWriter {
     return attributeMap
   }
 
-  /** Same escaping rules as the plugin's `ChatTranscript.escapeValue`. */
+  /** Escaping rules for marker attribute values (`\` and `"`, newlines folded to spaces). */
   private fun escapeValue(value: String): String {
     return value
       .replace("\\", "\\\\")

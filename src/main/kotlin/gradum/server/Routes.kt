@@ -161,16 +161,6 @@ data class RenameSessionRequestBody(
   val title: String
 )
 
-/** Body for `POST /session/save`; [content] is written verbatim, a non-blank [title] is stamped first. */
-@Serializable
-data class SaveSessionRequestBody(
-  val content: String,
-  val sessionId: String,
-  val projectRoot: String,
-  val title: String = "",
-)
-
-
 /** Body for `POST /sessions/merge`; the server numbers [baseTitle] per existing sessions. */
 @Serializable
 data class MergeSessionsRequestBody(
@@ -675,26 +665,23 @@ fun Application.registerAllRoutes(
         return@post
       }
 
+      val previousTitle: String = SessionTranscriptWriter
+        .readMeta(projectRoot = projectRootPath, sessionId = sessionKey)?.title.orEmpty()
       val rewinded: Boolean = ContextManager(sessionDir).rewindTo(messageId)
       if (rewinded) {
-        // Worktree restore is best-effort: the message rewind must succeed even
-        // when the snapshot ref is missing (older sessions) or git fails.
         SessionSnapshotManager.revertTurnSnapshot(
           projectRoot = projectRootPath.toString(),
           sessionId = sessionKey,
           messageId = messageId
         )
-        val survivingMessages: List<Map<String, Any>> =
-          ChatDb.loadContext(projectRoot = projectRootPath, sessionId = sessionKey)
-        val transcriptMeta: SessionTranscriptWriter.TranscriptMeta? =
-          SessionTranscriptWriter.readMeta(projectRoot = projectRootPath, sessionId = sessionKey)
-        SessionTranscriptWriter.writeTranscript(
-          projectRoot = projectRootPath,
-          sessionId = sessionKey,
-          modelName = transcriptMeta?.modelName.orEmpty(),
-          messages = survivingMessages,
-          title = transcriptMeta?.title,
-        )
+
+        if (previousTitle.isNotBlank()) {
+          SessionTranscriptWriter.renameSession(
+            projectRoot = projectRootPath,
+            sessionId = sessionKey,
+            newTitle = previousTitle
+          )
+        }
       }
       call.respondText(
         status = if (rewinded) HttpStatusCode.OK else HttpStatusCode.NotFound,
@@ -791,31 +778,6 @@ fun Application.registerAllRoutes(
       )
     }
 
-    get("/session/transcript") {
-      val rawProjectRoot: String? = call.request.queryParameters["projectRoot"]
-      val sessionKey: String = call.request.queryParameters["sessionId"]?.trim().orEmpty()
-      if (rawProjectRoot.isNullOrBlank() || sessionKey.isEmpty()) {
-        call.respondText(
-          text = JsonUtil.encodeMap(mapOf("error" to "projectRoot and sessionId are required")),
-          status = HttpStatusCode.BadRequest,
-          contentType = ContentType.Application.Json,
-        )
-        return@get
-      }
-      val projectRootPath: Path = Paths.get(rawProjectRoot).toAbsolutePath().normalize()
-      val transcriptContent: String? =
-        SessionTranscriptWriter.loadTranscript(projectRoot = projectRootPath, sessionId = sessionKey)
-      if (transcriptContent == null) {
-        call.respondText(
-          status = HttpStatusCode.NotFound,
-          contentType = ContentType.Application.Json,
-          text = JsonUtil.encodeMap(mapOf("status" to "not_found", "sessionId" to sessionKey)),
-        )
-        return@get
-      }
-      call.respondText(text = transcriptContent, contentType = ContentType.parse("text/markdown"))
-    }
-
     get("/session/state") {
       val rawProjectRoot: String? = call.request.queryParameters["projectRoot"]
       val sessionKey: String = call.request.queryParameters["sessionId"]?.trim().orEmpty()
@@ -866,43 +828,6 @@ fun Application.registerAllRoutes(
             "pendingAsks" to pendingQuestions.pending(sessionKey),
             "subAgents" to (activeEntry?.value?.subAgents?.toList() ?: emptyList())
           )
-        ),
-      )
-    }
-
-    post("/session/save") {
-      val requestBody = call.receive<SaveSessionRequestBody>()
-      val rawProjectRoot: String = requestBody.projectRoot
-      if (rawProjectRoot.isBlank()) {
-        call.respondText(
-          text = JsonUtil.encodeMap(mapOf("error" to "projectRoot is required")),
-          status = HttpStatusCode.BadRequest,
-          contentType = ContentType.Application.Json,
-        )
-        return@post
-      }
-      val sessionKey: String = requestBody.sessionId.trim()
-      if (sessionKey.isEmpty()) {
-        call.respondText(
-          text = JsonUtil.encodeMap(mapOf("error" to "sessionId is required")),
-          status = HttpStatusCode.BadRequest,
-          contentType = ContentType.Application.Json,
-        )
-        return@post
-      }
-
-      val projectRootPath: Path = Paths.get(rawProjectRoot).toAbsolutePath().normalize()
-      val saved: Boolean = SessionTranscriptWriter.saveTranscript(
-        projectRoot = projectRootPath,
-        sessionId = sessionKey,
-        newTitle = requestBody.title,
-        content = requestBody.content
-      )
-      call.respondText(
-        status = if (saved) HttpStatusCode.OK else HttpStatusCode.BadRequest,
-        contentType = ContentType.Application.Json,
-        text = JsonUtil.encodeMap(
-          mapOf("status" to if (saved) "saved" else "rejected", "sessionId" to sessionKey)
         ),
       )
     }

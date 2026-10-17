@@ -16,13 +16,12 @@ data class SessionMeta(
 )
 
 /**
- * Project-scoped store for chat session transcripts, backed by the Gradum
- * server REST API. The server owns `<projectRoot>/.gradum/sessions/` and
- * writes each session's `conversation.md` itself after every turn, so the
- * plugin no longer touches those files: it lists/loads via
- * `GET /sessions` / `GET /session/transcript`, renames/deletes/merges via
- * `POST /session/rename` / `POST /session/delete` / `POST /sessions/merge`
- * (see [gradum.idea.chat.history.ChatTranscript] for the v1 format).
+ * Project-scoped store for chat sessions, backed by the Gradum server REST
+ * API. The server owns `<projectRoot>/.gradum/sessions/`: it writes each
+ * session's `session-state.json` sidecar and `conversation.md` render itself,
+ * so the plugin lists via `GET /sessions`, cold-loads the authoritative
+ * projection via `GET /session/state`, and renames/deletes/merges via
+ * `POST /session/rename` / `POST /session/delete` / `POST /sessions/merge`.
  *
  * @param projectRoot Absolute path of the IntelliJ project (from
  *   `Project.basePath`); sent to the server so it resolves the same
@@ -71,23 +70,6 @@ class ChatSessionStore(
    */
   suspend fun loadSessionState(sessionId: String): GradumApiClient.ApiSessionState? =
     apiClient.fetchSessionState(projectRoot = projectRootPath, sessionId = sessionId)
-
-  /**
-   * Loads one session's [ChatTranscript.ParsedTranscript] from the server.
-   *
-   * @return The parsed transcript, or `null` when the session does not exist
-   *   on the server or its transcript cannot be parsed.
-   */
-  suspend fun loadSession(sessionId: String): ChatTranscript.ParsedTranscript? {
-    val transcriptContent: String =
-      apiClient.loadTranscript(projectRoot = projectRootPath, sessionId = sessionId) ?: return null
-    return try {
-      ChatTranscript.parseTranscript(content = transcriptContent)
-    } catch (parseException: Exception) {
-      log.warn("Failed to parse transcript for session $sessionId", parseException)
-      null
-    }
-  }
 
   /**
    * Merges [sessionIds] (two or more) into a fresh server-side session.

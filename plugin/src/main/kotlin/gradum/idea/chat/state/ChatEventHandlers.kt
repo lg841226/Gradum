@@ -2,8 +2,6 @@ package gradum.idea.chat.state
 
 import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.PluginConfig
-import gradum.idea.chat.history.ChatTranscript
-import gradum.idea.chat.history.SessionMeta
 import gradum.idea.chat.model.*
 import gradum.idea.chat.ui.chat.errorDetailText
 import gradum.idea.chat.ui.chat.friendlyErrorMessage
@@ -366,7 +364,7 @@ internal fun GradumChatSession.handleSubAgentEnd(data: JsonObject?) {
 
   val resultText: String = data?.get("result")?.jsonPrimitive?.content ?: "(no output)"
 
-  val subMessages: List<ChatMessage> = buildList {
+  val subChatMessages: List<ChatMessage> = buildList {
     if (subAgentState.userQuery.isNotBlank()) {
       add(ChatMessage(role = "user", content = subAgentState.userQuery))
     }
@@ -387,19 +385,6 @@ internal fun GradumChatSession.handleSubAgentEnd(data: JsonObject?) {
     )
   }
 
-  val transcriptMarkdown: String = ChatTranscript.generateTranscript(
-    messages = subMessages,
-    sessionMeta = SessionMeta(
-      title = subAgentState.title,
-      modelName = subAgentState.modelName,
-      sessionId = "sub_${System.nanoTime()}",
-      createdAt = subAgentState.startTimestamp,
-      updatedAt = System.currentTimeMillis()
-    )
-  )
-
-  log.warn("handleSubAgentEnd transcriptMarkdown length=${transcriptMarkdown.length}")
-
   // Guard against stale assistantIndex: only update if the last message is still the assistant
   val assistantIndex: Int = messages.lastIndex
   if (assistantIndex < 0 || assistantIndex >= messages.size || messages[assistantIndex].isUserMessage) {
@@ -413,7 +398,7 @@ internal fun GradumChatSession.handleSubAgentEnd(data: JsonObject?) {
     "result" to resultText,
     "toolMode" to toolMode,
     "title" to subAgentState.title,
-    "transcriptMarkdown" to transcriptMarkdown,
+    "subChatMessages" to subChatMessages,
     "endTimestamp" to System.currentTimeMillis(),
     "startTimestamp" to subAgentState.startTimestamp
   )

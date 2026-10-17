@@ -120,34 +120,7 @@ class ContextManager(private val outputDirectory: Path) {
   }
 
   fun saveContext(messages: List<Map<String, Any>>, modelName: String): Boolean {
-    // The sidecar is the source of truth; the transcript renders the same
-    // projected history so the two files cannot disagree.
-    val projection: List<Map<String, Any>> = SessionStateStore.projectionMessages(messages)
-    try {
-      SessionStateStore.write(
-        projectRoot = projectRoot,
-        sessionId = sessionId,
-        modelName = modelName,
-        messages = projection
-      )
-    } catch (stateException: Exception) {
-      logger.warn(
-        "Failed to write session state: ${stateException.javaClass.simpleName}: ${stateException.message}"
-      )
-    }
-
-    try {
-      SessionTranscriptWriter.writeTranscript(
-        projectRoot = projectRoot,
-        sessionId = sessionId,
-        modelName = modelName,
-        messages = projection
-      )
-    } catch (transcriptException: Exception) {
-      logger.warn(
-        "Failed to write session transcript: ${transcriptException.javaClass.simpleName}: ${transcriptException.message}"
-      )
-    }
+    writeDerivedSessionFiles(messages = messages, modelName = modelName)
 
     return if (useDatabase) {
       cachedMessages = null
@@ -203,16 +176,64 @@ class ContextManager(private val outputDirectory: Path) {
   }
 
   /**
+   * Renders the session's two derived files from [messages]: the
+   * machine-readable `session-state.json` sidecar and the human-readable
+   * `conversation.md` transcript. Both come from the same projection, so they
+   * cannot disagree; a failure to write either is logged but never aborts the
+   * context save.
+   */
+  private fun writeDerivedSessionFiles(messages: List<Map<String, Any>>, modelName: String) {
+    val projection: List<Map<String, Any>> = SessionStateStore.projectionMessages(messages)
+    try {
+      SessionStateStore.write(
+        projectRoot = projectRoot,
+        sessionId = sessionId,
+        modelName = modelName,
+        messages = projection
+      )
+    } catch (stateException: Exception) {
+      logger.warn(
+        "Failed to write session state: ${stateException.javaClass.simpleName}: ${stateException.message}"
+      )
+    }
+
+    try {
+      SessionTranscriptWriter.writeTranscript(
+        projectRoot = projectRoot,
+        sessionId = sessionId,
+        modelName = modelName,
+        messages = projection
+      )
+    } catch (transcriptException: Exception) {
+      logger.warn(
+        "Failed to write session transcript: ${transcriptException.javaClass.simpleName}: ${transcriptException.message}"
+      )
+    }
+  }
+
+  /**
    * Rewinds the persisted context to just before the message identified by
    * [messageId]: that message and everything after it is dropped, so a
    * withdrawn user turn (and its tool calls / assistant reply) leaves no
    * trace in the resumed context. Returns `true` only when the id was found
    * and the store was updated; `false` when the target is absent (no change).
+   *
+   * The derived sidecar and transcript are refreshed from the surviving
+   * history in both modes, so a rewind never leaves them showing dropped turns.
    */
   fun rewindTo(messageId: String): Boolean = if (useDatabase) {
     if (messageId.isBlank()) return false
-    ChatDb.rewindTo(projectRoot = projectRoot, sessionId = sessionId, messageId = messageId)
-      .also { rewound -> if (rewound) cachedMessages = null }
+    val rewound: Boolean =
+      ChatDb.rewindTo(projectRoot = projectRoot, sessionId = sessionId, messageId = messageId)
+    if (rewound) {
+      cachedMessages = null
+      // The database rewind only touches the model context; re-render the
+      // derived files from what survives, preserving the stored model name.
+      val existingModel: String =
+        SessionTranscriptWriter.readMeta(projectRoot, sessionId)?.modelName.orEmpty()
+      writeDerivedSessionFiles(messages = loadContext(), modelName = existingModel)
+    }
+    rewound
   } else {
     if (messageId.isBlank()) return false
     val messages: List<Map<String, Any>> = loadContext()

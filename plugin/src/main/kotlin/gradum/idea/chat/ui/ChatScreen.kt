@@ -57,10 +57,10 @@ fun ChatScreen(
 ) {
   var subChatTitle by remember { mutableStateOf(value = "") }
   var subChatActive by remember { mutableStateOf(value = false) }
-  var subChatTranscriptMarkdown by remember { mutableStateOf(value = "") }
+  var subChatMessages by remember { mutableStateOf(value = emptyList<ChatMessage>()) }
 
-  val onSubChatClick: (String, String, String) -> Unit = { transcriptMarkdown, _, title ->
-    subChatTranscriptMarkdown = transcriptMarkdown
+  val onSubChatClick: (List<ChatMessage>, String) -> Unit = { messages, title ->
+    subChatMessages = messages
     subChatTitle = title
     subChatActive = true
   }
@@ -68,7 +68,7 @@ fun ChatScreen(
   val onBackToMainChat: () -> Unit = {
     subChatActive = false
     subChatTitle = ""
-    subChatTranscriptMarkdown = ""
+    subChatMessages = emptyList()
   }
 
   if (subChatActive) {
@@ -90,7 +90,7 @@ fun ChatScreen(
       userQuery = state.subAgentState.userQuery,
       modelName = state.subAgentState.modelName,
       hasCompleted = !state.subAgentState.isActive,
-      transcriptMarkdown = subChatTranscriptMarkdown,
+      historyMessages = subChatMessages,
       errorMessage = state.subAgentState.errorMessage,
       wasInterrupted = state.subAgentState.wasInterrupted,
       subAgentResponse = state.subAgentState.streamingResponse,

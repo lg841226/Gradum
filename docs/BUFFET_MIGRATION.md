@@ -1,6 +1,6 @@
 # Gradum Buffet: Server-Authoritative State Migration
 
-> Version: **0.1** · Branch: `feature/@gradum-gwy-buffet-projection` · Opened: **2026-10-17** · Status: **Step 5a done**
+> Version: **0.1** · Branch: `feature/@gradum-gwy-buffet-projection` · Opened: **2026-10-17** · Status: **Step 5b done**
 
 "Buffet" is the working name for moving session-state authority from the IDE
 plugin back to the server. The plugin should *serve* state (render it, ask the
@@ -156,7 +156,7 @@ Not in scope for now: the default is "reconcile, don't resume". Only if
 buffer keyed by `runId` + `seq`, plus `GET /events/{runId}?since=seq`. Not
 required for Step 3.
 
-### Step 4 — One authority for the format ✅ (merge-dependent pieces deferred)
+### Step 4 — One authority for the format ✅
 
 The sidecar is the single authority, and the plugin keeps no copy of what it no
 longer needs.
@@ -172,15 +172,10 @@ longer needs.
   `PluginConfig.MAX_TITLE_LENGTH`); `SessionTranscriptWriter.titleFor` is the
   only one left.
 
-Deferred, because they still need the Markdown format:
-
-- The `conversation.md` fallback in `GradumChatSession.switchSession`, kept for
-  sessions saved before the sidecar existed. Step 5a moved merge to
-  `POST /sessions/merge`, so a merged session now gets a sidecar and the
-  sidecar-less `POST /session/save` upload is gone from the client.
-- Deleting `plugin/.../history/ChatTranscript.kt` and the delegate capsule's
-  Markdown round-trip (`handleSubAgentEnd` → `transcriptMarkdown` →
-  `SubChatView`).
+The last Markdown dependencies were finished in Step 5b: the
+`conversation.md` fallback in `GradumChatSession.switchSession`, the delegate
+capsule's Markdown round-trip, and `plugin/.../history/ChatTranscript.kt` are all
+gone.
 
 Acceptance: the transcript is a render of the sidecar, and no client code
 duplicates the title rule or the error-code vocabulary.
@@ -195,13 +190,17 @@ Split into five shippable sub-steps:
   and writes the merged session's sidecar + transcript itself. The plugin's
   `mergeSessions` is a thin call; `interleaveMessages` and `nextMergeTitle` are
   deleted.
-- **5b — Sidecar-only cold load ⬜.** Drop the `conversation.md` fallback in
-  `GradumChatSession.switchSession`, replace the delegate capsule's Markdown
-  round-trip with structured data, then delete `ChatTranscript.kt`,
-  `ChatSessionStore.loadSession`, `GradumApiClient.loadTranscript` /
-  `saveTranscript`, and the server's `GET /session/transcript` /
-  `POST /session/save` / `SessionTranscriptWriter.loadTranscript` /
-  `saveTranscript`.
+- **5b — Sidecar-only cold load ✅.** `GradumChatSession.switchSession` drops the
+  `conversation.md` fallback and cold-loads only the `GET /session/state`
+  projection; the delegate capsule now carries the sub-agent's structured
+  `subChatMessages` instead of a Markdown round-trip. Deleted:
+  `plugin/.../history/ChatTranscript.kt`, `ChatSessionStore.loadSession`,
+  `GradumApiClient.loadTranscript` / `saveTranscript`, and the server's
+  `GET /session/transcript` / `POST /session/save` /
+  `SessionTranscriptWriter.loadTranscript` / `saveTranscript`. Also fixes the
+  long-standing `/session/rewind` wipe: the route no longer re-renders the
+  transcript from the (empty, file-mode) chat DB, since `rewindTo` already
+  re-renders sidecar + transcript from the surviving history.
 - **5c — Server-allocated ids ⬜.** The server allocates the session id and the
   message id (the latter echoed back on `session_start`); the plugin stops
   fabricating them.
@@ -245,8 +244,11 @@ payoff step and the riskiest, so it goes last.
 
 ## 6. Explicit non-goals
 
-- Not changing the public HTTP surface in a breaking way; new fields and new
-  endpoints only.
+- Keeping the public HTTP surface byte-compatible. New endpoints and fields are
+  additive, but the plan deliberately deletes dead endpoints (5b:
+  `GET /session/transcript`, `POST /session/save`) and renames the `/stop` body
+  field `sessionId` → `runId` (2a). No alias shims: there are few users and no
+  released client to keep working.
 - Not changing `settings.json` (e.g. `commandFilter`) for this work.
 - Not moving *logic* into the plugin; the direction is strictly outward.
 
@@ -263,7 +265,7 @@ payoff step and the riskiest, so it goes last.
 | 4    | ✅ done    | this PR   | sidecar→transcript render; plugin `ErrorCode`/title rule dropped; 466 server + 496 plugin green          |
 | 4b   | ✅ done    | `5900b18` | cold projection merges a turn's assistant records into one bubble                                        |
 | 5a   | ✅ done    | this PR   | server-side merge; client `interleaveMessages` / `nextMergeTitle` deleted; 472 server + 497 plugin green |
-| 5b   | ⬜         | —         | sidecar-only cold load; delete `ChatTranscript` / Markdown endpoints                                     |
+| 5b   | ✅ done    | this PR   | sidecar-only cold load; `ChatTranscript` + Markdown endpoints deleted; 473 server + 490 plugin green     |
 | 5c   | ⬜         | —         | server allocates the session id and the message id                                                       |
 | 5d   | ⬜         | —         | drop client model pre-validation and vision guessing                                                     |
 | 5e   | ⬜         | —         | rewind becomes server-first, then local                                                                  |

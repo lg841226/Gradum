@@ -7,14 +7,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.intellij.openapi.diagnostic.Logger
-import gradum.idea.chat.history.ChatTranscript
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.model.ToolCallInfo
@@ -31,8 +28,6 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
-
-private val logger: Logger = Logger.getInstance("#gradum.idea.chat.ui.chat.SubChatView")
 
 /**
  * Read-only sub-chat view that displays the sub-agent's full
@@ -59,19 +54,9 @@ fun SubChatView(
   hasCompleted: Boolean = false,
   wasInterrupted: Boolean = false,
   subAgentResponse: String = "",
-  transcriptMarkdown: String = "",
+  historyMessages: List<ChatMessage> = emptyList(),
   toolCalls: List<ToolCallInfo> = emptyList()
 ) {
-  val historyMessages: List<ChatMessage> = remember(key1 = transcriptMarkdown) {
-    if (transcriptMarkdown.isNotBlank()) {
-      try {
-        ChatTranscript.parseTranscript(content = transcriptMarkdown).messages
-      } catch (parseException: Exception) {
-        logger.warn("Failed to parse sub-agent transcript", parseException)
-        emptyList()
-      }
-    } else emptyList()
-  }
   val scrollState: ScrollState = rememberScrollState()
 
   Column(

@@ -62,8 +62,8 @@ private typealias OpenInEditorAction = (filePath: String, startLine: Int, endLin
 /** Shows a before/after diff for one file. */
 private typealias ShowDiffAction = (filePath: String, originalContent: String, modifiedContent: String) -> Unit
 
-/** Opens the sub-chat transcript behind one tool-call fold. */
-private typealias OpenSubChatAction = (conversationJson: String, toolCallsJson: String, title: String) -> Unit
+/** Opens the sub-chat conversation behind one tool-call fold. */
+private typealias OpenSubChatAction = (messages: List<ChatMessage>, title: String) -> Unit
 
 /** Resolves an in-flight ask_interaction card. */
 private typealias RespondToAskAction = suspend (
@@ -255,7 +255,7 @@ private fun ToolCallGroupSection(
   group: BubbleItem.ToolGroup,
   onOpenInEditor: (path: String, startLine: Int, endLine: Int) -> Unit,
   onViewDiff: (path: String, originalContent: String, modifiedContent: String) -> Unit,
-  onSubChatClick: ((conversationJson: String, toolCallsJson: String, title: String) -> Unit)?
+  onSubChatClick: OpenSubChatAction?
 ) {
   val groupIsRunning: Boolean = group.calls.any { (_, toolCall) -> toolCall.pending }
   var isExpanded: Boolean by remember { mutableStateOf(groupIsRunning) }
@@ -335,7 +335,7 @@ fun ToolCallBlock(
   block: RenderBlock.ToolCall,
   onOpenInEditor: (path: String, startLine: Int, endLine: Int) -> Unit,
   onViewDiff: (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> },
-  onSubChatClick: ((conversationJson: String, toolCallsJson: String, title: String) -> Unit)? = null
+  onSubChatClick: OpenSubChatAction? = null
 ) {
   if (block.pending && !(ToolCallRendererRegistry.find(aliasName = block.alias)?.rendersWhilePending() ?: false))
     return

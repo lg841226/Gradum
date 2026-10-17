@@ -425,29 +425,6 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     }
 
   /**
-   * Loads one session's full transcript markdown from the server.
-   *
-   * @return The raw `conversation.md` text, or `null` when the session does
-   *   not exist or the request failed.
-   */
-  suspend fun loadTranscript(projectRoot: String, sessionId: String): String? =
-    withContext(Dispatchers.IO) {
-      val encodedRoot: String = URLEncoder.encode(projectRoot, StandardCharsets.UTF_8)
-      try {
-        val response: HttpResponse<String> =
-          sendWithAuthRetry(HttpResponse.BodyHandlers.ofString()) {
-            newRequest("$baseUrl/session/transcript?projectRoot=$encodedRoot&sessionId=$sessionId")
-              .GET()
-              .build()
-          }
-        if (response.statusCode() == 200) response.body() else null
-      } catch (loadException: Exception) {
-        log.warn("Failed to load transcript for session $sessionId on server", loadException)
-        null
-      }
-    }
-
-  /**
    * Renames a session by rewriting the title in its transcript header.
    *
    * @return `true` when the server renamed the session, `false` when the
@@ -475,43 +452,6 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
         false
       }
     }
-
-  /**
-   * Uploads a full transcript markdown for [sessionId] (used by the merge
-   * flow, which weaves several sessions into a new one). The server stores
-   * [content] verbatim under `<projectRoot>/.gradum/sessions/<sessionId>/`
-   * and stamps [title] into the session header when non-blank.
-   *
-   * @return `true` when the server persisted the transcript, `false` when
-   *   the request failed.
-   */
-  suspend fun saveTranscript(
-    title: String,
-    content: String,
-    sessionId: String,
-    projectRoot: String
-  ): Boolean = withContext(Dispatchers.IO) {
-    val requestBody: JsonObject = buildJsonObject {
-      put("projectRoot", projectRoot)
-      put("sessionId", sessionId)
-      put("title", title)
-      put("content", content)
-    }
-
-    try {
-      val response: HttpResponse<String> =
-        sendWithAuthRetry(HttpResponse.BodyHandlers.ofString()) {
-          newRequest("$baseUrl/session/save")
-            .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
-            .build()
-        }
-      response.statusCode() == 200
-    } catch (saveException: Exception) {
-      log.warn("Failed to save transcript for session $sessionId on server", saveException)
-      false
-    }
-  }
 
   /**
    * Sends a chat message and returns a streaming response of pre-parsed NDJSON events.

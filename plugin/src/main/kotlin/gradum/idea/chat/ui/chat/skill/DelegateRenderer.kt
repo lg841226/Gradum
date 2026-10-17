@@ -7,6 +7,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallErrorInfo
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
@@ -55,7 +56,8 @@ class DelegateRenderer : ToolCallRenderer {
   override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
     val title: String = content.fieldMap["title"] as? String ?: ""
     val isPending: Boolean = content.fieldMap["pending"] as? Boolean ?: true
-    val transcriptMarkdown: String = content.fieldMap["transcriptMarkdown"] as? String ?: ""
+    val subChatMessages: List<ChatMessage> =
+      (content.fieldMap["subChatMessages"] as? List<*>)?.filterIsInstance<ChatMessage>() ?: emptyList()
     val startTimestamp: Long = (content.fieldMap["startTimestamp"] as? Number)?.toLong() ?: 0L
     val endTimestamp: Long? =
       if (isPending) null
@@ -93,7 +95,7 @@ class DelegateRenderer : ToolCallRenderer {
       ),
       trailingText = title,
       modifier = Modifier.clickable {
-        ctx.onSubChatClick?.invoke(transcriptMarkdown, "", title)
+        ctx.onSubChatClick?.invoke(subChatMessages, title)
       },
       trailingIcon = {
         if (durationText.isNotBlank()) {

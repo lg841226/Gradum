@@ -9,11 +9,11 @@ import java.nio.file.Path
  * Merges several sessions into one, server-side.
  *
  * The plugin used to weave the source transcripts in memory and upload the
- * result (`POST /session/save`); the server now reads each source's sidecar,
- * concatenates the messages in timeline order, and writes the merged session's
- * sidecar and transcript itself. Sources are ordered by their transcript
- * `updatedAt` (ties keep the request order), which reproduces the old client
- * weave where every message of a session carried the session's timestamp.
+ * result; the server now reads each source's sidecar, concatenates the
+ * messages in timeline order, and writes the merged session's sidecar and
+ * transcript itself. Sources are ordered by their transcript `updatedAt`
+ * (ties keep the request order), which reproduces the old client weave where
+ * every message of a session carried the session's timestamp.
  */
 object SessionMerger {
 
