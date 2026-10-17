@@ -54,7 +54,8 @@ object SessionTranscriptWriter {
   /**
    * Renders [messages] into `<projectRoot>/.gradum/sessions/<sessionId>/conversation.md`
    * (temp file + atomic rename, like `ContextManager`). The header's
-   * `createdAt` comes from the ChatDb session row when one exists, and the
+   * `createdAt` is [createdAt] when given (merge passes its earliest origin),
+   * else the ChatDb session row when one exists, else the write time; the
    * per-message timestamps fall back to the write time: the in-memory
    * history carries no per-message clock, and the stored rows share one
    * `created_at` per save anyway.
@@ -65,12 +66,14 @@ object SessionTranscriptWriter {
     modelName: String,
     messages: List<Map<String, Any>>,
     title: String? = null,
+    createdAt: Long? = null,
   ) {
     val sessionDirectory: Path = sessionDirectory(projectRoot, sessionId) ?: return
     val trimmedId: String = sessionId.trim()
     val nowMillis: Long = System.currentTimeMillis()
-    val sessionCreatedAt: Long =
-      ChatDb.sessionTimestamps(projectRoot = projectRoot, sessionId = trimmedId)?.first ?: nowMillis
+    val sessionCreatedAt: Long = createdAt
+      ?: ChatDb.sessionTimestamps(projectRoot = projectRoot, sessionId = trimmedId)?.first
+      ?: nowMillis
     val sessionMeta = TranscriptMeta(
       title = title ?: titleFor(messages),
       sessionId = trimmedId,

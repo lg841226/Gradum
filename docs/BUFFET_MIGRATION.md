@@ -1,6 +1,6 @@
 # Gradum Buffet: Server-Authoritative State Migration
 
-> Version: **0.1** · Branch: `feature/@gradum-gwy-buffet-projection` · Opened: **2026-10-17** · Status: **Step 3 done**
+> Version: **0.1** · Branch: `feature/@gradum-gwy-buffet-projection` · Opened: **2026-10-17** · Status: **Step 5a done**
 
 "Buffet" is the working name for moving session-state authority from the IDE
 plugin back to the server. The plugin should *serve* state (render it, ask the
@@ -174,9 +174,10 @@ longer needs.
 
 Deferred, because they still need the Markdown format:
 
-- The `conversation.md` fallback in `GradumChatSession.switchSession`. Merge
-  uploads Markdown to `POST /session/save` with **no** sidecar, so the plugin
-  must keep reading it until merge moves to the server (`Step 5`).
+- The `conversation.md` fallback in `GradumChatSession.switchSession`, kept for
+  sessions saved before the sidecar existed. Step 5a moved merge to
+  `POST /sessions/merge`, so a merged session now gets a sidecar and the
+  sidecar-less `POST /session/save` upload is gone from the client.
 - Deleting `plugin/.../history/ChatTranscript.kt` and the delegate capsule's
   Markdown round-trip (`handleSubAgentEnd` → `transcriptMarkdown` →
   `SubChatView`).
@@ -186,12 +187,29 @@ duplicates the title rule or the error-code vocabulary.
 
 ### Step 5 — Move decisions back to the server ⬜
 
-- Server allocates the session id and the message id.
-- Add `POST /sessions/merge`; delete `ChatSessionStore.mergeSessions` /
-  `interleaveMessages` and `nextMergeTitle`.
-- Drop the client-side model pre-validation and vision guessing; let the server
-  return the error code. Runtime reachability becomes `/health` capability flags.
-- Rewind becomes server-first, then local (no optimistic delete).
+Split into five shippable sub-steps:
+
+- **5a — Server-side merge ✅.** `POST /sessions/merge` reads each source's
+  sidecar, concatenates the messages in timeline order (sources keyed by their
+  transcript `updatedAt`, ties keeping the request order), numbers the title,
+  and writes the merged session's sidecar + transcript itself. The plugin's
+  `mergeSessions` is a thin call; `interleaveMessages` and `nextMergeTitle` are
+  deleted.
+- **5b — Sidecar-only cold load ⬜.** Drop the `conversation.md` fallback in
+  `GradumChatSession.switchSession`, replace the delegate capsule's Markdown
+  round-trip with structured data, then delete `ChatTranscript.kt`,
+  `ChatSessionStore.loadSession`, `GradumApiClient.loadTranscript` /
+  `saveTranscript`, and the server's `GET /session/transcript` /
+  `POST /session/save` / `SessionTranscriptWriter.loadTranscript` /
+  `saveTranscript`.
+- **5c — Server-allocated ids ⬜.** The server allocates the session id and the
+  message id (the latter echoed back on `session_start`); the plugin stops
+  fabricating them.
+- **5d — Availability ⬜.** Drop the client-side model pre-validation and vision
+  guessing; the server rejects at request time. Runtime reachability stays as
+  is (see §5, item 5).
+- **5e — Server-first rewind ⬜.** `deleteMessage` calls the server first and
+  removes the bubble only on success (no optimistic delete).
 
 Acceptance: creating, merging, rewind, and "model gone" flows produce no
 client-authoritative ids or decisions.
@@ -220,6 +238,10 @@ payoff step and the riskiest, so it goes last.
    makes this unreachable today; revisit only if concurrent runs per session
    become a real scenario (then the endpoint needs a `runId` parameter or a
    defined pick).
+5. **Runtime reachability via `/health` capability flags.** Skipped: `/health`
+   is served by the server itself, so it cannot classify "never installed" vs
+   "installed but not started" when the server is down. The plugin keeps
+   `classifyFailure` + `isRuntimeInstalled()` until a non-server signal exists.
 
 ## 6. Explicit non-goals
 
@@ -230,14 +252,19 @@ payoff step and the riskiest, so it goes last.
 
 ## 7. Step log
 
-| Step | Status      | Commit    | Note                                                                      |
-|------|-------------|-----------|---------------------------------------------------------------------------|
-| 1    | ✅ done     | `48cf91d` | `seq` + `gap` on `/events`; client WARN on discontinuity; 457 tests green |
-| 2a   | ✅ done     | this PR   | `runId` (per run) vs `sessionId` (durable); `/stop` takes `runId`         |
-| 2b/c | ✅ done     | `f4cda06` | `session-state.json` sidecar + `GET /session/state`; 463 tests green      |
-| 2d   | ✅ done     | this PR   | `/session/state` also serves `tokenUsage`, `pendingAsks`, `subAgents`     |
-| 3    | ✅ done     | this PR   | client reconcile on `gap`/reopen; projection→bubbles; 498 plugin tests green |
-| 3.5  | ⬜ phase 2 | —         | live resume (`runId` ring buffer + `GET /events/{runId}?since=`)           |
-| 4    | ✅ done     | this PR   | sidecar→transcript render; plugin `ErrorCode`/title rule dropped; 466 server + 496 plugin green |
-| 5    | ⬜          | —         | id, merge, availability, rewind authority                                 |
-| 5.5  | ⬜          | —         | thin the plugin (drop event assembly)                                     |
+| Step | Status     | Commit    | Note                                                                                                     |
+|------|------------|-----------|----------------------------------------------------------------------------------------------------------|
+| 1    | ✅ done    | `48cf91d` | `seq` + `gap` on `/events`; client WARN on discontinuity; 457 tests green                                |
+| 2a   | ✅ done    | this PR   | `runId` (per run) vs `sessionId` (durable); `/stop` takes `runId`                                        |
+| 2b/c | ✅ done    | `f4cda06` | `session-state.json` sidecar + `GET /session/state`; 463 tests green                                     |
+| 2d   | ✅ done    | this PR   | `/session/state` also serves `tokenUsage`, `pendingAsks`, `subAgents`                                    |
+| 3    | ✅ done    | this PR   | client reconcile on `gap`/reopen; projection→bubbles; 498 plugin tests green                             |
+| 3.5  | ⬜ phase 2 | —         | live resume (`runId` ring buffer + `GET /events/{runId}?since=`)                                         |
+| 4    | ✅ done    | this PR   | sidecar→transcript render; plugin `ErrorCode`/title rule dropped; 466 server + 496 plugin green          |
+| 4b   | ✅ done    | `5900b18` | cold projection merges a turn's assistant records into one bubble                                        |
+| 5a   | ✅ done    | this PR   | server-side merge; client `interleaveMessages` / `nextMergeTitle` deleted; 472 server + 497 plugin green |
+| 5b   | ⬜         | —         | sidecar-only cold load; delete `ChatTranscript` / Markdown endpoints                                     |
+| 5c   | ⬜         | —         | server allocates the session id and the message id                                                       |
+| 5d   | ⬜         | —         | drop client model pre-validation and vision guessing                                                     |
+| 5e   | ⬜         | —         | rewind becomes server-first, then local                                                                  |
+| 5.5  | ⬜         | —         | thin the plugin (drop event assembly)                                                                    |

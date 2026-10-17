@@ -385,6 +385,46 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     }
 
   /**
+   * Merges several sessions into a fresh server-side session.
+   *
+   * The server reads each source's sidecar, concatenates their messages in
+   * timeline order, numbers [baseTitle] per the existing sessions, and writes
+   * the merged session itself, so the plugin makes no merge decisions.
+   *
+   * @return The new session id, or `null` when a source is missing or the
+   *   request failed.
+   */
+  suspend fun mergeSessions(projectRoot: String, sessionIds: List<String>, baseTitle: String): String? =
+    withContext(Dispatchers.IO) {
+      val requestBody: JsonObject = buildJsonObject {
+        put("projectRoot", projectRoot)
+        put("baseTitle", baseTitle)
+        putJsonArray("sessionIds") { sessionIds.forEach { add(it) } }
+      }
+
+      try {
+        val response: HttpResponse<String> =
+          sendWithAuthRetry(HttpResponse.BodyHandlers.ofString()) {
+            newRequest("$baseUrl/sessions/merge")
+              .header("Content-Type", "application/json")
+              .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
+              .build()
+          }
+        if (response.statusCode() != 200) {
+          log.warn("Server rejected merge for sessions $sessionIds: HTTP ${response.statusCode()}")
+          return@withContext null
+        }
+        val parsed: JsonObject = ndjsonParser.parseToJsonElement(response.body()) as? JsonObject
+          ?: return@withContext null
+        parsed.stringOrNull("sessionId")
+      } catch (mergeException: Exception) {
+        if (mergeException is CancellationException) throw mergeException
+        log.warn("Failed to merge sessions on server", mergeException)
+        null
+      }
+    }
+
+  /**
    * Loads one session's full transcript markdown from the server.
    *
    * @return The raw `conversation.md` text, or `null` when the session does

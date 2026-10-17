@@ -2,7 +2,6 @@ package gradum.idea.chat.history
 
 import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.chat.api.GradumApiClient
-import gradum.idea.chat.model.ChatMessage
 import java.nio.file.Path
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -21,9 +20,8 @@ data class SessionMeta(
  * server REST API. The server owns `<projectRoot>/.gradum/sessions/` and
  * writes each session's `conversation.md` itself after every turn, so the
  * plugin no longer touches those files: it lists/loads via
- * `GET /sessions` / `GET /session/transcript`, renames/deletes via
- * `POST /session/rename` / `POST /session/delete`, and only the merge flow
- * uploads a client-woven transcript via `POST /session/save`
+ * `GET /sessions` / `GET /session/transcript`, renames/deletes/merges via
+ * `POST /session/rename` / `POST /session/delete` / `POST /sessions/merge`
  * (see [gradum.idea.chat.history.ChatTranscript] for the v1 format).
  *
  * @param projectRoot Absolute path of the IntelliJ project (from
@@ -92,49 +90,17 @@ class ChatSessionStore(
   }
 
   /**
-   * Merges [sessionIds] (two or more) into a brand-new session whose
-   * transcript is every source conversation interleaved chronologically by
-   * message timestamp ("timeline weave": see [interleaveMessages]).
+   * Merges [sessionIds] (two or more) into a fresh server-side session.
    *
-   * The source sessions are left untouched: merge is non-destructive. The
-   * merged messages are serialized with the v1 [ChatTranscript] format and
-   * uploaded to the server via `POST /session/save`, since the server is the
-   * single writer of the sessions' directory. The merged session gets a fresh
-   * [nextSessionId], the caller-supplied [resultTitle], a `createdAt` of the
-   * earliest origin, and an `updatedAt` of now so it surfaces at the top of
-   * the recent list.
+   * The server reads each source's sidecar, concatenates their messages in
+   * timeline order, numbers [baseTitle] per the existing sessions, and writes
+   * the merged session itself, so the plugin makes no merge decisions.
    *
-   * @return The new session id, or `null` when any source session is
-   *   missing, its transcript cannot be parsed, or the upload fails.
+   * @return The new session id, or `null` when a source session is missing or
+   *   the request fails.
    */
-  suspend fun mergeSessions(sessionIds: List<String>, resultTitle: String): String? {
-    val transcripts: List<ChatTranscript.ParsedTranscript> =
-      sessionIds.map { transcriptId: String ->
-        loadSession(sessionId = transcriptId) ?: return null
-      }
-    val mergedMessages: List<ChatMessage> = interleaveMessages(conversations = transcripts.map { it.messages })
-    val newSessionId: String = nextSessionId()
-    val saved: Boolean = apiClient.saveTranscript(
-      title = resultTitle,
-      content = ChatTranscript.generateTranscript(
-        messages = mergedMessages,
-        sessionMeta = SessionMeta(
-          title = resultTitle,
-          sessionId = newSessionId,
-          updatedAt = System.currentTimeMillis(),
-          createdAt = transcripts.minOf { it.sessionMeta.createdAt },
-          modelName = mergedMessages.lastOrNull()?.modelName.orEmpty()
-        )
-      ),
-      sessionId = newSessionId,
-      projectRoot = projectRootPath
-    )
-    if (!saved) {
-      log.warn("Server rejected merged transcript for session $newSessionId")
-      return null
-    }
-    return newSessionId
-  }
+  suspend fun mergeSessions(sessionIds: List<String>, baseTitle: String): String? =
+    apiClient.mergeSessions(projectRoot = projectRootPath, sessionIds = sessionIds, baseTitle = baseTitle)
 
   /**
    * Renames [sessionId]'s transcript header title on the server. The
@@ -163,15 +129,6 @@ class ChatSessionStore(
     apiClient.deleteSession(projectRoot = projectRootPath, sessionId = sessionId)
 
   companion object {
-
-    /**
-     * Chronological interleave of multiple conversations for
-     * [ChatSessionStore.mergeSessions]. The concatenated message lists are
-     * stably sorted by `timestamp`, so each source's own order
-     * stays intact whenever timestamps tie.
-     */
-    fun interleaveMessages(conversations: List<List<ChatMessage>>): List<ChatMessage> =
-      conversations.flatten().sortedWith(comparator = compareBy { it.timestamp })
 
     private const val SUFFIX_CHARS: Int = 6
     private val HEX_CHARS: CharArray = "0123456789abcdef".toCharArray()

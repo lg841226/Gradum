@@ -250,23 +250,11 @@ class GradumChatSession : Disposable {
   suspend fun mergeSelectedSessions(): Boolean {
     if (mergeSelection.size < MIN_MERGE_SESSIONS) return false
     val sessionStore: ChatSessionStore = chatStore ?: return false
-    val resultTitle: String = nextMergeTitle()
-    sessionStore.mergeSessions(sessionIds = mergeSelection.toList(), resultTitle) ?: return false
+    val baseTitle: String = message("gradum.merge.titled")
+    sessionStore.mergeSessions(sessionIds = mergeSelection.toList(), baseTitle = baseTitle) ?: return false
     mergeSelection.clear()
     refreshSessions()
     return true
-  }
-
-  private fun nextMergeTitle(): String {
-    val base: String = message("gradum.merge.titled")
-    val numberedTitlePattern = Regex(pattern = "^${Regex.escape(literal = base)}\\s+(\\d+)$")
-    var maxIndex = 0
-    sessions.forEach { sessionMeta: SessionMeta ->
-      val match: MatchResult? = numberedTitlePattern.matchEntire(input = sessionMeta.title)
-      val index: Int = match?.groupValues?.get(1)?.toIntOrNull() ?: 0
-      if (index > maxIndex) maxIndex = index
-    }
-    return "$base ${maxIndex + 1}"
   }
 
   suspend fun renameSession(sessionId: String, newTitle: String): Boolean {

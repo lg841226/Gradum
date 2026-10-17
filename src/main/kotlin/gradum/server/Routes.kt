@@ -7,6 +7,7 @@ import gradum.agent.GradumEventType
 import gradum.client.ThinkingLevel
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.server.persistence.ChatDb
+import gradum.server.persistence.SessionMerger
 import gradum.server.persistence.SessionStateStore
 import gradum.server.persistence.SessionTranscriptWriter
 import gradum.skill.PendingQuestions
@@ -167,6 +168,15 @@ data class SaveSessionRequestBody(
   val sessionId: String,
   val projectRoot: String,
   val title: String = "",
+)
+
+
+/** Body for `POST /sessions/merge`; the server numbers [baseTitle] per existing sessions. */
+@Serializable
+data class MergeSessionsRequestBody(
+  val projectRoot: String,
+  val sessionIds: List<String>,
+  val baseTitle: String
 )
 
 
@@ -723,6 +733,61 @@ fun Application.registerAllRoutes(
       call.respondText(
         contentType = ContentType.Application.Json,
         text = Json.encodeToString(JsonElement.serializer(), JsonUtil.toJsonElement(sessionList))
+      )
+    }
+
+    post("/sessions/merge") {
+      val requestBody: MergeSessionsRequestBody = call.receive<MergeSessionsRequestBody>()
+      val rawProjectRoot: String = requestBody.projectRoot
+      if (rawProjectRoot.isBlank()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "projectRoot is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+      val sourceIds: List<String> = requestBody.sessionIds.map { it.trim() }.filter { it.isNotEmpty() }
+      if (sourceIds.size < 2) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "sessionIds must list at least two sessions")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+      if (requestBody.baseTitle.isBlank()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "baseTitle is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+
+      val projectRootPath: Path = Paths.get(rawProjectRoot).toAbsolutePath().normalize()
+      val mergeResult: SessionMerger.MergeResult? = SessionMerger.merge(
+        projectRoot = projectRootPath,
+        sourceIds = sourceIds,
+        baseTitle = requestBody.baseTitle
+      )
+      if (mergeResult == null) {
+        call.respondText(
+          status = HttpStatusCode.NotFound,
+          contentType = ContentType.Application.Json,
+          text = JsonUtil.encodeMap(mapOf("status" to "source_not_found")),
+        )
+        return@post
+      }
+      call.respondText(
+        contentType = ContentType.Application.Json,
+        text = JsonUtil.encodeMap(
+          mapOf(
+            "status" to "merged",
+            "sessionId" to mergeResult.sessionId,
+            "title" to mergeResult.title
+          )
+        ),
       )
     }
 
