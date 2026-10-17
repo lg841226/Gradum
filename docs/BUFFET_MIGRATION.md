@@ -181,9 +181,10 @@ payoff step and the riskiest, so it goes last.
    `session-state.json`**, written from the same `ContextManager.saveContext`
    call as `conversation.md`. Step 4 then makes the transcript a render of the
    sidecar, so the sidecar becomes the single authority.
-2. **Transport: NDJSON or SSE?** Step 1 keeps NDJSON (no client reader change) and
-   designs the envelope so a later move to `text/event-stream` (free
-   `Last-Event-ID` / `id:` / `event:`) is mechanical. Decide before Step 3.
+2. ~~**Transport: NDJSON or SSE?**~~ **Resolved: stay on NDJSON.** The envelope
+   already carries `seq` / `gap`, and reconciliation goes through the REST
+   endpoint (`/session/state`), so SSE's built-in resume buys nothing. The
+   envelope stays shaped so a later SSE move would be mechanical.
 3. **Live resume in scope?** Step 3.5 is optional; the default is "reconcile,
    don't resume".
 
