@@ -50,26 +50,26 @@ retitling, merging, and availability checks move back to the server.
 
 The overlap, item by item. "Step" is the step that removes it.
 
-| # | The plugin currently... | Truth lives in | Step |
-|---|--------------------------|----------------|------|
-| 1 | assembles the assistant reply from raw events | server `Agent` / `LLMClient` | 3 |
-| 2 | guesses the phase ("thinking / connecting / weaving") | server run state | 3 |
-| 3 | keeps its own sub-agent progress | server sub-agent | 3 |
-| 4 | tracks isSending / isWaiting / hasSent / session lifecycle | server run state | 3 |
-| 5 | accumulates token usage per turn | server usage ledger | 3 |
-| 6 | remembers dismissed ask-cards | server pending questions | 3 |
-| 7 | writes and parses the transcript format | one format, server-owned | 4 |
-| 8 | derives the session title (first user line) | server | 4 |
-| 9 | duplicates the error-code enum | server `ErrorCode` | 4 |
-| 10 | maps error codes to user-facing text | server sends code only | 4 |
-| 11 | generates the session id | server | 5 |
-| 12 | generates the message id (UUID) used for rewind | server | 5 |
-| 13 | merges sessions by weaving transcripts client-side | server merge endpoint | 5 |
-| 14 | numbers merged titles (`N+1`) | server | 5 |
-| 15 | pre-validates that the selected model exists | server rejects at request time | 5 |
-| 16 | blocks image attachments by guessing vision support | server | 5 |
-| 17 | guesses "not installed" vs "not started" | `/health` capability flags | 5 |
-| 18 | optimistically deletes then calls rewind | server-first, then local | 5 |
+| #  | The plugin currently...                                    | Truth lives in                 | Step |
+|----|------------------------------------------------------------|--------------------------------|------|
+| 1  | assembles the assistant reply from raw events              | server `Agent` / `LLMClient`   | 3    |
+| 2  | guesses the phase ("thinking / connecting / weaving")      | server run state               | 3    |
+| 3  | keeps its own sub-agent progress                           | server sub-agent               | 3    |
+| 4  | tracks isSending / isWaiting / hasSent / session lifecycle | server run state               | 3    |
+| 5  | accumulates token usage per turn                           | server usage ledger            | 3    |
+| 6  | remembers dismissed ask-cards                              | server pending questions       | 3    |
+| 7  | writes and parses the transcript format                    | one format, server-owned       | 4    |
+| 8  | derives the session title (first user line)                | server                         | 4    |
+| 9  | duplicates the error-code enum                             | server `ErrorCode`             | 4    |
+| 10 | maps error codes to user-facing text                       | server sends code only         | 4    |
+| 11 | generates the session id                                   | server                         | 5    |
+| 12 | generates the message id (UUID) used for rewind            | server                         | 5    |
+| 13 | merges sessions by weaving transcripts client-side         | server merge endpoint          | 5    |
+| 14 | numbers merged titles (`N+1`)                              | server                         | 5    |
+| 15 | pre-validates that the selected model exists               | server rejects at request time | 5    |
+| 16 | blocks image attachments by guessing vision support        | server                         | 5    |
+| 17 | guesses "not installed" vs "not started"                   | `/health` capability flags     | 5    |
+| 18 | optimistically deletes then calls rewind                   | server-first, then local       | 5    |
 
 ## 4. Steps
 
@@ -97,20 +97,24 @@ Acceptance: `./gradlew :test` green; a deterministic playback stream shows
 contiguous `seq` from 1 with `gap` always 0.
 Commit: `48cf91d`.
 
-### Step 2 — Authoritative state endpoint 🔜
+### Step 2 — Authoritative state endpoint 🚧
 
 Add the server-side projection the client will reconcile against, and split the
 two session identities that are currently conflated.
 
-- Split identities in the event envelope: keep `sessionId` as the *run id*
-  (what `/stop` uses) and add the stable `conversationId`.
+- **2a · conversation identity ✅** — the stream envelope keeps `sessionId` (the
+  run id `/stop` keys on) and now also carries `conversationId` (the stable
+  session reconciliation keys on).
+- **2b · the projection 🔜** — open question. The durable store (`ChatDb` /
+  `context.json`) holds only the *cleaned model context* (tool results stubbed,
+  thinking / token usage dropped); the *rich* UI state exists only as rendered
+  `conversation.md`. So the projection must be sourced from the rich history,
+  and this step has to first decide where that history is persisted (see §5).
 - Add `GET /session/state?projectRoot=…&sessionId=…&since=<messageSeq>` returning
   the authoritative state as structured JSON (not Markdown):
   `isRunning` / `runId`, `messages` (role, content, events, tool calls, usage,
   messageId), `lastSeq`, `tokenUsage`, `pendingAsk`, `subAgents`.
-- Source it from the durable store (`ChatDb`, which already has `seq` and a hash
-  chain) plus the existing `ContextManager` decrypt path. Idempotent; `since`
-  returns a delta, otherwise the full projection.
+- Idempotent; `since` returns a delta, otherwise the full projection.
 
 Acceptance: endpoint is idempotent; a delta request returns exactly the
 messages after `since`; unit test covers the projection.
@@ -168,10 +172,18 @@ payoff step and the riskiest, so it goes last.
 
 ## 5. Open decisions
 
-1. **Transport: NDJSON or SSE?** Step 1 keeps NDJSON (no client reader change) and
+1. **Rich history source (Step 2b).** The durable stores are lossy for the UI, so
+   `GET /session/state` needs the rich history persisted in a structured form.
+   Options: (a) write a JSON sidecar (`session-state.json`) next to
+   `conversation.md`, from the same `ContextManager.saveContext` call — one
+   writer, two renderings; (b) store the raw history in `ChatDb` and clean it on
+   load; (c) parse `conversation.md` server-side. (a) is recommended: smallest
+   change, no lossy step, and it sets up Step 4 (transcript becomes a render of
+   the JSON).
+2. **Transport: NDJSON or SSE?** Step 1 keeps NDJSON (no client reader change) and
    designs the envelope so a later move to `text/event-stream` (free
    `Last-Event-ID` / `id:` / `event:`) is mechanical. Decide before Step 3.
-2. **Live resume in scope?** Step 3.5 is optional; the default is "reconcile,
+3. **Live resume in scope?** Step 3.5 is optional; the default is "reconcile,
    don't resume".
 
 ## 6. Explicit non-goals
@@ -183,12 +195,13 @@ payoff step and the riskiest, so it goes last.
 
 ## 7. Step log
 
-| Step | Status | Commit | Note |
-|------|--------|--------|------|
-| 1 | ✅ done | `48cf91d` | `seq` + `gap` on `/events`; client WARN on discontinuity; 457 tests green |
-| 2 | 🔜 next | — | `GET /session/state` + `runId` / `conversationId` split |
-| 3 | ⬜ | — | client reconcile (session_end / gap / reopen) |
-| 3.5 | ⬜ optional | — | live resume via per-run ring buffer |
-| 4 | ⬜ | — | transcript / title / error-code single authority |
-| 5 | ⬜ | — | id, merge, availability, rewind authority |
-| 5.5 | ⬜ | — | thin the plugin (drop event assembly) |
+| Step | Status      | Commit    | Note                                                                      |
+|------|-------------|-----------|---------------------------------------------------------------------------|
+| 1    | ✅ done     | `48cf91d` | `seq` + `gap` on `/events`; client WARN on discontinuity; 457 tests green |
+| 2a   | ✅ done     | this PR   | `conversationId` added to the event envelope                              |
+| 2b   | 🔜 next     | —         | `GET /session/state`; blocked on the rich-history-source decision (§5.1)  |
+| 3    | ⬜          | —         | client reconcile (session_end / gap / reopen)                             |
+| 3.5  | ⬜ optional | —         | live resume via per-run ring buffer                                       |
+| 4    | ⬜          | —         | transcript / title / error-code single authority                          |
+| 5    | ⬜          | —         | id, merge, availability, rewind authority                                 |
+| 5.5  | ⬜          | —         | thin the plugin (drop event assembly)                                     |

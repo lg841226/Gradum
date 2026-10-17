@@ -85,20 +85,22 @@ class DebugPlaybackEndToEndTest {
   /**
    * Playback is only the vehicle here: it produces a deterministic NDJSON
    * stream without an LLM, which is what this test needs to check the
-   * sequence fields the client relies on to detect a lost event.
+   * envelope fields (`seq`, `gap`, `conversationId`) the client relies on to
+   * detect a lost event and to reconcile against the right session.
    */
   @Test
-  fun `every streamed event carries a contiguous sequence and zero gap`(): Unit = testApplication {
+  fun `every streamed event carries a contiguous sequence and the conversation id`(): Unit = testApplication {
     application { module(ServerConfiguration()) }
 
+    val project = temporaryProject()
     val scenarioXml = """
-      <tls>
-        <tt>Reading the error codes.</tt>
-        <t nam="read_file" pth="src/main/kotlin/gradum/ErrorCode.kt" lin="1-5"/>
+      <tls nam="seq_probe">
+        <tt>Looking for the file.</tt>
+        <t nam="read_file" pth="gradum-does-not-exist.txt" exp="error"/>
       </tls>
     """.trimIndent()
 
-    val body = postScenario(client, Path.of(System.getProperty("user.dir")), scenarioXml)
+    val body = postScenario(client, project, scenarioXml, sessionId = "seq-probe-session")
     val sequences: List<Long> = body.lines()
       .filter { it.isNotBlank() }
       .map { line ->
@@ -117,6 +119,13 @@ class DebugPlaybackEndToEndTest {
     assertTrue(
       eventsWithoutZeroGap.isEmpty(),
       "no event should report a dropped predecessor, offenders=$eventsWithoutZeroGap"
+    )
+    val eventsWithoutConversationId: List<String> = body.lines()
+      .filter { it.isNotBlank() && !it.contains(other = "\"conversationId\":\"seq-probe-session\"") }
+
+    assertTrue(
+      eventsWithoutConversationId.isEmpty(),
+      "every event should carry the conversation id, offenders=$eventsWithoutConversationId"
     )
   }
 

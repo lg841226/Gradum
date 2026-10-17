@@ -441,7 +441,11 @@ fun Application.registerAllRoutes(
                 mapOf(
                   "type" to eventType,
                   "timestamp" to LocalDateTime.now().toString(),
+                  // `sessionId` is this run's transport id (keyed by /stop);
+                  // `conversationId` is the stable session the run belongs to,
+                  // which is what state reconciliation keys on.
                   "sessionId" to sessionId,
+                  "conversationId" to resolvedSessionId,
                   "seq" to eventSequencer.claimSequence(),
                   "gap" to eventSequencer.pendingGap(),
                   "data" to data
