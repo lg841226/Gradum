@@ -97,27 +97,32 @@ Acceptance: `./gradlew :test` green; a deterministic playback stream shows
 contiguous `seq` from 1 with `gap` always 0.
 Commit: `48cf91d`.
 
-### Step 2 — Authoritative state endpoint 🚧
+### Step 2 — Authoritative state endpoint ✅
 
 Add the server-side projection the client will reconcile against, and split the
 two session identities that are currently conflated.
 
-- **2a · conversation identity ✅** — the stream envelope keeps `sessionId` (the
-  run id `/stop` keys on) and now also carries `conversationId` (the stable
-  session reconciliation keys on).
-- **2b · the projection 🔜** — open question. The durable store (`ChatDb` /
-  `context.json`) holds only the *cleaned model context* (tool results stubbed,
-  thinking / token usage dropped); the *rich* UI state exists only as rendered
-  `conversation.md`. So the projection must be sourced from the rich history,
-  and this step has to first decide where that history is persisted (see §5).
-- Add `GET /session/state?projectRoot=…&sessionId=…&since=<messageSeq>` returning
-  the authoritative state as structured JSON (not Markdown):
-  `isRunning` / `runId`, `messages` (role, content, events, tool calls, usage,
-  messageId), `lastSeq`, `tokenUsage`, `pendingAsk`, `subAgents`.
-- Idempotent; `since` returns a delta, otherwise the full projection.
+- **2a · conversation identity** — the stream envelope keeps `sessionId` (the run
+  id `/stop` keys on) and now also carries `conversationId` (the stable session
+  reconciliation keys on).
+- **2b · the rich-history sidecar** — the durable stores are lossy for the UI
+  (`ChatDb` / `context.json` hold only the *cleaned model context*: tool results
+  stubbed, thinking / token usage dropped), so `ContextManager.saveContext` now
+  also writes `session-state.json` next to `conversation.md`, from the same
+  in-memory history. One writer, two renderings, so they cannot drift. Base64
+  image payloads are stripped (names only), matching the transcript's fidelity.
+- **2c · the endpoint** — `GET /session/state?projectRoot=…&sessionId=…&since=<seq>`
+  returns the stored history as structured JSON plus `isRunning` / `runId`,
+  `modelName`, `title`, `createdAt`, `updatedAt`, `lastSeq`. A message's `seq` is
+  its 0-based position; `since` returns the delta after it. The endpoint is
+  idempotent and keyed on `conversationId` (via `SessionEntry.conversationId`).
 
-Acceptance: endpoint is idempotent; a delta request returns exactly the
-messages after `since`; unit test covers the projection.
+Deferred to a later step: `tokenUsage` aggregation, `pendingAsk`, and `subAgents`
+in the payload (they only matter for a *live* run, which the stream already
+covers).
+
+Acceptance: sidecar round-trips every UI field; the endpoint echoes the session,
+reports `isRunning: false` for a finished session, and returns the messages.
 
 ### Step 3 — Client reconciliation ⬜
 
@@ -172,14 +177,10 @@ payoff step and the riskiest, so it goes last.
 
 ## 5. Open decisions
 
-1. **Rich history source (Step 2b).** The durable stores are lossy for the UI, so
-   `GET /session/state` needs the rich history persisted in a structured form.
-   Options: (a) write a JSON sidecar (`session-state.json`) next to
-   `conversation.md`, from the same `ContextManager.saveContext` call — one
-   writer, two renderings; (b) store the raw history in `ChatDb` and clean it on
-   load; (c) parse `conversation.md` server-side. (a) is recommended: smallest
-   change, no lossy step, and it sets up Step 4 (transcript becomes a render of
-   the JSON).
+1. ~~**Rich history source.**~~ **Resolved (Step 2b): the JSON sidecar
+   `session-state.json`**, written from the same `ContextManager.saveContext`
+   call as `conversation.md`. Step 4 then makes the transcript a render of the
+   sidecar, so the sidecar becomes the single authority.
 2. **Transport: NDJSON or SSE?** Step 1 keeps NDJSON (no client reader change) and
    designs the envelope so a later move to `text/event-stream` (free
    `Last-Event-ID` / `id:` / `event:`) is mechanical. Decide before Step 3.
@@ -198,8 +199,8 @@ payoff step and the riskiest, so it goes last.
 | Step | Status      | Commit    | Note                                                                      |
 |------|-------------|-----------|---------------------------------------------------------------------------|
 | 1    | ✅ done     | `48cf91d` | `seq` + `gap` on `/events`; client WARN on discontinuity; 457 tests green |
-| 2a   | ✅ done     | this PR   | `conversationId` added to the event envelope                              |
-| 2b   | 🔜 next     | —         | `GET /session/state`; blocked on the rich-history-source decision (§5.1)  |
+| 2a   | ✅ done     | `8a5b287` | `conversationId` added to the event envelope                              |
+| 2b/c | ✅ done     | _uncommitted_ | `session-state.json` sidecar + `GET /session/state`; 463 tests green   |
 | 3    | ⬜          | —         | client reconcile (session_end / gap / reopen)                             |
 | 3.5  | ⬜ optional | —         | live resume via per-run ring buffer                                       |
 | 4    | ⬜          | —         | transcript / title / error-code single authority                          |

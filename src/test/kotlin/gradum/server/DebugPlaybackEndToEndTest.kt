@@ -8,6 +8,7 @@ import io.ktor.server.testing.*
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
@@ -127,6 +128,43 @@ class DebugPlaybackEndToEndTest {
       eventsWithoutConversationId.isEmpty(),
       "every event should carry the conversation id, offenders=$eventsWithoutConversationId"
     )
+  }
+
+  @Test
+  fun `session state endpoint returns the persisted rich history`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+
+    val project = temporaryProject()
+    val sessionId = "state-probe-session"
+    postScenario(
+      client,
+      project,
+      scenarioXml = """<tls nam="state_probe"><tt>Looking.</tt><t nam="read_file" pth="missing.txt" exp="error"/></tls>""",
+      sessionId = sessionId
+    )
+
+    assertTrue(
+      Files.isRegularFile(project.resolve(".gradum").resolve("sessions").resolve(sessionId).resolve("session-state.json")),
+      "the sidecar should be written next to the transcript"
+    )
+
+    val response: HttpResponse =
+      client.get("/session/state?projectRoot=${project.toAbsolutePath()}&sessionId=$sessionId")
+    assertEquals(HttpStatusCode.OK, response.status)
+
+    val body: String = response.bodyAsText()
+    assertContains(body, "\"sessionId\":\"$sessionId\"")
+    assertContains(body, "\"isRunning\":false")
+    assertContains(body, "\"messages\":[")
+  }
+
+  @Test
+  fun `session state endpoint rejects a missing session id`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+
+    val response: HttpResponse = client.get("/session/state?projectRoot=/tmp")
+
+    assertEquals(HttpStatusCode.BadRequest, response.status)
   }
 
   @Test

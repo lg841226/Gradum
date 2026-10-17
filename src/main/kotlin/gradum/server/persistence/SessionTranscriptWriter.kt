@@ -198,7 +198,7 @@ object SessionTranscriptWriter {
   }
 
   /** Resolves the session directory, rejecting blank/legacy/path-traversing ids. */
-  private fun sessionDirectory(projectRoot: Path, sessionId: String): Path? {
+  internal fun sessionDirectory(projectRoot: Path, sessionId: String): Path? {
     val trimmedId: String = sessionId.trim()
     val isUnsafeId: Boolean = trimmedId.isEmpty() || trimmedId == "." || trimmedId == ".." ||
       trimmedId == ".gradum" || trimmedId.contains(char = '/') || trimmedId.contains(char = '\\')

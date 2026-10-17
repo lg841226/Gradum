@@ -6,6 +6,7 @@ import gradum.agent.Agent
 import gradum.client.ThinkingLevel
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.server.persistence.ChatDb
+import gradum.server.persistence.SessionStateStore
 import gradum.server.persistence.SessionTranscriptWriter
 import gradum.skill.SkillRegistry
 import gradum.skill.external.DeployResult
@@ -27,7 +28,9 @@ import kotlinx.coroutines.channels.ChannelResult
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -46,6 +49,8 @@ private const val EVENTS_CHANNEL_CAPACITY: Int = 2048
 private data class SessionEntry(
   val agent: Agent,
   val parentSessionId: String? = null,
+  /** Stable session this run belongs to; lets `/session/state` answer "is it running". */
+  val conversationId: String? = null,
   val childSessionIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
 )
 
@@ -415,7 +420,8 @@ fun Application.registerAllRoutes(
           val registerChildSession: (String, Agent) -> Unit = { childId: String, childAgent: Agent ->
             val childEntry = SessionEntry(
               agent = childAgent,
-              parentSessionId = sessionId
+              parentSessionId = sessionId,
+              conversationId = resolvedSessionId
             )
             activeSessions[childId] = childEntry
             activeSessions.computeIfPresent(sessionId) { _: String, parentEntry: SessionEntry ->
@@ -439,16 +445,13 @@ fun Application.registerAllRoutes(
             emitEvent = { eventType: String, data: Map<String, Any> ->
               val ndjsonLine: String = JsonUtil.encodeMap(
                 mapOf(
+                  "data" to data,
                   "type" to eventType,
-                  "timestamp" to LocalDateTime.now().toString(),
-                  // `sessionId` is this run's transport id (keyed by /stop);
-                  // `conversationId` is the stable session the run belongs to,
-                  // which is what state reconciliation keys on.
                   "sessionId" to sessionId,
                   "conversationId" to resolvedSessionId,
-                  "seq" to eventSequencer.claimSequence(),
                   "gap" to eventSequencer.pendingGap(),
-                  "data" to data
+                  "seq" to eventSequencer.claimSequence(),
+                  "timestamp" to LocalDateTime.now().toString()
                 )
               ) + "\n"
               val sendResult: ChannelResult<Unit> = eventsChannel.trySend(ndjsonLine)
@@ -468,7 +471,7 @@ fun Application.registerAllRoutes(
             plugins = serverConfiguration.plugins,
           )
 
-          activeSessions[sessionId] = SessionEntry(agent = agentInstance)
+          activeSessions[sessionId] = SessionEntry(agent = agentInstance, conversationId = resolvedSessionId)
           agentInstance.executeTask(
             userInput = requestBody.message,
             displayText = requestBody.displayText.orEmpty(),
@@ -803,6 +806,57 @@ fun Application.registerAllRoutes(
         return@get
       }
       call.respondText(text = transcriptContent, contentType = ContentType.parse("text/markdown"))
+    }
+
+    get("/session/state") {
+      val rawProjectRoot: String? = call.request.queryParameters["projectRoot"]
+      val sessionKey: String = call.request.queryParameters["sessionId"]?.trim().orEmpty()
+      if (rawProjectRoot.isNullOrBlank() || sessionKey.isEmpty()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "projectRoot and sessionId are required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@get
+      }
+      val projectRootPath: Path = Paths.get(rawProjectRoot).toAbsolutePath().normalize()
+
+      val storedState: JsonObject? = SessionStateStore.read(projectRootPath, sessionKey)
+      val transcriptMeta: SessionTranscriptWriter.TranscriptMeta? =
+        SessionTranscriptWriter.readMeta(projectRootPath, sessionKey)
+      if (storedState == null && transcriptMeta == null) {
+        call.respondText(
+          status = HttpStatusCode.NotFound,
+          contentType = ContentType.Application.Json,
+          text = JsonUtil.encodeMap(mapOf("status" to "not_found", "sessionId" to sessionKey)),
+        )
+        return@get
+      }
+
+      val fullMessages: List<JsonElement> =
+        (storedState?.get("messages") as? JsonArray)?.toList() ?: emptyList()
+      val sinceSeq: Int = call.request.queryParameters["since"]?.toIntOrNull() ?: -1
+
+      val activeRunId: String? = activeSessions.entries
+        .firstOrNull { entry: Map.Entry<String, SessionEntry> -> entry.value.conversationId == sessionKey }
+        ?.key
+
+      call.respondText(
+        contentType = ContentType.Application.Json,
+        text = JsonUtil.encodeMap(
+          mapOf(
+            "runId" to activeRunId,
+            "sessionId" to sessionKey,
+            "isRunning" to (activeRunId != null),
+            "lastSeq" to (fullMessages.size - 1),
+            "title" to (transcriptMeta?.title ?: ""),
+            "messages" to fullMessages.drop(sinceSeq + 1),
+            "modelName" to (transcriptMeta?.modelName ?: ""),
+            "createdAt" to (transcriptMeta?.createdAt ?: 0L),
+            "updatedAt" to (transcriptMeta?.updatedAt ?: 0L)
+          )
+        ),
+      )
     }
 
     post("/session/save") {

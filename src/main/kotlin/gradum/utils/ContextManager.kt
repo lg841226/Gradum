@@ -2,6 +2,7 @@ package gradum.utils
 
 import gradum.mcp.McpToolCatalog
 import gradum.server.persistence.ChatDb
+import gradum.server.persistence.SessionStateStore
 import gradum.server.persistence.SessionTranscriptWriter
 import gradum.skill.Skill
 import gradum.skill.SkillRegistry
@@ -119,9 +120,6 @@ class ContextManager(private val outputDirectory: Path) {
   }
 
   fun saveContext(messages: List<Map<String, Any>>, modelName: String): Boolean {
-    // Session transcript (conversation.md) is written from the full
-    // in-memory history before tool results get stubbed below. Failure to
-    // write it must never block the context save itself.
     try {
       SessionTranscriptWriter.writeTranscript(
         projectRoot = projectRoot,
@@ -135,8 +133,21 @@ class ContextManager(private val outputDirectory: Path) {
       )
     }
 
+    try {
+      SessionStateStore.write(
+        projectRoot = projectRoot,
+        sessionId = sessionId,
+        modelName = modelName,
+        messages = messages
+      )
+    } catch (stateException: Exception) {
+      logger.warn(
+        "Failed to write session state: ${stateException.javaClass.simpleName}: ${stateException.message}"
+      )
+    }
+
+
     return if (useDatabase) {
-      // Database mode
       cachedMessages = null
       val cleanedMessages: List<Map<String, Any>> = cleanMessageHistory(messages)
       val serializedMessages: List<Map<String, Any>> = cleanedMessages.map { message ->
@@ -149,7 +160,6 @@ class ContextManager(private val outputDirectory: Path) {
         messages = serializedMessages
       )
     } else {
-      // Legacy file mode
       outputDirectory.toFile().mkdirs()
       cachedMessages = null
 
