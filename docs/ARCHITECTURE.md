@@ -1976,8 +1976,11 @@ to third-party plugins at all, so they ship too.
 - `POST /session/delete {projectRoot, sessionId}` removes a session directory;
   `POST /session/rewind {projectRoot, sessionId, messageId}` truncates the stored history up to an earlier message (the
   plugin's per-message delete / rewind)
-- `POST /stop?sessionId=...` (or `{sessionId}` in the body) aborts the active session server-side, which the client uses
-  to cancel an in-flight stream, alongside the `AbortController`-style client-side cancellation
+- `POST /stop {runId}` aborts the active server-side run (the `runId` the `/events` envelope carries), which the client
+  uses to cancel an in-flight stream, alongside the `AbortController`-style client-side cancellation
+- `GET /session/state?projectRoot=…&sessionId=…&since=<seq>` returns the session's authoritative rich history as
+  structured JSON (role, content, thinking, tool calls, token usage), plus `isRunning` / `runId` for the live run.
+  A message's `seq` is its 0-based position and `since` asks for the delta after it.
 - `GET /models`, `GET /health`, and `GET /skills` support model polling, server liveness checks, and capability
   discovery
 - `POST /provider/probe` is the settings-page connectivity check: the plugin forwards `{kind, baseUrl, apiKey}` to the

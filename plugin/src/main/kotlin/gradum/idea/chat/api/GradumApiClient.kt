@@ -143,13 +143,13 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
   }
 
   /**
-   * Stops an active session on the server.
+   * Aborts an in-flight `/events` run on the server.
    *
-   * @param sessionId The ID of the session to stop.
+   * @param runId The run to stop (the envelope's `runId`).
    * @return A JSON string with the stop status.
    */
-  suspend fun stopSession(sessionId: String): String = withContext(Dispatchers.IO) {
-    val requestBody: JsonObject = buildJsonObject { put("sessionId", sessionId) }
+  suspend fun stopSession(runId: String): String = withContext(Dispatchers.IO) {
+    val requestBody: JsonObject = buildJsonObject { put("runId", runId) }
 
     val response: HttpResponse<String> =
       sendWithAuthRetry(HttpResponse.BodyHandlers.ofString()) {

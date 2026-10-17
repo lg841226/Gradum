@@ -86,11 +86,11 @@ class DebugPlaybackEndToEndTest {
   /**
    * Playback is only the vehicle here: it produces a deterministic NDJSON
    * stream without an LLM, which is what this test needs to check the
-   * envelope fields (`seq`, `gap`, `conversationId`) the client relies on to
-   * detect a lost event and to reconcile against the right session.
+   * envelope fields (`seq`, `gap`, `runId`, `sessionId`) the client relies on
+   * to detect a lost event and to reconcile against the right session.
    */
   @Test
-  fun `every streamed event carries a contiguous sequence and the conversation id`(): Unit = testApplication {
+  fun `every streamed event carries a contiguous sequence and both ids`(): Unit = testApplication {
     application { module(ServerConfiguration()) }
 
     val project = temporaryProject()
@@ -121,12 +121,19 @@ class DebugPlaybackEndToEndTest {
       eventsWithoutZeroGap.isEmpty(),
       "no event should report a dropped predecessor, offenders=$eventsWithoutZeroGap"
     )
-    val eventsWithoutConversationId: List<String> = body.lines()
-      .filter { it.isNotBlank() && !it.contains(other = "\"conversationId\":\"seq-probe-session\"") }
+    val eventsWithoutSessionId: List<String> = body.lines()
+      .filter { it.isNotBlank() && !it.contains(other = "\"sessionId\":\"seq-probe-session\"") }
 
     assertTrue(
-      eventsWithoutConversationId.isEmpty(),
-      "every event should carry the conversation id, offenders=$eventsWithoutConversationId"
+      eventsWithoutSessionId.isEmpty(),
+      "every event should carry the session id, offenders=$eventsWithoutSessionId"
+    )
+    val eventsWithoutRunId: List<String> = body.lines()
+      .filter { it.isNotBlank() && !Regex(""""runId":"[0-9a-f-]{36}"""").containsMatchIn(it) }
+
+    assertTrue(
+      eventsWithoutRunId.isEmpty(),
+      "every event should carry a run id, offenders=$eventsWithoutRunId"
     )
   }
 

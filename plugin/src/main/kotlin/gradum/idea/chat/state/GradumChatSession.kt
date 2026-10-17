@@ -171,7 +171,8 @@ class GradumChatSession : Disposable {
 
   var currentJob: Job? by mutableStateOf(null)
   internal var subAgentTimeoutJob: Job? = null
-  var sessionId: String? by mutableStateOf(null)
+  /** Id of the in-flight `/events` run; the client sends it to `/stop`. */
+  var runId: String? by mutableStateOf(null)
   var activeSessionId: String? by mutableStateOf(null)
   var currentSessionTitle: String by mutableStateOf("")
 
@@ -214,7 +215,7 @@ class GradumChatSession : Disposable {
       }
     }
     clearSendState()
-    sessionId = null
+    runId = null
     activeSessionId = chatStore?.let { ChatSessionStore.nextSessionId() }
     currentSessionTitle = ""
     hasSentMessage = false
@@ -296,7 +297,7 @@ class GradumChatSession : Disposable {
     val job = currentJob
     currentJob = null
     job?.cancel(cause = CancellationException("Gradum: switch session"))
-    sessionId = null
+    runId = null
     clearSendState()
 
     clearConversationState()
@@ -607,14 +608,14 @@ class GradumChatSession : Disposable {
         log.warn("Failed to cancel current job on stopSession", throwable)
       }
     }
-    val currentSessionId: String? = sessionId
-    if (currentSessionId != null) {
+    val currentRunId: String? = runId
+    if (currentRunId != null) {
       try {
-        apiClient.stopSession(currentSessionId)
+        apiClient.stopSession(currentRunId)
       } catch (cancelError: Exception) {
-        log.warn("Failed to send stop request for session $currentSessionId", cancelError)
+        log.warn("Failed to send stop request for run $currentRunId", cancelError)
       }
-      sessionId = null
+      runId = null
     }
     clearSendState()
     processPendingQueue()

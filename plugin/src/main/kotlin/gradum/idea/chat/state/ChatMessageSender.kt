@@ -211,7 +211,7 @@ internal suspend fun GradumChatSession.sendMessage(
 
       when (messageType) {
         "session_start" -> {
-          sessionId = event["sessionId"]?.jsonPrimitive?.content
+          runId = event["runId"]?.jsonPrimitive?.content
         }
 
         "response" -> {
@@ -245,7 +245,7 @@ internal suspend fun GradumChatSession.sendMessage(
           isWaitingForResponse = false
           isSending = false
           currentJob = null
-          sessionId = null
+          runId = null
           sendingPhase = ""
           processPendingQueue()
         }
@@ -297,7 +297,7 @@ internal suspend fun GradumChatSession.sendMessage(
       }
       isSending = false
       currentJob = null
-      sessionId = null
+      runId = null
       isWaitingForResponse = false
       processPendingQueue()
     }

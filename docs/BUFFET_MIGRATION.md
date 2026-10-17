@@ -89,9 +89,9 @@ depends on; without it the client cannot know when to reconcile.
 - Plugin `GradumApiClient` parses `seq` / `gap` and logs a WARN on a
   discontinuity.
 
-Deliberately **not** changed: NDJSON transport, the `sessionId` semantics
-`/stop` relies on, and the client state model. Old clients can ignore the new
-fields.
+Deliberately **not** changed in Step 1: NDJSON transport, the `sessionId`
+semantics `/stop` relied on, and the client state model. Step 2a then did the
+rename (no compatibility shims, no users to break).
 
 Acceptance: `./gradlew :test` green; a deterministic playback stream shows
 contiguous `seq` from 1 with `gap` always 0.
@@ -102,9 +102,10 @@ Commit: `48cf91d`.
 Add the server-side projection the client will reconcile against, and split the
 two session identities that are currently conflated.
 
-- **2a · conversation identity** — the stream envelope keeps `sessionId` (the run
-  id `/stop` keys on) and now also carries `conversationId` (the stable session
-  reconciliation keys on).
+- **2a · one name per thing** — the envelope carries the run as `runId` and the
+  durable session as `sessionId` (which is what the request body, `/session/*`,
+  `/session/state`, and the ask scope all call it). `/stop` takes a `runId`. No
+  compatibility shims: a `sessionId` that meant a run is gone.
 - **2b · the rich-history sidecar** — the durable stores are lossy for the UI
   (`ChatDb` / `context.json` hold only the *cleaned model context*: tool results
   stubbed, thinking / token usage dropped), so `ContextManager.saveContext` now
@@ -115,7 +116,7 @@ two session identities that are currently conflated.
   returns the stored history as structured JSON plus `isRunning` / `runId`,
   `modelName`, `title`, `createdAt`, `updatedAt`, `lastSeq`. A message's `seq` is
   its 0-based position; `since` returns the delta after it. The endpoint is
-  idempotent and keyed on `conversationId` (via `SessionEntry.conversationId`).
+  idempotent and keyed on the session (`SessionEntry.sessionId`).
 
 Deferred to a later step: `tokenUsage` aggregation, `pendingAsk`, and `subAgents`
 in the payload (they only matter for a *live* run, which the stream already
@@ -200,8 +201,8 @@ payoff step and the riskiest, so it goes last.
 | Step | Status      | Commit    | Note                                                                      |
 |------|-------------|-----------|---------------------------------------------------------------------------|
 | 1    | ✅ done     | `48cf91d` | `seq` + `gap` on `/events`; client WARN on discontinuity; 457 tests green |
-| 2a   | ✅ done     | `8a5b287` | `conversationId` added to the event envelope                              |
-| 2b/c | ✅ done     | `f4cda06` | `session-state.json` sidecar + `GET /session/state`; 463 tests green   |
+| 2a   | ✅ done     | this PR   | `runId` (per run) vs `sessionId` (durable); `/stop` takes `runId`         |
+| 2b/c | ✅ done     | `f4cda06` | `session-state.json` sidecar + `GET /session/state`; 463 tests green      |
 | 3    | ⬜          | —         | client reconcile (session_end / gap / reopen)                             |
 | 3.5  | ⬜ optional | —         | live resume via per-run ring buffer                                       |
 | 4    | ⬜          | —         | transcript / title / error-code single authority                          |

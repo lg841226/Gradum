@@ -43,12 +43,12 @@ class ServerRoutesValidationTest {
   }
 
   @Test
-  fun `POST stop with an unknown session responds with 404`(): Unit = testApplication {
+  fun `POST stop with an unknown run responds with 404`(): Unit = testApplication {
     application { module(ServerConfiguration()) }
 
     val response: HttpResponse = client.post("/stop") {
       contentType(ContentType.Application.Json)
-      setBody("""{"sessionId":"does-not-exist"}""")
+      setBody("""{"runId":"does-not-exist"}""")
     }
 
     assertEquals(

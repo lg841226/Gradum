@@ -43,15 +43,20 @@ import java.util.concurrent.ConcurrentHashMap
 
 private val logger: Logger = LoggerFactory.getLogger("GradumServerRoutes")
 
-/** Cap on buffered NDJSON events per session before the producer drops. */
+/** Cap on buffered NDJSON events per run before the producer drops. */
 private const val EVENTS_CHANNEL_CAPACITY: Int = 2048
 
+/**
+ * One live `/events` run, keyed in `activeSessions` by the run id.
+ *
+ * A run belongs to a [sessionId] (the durable session) and may have child
+ * runs (sub-agents), which is why the parent link is a run id.
+ */
 private data class SessionEntry(
   val agent: Agent,
-  val parentSessionId: String? = null,
-  /** Stable session this run belongs to; lets `/session/state` answer "is it running". */
-  val conversationId: String? = null,
-  val childSessionIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
+  val sessionId: String? = null,
+  val parentRunId: String? = null,
+  val childRunIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
 )
 
 @Serializable
@@ -168,7 +173,8 @@ data class AttachmentDto(
 
 @Serializable
 data class StopRequestBody(
-  val sessionId: String
+  /** The run to abort, as stamped on the `/events` envelope. */
+  val runId: String
 )
 
 /** Body for `POST /events/respond`: resolves an in-flight ask_interaction. */
@@ -330,7 +336,9 @@ fun Application.registerAllRoutes(
   routing {
     post("/events") {
       val requestBody: EventsRequestBody = call.receive<EventsRequestBody>()
-      val sessionId: String = UUID.randomUUID().toString()
+      // `runId` identifies this one execution (the client sends it to `/stop`);
+      // `requestBody.sessionId` is the durable session the run belongs to.
+      val runId: String = UUID.randomUUID().toString()
 
       val rawProjectRoot: String? = requestBody.projectRoot
       if (rawProjectRoot.isNullOrBlank()) {
@@ -420,20 +428,20 @@ fun Application.registerAllRoutes(
           val registerChildSession: (String, Agent) -> Unit = { childId: String, childAgent: Agent ->
             val childEntry = SessionEntry(
               agent = childAgent,
-              parentSessionId = sessionId,
-              conversationId = resolvedSessionId
+              sessionId = resolvedSessionId,
+              parentRunId = runId
             )
             activeSessions[childId] = childEntry
-            activeSessions.computeIfPresent(sessionId) { _: String, parentEntry: SessionEntry ->
-              parentEntry.childSessionIds.add(childId)
+            activeSessions.computeIfPresent(runId) { _: String, parentEntry: SessionEntry ->
+              parentEntry.childRunIds.add(childId)
               parentEntry
             }
-            logger.info("Registered sub-agent $childId under parent $sessionId")
+            logger.info("Registered sub-agent $childId under run $runId")
           }
           val unregisterChildSession: (String) -> Unit = { childId: String ->
             activeSessions.remove(childId)?.let {
-              activeSessions.computeIfPresent(sessionId) { _: String, parentEntry: SessionEntry ->
-                parentEntry.childSessionIds.remove(childId)
+              activeSessions.computeIfPresent(runId) { _: String, parentEntry: SessionEntry ->
+                parentEntry.childRunIds.remove(childId)
                 parentEntry
               }
               logger.info("Unregistered sub-agent $childId")
@@ -447,8 +455,8 @@ fun Application.registerAllRoutes(
                 mapOf(
                   "data" to data,
                   "type" to eventType,
-                  "sessionId" to sessionId,
-                  "conversationId" to resolvedSessionId,
+                  "runId" to runId,
+                  "sessionId" to resolvedSessionId,
                   "gap" to eventSequencer.pendingGap(),
                   "seq" to eventSequencer.claimSequence(),
                   "timestamp" to LocalDateTime.now().toString()
@@ -458,7 +466,7 @@ fun Application.registerAllRoutes(
               if (sendResult.isFailure) {
                 eventSequencer.recordDrop()
                 logger.warn(
-                  "Events channel full for session $sessionId \u2014 dropping event " +
+                  "Events channel full for run $runId \u2014 dropping event " +
                     "'$eventType' (client is not draining; streaming is already stalled)"
                 )
               } else {
@@ -471,7 +479,7 @@ fun Application.registerAllRoutes(
             plugins = serverConfiguration.plugins,
           )
 
-          activeSessions[sessionId] = SessionEntry(agent = agentInstance, conversationId = resolvedSessionId)
+          activeSessions[runId] = SessionEntry(agent = agentInstance, sessionId = resolvedSessionId)
           agentInstance.executeTask(
             userInput = requestBody.message,
             displayText = requestBody.displayText.orEmpty(),
@@ -491,11 +499,11 @@ fun Application.registerAllRoutes(
           val undeliveredDrops: Int = eventSequencer.pendingGap()
           if (undeliveredDrops > 0) {
             logger.warn(
-              "Session $sessionId ended with $undeliveredDrops dropped event(s) never " +
+              "Run $runId ended with $undeliveredDrops dropped event(s) never " +
                 "reported to the client"
             )
           }
-          activeSessions.remove(sessionId)
+          activeSessions.remove(runId)
           eventsChannel.close()
         }
       }
@@ -565,15 +573,15 @@ fun Application.registerAllRoutes(
 
     post("/stop") {
       val requestBody = call.receive<StopRequestBody>()
-      val sessionId = requestBody.sessionId
-      val targetEntry = activeSessions.remove(sessionId)
+      val runId = requestBody.runId
+      val targetEntry = activeSessions.remove(runId)
 
       if (targetEntry != null) {
         val agentsToStop: MutableList<Agent> = mutableListOf(targetEntry.agent)
         val childIdsToRemove: MutableList<String> = mutableListOf()
 
         fun collectDescendants(entry: SessionEntry) {
-          for (childId: String in entry.childSessionIds.toSet()) {
+          for (childId: String in entry.childRunIds.toSet()) {
             val childEntry: SessionEntry? = activeSessions.remove(childId)
             if (childEntry != null) {
               agentsToStop.add(childEntry.agent)
@@ -584,7 +592,7 @@ fun Application.registerAllRoutes(
         }
         collectDescendants(targetEntry)
 
-        targetEntry.childSessionIds.removeAll(childIdsToRemove.toSet())
+        targetEntry.childRunIds.removeAll(childIdsToRemove.toSet())
 
         for (agent: Agent in agentsToStop) agent.abort()
 
@@ -592,7 +600,7 @@ fun Application.registerAllRoutes(
           text = JsonUtil.encodeMap(
             mapOf(
               "status" to "stopped",
-              "sessionId" to sessionId,
+              "runId" to runId,
               "cascaded" to agentsToStop.size - 1
             )
           ),
@@ -602,7 +610,7 @@ fun Application.registerAllRoutes(
         call.respondText(
           status = HttpStatusCode.NotFound,
           contentType = ContentType.Application.Json,
-          text = JsonUtil.encodeMap(mapOf("status" to "not_found", "sessionId" to sessionId))
+          text = JsonUtil.encodeMap(mapOf("status" to "not_found", "runId" to runId))
         )
       }
     }
@@ -838,7 +846,7 @@ fun Application.registerAllRoutes(
       val sinceSeq: Int = call.request.queryParameters["since"]?.toIntOrNull() ?: -1
 
       val activeRunId: String? = activeSessions.entries
-        .firstOrNull { entry: Map.Entry<String, SessionEntry> -> entry.value.conversationId == sessionKey }
+        .firstOrNull { entry: Map.Entry<String, SessionEntry> -> entry.value.sessionId == sessionKey }
         ?.key
 
       call.respondText(
