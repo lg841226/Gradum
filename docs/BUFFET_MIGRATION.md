@@ -117,13 +117,15 @@ two session identities that are currently conflated.
   `modelName`, `title`, `createdAt`, `updatedAt`, `lastSeq`. A message's `seq` is
   its 0-based position; `since` returns the delta after it. The endpoint is
   idempotent and keyed on the session (`SessionEntry.sessionId`).
-
-Deferred to a later step: `tokenUsage` aggregation, `pendingAsk`, and `subAgents`
-in the payload (they only matter for a *live* run, which the stream already
-covers).
+- **2d · the live extras** — the payload also carries `tokenUsage` (summed from
+  the messages, with `contextTokens` from the newest), `pendingAsks` (the wire
+  payloads of the questions still parked, replayed by `PendingQuestions`), and
+  `subAgents` (the `sub_agent:start` payloads of the runs still live). All three
+  are computed per request, so the sidecar stays a pure history.
 
 Acceptance: sidecar round-trips every UI field; the endpoint echoes the session,
-reports `isRunning: false` for a finished session, and returns the messages.
+reports `isRunning: false` for a finished session, returns the messages, and
+redraws an open ask card.
 
 ### Step 3 — Client reconciliation ⬜
 
@@ -203,6 +205,7 @@ payoff step and the riskiest, so it goes last.
 | 1    | ✅ done     | `48cf91d` | `seq` + `gap` on `/events`; client WARN on discontinuity; 457 tests green |
 | 2a   | ✅ done     | this PR   | `runId` (per run) vs `sessionId` (durable); `/stop` takes `runId`         |
 | 2b/c | ✅ done     | `f4cda06` | `session-state.json` sidecar + `GET /session/state`; 463 tests green      |
+| 2d   | ✅ done     | this PR   | `/session/state` also serves `tokenUsage`, `pendingAsks`, `subAgents`     |
 | 3    | ⬜          | —         | client reconcile (session_end / gap / reopen)                             |
 | 3.5  | ⬜ optional | —         | live resume via per-run ring buffer                                       |
 | 4    | ⬜          | —         | transcript / title / error-code single authority                          |

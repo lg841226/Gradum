@@ -1979,8 +1979,9 @@ to third-party plugins at all, so they ship too.
 - `POST /stop {runId}` aborts the active server-side run (the `runId` the `/events` envelope carries), which the client
   uses to cancel an in-flight stream, alongside the `AbortController`-style client-side cancellation
 - `GET /session/state?projectRoot=…&sessionId=…&since=<seq>` returns the session's authoritative rich history as
-  structured JSON (role, content, thinking, tool calls, token usage), plus `isRunning` / `runId` for the live run.
-  A message's `seq` is its 0-based position and `since` asks for the delta after it.
+  structured JSON (role, content, thinking, tool calls, token usage), plus `isRunning` / `runId` for the live run and
+  the live extras `pendingAsks` / `subAgents`. A message's `seq` is its 0-based position and `since` asks for the delta
+  after it.
 - `GET /models`, `GET /health`, and `GET /skills` support model polling, server liveness checks, and capability
   discovery
 - `POST /provider/probe` is the settings-page connectivity check: the plugin forwards `{kind, baseUrl, apiKey}` to the

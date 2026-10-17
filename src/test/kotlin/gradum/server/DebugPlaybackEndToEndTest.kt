@@ -1,5 +1,6 @@
 package gradum.server
 
+import gradum.server.persistence.SessionStateStore
 import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -163,6 +164,38 @@ class DebugPlaybackEndToEndTest {
     assertContains(body, "\"sessionId\":\"$sessionId\"")
     assertContains(body, "\"isRunning\":false")
     assertContains(body, "\"messages\":[")
+    assertContains(body, "\"pendingAsks\":[]")
+    assertContains(body, "\"subAgents\":[]")
+    assertContains(body, "\"tokenUsage\":{\"promptTokens\":0")
+  }
+
+  @Test
+  fun `session state endpoint reports an open ask card for the session`(): Unit = testApplication {
+    val project = temporaryProject()
+    val sessionId = "ask-probe-session"
+    val parked = gradum.skill.PendingQuestions()
+    val parkedPayload: Map<String, Any> = mapOf("requestId" to "req-1", "title" to "Run it?")
+    val blocker = Thread { parked.await(sessionId, "req-1", parkedPayload) }
+    blocker.start()
+    val parkedDeadline: Long = System.currentTimeMillis() + 2000
+    while (!parked.isPending(sessionId, "req-1") && System.currentTimeMillis() < parkedDeadline) {
+      Thread.sleep(5)
+    }
+
+    SessionStateStore.write(project, sessionId, "model-x", emptyList())
+
+    application { module(ServerConfiguration(), pendingQuestions = parked) }
+
+    val response: HttpResponse =
+      client.get("/session/state?projectRoot=${project.toAbsolutePath()}&sessionId=$sessionId")
+    assertEquals(HttpStatusCode.OK, response.status)
+
+    val body: String = response.bodyAsText()
+    assertContains(body, "\"pendingAsks\":[{\"requestId\":\"req-1\",\"title\":\"Run it?\"}]")
+    assertContains(body, "\"subAgents\":[]")
+
+    parked.completeCancelled(sessionId, "req-1")
+    blocker.join(2000)
   }
 
   @Test

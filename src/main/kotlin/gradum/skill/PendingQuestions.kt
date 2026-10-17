@@ -8,25 +8,27 @@ import java.util.concurrent.ConcurrentHashMap
  * Registry of in-flight agent→user questions, keyed by `sessionId::requestId`.
  *
  * The skill's [AskScope.askInteraction] registers a [CompletableDeferred]
- * here and blocks on it; the POST /events/respond endpoint resolves the
- * matching deferred when the user answers. A question may be held open
- * **indefinitely** by design: there is deliberately no timeout (matching
- * mainstream agent CLIs): the blocked call stays parked until the user
- * responds or dismisses the card.
+ * here, together with the question's wire payload, and blocks on it; the
+ * POST /events/respond endpoint resolves the matching deferred when the user
+ * answers. A question may be held open **indefinitely** by design: there is
+ * deliberately no timeout (matching mainstream agent CLIs): the blocked call
+ * stays parked until the user responds or dismisses the card.
  *
  * Thread-safety: intentionally backed by a [ConcurrentHashMap]. The ask
  * runs on the agent's IO thread while the HTTP respond lands on a Ktor
  * worker thread, so registration and resolution race by design.
  *
- * await(sessionId, requestId) registers a fresh pending question and blocks
- * the calling thread until the respond endpoint (or completeCancelled)
+ * await(sessionId, requestId, payload) registers a fresh pending question and
+ * blocks the calling thread until the respond endpoint (or completeCancelled)
  * resolves it: registration happens before blocking so the response endpoint
  * can find the entry as soon as the accompanying `ask_interaction` event
  * lands. completeChoice, completeText, and completeCancelled resolve a
  * pending question with the matching AskResult flavor and return the result,
  * or null when the id is unknown or already resolved. size() is the number
  * of currently pending questions (tests and diagnostics), isPending reports
- * whether a question with this request key is still awaiting an answer, and
+ * whether a question with this request key is still awaiting an answer,
+ * pending(sessionId) replays the wire payloads of the questions still open
+ * for a session (so `GET /session/state` can redraw an unanswered card), and
  * the private resolve removes and completes the entry, returning the
  * AskResult the blocked await call will observe, or null when no live entry
  * existed.
@@ -36,20 +38,30 @@ class PendingQuestions {
   private data class Entry(
     val sessionId: String,
     val requestId: String,
+    val payload: Map<String, Any>,
     val deferred: CompletableDeferred<AskResult>
   )
 
   private val entries: ConcurrentHashMap<String, Entry> = ConcurrentHashMap()
 
-  fun await(sessionId: String, requestId: String): AskResult {
+  fun await(
+    sessionId: String,
+    requestId: String,
+    payload: Map<String, Any> = emptyMap()
+  ): AskResult {
     val entry = Entry(
       sessionId = sessionId,
       requestId = requestId,
+      payload = payload,
       deferred = CompletableDeferred(),
     )
     entries[key(sessionId, requestId)] = entry
     return runBlocking { entry.deferred.await() }
   }
+
+  /** Wire payloads of the questions still open for [sessionId], in no set order. */
+  fun pending(sessionId: String): List<Map<String, Any>> =
+    entries.values.filter { entry: Entry -> entry.sessionId == sessionId }.map { it.payload }
 
   fun completeChoice(sessionId: String, requestId: String, choice: String): AskResult? =
     resolve(sessionId, requestId, AskResult.Case(choice))

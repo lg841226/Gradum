@@ -3,6 +3,7 @@ package gradum.server
 import gradum.*
 import gradum.Version
 import gradum.agent.Agent
+import gradum.agent.GradumEventType
 import gradum.client.ThinkingLevel
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.server.persistence.ChatDb
@@ -27,10 +28,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ChannelResult
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -40,6 +38,7 @@ import java.time.Duration
 import java.time.LocalDateTime
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 
 private val logger: Logger = LoggerFactory.getLogger("GradumServerRoutes")
 
@@ -56,8 +55,43 @@ private data class SessionEntry(
   val agent: Agent,
   val sessionId: String? = null,
   val parentRunId: String? = null,
-  val childRunIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
+  val childRunIds: MutableSet<String> = ConcurrentHashMap.newKeySet(),
+  /**
+   * `sub_agent:start` payloads whose runs are still live. Mirrors the
+   * plugin's single active sub-agent, so a reload can redraw it.
+   */
+  val subAgents: MutableList<Map<String, Any>> = CopyOnWriteArrayList()
 )
+
+/**
+ * Sums the per-message token usage the stored history carries. Totals are
+ * additive; `contextTokens` is taken from the newest message that reports it,
+ * because that is the live context-window size the plugin meters.
+ */
+private fun aggregateTokenUsage(messages: List<JsonElement>): Map<String, Any> {
+  var totalSum = 0
+  var promptSum = 0
+  var completionSum = 0
+  var contextTokens = 0
+
+  for (message: JsonElement in messages) {
+    val usage: JsonObject = ((message as? JsonObject)?.get("tokenUsage") as? JsonObject) ?: continue
+
+    promptSum += usage.intField("promptTokens")
+    completionSum += usage.intField("completionTokens")
+    totalSum += usage.intField("totalTokens")
+    contextTokens = usage.intField("contextTokens").takeIf { it > 0 } ?: contextTokens
+  }
+  return mapOf(
+    "promptTokens" to promptSum,
+    "completionTokens" to completionSum,
+    "totalTokens" to totalSum,
+    "contextTokens" to contextTokens
+  )
+}
+
+private fun JsonObject.intField(key: String): Int =
+  (this[key] as? JsonPrimitive)?.content?.toIntOrNull() ?: 0
 
 @Serializable
 data class ProviderProbeRequest(
@@ -336,8 +370,6 @@ fun Application.registerAllRoutes(
   routing {
     post("/events") {
       val requestBody: EventsRequestBody = call.receive<EventsRequestBody>()
-      // `runId` identifies this one execution (the client sends it to `/stop`);
-      // `requestBody.sessionId` is the durable session the run belongs to.
       val runId: String = UUID.randomUUID().toString()
 
       val rawProjectRoot: String? = requestBody.projectRoot
@@ -366,7 +398,7 @@ fun Application.registerAllRoutes(
 
       val resolvedSessionId: String? = requestBody.sessionId?.trim()?.takeIf { it.isNotEmpty() }
       val eventsChannel: Channel<String> = Channel(capacity = EVENTS_CHANNEL_CAPACITY)
-      val eventSequencer: EventStreamSequencer = EventStreamSequencer()
+      val eventSequencer = EventStreamSequencer()
       val configOverrides: ConfigOverrides = fromRequestMap(requestBody.config)
       val resolvedToolMode: ToolMode =
         if (requestBody.toolCallXml != null) ToolMode.AGENT
@@ -391,9 +423,6 @@ fun Application.registerAllRoutes(
       )
       val resolvedProvider: Provider = Provider.fromStringOrDefault(resolvedTarget.providerType)
       val resolvedBaseUrl: String = resolvedTarget.baseUrl
-
-      // The legacy `think` config override still owns the master switch;
-      // the level only matters while thinking is enabled.
       val thinkingMasterOn: Boolean =
         configOverrides.think ?: serverConfiguration.defaultThinkEnabled
 
@@ -423,8 +452,6 @@ fun Application.registerAllRoutes(
 
       launch(Dispatchers.IO) {
         try {
-          // Sub-agent registration/unregistration callbacks scoped to this
-          // session's parent-child hierarchy. See [SessionEntry].
           val registerChildSession: (String, Agent) -> Unit = { childId: String, childAgent: Agent ->
             val childEntry = SessionEntry(
               agent = childAgent,
@@ -451,6 +478,14 @@ fun Application.registerAllRoutes(
           val agentInstance = Agent(
             configuration = agentConfiguration,
             emitEvent = { eventType: String, data: Map<String, Any> ->
+              when (eventType) {
+                GradumEventType.SUB_AGENT_START.wireName ->
+                  activeSessions[runId]?.subAgents?.add(data)
+
+                GradumEventType.SUB_AGENT_SESSION_END.wireName ->
+                  activeSessions[runId]?.subAgents?.clear()
+              }
+
               val ndjsonLine: String = JsonUtil.encodeMap(
                 mapOf(
                   "data" to data,
@@ -845,9 +880,9 @@ fun Application.registerAllRoutes(
         (storedState?.get("messages") as? JsonArray)?.toList() ?: emptyList()
       val sinceSeq: Int = call.request.queryParameters["since"]?.toIntOrNull() ?: -1
 
-      val activeRunId: String? = activeSessions.entries
+      val activeEntry: Map.Entry<String, SessionEntry>? = activeSessions.entries
         .firstOrNull { entry: Map.Entry<String, SessionEntry> -> entry.value.sessionId == sessionKey }
-        ?.key
+      val activeRunId: String? = activeEntry?.key
 
       call.respondText(
         contentType = ContentType.Application.Json,
@@ -861,7 +896,10 @@ fun Application.registerAllRoutes(
             "messages" to fullMessages.drop(sinceSeq + 1),
             "modelName" to (transcriptMeta?.modelName ?: ""),
             "createdAt" to (transcriptMeta?.createdAt ?: 0L),
-            "updatedAt" to (transcriptMeta?.updatedAt ?: 0L)
+            "updatedAt" to (transcriptMeta?.updatedAt ?: 0L),
+            "tokenUsage" to aggregateTokenUsage(fullMessages),
+            "pendingAsks" to pendingQuestions.pending(sessionKey),
+            "subAgents" to (activeEntry?.value?.subAgents?.toList() ?: emptyList())
           )
         ),
       )
