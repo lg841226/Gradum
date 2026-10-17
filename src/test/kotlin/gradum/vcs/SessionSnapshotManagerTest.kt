@@ -59,7 +59,7 @@ class SessionSnapshotManagerTest {
 
   @Test
   fun `snapshot on a plain directory works without touching the project`() {
-    val plainDirectory = Files.createTempDirectory(prefix = "gradum-not-git").toFile()
+    val plainDirectory = Files.createTempDirectory("gradum-not-git").toFile()
     plainDirectory.deleteOnExit()
     File(plainDirectory, "notes.txt").writeText("before")
 
@@ -78,7 +78,7 @@ class SessionSnapshotManagerTest {
 
   @Test
   fun `snapshot works on an initialized repository without any commit`() {
-    val initOnlyDirectory = Files.createTempDirectory(prefix = "gradum-init-only").toFile()
+    val initOnlyDirectory = Files.createTempDirectory("gradum-init-only").toFile()
     initOnlyDirectory.deleteOnExit()
     runGit(initOnlyDirectory, "init")
     File(initOnlyDirectory, "draft.txt").writeText("draft")
