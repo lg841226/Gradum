@@ -373,7 +373,7 @@ class CommandFilterTest {
       } finally {
         directory.toFile().deleteRecursively()
       }
-    } catch (ioException: java.io.IOException) {
+    } catch (_: java.io.IOException) {
       false
     }
   }

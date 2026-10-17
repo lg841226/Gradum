@@ -84,7 +84,7 @@ object GradumConfig {
 
   const val DEFAULT_TEMPERATURE: Double = 0.7
 
-  const val DEFAULT_MAX_TOKENS: Int = 2048 * 12
+  const val DEFAULT_MAX_TOKENS: Int = 200 * 1024
 
   const val DEFAULT_CONTEXT_WINDOW_SIZE: Int = 8192
 

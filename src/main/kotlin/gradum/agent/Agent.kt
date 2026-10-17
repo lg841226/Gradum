@@ -177,7 +177,8 @@ class Agent(
     if (sessionKey.isNotEmpty() && registerChildSession != null)
       SessionSnapshotManager.createSnapshot(
         sessionId = sessionKey,
-        projectRoot = configuration.projectRoot
+        projectRoot = configuration.projectRoot,
+        turnMessageId = messageId?.trim()?.takeIf { candidateTurnId: String -> candidateTurnId.isNotEmpty() },
       )
 
     val contextLoaded: Boolean =

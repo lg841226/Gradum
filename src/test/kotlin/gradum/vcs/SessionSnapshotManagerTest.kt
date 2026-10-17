@@ -53,21 +53,120 @@ class SessionSnapshotManagerTest {
     File(projectDirectory, "created.txt").writeText("junk")
     SessionSnapshotManager.revertSnapshot(projectDirectory.absolutePath, sessionId)
 
-    val statusOutput = runGit(projectDirectory, "status", "--porcelain").second
+    val statusOutput = runGit(projectDirectory, "status", "--porcelain")
     assertEquals("", statusOutput, "worktree and index should be clean after revert")
   }
 
   @Test
-  fun `snapshot on a non-git directory returns false`() {
+  fun `snapshot on a plain directory works without touching the project`() {
     val plainDirectory = Files.createTempDirectory(prefix = "gradum-not-git").toFile()
     plainDirectory.deleteOnExit()
-    assertFalse(SessionSnapshotManager.createSnapshot(plainDirectory.absolutePath, "session-no-git"))
+    File(plainDirectory, "notes.txt").writeText("before")
+
+    assertTrue(SessionSnapshotManager.createSnapshot(plainDirectory.absolutePath, "session-no-git"))
+    assertFalse(
+      File(plainDirectory, ".git").exists(),
+      "the project directory must stay free of snapshot git state",
+    )
+
+    File(plainDirectory, "notes.txt").writeText("after")
+    File(plainDirectory, "extra.txt").writeText("extra")
+    assertTrue(SessionSnapshotManager.revertSnapshot(plainDirectory.absolutePath, "session-no-git"))
+    assertEquals("before", File(plainDirectory, "notes.txt").readText())
+    assertFalse(File(plainDirectory, "extra.txt").exists())
+  }
+
+  @Test
+  fun `snapshot works on an initialized repository without any commit`() {
+    val initOnlyDirectory = Files.createTempDirectory(prefix = "gradum-init-only").toFile()
+    initOnlyDirectory.deleteOnExit()
+    runGit(initOnlyDirectory, "init")
+    File(initOnlyDirectory, "draft.txt").writeText("draft")
+
+    assertTrue(SessionSnapshotManager.createSnapshot(initOnlyDirectory.absolutePath, "session-no-head"))
+
+    File(initOnlyDirectory, "draft.txt").writeText("edited")
+    File(initOnlyDirectory, "extra.txt").writeText("extra")
+    assertTrue(SessionSnapshotManager.revertSnapshot(initOnlyDirectory.absolutePath, "session-no-head"))
+    assertEquals("draft", File(initOnlyDirectory, "draft.txt").readText())
+    assertFalse(File(initOnlyDirectory, "extra.txt").exists())
+  }
+
+  @Test
+  fun `gradum runtime directory is excluded from snapshots`() {
+    val projectDirectory = createGitProject()
+    val sessionId = "session-exclude-gradum"
+
+    val gradumDirectory = File(projectDirectory, ".gradum")
+    gradumDirectory.mkdirs()
+    File(gradumDirectory, "runtime-state.txt").writeText("runtime before")
+    SessionSnapshotManager.createSnapshot(projectDirectory.absolutePath, sessionId)
+
+    File(gradumDirectory, "runtime-state.txt").writeText("runtime after")
+    File(gradumDirectory, "session-file.md").writeText("transcript")
+    SessionSnapshotManager.revertSnapshot(projectDirectory.absolutePath, sessionId)
+
+    assertEquals(
+      "runtime after",
+      File(gradumDirectory, "runtime-state.txt").readText(),
+      "runtime state should survive the revert",
+    )
+    assertTrue(File(gradumDirectory, "session-file.md").exists(), "new runtime files should survive the revert")
   }
 
   @Test
   fun `revert without a snapshot ref is a no-op success`() {
     val projectDirectory = createGitProject()
     assertTrue(SessionSnapshotManager.revertSnapshot(projectDirectory.absolutePath, "session-never-snapshotted"))
+  }
+
+  @Test
+  fun `turn snapshot rewind restores the worktree to the pre-message state`() {
+    val projectDirectory = createGitProject()
+    val sessionId = "session-turn-test"
+
+    File(projectDirectory, "kept.txt").writeText("turn one state")
+    SessionSnapshotManager.createSnapshot(projectDirectory.absolutePath, sessionId, turnMessageId = "msg-1")
+
+    // Model's changes during turn one.
+    File(projectDirectory, "kept.txt").writeText("turn one edit")
+    File(projectDirectory, "turn-one.txt").writeText("created in turn one")
+
+    // Turn two anchors its own restore point after the model changed files.
+    SessionSnapshotManager.createSnapshot(projectDirectory.absolutePath, sessionId, turnMessageId = "msg-2")
+    File(projectDirectory, "turn-two.txt").writeText("created in turn two")
+
+    // Rewinding message one undoes both turns' changes.
+    assertTrue(SessionSnapshotManager.revertTurnSnapshot(projectDirectory.absolutePath, sessionId, "msg-1"))
+    assertEquals("turn one state", File(projectDirectory, "kept.txt").readText())
+    assertFalse(File(projectDirectory, "turn-one.txt").exists())
+    assertFalse(File(projectDirectory, "turn-two.txt").exists())
+  }
+
+  @Test
+  fun `session delete reverts to session start even with turn snapshots present`() {
+    val projectDirectory = createGitProject()
+    val sessionId = "session-delete-with-turns"
+
+    File(projectDirectory, "kept.txt").writeText("start")
+    SessionSnapshotManager.createSnapshot(projectDirectory.absolutePath, sessionId, turnMessageId = "msg-1")
+    File(projectDirectory, "kept.txt").writeText("turn edit")
+    SessionSnapshotManager.createSnapshot(projectDirectory.absolutePath, sessionId, turnMessageId = "msg-2")
+
+    assertTrue(SessionSnapshotManager.revertSnapshot(projectDirectory.absolutePath, sessionId))
+    assertEquals("start", File(projectDirectory, "kept.txt").readText())
+
+    val turnRefs: String = runGit(
+      projectDirectory, "--git-dir", turnRefsGitDirectory(projectDirectory),
+      "for-each-ref", "--format=%(refname)", "refs/gradum/turn/$sessionId/"
+    )
+    assertEquals("", turnRefs.trim(), "turn refs should be dropped when the session is deleted")
+  }
+
+  @Test
+  fun `rewind without a turn ref is a no-op success`() {
+    val projectDirectory = createGitProject()
+    assertTrue(SessionSnapshotManager.revertTurnSnapshot(projectDirectory.absolutePath, "session-no-turn", "msg-x"))
   }
 
   @Test
@@ -78,7 +177,7 @@ class SessionSnapshotManagerTest {
   }
 
   private fun createGitProject(): File {
-    val projectDirectory = Files.createTempDirectory(prefix = "gradum-snapshot").toFile()
+    val projectDirectory = Files.createTempDirectory("gradum-snapshot").toFile()
     projectDirectory.deleteOnExit()
     runGit(projectDirectory, "init")
     File(projectDirectory, "tracked.txt").writeText("tracked baseline")
@@ -90,7 +189,14 @@ class SessionSnapshotManagerTest {
     return projectDirectory
   }
 
-  private fun runGit(projectDirectory: File, vararg gitArguments: String): Pair<Int, String> {
+  /** Locates the snapshot store of [projectDirectory] by its unique temp dir name. */
+  private fun turnRefsGitDirectory(projectDirectory: File): String =
+    File(System.getProperty("user.home"), ".gradum/snapshots")
+      .listFiles()!!
+      .first { storeDirectory: File -> storeDirectory.name.startsWith(projectDirectory.name) }
+      .absolutePath
+
+  private fun runGit(projectDirectory: File, vararg gitArguments: String): String {
     val gitProcess = ProcessBuilder("git", *gitArguments)
       .directory(projectDirectory)
       .start()
@@ -100,6 +206,6 @@ class SessionSnapshotManagerTest {
       val errorOutput = gitProcess.errorStream.readBytes().toString(Charsets.UTF_8)
       throw IllegalStateException("git ${gitArguments.joinToString(" ")} failed: $errorOutput")
     }
-    return exitCode to standardOutput
+    return standardOutput
   }
 }

@@ -4,6 +4,8 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.delete
 import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
@@ -307,14 +309,40 @@ class GradumChatSession : Disposable {
 
   fun deleteSession(targetSessionId: String) {
     val sessionStore: ChatSessionStore = chatStore ?: return
-    scope?.launch { sessionStore.deleteSession(targetSessionId) }
-    sessions.removeAll { it.sessionId == targetSessionId }
-    if (activeSessionId == targetSessionId) {
-      activeSessionId = null
-      messages.clear()
-      reset()
+    scope?.launch {
+      val deleted: Boolean =
+        try {
+          sessionStore.deleteSession(targetSessionId)
+        } catch (deleteFailure: Exception) {
+          log.warn("Session delete request failed", deleteFailure)
+          false
+        }
+      if (!deleted) {
+        notifySessionDeleteFailed()
+        return@launch
+      }
+
+      sessions.removeAll { it.sessionId == targetSessionId }
+      if (activeSessionId == targetSessionId) {
+        activeSessionId = null
+        messages.clear()
+        reset()
+      }
+      refreshSessions()
     }
-    refreshSessions()
+  }
+
+  /** Balloon so a failed delete is visible without reading IDE logs. */
+  private fun notifySessionDeleteFailed() {
+    val notificationProject: Project = project ?: return
+    NotificationGroupManager.getInstance()
+      .getNotificationGroup("Gradum")
+      .createNotification(
+        title = message("gradum.session.delete.failed.title"),
+        content = message("gradum.session.delete.failed.content"),
+        type = NotificationType.ERROR
+      )
+      .notify(notificationProject)
   }
 
   fun deleteMessage(userMessageIndex: Int) {

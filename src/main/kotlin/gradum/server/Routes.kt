@@ -704,6 +704,13 @@ fun Application.registerAllRoutes(
 
       val rewinded: Boolean = ContextManager(sessionDir).rewindTo(messageId)
       if (rewinded) {
+        // Worktree restore is best-effort: the message rewind must succeed even
+        // when the snapshot ref is missing (older sessions) or git fails.
+        SessionSnapshotManager.revertTurnSnapshot(
+          projectRoot = projectRootPath.toString(),
+          sessionId = sessionKey,
+          messageId = messageId
+        )
         val survivingMessages: List<Map<String, Any>> =
           ChatDb.loadContext(projectRoot = projectRootPath, sessionId = sessionKey)
         val transcriptMeta: SessionTranscriptWriter.TranscriptMeta? =
