@@ -114,7 +114,7 @@ class AskInteractionEndpointTest {
 
   private fun Application.appWith(pending: PendingQuestions) {
     install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-    registerAllRoutes(serverConfiguration = ServerConfiguration(), pendingQuestions = pending)
+    registerAllRoutes(pendingQuestions = pending)
   }
 
   private fun awaitPending(pending: PendingQuestions, sessionId: String, requestId: String) {

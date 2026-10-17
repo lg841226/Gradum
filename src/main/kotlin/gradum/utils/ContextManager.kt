@@ -339,7 +339,7 @@ class ContextManager(private val outputDirectory: Path) {
   /**
    * Extracts the [paramKey] field from a tool call's JSON `arguments`
    * string, shortened for display. Returns an empty string when anything
-   * is missing or unparseable — the stub stays readable either way.
+   * is missing or unparseable: the stub stays readable either way.
    */
   private fun readArgumentValue(rawArguments: Any?, paramKey: String): String {
     if (paramKey.isBlank() || rawArguments !is String) return ""

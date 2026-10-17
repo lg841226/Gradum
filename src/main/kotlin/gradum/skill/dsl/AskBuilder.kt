@@ -18,7 +18,7 @@ class AskBuilder {
    * semantic [Choice.Meaning]: a typo cannot compile, and [validate]
    * rejects a meaning the card does not offer. The wire carries its
    * semantic code (e.g. `reject`), which is also the token the card
-   * pre-selects and the user answers with — there is no second id to keep
+   * pre-selects and the user answers with: there is no second id to keep
    * in sync.
    */
   var default: Choice.Meaning? = null

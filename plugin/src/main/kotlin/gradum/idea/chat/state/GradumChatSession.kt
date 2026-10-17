@@ -320,16 +320,14 @@ class GradumChatSession : Disposable {
   fun deleteMessage(userMessageIndex: Int) {
     if (userMessageIndex !in messages.indices) return
     if (!messages[userMessageIndex].isUserMessage) return
+
     val withdrawn: ChatMessage = messages[userMessageIndex]
     val withdrawnContent: String = withdrawn.content
     val messageId: String = withdrawn.messageId
-    val assistantMessageIndex: Int? = (userMessageIndex + 1 until messages.size)
-      .firstOrNull { !messages[it].isUserMessage }
-    val messagesToRemove: Int =
-      if (assistantMessageIndex != null)
-        assistantMessageIndex - userMessageIndex + 1
-      else 1
-    repeat(times = messagesToRemove) { messages.removeAt(userMessageIndex) }
+
+    while (messages.size > userMessageIndex) {
+      messages.removeAt(userMessageIndex)
+    }
     if (messages.isEmpty()) {
       clearSendState()
       hasSentMessage = false

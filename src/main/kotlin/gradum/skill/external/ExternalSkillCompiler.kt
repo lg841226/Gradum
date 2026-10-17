@@ -18,18 +18,20 @@ enum class ExternalDiagnosticSeverity { ERROR, WARNING, INFO }
  *
  * The position is what lets an editor underline the offending line; the
  * embeddable compiler hands it to us as a CompilerMessageSourceLocation, and
- * it is kept here instead of being folded into the message text.
+ * it is kept here instead of being folded into the message text. The source
+ * path rides along for the same reason: a batch compile of several files needs
+ * it to route each diagnostic back to the file it belongs to.
  */
 data class ExternalDiagnostic(
-  val severity: ExternalDiagnosticSeverity,
-  val message: String,
   val line: Int?,
-  val column: Int?
+  val column: Int?,
+  val message: String,
+  val path: String? = null,
+  val severity: ExternalDiagnosticSeverity
 )
 
 internal data class ExternalCompileResult(
-  val diagnostics: List<ExternalDiagnostic>,
-  val outputDirectory: File
+  val diagnostics: List<ExternalDiagnostic>, val outputDirectory: File
 ) {
   val isSuccess: Boolean
     get() = diagnostics.none { diagnostic -> diagnostic.severity == ExternalDiagnosticSeverity.ERROR }
@@ -66,9 +68,11 @@ internal data class ExternalCompileResult(
  *
  * Diagnostics are buffered in memory instead of being printed to a stream, and
  * each one is kept structured as an [ExternalDiagnostic] (severity, message,
- * and the 1-based source line/column when the compiler supplies them) rather
- * than string-tagged, so callers can filter on the severity enum and an editor
- * can place the diagnostic on the right line instead of parsing message text.
+ * the 1-based source line/column, and the source path when the compiler
+ * supplies them) rather than string-tagged, so callers can filter on the
+ * severity enum, an editor can place the diagnostic on the right line, and a
+ * multi-file compile can file it under the source that reported it, all
+ * without parsing message text.
  */
 internal class ExternalSkillCompiler {
 
@@ -99,10 +103,10 @@ internal class ExternalSkillCompiler {
       diagnostics =
         if (failedWithoutDiagnostic) {
           diagnostics + ExternalDiagnostic(
-            severity = ExternalDiagnosticSeverity.ERROR,
-            message = "Compilation failed with exit code $exitCode",
             line = null,
             column = null,
+            message = "Compilation failed with exit code $exitCode",
+            severity = ExternalDiagnosticSeverity.ERROR,
           )
         } else diagnostics,
       outputDirectory = outputDirectory,
@@ -119,10 +123,11 @@ private class CollectingMessageCollector : MessageCollector {
     message: String, location: CompilerMessageSourceLocation?
   ) {
     capturedDiagnostics += ExternalDiagnostic(
-      severity = severity.toExternalSeverity(),
-      message = message,
       line = location?.line?.takeIf { lineNumber -> lineNumber > 0 },
       column = location?.column?.takeIf { columnNumber -> columnNumber > 0 },
+      message = message,
+      path = location?.path,
+      severity = severity.toExternalSeverity(),
     )
   }
 

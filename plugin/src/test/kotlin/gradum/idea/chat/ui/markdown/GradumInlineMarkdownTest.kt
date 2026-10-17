@@ -349,16 +349,6 @@ class GradumInlineMarkdownTest {
 
   @Test
   fun `inline image renders alt text as italic placeholder and does NOT register a URL annotation`() {
-    // The chat doesn't render the binary, so `![alt](imageUrl)` is a
-    // *placeholder*, not a link: see the KDoc on `renderImageInline`.
-    // The previous v1.5 path registered the image's URL as a
-    // UrlAnnotation and applied the link color, which made the alt
-    // text visually indistinguishable from a link and surprised the
-    // user when a message mixed images and autolinks (the feedback
-    // case: `![alt](imageUrl) <https://example.com> <email@example.com>`,
-    // where the alt text and the autolinks all read as one blue
-    // link). Pinning here: image is italic + imageAltColor, and
-    // emits zero URL annotations.
     val render: InlineMarkdownRender = inlineRender("see ![diagram](https://example.com/diagram.png)")
     assertEquals(
       "image must not register a URL annotation — it is a placeholder, not a link",

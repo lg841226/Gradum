@@ -73,7 +73,8 @@ object SessionTranscriptWriter {
     projectRoot: Path,
     sessionId: String,
     modelName: String,
-    messages: List<Map<String, Any>>
+    messages: List<Map<String, Any>>,
+    title: String? = null,
   ) {
     val sessionDirectory: Path = sessionDirectory(projectRoot, sessionId) ?: return
     val trimmedId: String = sessionId.trim()
@@ -82,7 +83,7 @@ object SessionTranscriptWriter {
       ChatDb.sessionTimestamps(projectRoot = projectRoot, sessionId = trimmedId)?.first ?: nowMillis
     val sessionMeta = TranscriptMeta(
       sessionId = trimmedId,
-      title = titleFor(messages),
+      title = title ?: titleFor(messages),
       modelName = modelName,
       createdAt = sessionCreatedAt,
       updatedAt = nowMillis
@@ -127,6 +128,12 @@ object SessionTranscriptWriter {
       logger.warn("Failed to read transcript for session {}: {}", sessionId, readException.message)
       null
     }
+  }
+
+  /** Header metadata of one session's transcript; null when absent or unparseable. */
+  fun readMeta(projectRoot: Path, sessionId: String): TranscriptMeta? {
+    val sessionDirectory: Path = sessionDirectory(projectRoot, sessionId) ?: return null
+    return readSessionMeta(transcriptFile = sessionDirectory.resolve(TRANSCRIPT_FILE))
   }
 
   /**

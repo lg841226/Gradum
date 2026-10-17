@@ -9,15 +9,16 @@ import kotlin.test.assertFalse
  * Wire encodings of the DeepSeek and MiniMax profiles: the request-body
  * field shapes and the [ThinkingLevel] translation. Guards the two fields
  * the backends actually differ on: MiniMax's deprecated `max_tokens`
- * (replaced by `max_completion_tokens`) and DeepSeek's `reasoning_effort`
- * toggle-and-effort parameter.
+ * (replaced by `max_completion_tokens`) and the MiniMax `thinking` object
+ * (`{"thinking": {"type": ...}}`) that rides along with DeepSeek's flat
+ * `reasoning_effort` toggle-and-effort parameter.
  */
 class ProviderProfilesDeepSeekMiniMaxTest {
 
   private val sampleParams: GenerationParams = GenerationParams(
     topP = 0.9,
-    temperature = 0.7,
     maxTokens = 1024,
+    temperature = 0.7,
     contextWindow = 8192
   )
 
@@ -56,11 +57,23 @@ class ProviderProfilesDeepSeekMiniMaxTest {
   }
 
   @Test
-  fun `MiniMaxProfile thinking is a binary adaptive-disabled switch`() {
-    assertEquals(mapOf("type" to "disabled"), MiniMaxProfile.thinkingFields(ThinkingLevel.OFF))
-    assertEquals(mapOf("type" to "adaptive"), MiniMaxProfile.thinkingFields(ThinkingLevel.LOW))
-    assertEquals(mapOf("type" to "adaptive"), MiniMaxProfile.thinkingFields(ThinkingLevel.MEDIUM))
-    assertEquals(mapOf("type" to "adaptive"), MiniMaxProfile.thinkingFields(ThinkingLevel.HIGH))
+  fun `MiniMaxProfile thinking is a binary adaptive-disabled switch nested under thinking`() {
+    assertEquals(
+      mapOf("thinking" to mapOf("type" to "disabled")),
+      MiniMaxProfile.thinkingFields(ThinkingLevel.OFF)
+    )
+    assertEquals(
+      mapOf("thinking" to mapOf("type" to "adaptive")),
+      MiniMaxProfile.thinkingFields(ThinkingLevel.LOW)
+    )
+    assertEquals(
+      mapOf("thinking" to mapOf("type" to "adaptive")),
+      MiniMaxProfile.thinkingFields(ThinkingLevel.MEDIUM)
+    )
+    assertEquals(
+      mapOf("thinking" to mapOf("type" to "adaptive")),
+      MiniMaxProfile.thinkingFields(ThinkingLevel.HIGH)
+    )
     assertEquals("reasoning_content", MiniMaxProfile.reasoningDeltaField)
   }
 

@@ -133,7 +133,7 @@ object ServerAuth {
 
   /**
    * Whether a `Host` header value may answer this request. Loopback names
-   * pass everywhere — they are what the local plugin and the build's health
+   * pass everywhere: they are what the local plugin and the build's health
    * probe dial. When the bind address is not loopback (which only happens
    * with `server.allowRemote` on), the machine's own addresses and names pass
    * too, so a LAN client can dial by IP or hostname; any other name stays a
@@ -160,7 +160,7 @@ object ServerAuth {
     host.trim().lowercase() in ALLOWED_HOST_NAMES
 
   /**
-   * Addresses this machine answers on — the ones a LAN client puts in its
+   * Addresses this machine answers on: the ones a LAN client puts in its
    * `Host` header once the server binds past loopback. Loopback is skipped
    * (it is already in [ALLOWED_HOST_NAMES]) and so is the link-local range,
    * whose zone-qualified IPv6 forms never appear in a browser's Host line.
@@ -186,7 +186,7 @@ object ServerAuth {
   /**
    * Every name a LAN client may legally use for `Host` when the server binds
    * past loopback: the addresses above plus the local DNS name in its full,
-   * first-label, and `.local` mDNS forms. Enumerated per check — the set is
+   * first-label, and `.local` mDNS forms. Enumerated per check: the set is
    * tiny and interfaces can appear after boot (Wi-Fi joining later). A
    * rebound attacker domain matches none of these, so the guard holds.
    */

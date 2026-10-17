@@ -13,51 +13,58 @@ import java.util.concurrent.ConcurrentHashMap
 
 internal const val SKILLS_DIRECTORY_NAME: String = "skills"
 
-/** Subdirectory of the skills directory that holds the deployed .class output. */
 internal const val BUILD_DIRECTORY_NAME: String = ".build"
 
 /**
- * Compiles every skill source under ~/.gradum/skills/ with
- * [ExternalSkillCompiler], loads the output with [ExternalSkillClassLoader],
- * and reconciles them into the [SkillStore] so each becomes callable from the
- * next agent turn.
+ * Compiles every skill source under ~/.gradum/skills/ with ExternalSkillCompiler,
+ * loads the output with ExternalSkillClassLoader, and reconciles them into the
+ * SkillStore so each becomes callable from the next agent turn.
  *
- * Entry points. scan() is the startup pass: it creates ~/.gradum/skills/ when
- * missing and drops a HelloSkill.kt starter so a developer sees the shape of a
- * skill without reading the docs, then runs reconcile(). reconcile() is the
- * single idempotent entry point, called by scan() and again by
- * [ExternalSkillDirectoryWatcher] on any change to the directory. It
- * recompiles what changed, loads the result, registers new or changed skills,
- * and unregisters external skills whose source file disappeared. Only skills
- * this scanner registered (tracked in externalOwned) are ever unregistered:
- * built-in and MCP skills are never touched, and a name collision with an
- * already-registered skill is skipped with a warning.
+ * Entry points:
+ * - scan(): startup pass. Creates ~/.gradum/skills/ when missing, drops a
+ *   HelloSkill.kt starter, then runs reconcile().
+ * - reconcile(): single idempotent entry point, called by scan() and by
+ *   ExternalSkillDirectoryWatcher on any directory change. Recompiles what
+ *   changed, loads results, registers new/changed skills, and unregisters
+ *   external skills whose source disappeared. Only skills in externalOwned are
+ *   ever unregistered; built-in and MCP skills are never touched, and name
+ *   collisions with already-registered skills are skipped with a warning.
  *
- * Incremental compilation. Three maps keyed by source file name drive the pass:
- * compiledSourceHashes holds the content SHA-256 of every file at its last
- * compile attempt, outputsBySource holds the .class files a successful compile
- * produced, and diagnosticsBySource holds what the latest attempt reported. A
- * source whose hash still matches keeps its .class output and its diagnostics
- * untouched; a source whose recorded output went missing, a new source, or an
- * edited source is recompiled; a deleted source has its output removed. When
- * nothing changed the compiler is skipped entirely. The incremental state
- * (hashes, outputs, diagnostics) is persisted in `.build-manifest.json` beside
- * `.build`, so the first pass of a process restores the previous process's
- * state and unchanged skills load their existing classes without recompiling;
- * only an unreadable manifest falls back to a clean first pass. Each changed source is compiled on its own into .build-staging, which
- * lives outside .build so the classloader never scans it, with .build on the
- * classpath so unchanged skills still resolve. Only a successful compile is
- * swapped into .build: a failed compile keeps the previous working .class
- * files (last-good) instead of dropping every skill. A failed attempt records
- * its hash too, so the hash always describes the diagnostics stored beside it;
- * recording only successes would let an edit back to the last text that did
- * compile match the old hash, skip to compile, and report the diagnostics the
- * broken text left behind. lastCompiledSourceNames records what the most recent
- * pass compiled, for tests and logs.
+ * Incremental compilation:
+ * - State is keyed by source file name:
+ *   - compiledSourceHashes: SHA-256 of each file at last compile attempt
+ *   - outputsBySource: .class files a successful compile produced
+ *   - diagnosticsBySource: latest reported diagnostics
+ * - Unchanged hash to keep .class output and diagnostics.
+ * - New, edited, or missing-output source to recompile.
+ * - Deleted source to remove output and force one pass over remaining sources,
+ *   so dangling references surface instead of silently keeping a broken class.
+ * - Nothing changed to compiler skipped entirely.
+ * - State persists in .build-manifest.json beside .build, so the first pass of
+ *   a process restores the previous process's state and unchanged skills load
+ *   without recompiling. Only an unreadable manifest falls back to a clean pass.
  *
- * currentFingerprint() is the mtime-based fingerprint the watcher polls to
- * skip redundant reloads. It only looks at skill sources, never at .build
- * output, so compiled artifacts cannot re-trigger a reload.
+ * Two-stage compilation:
+ * 1. Each changed source compiles alone into .build-staging (outside .build so
+ *    the classloader never scans it), with .build on the classpath so unchanged
+ *    skills still resolve. One broken file cannot hold up others' updates.
+ * 2. Only if that fails, all sources compile as one batch in .build-staging,
+ *    because a skill split across files only resolves when compiled together.
+ *    The failure itself is the signal, so no import/dependency analysis needed.
+ * - Only a successful compile is swapped into .build. Failure at either stage
+ *   keeps the previous working .class files (last-good) instead of dropping
+ *   every skill. Batch success refreshes hash, outputs, and diagnostics for
+ *   every compiled source, changed or not.
+ * - Failed attempts also record their hash, so the hash always matches the
+ *   stored diagnostics. Recording only successes would let an edit back to
+ *   previously-compiling text match the old hash, skip compilation, and report
+ *   diagnostics left by the broken text.
+ * - lastCompiledSourceNames records what the most recent pass compiled, for
+ *   tests and logs.
+ *
+ * currentFingerprint() is the mtime-based fingerprint the watcher polls to skip
+ * redundant reloads. It only looks at skill sources, never at .build output, so
+ * compiled artifacts cannot re-trigger a reload.
  */
 class ExternalSkillDirectoryScanner(
   homeDirectory: File = File(System.getProperty("user.home")),
@@ -116,7 +123,9 @@ class ExternalSkillDirectoryScanner(
    * removed before returning. Nothing is written to ~/.gradum/skills/, nothing
    * is loaded, and the registry is left alone, so this is the editor's Build
    * action: it answers "does this compile?" without making the skill callable.
-   * Only the diagnostics are reported back.
+   * The directory's other sources ride along as inputs (the edited text stands
+   * in for its on-disk namesake) so a skill split across files verifies the
+   * same way the reconcile batch would; only diagnostics are reported back.
    */
   fun compileOnly(fileName: String, sourceText: String): DeployResult {
     val safeName = normalizeSourceName(fileName)
@@ -124,11 +133,12 @@ class ExternalSkillDirectoryScanner(
     try {
       val sourceFile = buildRoot.resolve(safeName)
       sourceFile.writeText(sourceText)
+      val companionSources = listKtSources().filter { existing -> existing.name != safeName }
 
       val previousOutput = skillsDirectory.resolve(BUILD_DIRECTORY_NAME)
       val compileResult = skillCompiler.compile(
         outputDirectory = buildRoot.resolve("out"),
-        sourceFiles = listOf(sourceFile),
+        sourceFiles = listOf(sourceFile) + companionSources,
         runtimeClasspath = runtimeClasspath(),
         additionalClasspath = if (previousOutput.isDirectory) listOf(previousOutput) else emptyList(),
       )
@@ -198,15 +208,20 @@ class ExternalSkillDirectoryScanner(
 
     val currentHashes = sourceFiles.associate { sourceFile -> sourceFile.name to hashSourceFile(sourceFile) }
     val currentNames = currentHashes.keys
-    for (staleName in compiledSourceHashes.keys.filterNot { hashName -> hashName in currentNames }) {
-      removeOutputs(outputDirectory, staleName)
+    val removedNames = compiledSourceHashes.keys.filterNot { hashName -> hashName in currentNames }
+    for (staleName in removedNames) {
+      val retainedOutputs = outputsBySource.filterKeys { ownerName -> ownerName != staleName }
+        .values.flatten().toSet()
+      removeOutputs(outputDirectory, staleName, retainedOutputs)
       compiledSourceHashes.remove(staleName)
       outputsBySource.remove(staleName)
       diagnosticsBySource.remove(staleName)
     }
 
+    val sourceWasRemoved = removedNames.isNotEmpty()
     val changedSources = sourceFiles.filter { sourceFile ->
-      compiledSourceHashes[sourceFile.name] != currentHashes[sourceFile.name] ||
+      sourceWasRemoved ||
+        compiledSourceHashes[sourceFile.name] != currentHashes[sourceFile.name] ||
         !outputsExist(outputDirectory, sourceFile.name)
     }
     lastCompiledSourceNames = changedSources.map { sourceFile -> sourceFile.name }
@@ -220,9 +235,19 @@ class ExternalSkillDirectoryScanner(
       changedSources.size,
       sourceFiles.size,
     )
-    for (sourceFile in changedSources) {
-      val sourceHash = currentHashes.getValue(sourceFile.name)
-      compileSourceFile(sourceFile, sourceHash, outputDirectory)
+    if (sourceWasRemoved) {
+      logger.info("A skill source was removed; recompiling the remaining sources once")
+    }
+    val failedSources = changedSources.filterNot { sourceFile ->
+      compileSourceBatch(listOf(sourceFile), currentHashes, outputDirectory, setOf(sourceFile.name))
+    }
+    if (failedSources.isNotEmpty()) {
+      logger.info(
+        "Retrying {} failed external skill source(s) together with all {} sources",
+        failedSources.size,
+        sourceFiles.size,
+      )
+      compileSourceBatch(sourceFiles, currentHashes, outputDirectory, emptySet())
     }
     saveBuildManifest()
   }
@@ -318,49 +343,130 @@ class ExternalSkillDirectoryScanner(
           ?.let { severityName -> runCatching { ExternalDiagnosticSeverity.valueOf(severityName) }.getOrNull() }
           ?: return@mapNotNull null
       ExternalDiagnostic(
-        severity = severity,
-        message = diagnostic["message"] as? String ?: "",
         line = (diagnostic["line"] as? Number)?.toInt(),
         column = (diagnostic["column"] as? Number)?.toInt(),
+        message = diagnostic["message"] as? String ?: "",
+        severity = severity,
       )
     }
 
-  private fun compileSourceFile(sourceFile: File, sourceHash: String, outputDirectory: File): Boolean {
+  /**
+   * Compiles one source, or a whole batch of them, into .build-staging and
+   * swaps the output into [outputDirectory] only when all of [batchSources]
+   * compile. A success records the batch's outputs, hashes, and diagnostics
+   * under every source name, so unchanged files pulled into the batch have
+   * their output ownership refreshed too and outputsExist() cannot fail against
+   * a stale record. A failure keeps the previous working classes (last-good);
+   * only [failureOwners] then record their new hash beside the batch's
+   * diagnostics for them, and an empty set leaves every source's record as the
+   * single-source pass left it.
+   */
+  private fun compileSourceBatch(
+    batchSources: List<File>,
+    currentHashes: Map<String, String>,
+    outputDirectory: File,
+    failureOwners: Set<String>
+  ): Boolean {
     wipeOutputDirectory(stagingDirectory)
     val compileResult = skillCompiler.compile(
       outputDirectory = stagingDirectory,
-      sourceFiles = listOf(sourceFile),
+      sourceFiles = batchSources,
       runtimeClasspath = runtimeClasspath(),
       additionalClasspath = listOf(outputDirectory),
     )
     compileResult.compileWarnings.forEach { compileWarning ->
       logger.warn("External skill compile warning: {}", compileWarning)
     }
-   
-    diagnosticsBySource[sourceFile.name] = compileResult.diagnostics
-    compiledSourceHashes[sourceFile.name] = sourceHash
+
+    val batchNames = batchSources.map { sourceFile -> sourceFile.name }.toSet()
+    val diagnosticsByBatchSource = attributeDiagnostics(compileResult.diagnostics, batchNames)
     if (!compileResult.isSuccess) {
+      for (sourceName in failureOwners) {
+        compiledSourceHashes[sourceName] = currentHashes.getValue(sourceName)
+        diagnosticsBySource[sourceName] = diagnosticsByBatchSource.getValue(sourceName)
+      }
       logger.error(
-        "External skill '{}' failed to compile; keeping previous version: {}",
-        sourceFile.name,
+        "External skill batch [{}] failed to compile; keeping previous versions: {}",
+        batchNames.joinToString(),
         compileResult.compileErrors.joinToString(separator = "\n"),
       )
       stagingDirectory.deleteRecursively()
       return false
     }
 
-    removeOutputs(outputDirectory, sourceFile.name)
-    val producedOutputs = mutableSetOf<String>()
-    stagingDirectory.walkTopDown().filter { stagedFile -> stagedFile.isFile }.forEach { stagedFile ->
+    val stagedOutputs = stagingDirectory.walkTopDown().filter { stagedFile -> stagedFile.isFile }.toList()
+    val outputsByBatchSource = claimStagedOutputs(stagedOutputs, batchNames)
+    val retainedOutputs = outputsBySource.filterKeys { ownerName -> ownerName !in batchNames }
+      .values.flatten().toSet()
+
+    for (sourceName in batchNames) {
+      removeOutputs(outputDirectory, sourceName, retainedOutputs)
+    }
+    for (stagedFile in stagedOutputs) {
       val relativePath = stagedFile.relativeTo(stagingDirectory).path
       val targetFile = outputDirectory.resolve(relativePath)
       targetFile.parentFile.mkdirs()
       stagedFile.copyTo(targetFile, overwrite = true)
-      producedOutputs += relativePath
     }
-    outputsBySource[sourceFile.name] = producedOutputs
+    for (sourceName in batchNames) {
+      outputsBySource[sourceName] = outputsByBatchSource.getValue(sourceName)
+      compiledSourceHashes[sourceName] = currentHashes.getValue(sourceName)
+      diagnosticsBySource[sourceName] = diagnosticsByBatchSource.getValue(sourceName)
+    }
     stagingDirectory.deleteRecursively()
     return true
+  }
+
+  /**
+   * Attributes each staged .class file to the batch source that produced it: a
+   * file facade (`NameKt`) or a top-level type (`Name`, `Name$Nested`) carries
+   * the source's base name. A class named unlike its file is shared by the
+   * whole batch instead, so no source's record can leave it orphaned for the
+   * manifest's ownership sweep to delete.
+   */
+  private fun claimStagedOutputs(
+    stagedOutputs: List<File>, batchNames: Set<String>
+  ): Map<String, MutableSet<String>> {
+    val claimed: Map<String, MutableSet<String>> = batchNames.associateWith { mutableSetOf() }
+
+    for (stagedFile in stagedOutputs) {
+      val relativePath = stagedFile.relativeTo(stagingDirectory).path
+      val classBase = stagedFile.name.removeSuffix(".class")
+      val owners = batchNames.filter { name ->
+        val sourceBase = name.removeSuffix(".kt")
+        classBase == sourceBase ||
+          classBase == sourceBase + "Kt" ||
+          classBase.startsWith("$sourceBase$") ||
+          classBase.startsWith(sourceBase + "Kt$")
+      }
+
+      val recipients = owners.ifEmpty { batchNames }
+      for (name in recipients)
+        claimed.getValue(name).add(relativePath)
+    }
+    return claimed
+  }
+
+  /**
+   * Files each diagnostic under the batch source its path names, so a broken
+   * file's errors stay on that file; a diagnostic the compiler left unlocated
+   * (or that names an outside file) is reported against every source in the
+   * batch, which keeps a lone failed file's own diagnostics on it.
+   */
+  private fun attributeDiagnostics(
+    diagnostics: List<ExternalDiagnostic>, batchNames: Set<String>
+  ): Map<String, List<ExternalDiagnostic>> {
+    val attributed: Map<String, MutableList<ExternalDiagnostic>> = batchNames.associateWith { mutableListOf() }
+
+    for (diagnostic in diagnostics) {
+      val diagnosticPath = diagnostic.path
+      val sourceName =
+        if (diagnosticPath == null) null
+        else batchNames.firstOrNull { name -> File(diagnosticPath).name == name }
+      val recipients: Collection<String> = if (sourceName == null) batchNames else listOf(sourceName)
+      for (name in recipients) attributed.getValue(name).add(diagnostic)
+    }
+    return attributed
   }
 
   private fun outputsExist(outputDirectory: File, sourceName: String): Boolean {
@@ -368,8 +474,14 @@ class ExternalSkillDirectoryScanner(
     return producedOutputs.all { relativePath -> outputDirectory.resolve(relativePath).isFile }
   }
 
-  private fun removeOutputs(outputDirectory: File, sourceName: String) {
+  /**
+   * Deletes the .class files [sourceName] owns, skipping any [retainedOutputs]
+   * another source still claims, so a shared output survives its owner's
+   * removal and keeps a surviving skill loadable.
+   */
+  private fun removeOutputs(outputDirectory: File, sourceName: String, retainedOutputs: Set<String> = emptySet()) {
     for (relativePath in outputsBySource[sourceName].orEmpty()) {
+      if (relativePath in retainedOutputs) continue
       val staleOutput = outputDirectory.resolve(relativePath)
       if (staleOutput.exists()) staleOutput.delete()
     }

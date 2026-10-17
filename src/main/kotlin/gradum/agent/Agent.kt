@@ -13,6 +13,7 @@ import gradum.skill.*
 import gradum.skill.builtin.getTodoManagerInstance
 import gradum.utils.ContextManager
 import gradum.utils.JsonUtil
+import gradum.vcs.SessionSnapshotManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.runBlocking
@@ -22,6 +23,8 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 private val logger: Logger = LoggerFactory.getLogger("Agent")
+
+private const val REPEATED_LOOP_REASON: String = "repetitive_loop"
 
 /**
  * Resolves the ContextManager output directory for an agent run.
@@ -160,15 +163,22 @@ class Agent(
 
   fun executeTask(
     userInput: String,
+    displayText: String = "",
     messageId: String? = null,
     toolCallXml: String? = null,
     loadPreviousContext: Boolean = false,
-    attachments: List<AttachmentPayload> = emptyList(),
-    displayText: String = ""
+    attachments: List<AttachmentPayload> = emptyList()
   ): Unit {
     sessionManager.reset()
     guardrailManager.reset()
     toolExecutor.reset()
+
+    val sessionKey: String = configuration.sessionId?.trim().orEmpty()
+    if (sessionKey.isNotEmpty() && registerChildSession != null)
+      SessionSnapshotManager.createSnapshot(
+        sessionId = sessionKey,
+        projectRoot = configuration.projectRoot
+      )
 
     val contextLoaded: Boolean =
       if (loadPreviousContext) {
@@ -236,12 +246,11 @@ class Agent(
         )
         if (handleGuardrailExceeded(
             responseText = result.responseText,
-            revokeReason = "repetitive_loop",
+            thinkingText = result.thinkingText,
             revokeDetails = mapOf(
               "repeatedCount" to guardrailManager.repeatedResponseCount,
               "responses" to guardrailManager.repeatedResponses,
             ),
-            thinkingText = result.thinkingText,
             turnTokenUsage = result.tokenUsage,
           )
         ) {
@@ -408,10 +417,9 @@ class Agent(
 
   private fun handleGuardrailExceeded(
     responseText: String?,
-    revokeReason: String,
-    revokeDetails: Map<String, Any>,
     thinkingText: String = "",
-    turnTokenUsage: Map<String, Int>? = null,
+    revokeDetails: Map<String, Any>,
+    turnTokenUsage: Map<String, Int>? = null
   ): Boolean {
     responseText?.let { text ->
       conversationHistory.addAssistantMessage(
@@ -419,12 +427,13 @@ class Agent(
         tokenUsage = turnTokenUsage, processedCalls = null
       )
     }
+    val revokeReason: String = REPEATED_LOOP_REASON
     sessionManager.emitRevoked(revokeReason, revokeDetails)
     val tokenUsage = mapOf(
-      "promptTokens" to activeClient.tokenUsage.promptTokens,
-      "completionTokens" to activeClient.tokenUsage.completionTokens,
       "totalTokens" to activeClient.tokenUsage.totalTokens,
-      "contextTokens" to activeClient.tokenUsage.lastPromptTokens
+      "promptTokens" to activeClient.tokenUsage.promptTokens,
+      "contextTokens" to activeClient.tokenUsage.lastPromptTokens,
+      "completionTokens" to activeClient.tokenUsage.completionTokens
     )
     sessionManager.abort(revokeReason, tokenUsage)
     return true

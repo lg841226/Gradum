@@ -14,7 +14,7 @@ import kotlinx.serialization.json.buildJsonObject
  *
  * Field names mirror the ACP v1 schema: `loadSession`, `promptCapabilities`,
  * `mcpCapabilities` (`http`/`sse`). There is no agent-side permission
- * capability — `session/request_permission` is a core method.
+ * capability: `session/request_permission` is a core method.
  *
  * Usage:
  *

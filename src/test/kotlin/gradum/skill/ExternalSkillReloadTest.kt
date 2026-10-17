@@ -2,6 +2,7 @@ package gradum.skill
 
 import gradum.SkillResult
 import gradum.ToolMode
+import gradum.skill.external.ExternalDiagnosticSeverity
 import gradum.skill.external.ExternalSkillDirectoryScanner
 import gradum.skill.external.ExternalSkillDirectoryWatcher
 import java.io.File
@@ -22,6 +23,14 @@ import kotlin.test.*
  * Reconciliation is incremental: a touch without a content change compiles
  * nothing, an edit compiles exactly that one source while the untouched source
  * keeps its output, and deleting a source removes its .class output as well.
+ *
+ * A skill split across files compiles in two stages: the single-source pass
+ * fails on the file that names a symbol living in its sibling, then the whole
+ * directory is retried as one batch and both land. A genuinely broken source
+ * fails both stages and stays out while its siblings still register, a fixed
+ * source recovers on the next pass, and deleting a file that another still
+ * references drops its classes and reports the dangling reference instead of
+ * silently keeping a class that can no longer link.
  *
  * The watcher reloads only when the fingerprint changes: a tick with an
  * unchanged fingerprint is a no-op, a changed fingerprint reloads. Watcher
@@ -100,6 +109,81 @@ class ExternalSkillReloadTest {
   }
 
   @Test
+  fun reconcileCompilesMutuallyReferencingSourcesAsOneBatch() {
+    withScanner { store, skillsDir, scanner ->
+      File(skillsDir, "AlphaSkill.kt").writeText(ALPHA_SKILL_SOURCE)
+      File(skillsDir, "ZuluHelper.kt").writeText(ZULU_HELPER_SOURCE)
+
+      scanner.reconcile()
+
+      assertNotNull(store.getSkill("alpha"))
+      assertEquals("from zulu: hi", runAlpha(store, "hi"))
+    }
+  }
+
+  @Test
+  fun reconcileKeepsOtherSkillsWhileOneSourceIsBroken() {
+    withScanner { store, skillsDir, scanner ->
+      File(skillsDir, "EchoSkill.kt").writeText(ECHO_SKILL_SOURCE)
+      File(skillsDir, "ZuluHelper.kt").writeText(BROKEN_HELPER_SOURCE)
+
+      scanner.reconcile()
+
+      assertNotNull(store.getSkill("echo"))
+      assertEquals("hi there", runEcho(store, "hi there"))
+      assertFalse(File(skillsDir, ".build").walkTopDown().any { built -> built.name == "ZuluHelper.class" })
+      assertTrue("ZuluHelper.kt" in scanner.lastCompiledSourceNames)
+    }
+  }
+
+  @Test
+  fun reconcileRecoversSplitSkillAfterHelperIsFixed() {
+    withScanner { store, skillsDir, scanner ->
+      File(skillsDir, "AlphaSkill.kt").writeText(ALPHA_SKILL_SOURCE)
+      File(skillsDir, "ZuluHelper.kt").writeText(BROKEN_HELPER_SOURCE)
+      scanner.reconcile()
+      assertNull(store.getSkill("alpha"))
+
+      File(skillsDir, "ZuluHelper.kt").writeText(ZULU_HELPER_SOURCE)
+      scanner.reconcile()
+
+      assertNotNull(store.getSkill("alpha"))
+      assertEquals("from zulu: hi", runAlpha(store, "hi"))
+    }
+  }
+
+  @Test
+  fun reconcileDropsDeletedHelperAndReportsDanglingReference() {
+    withScanner { store, skillsDir, scanner ->
+      File(skillsDir, "AlphaSkill.kt").writeText(ALPHA_SKILL_SOURCE)
+      File(skillsDir, "ZuluHelper.kt").writeText(ZULU_HELPER_SOURCE)
+      scanner.reconcile()
+      assertEquals("from zulu: hi", runAlpha(store, "hi"))
+
+      File(skillsDir, "ZuluHelper.kt").delete()
+      scanner.reconcile()
+
+      assertFalse(File(skillsDir, ".build").walkTopDown().any { built -> built.name == "ZuluHelper.class" })
+      assertTrue("AlphaSkill.kt" in scanner.lastCompiledSourceNames)
+      val redeploy = scanner.deploy("AlphaSkill.kt", ALPHA_SKILL_SOURCE)
+      assertFalse(redeploy.compiled)
+      assertTrue(redeploy.diagnostics.any { diagnostic -> diagnostic.severity == ExternalDiagnosticSeverity.ERROR })
+      assertNotNull(store.getSkill("alpha"))
+    }
+  }
+
+  @Test
+  fun compileOnlyResolvesSiblingSourceOnDisk() {
+    withScanner { _, skillsDir, scanner ->
+      File(skillsDir, "ZuluHelper.kt").writeText(ZULU_HELPER_SOURCE)
+
+      val result = scanner.compileOnly("AlphaSkill.kt", ALPHA_SKILL_SOURCE)
+
+      assertTrue(result.compiled, "compile diagnostics: ${result.diagnostics}")
+    }
+  }
+
+  @Test
   fun reconcileRecompilesOnlyChangedSources() {
     withScanner { store, skillsDir, scanner ->
       File(skillsDir, "EchoSkill.kt").writeText(ECHO_SKILL_SOURCE)
@@ -108,7 +192,7 @@ class ExternalSkillReloadTest {
       assertEquals(listOf("EchoSkill.kt", "SecondSkill.kt"), scanner.lastCompiledSourceNames)
       File(skillsDir, "EchoSkill.kt").setLastModified(System.currentTimeMillis() + 5_000)
       scanner.reconcile()
-      assertEquals(emptyList<String>(), scanner.lastCompiledSourceNames)
+      assertEquals(emptyList(), scanner.lastCompiledSourceNames)
       assertEquals("hi there", runEcho(store, "hi there"))
       File(skillsDir, "EchoSkill.kt").writeText(ECHO_SKILL_SOURCE_V2)
       scanner.reconcile()
@@ -189,6 +273,15 @@ class ExternalSkillReloadTest {
     return success.data["echo"] as String
   }
 
+  private fun runAlpha(store: FakeSkillStore, message: String): String {
+    val result = store.getSkill("alpha")!!.execute(
+      arguments = mapOf("message" to message),
+      context = SkillContext(toolMode = ToolMode.AGENT, projectRoot = ""),
+    )
+    val success = assertIs<SkillResult.Success>(result)
+    return success.data["alpha"] as String
+  }
+
   private fun createTempDir(): File =
     Files.createTempDirectory("external-skill-reload-test").toFile()
 }
@@ -234,7 +327,7 @@ private val ECHO_SKILL_SOURCE: String = """
   |}
 """.trimMargin()
 
-private val ECHO_SKILL_SOURCE_V2: String = """
+private val ECHO_SKILL_SOURCE_V2: String = $$"""
   |package external
   |
   |import gradum.SkillResult
@@ -252,7 +345,7 @@ private val ECHO_SKILL_SOURCE_V2: String = """
   |  override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
   |    val message: String = arguments["message"] as? String ?: ""
   |    return makeSuccess {
-  |      string("echo", "V2: ${'$'}message")
+  |      string("echo", "V2: $message")
   |    }
   |  }
   |
@@ -289,4 +382,55 @@ private val BROKEN_SKILL_SOURCE: String = """
   |import gradum.Skill
   |
   |class EchoSkill : Skill() {
+""".trimMargin()
+
+/**
+ * A skill that cannot compile on its own: `ZuluHelper` lives in another file, so
+ * only the whole-directory batch pass can resolve it. The file is named after
+ * its class, so the batch can attribute `AlphaSkill.class` back to it.
+ */
+private val ALPHA_SKILL_SOURCE: String = """
+  |package external
+  |
+  |import gradum.SkillResult
+  |import gradum.makeSuccess
+  |import gradum.skill.dsl.SchemaBuilder
+  |import gradum.skill.Skill
+  |import gradum.skill.SkillContext
+  |import gradum.skill.dsl.string
+  |
+  |class AlphaSkill : Skill() {
+  |  override val alias: String = "alpha"
+  |  override val skillName: String = "alpha"
+  |  override val description: String = "Splits its work across a second file."
+  |
+  |  override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
+  |    val message: String = arguments["message"] as? String ?: ""
+  |    return makeSuccess {
+  |      string("alpha", ZuluHelper.decorate(message))
+  |    }
+  |  }
+  |
+  |  override val schemaProperties: SchemaBuilder.() -> Unit = {
+  |    string("message", "Text to decorate.", required = true)
+  |  }
+  |}
+""".trimMargin()
+
+/** The sibling [ALPHA_SKILL_SOURCE] references; it declares no skill itself. */
+private val ZULU_HELPER_SOURCE: String = """
+  |package external
+  |
+  |object ZuluHelper {
+  |  fun decorate(message: String): String = "from zulu: " + message
+  |}
+""".trimMargin()
+
+/** An unparsable sibling: no skill, but enough to fail every compile pass. */
+private val BROKEN_HELPER_SOURCE: String = """
+  |package external
+  |
+  |object ZuluHelper {
+  |  val value: String =
+  |}
 """.trimMargin()

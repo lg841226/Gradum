@@ -97,19 +97,34 @@ class ModelIdentityTest {
   }
 
   @Test
-  fun `every cloud server uses OpenAI wire type`() {
+  fun `every cloud server declares a known provider wire type`() {
     val cloudServers: List<ServerDef> = ModelIdentity.knownCloudServers
     assertTrue(
       cloudServers.isNotEmpty(),
       "expected at least one cloud server"
     )
+    val knownWireTypes: Set<String> = Provider.entries.map { provider -> provider.wireType }.toSet()
     for ((name, _, _, providerType) in cloudServers) {
-      assertEquals(
-        Provider.OPENAI.wireType,
-        providerType,
-        "$name should use the OpenAI wire type"
+      assertTrue(
+        providerType in knownWireTypes,
+        "$name declares an unknown provider wire type: $providerType"
       )
     }
+  }
+
+  @Test
+  fun `DeepSeek and MiniMax carry their own wire type so their profiles are selected`() {
+    val byName: Map<String, ServerDef> = ModelIdentity.knownCloudServers.associateBy { it.name }
+    assertEquals(
+      Provider.DEEPSEEK.wireType,
+      byName.getValue(key = "DeepSeek").providerType,
+      "DeepSeek must resolve to DeepSeekProfile, not the generic OpenAI encoding"
+    )
+    assertEquals(
+      Provider.MINIMAX.wireType,
+      byName.getValue(key = "MiniMax").providerType,
+      "MiniMax must resolve to MiniMaxProfile, not the generic OpenAI encoding"
+    )
   }
 
   @Test

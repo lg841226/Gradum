@@ -13,6 +13,7 @@ import gradum.skill.external.ExternalDiagnosticSeverity
 import gradum.skill.external.ExternalSkillHost
 import gradum.utils.ContextManager
 import gradum.utils.JsonUtil
+import gradum.vcs.SessionSnapshotManager
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.server.application.*
@@ -251,16 +252,16 @@ data class ConfigOverrides(
     fun fromRequestMap(rawConfig: Map<String, String>?): ConfigOverrides {
       if (rawConfig == null) return ConfigOverrides()
       return ConfigOverrides(
-        numCtx = rawConfig["numCtx"]?.toIntOrNull(),
-        topP = rawConfig["topP"]?.toDoubleOrNull(),
-        timeout = rawConfig["timeout"]?.toIntOrNull(),
-        think = rawConfig["think"]?.toBoolean(),
-        apiKey = rawConfig["apiKey"]?.trim()?.takeIf { it.isNotEmpty() },
-        numPredict = rawConfig["numPredict"]?.toIntOrNull(),
         baseUrl = rawConfig["baseUrl"],
         provider = rawConfig["provider"],
+        think = rawConfig["think"]?.toBoolean(),
+        topP = rawConfig["topP"]?.toDoubleOrNull(),
+        numCtx = rawConfig["numCtx"]?.toIntOrNull(),
+        timeout = rawConfig["timeout"]?.toIntOrNull(),
+        numPredict = rawConfig["numPredict"]?.toIntOrNull(),
         temperature = rawConfig["temperature"]?.toDoubleOrNull(),
         keepAliveMinutes = rawConfig["keepAliveMinutes"]?.toIntOrNull(),
+        apiKey = rawConfig["apiKey"]?.trim()?.takeIf { it.isNotEmpty() },
         chatCompletionsPath = rawConfig["chatCompletionsPath"]?.trim()?.takeIf { it.isNotEmpty() }
       )
     }
@@ -314,9 +315,9 @@ internal data class PairRequestBody(val code: String = "")
  * - `GET /skills/editor/{asset...}` : static assets for the editor page.
  */
 fun Application.registerAllRoutes(
-  serverConfiguration: ServerConfiguration = ServerConfiguration(),
-  pendingQuestions: gradum.skill.PendingQuestions = gradum.skill.PendingQuestions(),
   pairingState: PairingState = PairingState(),
+  serverConfiguration: ServerConfiguration = ServerConfiguration(),
+  pendingQuestions: gradum.skill.PendingQuestions = gradum.skill.PendingQuestions()
 ) {
   val serverStartTime: LocalDateTime = LocalDateTime.now()
   val activeSessions: ConcurrentHashMap<String, SessionEntry> = ConcurrentHashMap()
@@ -389,14 +390,15 @@ fun Application.registerAllRoutes(
         modelName = resolvedModelName,
         apiKey = resolvedTarget.apiKey,
         projectRoot = projectRootPath.toString(),
-        chatCompletionsPath = configOverrides.chatCompletionsPath
-          ?: inferChatCompletionsPath(resolvedBaseUrl),
+        chatCompletionsPath =
+          configOverrides.chatCompletionsPath ?: inferChatCompletionsPath(resolvedBaseUrl),
         topPValue = configOverrides.topP ?: AgentConfiguration.DEFAULT_TOP_P,
         promptVariant = PromptVariant.fromStringOrDefault(requestBody.promptVariant),
         enableThinking = thinkingMasterOn,
-        thinkingLevel = if (thinkingMasterOn)
-          ThinkingLevel.fromStringOrDefault(requestBody.thinkingLevel, default = ThinkingLevel.MEDIUM)
-        else ThinkingLevel.OFF,
+        thinkingLevel =
+          if (thinkingMasterOn)
+            ThinkingLevel.fromStringOrDefault(requestBody.thinkingLevel, default = ThinkingLevel.MEDIUM)
+          else ThinkingLevel.OFF,
         timeoutSeconds = configOverrides.timeout ?: AgentConfiguration.DEFAULT_TIMEOUT_SECONDS,
         temperatureValue = configOverrides.temperature ?: AgentConfiguration.DEFAULT_TEMPERATURE,
         contextWindowSize = configOverrides.numCtx ?: AgentConfiguration.DEFAULT_CONTEXT_WINDOW_SIZE,
@@ -459,6 +461,7 @@ fun Application.registerAllRoutes(
           activeSessions[sessionId] = SessionEntry(agent = agentInstance)
           agentInstance.executeTask(
             userInput = requestBody.message,
+            displayText = requestBody.displayText.orEmpty(),
             messageId = requestBody.messageId,
             toolCallXml = requestBody.toolCallXml,
             loadPreviousContext = requestBody.loadContext,
@@ -470,7 +473,6 @@ fun Application.registerAllRoutes(
                 filename = attachment.filename,
               )
             },
-            displayText = requestBody.displayText.orEmpty(),
           )
         } finally {
           activeSessions.remove(sessionId)
@@ -631,6 +633,11 @@ fun Application.registerAllRoutes(
         return@post
       }
 
+      SessionSnapshotManager.revertSnapshot(
+        sessionId = sessionKey,
+        projectRoot = projectRootPath.toString()
+      )
+
       ChatDb.deleteSession(projectRoot = projectRootPath, sessionId = sessionKey)
 
       val isDeleted: Boolean = sessionFile.deleteRecursively()
@@ -696,6 +703,19 @@ fun Application.registerAllRoutes(
       }
 
       val rewinded: Boolean = ContextManager(sessionDir).rewindTo(messageId)
+      if (rewinded) {
+        val survivingMessages: List<Map<String, Any>> =
+          ChatDb.loadContext(projectRoot = projectRootPath, sessionId = sessionKey)
+        val transcriptMeta: SessionTranscriptWriter.TranscriptMeta? =
+          SessionTranscriptWriter.readMeta(projectRoot = projectRootPath, sessionId = sessionKey)
+        SessionTranscriptWriter.writeTranscript(
+          projectRoot = projectRootPath,
+          sessionId = sessionKey,
+          modelName = transcriptMeta?.modelName.orEmpty(),
+          messages = survivingMessages,
+          title = transcriptMeta?.title,
+        )
+      }
       call.respondText(
         status = if (rewinded) HttpStatusCode.OK else HttpStatusCode.NotFound,
         contentType = ContentType.Application.Json,
@@ -863,15 +883,15 @@ fun Application.registerAllRoutes(
       val modelToJson: (ModelEntry) -> Map<String, Any?> = { entry: ModelEntry ->
         mapOf(
           "name" to entry.modelName,
-          "provider" to entry.providerType,
           "server" to entry.serverUrl,
-          "serverName" to entry.serverName,
-          "contextLimit" to entry.contextLimit,
-          "reasoning" to entry.reasoning,
           "toolCall" to entry.toolCall,
-          "openWeights" to entry.openWeights,
-          "attachment" to entry.attachment,
+          "reasoning" to entry.reasoning,
           "available" to entry.available,
+          "provider" to entry.providerType,
+          "attachment" to entry.attachment,
+          "serverName" to entry.serverName,
+          "openWeights" to entry.openWeights,
+          "contextLimit" to entry.contextLimit,
           "unavailableReason" to entry.unavailableReason?.name
         )
       }

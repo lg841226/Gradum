@@ -26,8 +26,8 @@ private const val EDITOR_PAGE_PATH: String = "/skills/editor"
 
 /**
  * The GET routes a token-less session may read so the editor can show code:
- * the skill-source list and a single skill's source. Everything else — every
- * POST included — keeps demanding the token, which is what makes that session
+ * the skill-source list and a single skill's source. Everything else: every
+ * POST included: keeps demanding the token, which is what makes that session
  * read-only.
  */
 private val READER_PATHS: Set<String> = setOf("/skills/sources", "/skills/source")
@@ -62,7 +62,7 @@ fun Application.module(serverConfiguration: ServerConfiguration, pairingCode: St
 
   installRequestGuard(serverConfiguration)
 
-  registerAllRoutes(serverConfiguration, pairingState = pairingState)
+  registerAllRoutes(pairingState = pairingState, serverConfiguration)
   val skills = SkillRegistry.getAllSkills().sortedBy { it.skillName }
   if (skills.isNotEmpty()) {
     logger.info("Available skills: ${skills.count()}")
@@ -82,7 +82,7 @@ fun Application.module(serverConfiguration: ServerConfiguration, pairingCode: St
  * rejected before any handler body executes. Four kinds of route bypass the
  * token check: `/health` (the build's readiness probe and monitoring),
  * `POST /skills/pair` (the pairing-code exchange that *earns* the token), and
- * — reader mode — `GET` for the editor page with its static assets plus the
+ * reader mode `GET` for the editor page with its static assets plus the
  * two skill-source reads that put code on screen. Everything else, every POST
  * included, still carries the token check below, and since the mutating
  * routes are all POSTs, that is exactly what makes a token-less session

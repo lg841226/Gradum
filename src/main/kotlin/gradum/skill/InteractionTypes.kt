@@ -86,7 +86,7 @@ object Choice {
  *
  * Case reports that the user picked a choice option: id is the raw semantic
  * code that came back on the wire (e.g. `reject`), meaning is the
- * authoritative, card-scoped resolution of it — callers switch on meaning,
+ * authoritative, card-scoped resolution of it: callers switch on meaning,
  * so they never branch on string codes. Text reports that the user submitted
  * free text (`.input` flavor) via value, and Canceled reports that the user
  * dismissed the ask card without choosing.
