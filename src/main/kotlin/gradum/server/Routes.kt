@@ -353,6 +353,7 @@ fun Application.registerAllRoutes(
 
       val resolvedSessionId: String? = requestBody.sessionId?.trim()?.takeIf { it.isNotEmpty() }
       val eventsChannel: Channel<String> = Channel(capacity = EVENTS_CHANNEL_CAPACITY)
+      val eventSequencer: EventStreamSequencer = EventStreamSequencer()
       val configOverrides: ConfigOverrides = fromRequestMap(requestBody.config)
       val resolvedToolMode: ToolMode =
         if (requestBody.toolCallXml != null) ToolMode.AGENT
@@ -441,15 +442,20 @@ fun Application.registerAllRoutes(
                   "type" to eventType,
                   "timestamp" to LocalDateTime.now().toString(),
                   "sessionId" to sessionId,
+                  "seq" to eventSequencer.claimSequence(),
+                  "gap" to eventSequencer.pendingGap(),
                   "data" to data
                 )
               ) + "\n"
               val sendResult: ChannelResult<Unit> = eventsChannel.trySend(ndjsonLine)
               if (sendResult.isFailure) {
+                eventSequencer.recordDrop()
                 logger.warn(
                   "Events channel full for session $sessionId \u2014 dropping event " +
                     "'$eventType' (client is not draining; streaming is already stalled)"
                 )
+              } else {
+                eventSequencer.markDelivered()
               }
             },
             registerChildSession = registerChildSession,
@@ -475,6 +481,13 @@ fun Application.registerAllRoutes(
             },
           )
         } finally {
+          val undeliveredDrops: Int = eventSequencer.pendingGap()
+          if (undeliveredDrops > 0) {
+            logger.warn(
+              "Session $sessionId ended with $undeliveredDrops dropped event(s) never " +
+                "reported to the client"
+            )
+          }
           activeSessions.remove(sessionId)
           eventsChannel.close()
         }

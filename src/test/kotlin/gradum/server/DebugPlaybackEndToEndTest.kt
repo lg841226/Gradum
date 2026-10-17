@@ -10,6 +10,7 @@ import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.test.fail
 
 /**
  * Verifies the debug tool-call playback mode end-to-end: manuscript
@@ -78,6 +79,44 @@ class DebugPlaybackEndToEndTest {
           && it.contains(other = "\"tool\":\"grep\"")
       },
       "grep tool_call event should carry the playback call id"
+    )
+  }
+
+  /**
+   * Playback is only the vehicle here: it produces a deterministic NDJSON
+   * stream without an LLM, which is what this test needs to check the
+   * sequence fields the client relies on to detect a lost event.
+   */
+  @Test
+  fun `every streamed event carries a contiguous sequence and zero gap`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+
+    val scenarioXml = """
+      <tls>
+        <tt>Reading the error codes.</tt>
+        <t nam="read_file" pth="src/main/kotlin/gradum/ErrorCode.kt" lin="1-5"/>
+      </tls>
+    """.trimIndent()
+
+    val body = postScenario(client, Path.of(System.getProperty("user.dir")), scenarioXml)
+    val sequences: List<Long> = body.lines()
+      .filter { it.isNotBlank() }
+      .map { line ->
+        val match = Regex(""""seq":(\d+)""").find(line)
+        match?.groupValues?.get(1)?.toLong() ?: fail(message = "event without a seq field: $line")
+      }
+
+    assertEquals(
+      (1L..sequences.size.toLong()).toList(),
+      sequences,
+      "seq must be contiguous and start at 1"
+    )
+    val eventsWithoutZeroGap: List<String> = body.lines()
+      .filter { it.isNotBlank() && !it.contains(other = "\"gap\":0") }
+
+    assertTrue(
+      eventsWithoutZeroGap.isEmpty(),
+      "no event should report a dropped predecessor, offenders=$eventsWithoutZeroGap"
     )
   }
 

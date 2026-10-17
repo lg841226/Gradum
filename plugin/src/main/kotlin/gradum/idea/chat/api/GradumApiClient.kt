@@ -5,7 +5,6 @@ import gradum.idea.PluginConfig
 import gradum.idea.server.ServerTokenStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
@@ -416,8 +415,12 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    * connection-level failures abort the flow (caught by caller's `.catch`).
    * Line payload truncated to [MAX_LOGGED_LINE] chars in logs.
    *
+   * **Sequence check:** every event carries a monotonic `seq` (plus a `gap`
+   * count); a discontinuity is logged at WARN so a dropped event is visible
+   * instead of silently leaving the client state incomplete.
+   *
    * @param request The chat message and its associated parameters.
-   * @return A [Flow] of [JsonObject] events. Failed lines are skipped silently.
+   * @return A [Flow] of [JsonObject] events. Failed lines are skipped without aborting the flow.
    */
   fun sendMessage(request: SendMessageRequest): Flow<JsonObject> = flow {
     val requestBody: JsonObject = buildJsonObject {
@@ -468,43 +471,63 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
           .build()
       }
 
+    var previousSeq: Long = 0
+
     response.body().bufferedReader().use { reader: BufferedReader ->
       reader.useLines { lines ->
         lines
           .withIndex()
           .filter { it.value.isNotBlank() }
           .forEach { (index: Int, line: String) ->
-            parseAndEmit(line, lineNumber = index + 1)
+            val event: JsonObject = parseLine(line, lineNumber = index + 1) ?: return@forEach
+            previousSeq = warnOnStreamGap(event = event, previousSeq = previousSeq)
+            emit(value = event)
           }
       }
     }
   }.flowOn(context = Dispatchers.IO)
 
   /**
-   * Parses a single NDJSON line into a [JsonObject] and emits it. Failures
-   * are logged with a truncated preview and swallowed so the stream keeps
-   * flowing. Returns nothing: the result (success or skipped) is expressed
-   * through whether [emit][kotlinx.coroutines.flow.FlowCollector.emit] was
-   * called.
+   * Parses a single NDJSON line into a [JsonObject]. A malformed line is logged
+   * with a truncated preview and skipped (`null`), so the stream keeps flowing.
    */
-  private suspend fun FlowCollector<JsonObject>.parseAndEmit(line: String, lineNumber: Int) {
+  private fun parseLine(line: String, lineNumber: Int): JsonObject? {
     val parsed: JsonElement =
       try {
         ndjsonParser.parseToJsonElement(string = line)
       } catch (exception: SerializationException) {
         val preview: String = line.take(n = MAX_LOGGED_LINE)
         log.warn("Skipping malformed NDJSON line #$lineNumber (len=${line.length}): $preview", exception)
-        return
+        return null
       }
-    val asObject: JsonObject =
-      when (parsed) {
-        is JsonObject -> parsed
-        else -> {
-          log.warn("Skipping NDJSON line #$lineNumber: expected object, got ${parsed::class.simpleName}")
-          return
-        }
+    return when (parsed) {
+      is JsonObject -> parsed
+      else -> {
+        log.warn("Skipping NDJSON line #$lineNumber: expected object, got ${parsed::class.simpleName}")
+        null
       }
-    emit(value = asObject)
+    }
+  }
+
+  /**
+   * Compares an event's `seq` with the previous one and logs when part of the
+   * stream was lost. The server reserves a number even for events it had to
+   * drop, so both `gap > 0` and a sequence jump mean the client is missing
+   * events. Returns the sequence to remember for the next event.
+   */
+  private fun warnOnStreamGap(event: JsonObject, previousSeq: Long): Long {
+    val sequence: Long = (event["seq"] as? JsonPrimitive)?.longOrNull ?: return previousSeq
+    if (previousSeq != 0L) {
+      val expected: Long = previousSeq + 1
+      val dropped: Int = (event["gap"] as? JsonPrimitive)?.intOrNull ?: 0
+      if (dropped > 0 || sequence != expected) {
+        log.warn(
+          "Stream gap: expected event #$expected but received #$sequence " +
+            "(server reported $dropped dropped event(s)) \u2014 local state may be incomplete"
+        )
+      }
+    }
+    return sequence
   }
 
   /** Cap on how much of a malformed line we copy into the IDE log. */
