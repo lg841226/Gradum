@@ -235,9 +235,9 @@ class ChatTranscriptTest {
   @Test
   fun `parseMeta returns blank sessionMeta for non transcript content`() {
     assertEquals(
-      SessionMeta(
+      ChatTranscript.parseMeta("# just markdown"), SessionMeta(
         title = "", modelName = "", sessionId = "", createdAt = 0L, updatedAt = 0L
-      ), ChatTranscript.parseMeta("# just markdown")
+      )
     )
   }
 }

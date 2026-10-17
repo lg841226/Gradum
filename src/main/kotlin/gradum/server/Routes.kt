@@ -9,6 +9,7 @@ import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.server.persistence.ChatDb
 import gradum.server.persistence.SessionStateStore
 import gradum.server.persistence.SessionTranscriptWriter
+import gradum.skill.PendingQuestions
 import gradum.skill.SkillRegistry
 import gradum.skill.external.DeployResult
 import gradum.skill.external.ExternalDiagnosticSeverity
@@ -28,11 +29,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ChannelResult
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -60,18 +57,11 @@ private data class SessionEntry(
   val sessionId: String? = null,
   val parentRunId: String? = null,
   val childRunIds: MutableSet<String> = ConcurrentHashMap.newKeySet(),
-  /**
-   * `sub_agent:start` payloads whose runs are still live. Mirrors the
-   * plugin's single active sub-agent, so a reload can redraw it.
-   */
+  /** Live `sub_agent:start` payloads, mirrored so a reload can redraw them. */
   val subAgents: MutableList<Map<String, Any>> = CopyOnWriteArrayList()
 )
 
-/**
- * Sums the per-message token usage the stored history carries. Totals are
- * additive; `contextTokens` is taken from the newest message that reports it,
- * because that is the live context-window size the plugin meters.
- */
+/** Sums per-message token usage; `contextTokens` comes from the newest message reporting it. */
 private fun aggregateTokenUsage(messages: List<JsonElement>): Map<String, Any> {
   var totalSum = 0
   var promptSum = 0
@@ -99,134 +89,59 @@ private fun JsonObject.intField(key: String): Int =
 
 @Serializable
 data class ProviderProbeRequest(
-  /** Provider kind: `ollama` or `lmstudio` (drives the probe endpoint). */
   val kind: String,
-  /** Base URL of the provider, e.g. `http://localhost:11434`. */
   val baseUrl: String,
-  /** Optional bearer token for protected providers. */
   val apiKey: String? = null,
 )
 
 @Serializable
 data class EventsRequestBody(
   val message: String,
-  /**
-   * Stable conversation id supplied by the plugin on every request of the
-   * same chat thread. The server scopes this session's persisted context
-   * to `.gradum/sessions/<sessionId>/`; a blank value falls back to the
-   * legacy `.gradum/context.json`. Optional so older plugin builds keep
-   * working against this server.
-   */
   val model: String? = null,
   val toolMode: String? = null,
+  /** Scopes persisted context to `.gradum/sessions/<sessionId>/`; blank falls back to legacy `context.json`. */
   val sessionId: String? = null,
-  /**
-   * Plugin-generated identifier for this user message, stamped onto the
-   * message the server stores in `context.json` (field `id`). The plugin
-   * uses the same value to locate the message when withdrawing, keeping the
-   * two ends' histories aligned.
-   */
+  /** Stamped onto the stored user message; the plugin reuses it to locate the message when withdrawing. */
   val messageId: String? = null,
   val loadContext: Boolean = true,
   val promptVariant: String? = null,
-  /**
-   * Display-only view of the user input (without the context markers and
-   * thinking-guide wrappers the plugin appends for the model). Persisted
-   * onto the user message so transcripts show what the user actually
-   * typed; never sent back to the LLM.
-   */
+  /** Display-only user input (no context markers), persisted for transcripts, never sent to the LLM. */
   val displayText: String? = null,
   val config: Map<String, String>? = null,
-  /**
-   * Requested thinking effort for this turn (`low` / `medium` / `high`),
-   * resolved into [ThinkingLevel] when the master think switch is on.
-   * Null or unknown keeps the server default (medium).
-   */
+  /** `low` / `medium` / `high`; null or unknown keeps the server default. */
   val thinkingLevel: String? = null,
-  /**
-   * Optional tool-call scenario XML (`<tls>` format) that bypasses the LLM
-   * entirely: the server executes the described tool calls through the same
-   * real `executeSingleTool` pipeline and records each result. Used by the
-   * debug tool-call playback mode: the developer authors the scenario
-   * instead of spending LLM tokens.
-   */
+  /** Debug tool-call scenario XML (`<tls>`): executes through the real tool pipeline instead of the LLM. */
   val toolCallXml: String? = null,
-  /**
-   * Absolute path to the project the IDE has open. The server uses this
-   * as the root for every file/process tool in this session. The plugin
-   * is the only place that knows which project is open, so it must
-   * provide it; the server has no other source of truth.
-   */
+  /** Absolute path of the IDE-open project; root for every file/process tool this session. */
   val projectRoot: String? = null,
-  /**
-   * Image (and in the future, generic binary) attachments sent
-   * alongside the message. Wire shape mirrors the plugin's
-   * `GradumApiClient.ApiImageAttachment`; the discriminator is
-   * `type` and currently only `image` is supported.
-   *
-   * Empty by default: the common case is a text-only message.
-   * Server-side `Agent.executeTask` projects the image entries
-   * into a `content` array on the user message before pushing
-   * it into the conversation history; the per-provider
-   * `LLMClient` then re-shapes that array into either
-   * Ollama's `images: [...]` field or OpenAI's
-   * `image_url: {url: "data:..."}`.
-   */
+  /** Image attachments; wire shape mirrors the plugin's `ApiImageAttachment`. */
   val attachments: List<AttachmentDto> = emptyList(),
 )
 
-/**
- * A single element of [EventsRequestBody.attachments]. The `type`
- * field is the discriminator; only `image` is implemented today
- * but the structure is intentionally generic so PDF / audio /
- * future attachment kinds can be added without a wire-format
- * break.
- */
+/** One attachment element; `type` discriminates, only `image` is implemented today. */
 @Serializable
 data class AttachmentDto(
   val type: String,
-  /**
-   * The wire-mime, e.g. `image/jpeg`. The plugin pipeline
-   * normalizes every uploaded image to JPEG, so this is
-   * expected to be `image/jpeg` for the foreseeable future,
-   * kept explicit so a re-introduction of raw PNG
-   * passthrough can be negotiated in a follow-up.
-   */
+  /** Wire-mime; the plugin normalizes uploads to JPEG. */
   val mime: String? = null,
-  /**
-   * Base64-encoded payload. The plugin re-encodes images to
-   * JPEG at quality 0.85 before serializing, so the on-wire
-   * byte count is bounded (a typical 4 MB screenshot
-   * becomes ~500 KB base64).
-   */
+  /** Base64 payload. */
   val data: String? = null,
-  /**
-   * Original file name as the user picked it. Used by the
-   * LLM prompt as a hint (`"image filename.png attached"`)
-   * and by the persisted conversation history for human
-   * readability: not part of the multimodal payload.
-   */
-  val filename: String? = null,
+  /** Original file name; prompt and transcript hint only. */
+  val filename: String? = null
 )
 
 @Serializable
 data class StopRequestBody(
-  /** The run to abort, as stamped on the `/events` envelope. */
   val runId: String
 )
 
 /** Body for `POST /events/respond`: resolves an in-flight ask_interaction. */
 @Serializable
 data class RespondRequestBody(
-  /** Session the ask belongs to. */
   val sessionId: String,
-  /** Unique id carried by the `ask_interaction` event this answers. */
   val requestId: String,
-  /** One of the semantic codes offered by the ask (choices flavor). */
-  val choice: String? = null,
-  /** Free text the user submitted (input flavor). */
   val text: String? = null,
-  /** True when the user dismissed the card instead of answering. */
+  val choice: String? = null,
   val cancelled: Boolean = false,
 )
 
@@ -242,17 +157,10 @@ data class DeleteSessionRequestBody(
 data class RenameSessionRequestBody(
   val projectRoot: String,
   val sessionId: String,
-  /** New session title shown in the recent-chats list. */
   val title: String
 )
 
-
-/**
- * Body for `POST /session/save`: persists a full transcript Markdown that
- * the plugin produced client-side (merge flow) under the session's
- * directory. [content] is written verbatim; a non-blank [title] is stamped
- * into the session header first.
- */
+/** Body for `POST /session/save`; [content] is written verbatim, a non-blank [title] is stamped first. */
 @Serializable
 data class SaveSessionRequestBody(
   val content: String,
@@ -269,14 +177,7 @@ data class RewindSessionRequestBody(
   val messageId: String
 )
 
-/**
- * Typed view over the `config` map sent by the HTTP client. Each field is
- * nullable so the route handler can supply a default via `?:` instead of
- * scattering `?.toBoolean()` / `?.toIntOrNull()` across the call site.
- *
- * Construct via [fromRequestMap] to centralize every string→typed conversion
- * in one place.
- */
+/** Typed view over the request's `config` map; build via [fromRequestMap]. */
 @Serializable
 data class ConfigOverrides(
   val numCtx: Int? = null,
@@ -292,12 +193,7 @@ data class ConfigOverrides(
   val chatCompletionsPath: String? = null
 ) {
   companion object {
-    /**
-     * Convert a request's optional `config` map (raw strings from JSON)
-     * into a typed [ConfigOverrides]. Returns an empty instance when
-     * [rawConfig] is null so callers can chain `field ?: default` without
-     * a null check.
-     */
+    /** Converts the raw string `config` map; null input yields an empty instance. */
     fun fromRequestMap(rawConfig: Map<String, String>?): ConfigOverrides {
       if (rawConfig == null) return ConfigOverrides()
       return ConfigOverrides(
@@ -366,7 +262,7 @@ internal data class PairRequestBody(val code: String = "")
 fun Application.registerAllRoutes(
   pairingState: PairingState = PairingState(),
   serverConfiguration: ServerConfiguration = ServerConfiguration(),
-  pendingQuestions: gradum.skill.PendingQuestions = gradum.skill.PendingQuestions()
+  pendingQuestions: PendingQuestions = PendingQuestions()
 ) {
   val serverStartTime: LocalDateTime = LocalDateTime.now()
   val activeSessions: ConcurrentHashMap<String, SessionEntry> = ConcurrentHashMap()
@@ -512,19 +408,19 @@ fun Application.registerAllRoutes(
                 eventSequencer.markDelivered()
               }
             },
-            registerChildSession = registerChildSession,
-            unregisterChildSession = unregisterChildSession,
             askScopeHolder = pendingQuestions,
             plugins = serverConfiguration.plugins,
+            registerChildSession = registerChildSession,
+            unregisterChildSession = unregisterChildSession,
           )
 
           activeSessions[runId] = SessionEntry(agent = agentInstance, sessionId = resolvedSessionId)
           agentInstance.executeTask(
             userInput = requestBody.message,
-            displayText = requestBody.displayText.orEmpty(),
             messageId = requestBody.messageId,
             toolCallXml = requestBody.toolCallXml,
             loadPreviousContext = requestBody.loadContext,
+            displayText = requestBody.displayText.orEmpty(),
             attachments = requestBody.attachments.map { attachment ->
               gradum.agent.AttachmentPayload(
                 type = attachment.type,

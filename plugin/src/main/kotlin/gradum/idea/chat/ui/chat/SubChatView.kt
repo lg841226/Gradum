@@ -319,7 +319,7 @@ private fun SubChatConversationContent(
       } else {
         AssistantChatBubble(
           message = message,
-          showActions = false
+          state = BubbleState(showActions = false)
         )
       }
     }

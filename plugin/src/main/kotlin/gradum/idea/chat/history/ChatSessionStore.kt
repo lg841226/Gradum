@@ -8,10 +8,6 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import kotlin.random.Random
 
-/**
- * Lightweight metadata for one persisted chat session, shown in the
- * Welcome screen's "Recent Chats" list.
- */
 data class SessionMeta(
   val title: String,
   val modelName: String,
@@ -103,7 +99,7 @@ class ChatSessionStore(
    * The source sessions are left untouched: merge is non-destructive. The
    * merged messages are serialized with the v1 [ChatTranscript] format and
    * uploaded to the server via `POST /session/save`, since the server is the
-   * single writer of the sessions directory. The merged session gets a fresh
+   * single writer of the sessions' directory. The merged session gets a fresh
    * [nextSessionId], the caller-supplied [resultTitle], a `createdAt` of the
    * earliest origin, and an `updatedAt` of now so it surfaces at the top of
    * the recent list.
@@ -119,8 +115,6 @@ class ChatSessionStore(
     val mergedMessages: List<ChatMessage> = interleaveMessages(conversations = transcripts.map { it.messages })
     val newSessionId: String = nextSessionId()
     val saved: Boolean = apiClient.saveTranscript(
-      projectRoot = projectRootPath,
-      sessionId = newSessionId,
       title = resultTitle,
       content = ChatTranscript.generateTranscript(
         messages = mergedMessages,
@@ -131,7 +125,9 @@ class ChatSessionStore(
           createdAt = transcripts.minOf { it.sessionMeta.createdAt },
           modelName = mergedMessages.lastOrNull()?.modelName.orEmpty()
         )
-      )
+      ),
+      sessionId = newSessionId,
+      projectRoot = projectRootPath
     )
     if (!saved) {
       log.warn("Server rejected merged transcript for session $newSessionId")
@@ -149,8 +145,8 @@ class ChatSessionStore(
    */
   suspend fun renameSession(sessionId: String, newTitle: String): Boolean {
     val trimmedTitle: String = newTitle.trim()
-    if (trimmedTitle.isEmpty()) return false
-    return apiClient.renameSession(
+
+    return trimmedTitle.isNotEmpty() && apiClient.renameSession(
       projectRoot = projectRootPath,
       sessionId = sessionId,
       title = trimmedTitle
@@ -171,18 +167,15 @@ class ChatSessionStore(
     /**
      * Chronological interleave of multiple conversations for
      * [ChatSessionStore.mergeSessions]. The concatenated message lists are
-     * stably sorted by [timestamp], so each source's own order
+     * stably sorted by `timestamp`, so each source's own order
      * stays intact whenever timestamps tie.
      */
     fun interleaveMessages(conversations: List<List<ChatMessage>>): List<ChatMessage> =
       conversations.flatten().sortedWith(comparator = compareBy { it.timestamp })
 
-    /** `yyyyMMdd-HHmmss-xxxxxx`: time prefix sorts lexicographically; 6-char hex suffix guards same-second collisions. */
-    private val SESSION_ID_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
-
-    private val HEX_CHARS: CharArray = "0123456789abcdef".toCharArray()
-
     private const val SUFFIX_CHARS: Int = 6
+    private val HEX_CHARS: CharArray = "0123456789abcdef".toCharArray()
+    private val SESSION_ID_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
 
     /**
      * Generates a session id: `yyyyMMdd-HHmmss-xxxxxx` (see

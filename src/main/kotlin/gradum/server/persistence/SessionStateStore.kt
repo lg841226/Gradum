@@ -29,7 +29,6 @@ private val logger: Logger = LoggerFactory.getLogger("SessionStateStore")
 object SessionStateStore {
 
   const val FORMAT_VERSION: Int = 1
-
   const val STATE_FILE: String = "session-state.json"
 
   /**
@@ -59,11 +58,11 @@ object SessionStateStore {
     }
   }
 
-  /** Parses the sidecar; null when the session id is invalid, absent, or unreadable. */
   fun read(projectRoot: Path, sessionId: String): JsonObject? {
     val sessionDirectory: Path = SessionTranscriptWriter.sessionDirectory(projectRoot, sessionId) ?: return null
     val stateFile: Path = sessionDirectory.resolve(STATE_FILE)
     if (!Files.isRegularFile(stateFile)) return null
+
     return try {
       val parsed: JsonElement = Json.parseToJsonElement(Files.readString(stateFile, Charsets.UTF_8))
       parsed as? JsonObject
@@ -101,7 +100,6 @@ object SessionStateStore {
       }
   }
 
-  /** Temp file + atomic rename, matching the transcript writer's durability. */
   private fun atomicWrite(targetFile: Path, content: String) {
     Files.createDirectories(targetFile.parent)
     val tempFile: Path = targetFile.resolveSibling("${targetFile.fileName}.tmp-${System.nanoTime()}")

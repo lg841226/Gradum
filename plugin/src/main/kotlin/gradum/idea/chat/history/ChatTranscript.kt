@@ -197,7 +197,6 @@ object ChatTranscript {
     return SessionMeta(title = "", modelName = "", sessionId = "", createdAt = 0L, updatedAt = 0L)
   }
 
-  /** Parses a full transcript back into its [ParsedTranscript]. */
   fun parseTranscript(content: String): ParsedTranscript {
     var sessionMeta = SessionMeta(title = "", modelName = "", sessionId = "", createdAt = 0L, updatedAt = 0L)
     val messages: MutableList<ChatMessage> = mutableListOf()
@@ -312,16 +311,17 @@ object ChatTranscript {
           finalizeMessage()
           val attributeMap: Map<String, String> = parseAttributes(marker = line)
           val messageRole: String = attributeMap["role"].orEmpty()
+
           workingRole = messageRole
-          workingMessageId = attributeMap["id"].orEmpty()
           workingModel = attributeMap["model"].orEmpty()
+          workingMessageId = attributeMap["id"].orEmpty()
           workingServer = attributeMap["server"].orEmpty()
           workingProvider = attributeMap["provider"].orEmpty()
           workingTimestamp = attributeMap["timestamp"]?.toLongOrNull() ?: 0L
-          val promptTokens: Int = attributeMap["promptTokens"]?.toIntOrNull() ?: 0
-          val completionTokens: Int = attributeMap["completionTokens"]?.toIntOrNull() ?: 0
           val totalTokens: Int = attributeMap["totalTokens"]?.toIntOrNull() ?: 0
+          val promptTokens: Int = attributeMap["promptTokens"]?.toIntOrNull() ?: 0
           val contextTokens: Int = attributeMap["contextTokens"]?.toIntOrNull() ?: 0
+          val completionTokens: Int = attributeMap["completionTokens"]?.toIntOrNull() ?: 0
           workingTokens =
             if (totalTokens > 0)
               TokenUsage(
@@ -448,19 +448,21 @@ object ChatTranscript {
       is String -> JsonPrimitive(value)
       is Boolean -> JsonPrimitive(value)
       is Float -> JsonPrimitive(value.toDouble())
-      is Map<*, *> -> buildJsonObject {
-        value.forEach { (key, entryValue) ->
-          if (key != null && entryValue != null)
-            put(key.toString(), element = anyToJson(entryValue))
+      is Map<*, *> ->
+        buildJsonObject {
+          value.forEach { (key, entryValue) ->
+            if (key != null && entryValue != null)
+              put(key.toString(), element = anyToJson(entryValue))
+          }
         }
-      }
 
-      is List<*> -> buildJsonArray {
-        value.forEach { entryValue ->
-          if (entryValue != null)
-            add(anyToJson(entryValue))
+      is List<*> ->
+        buildJsonArray {
+          value.forEach { entryValue ->
+            if (entryValue != null)
+              add(anyToJson(entryValue))
+          }
         }
-      }
 
       else -> JsonPrimitive(value.toString())
     }
@@ -481,19 +483,22 @@ object ChatTranscript {
 
   private fun elementToAny(element: JsonElement): Any {
     return when (element) {
-      is JsonPrimitive -> when {
-        element.isString -> element.content
-        element.intOrNull != null -> element.int
-        element.longOrNull != null -> element.long
-        element.content.toBooleanStrictOrNull() != null ->
-          element.content.toBooleanStrict()
+      is JsonPrimitive ->
+        when {
+          element.isString -> element.content
+          element.intOrNull != null -> element.int
+          element.longOrNull != null -> element.long
+          element.content.toBooleanStrictOrNull() != null ->
+            element.content.toBooleanStrict()
 
-        else -> element.content.toDoubleOrNull() ?: element.content
-      }
+          else -> element.content.toDoubleOrNull() ?: element.content
+        }
 
       is JsonArray -> element.map { elementToAny(it) }
 
-      is JsonObject -> element.mapValues { (_, value: JsonElement) -> elementToAny(value) }
+      is JsonObject -> element.mapValues { (_, value: JsonElement) ->
+        elementToAny(value)
+      }
     }
   }
 

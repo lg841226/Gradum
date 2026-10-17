@@ -1,6 +1,7 @@
 package gradum.idea.mcp
 
 import gradum.idea.PluginConfig
+import gradum.idea.mcp.McpRegistryClient.HEDGE_DELAY_MS
 import gradum.idea.mcp.McpRegistryClient.SEARCH_LIMIT
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -12,12 +13,7 @@ import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.ExecutionException
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
+import java.util.concurrent.*
 
 /**
  * An environment variable an imported server expects up front: required
@@ -111,15 +107,15 @@ internal object McpRegistryClient {
   fun search(query: String): List<McpRegistryResult> {
     val url: String = searchUrl(query)
     val first: CompletableFuture<List<McpRegistryResult>> = attempt(url = url)
-    try {
-      return first.get(HEDGE_DELAY_MS, TimeUnit.MILLISECONDS)
-    } catch (e: TimeoutException) {
-      return awaitSuccess(attempts = listOf(first, attempt(url = url)))
-    } catch (e: ExecutionException) {
-      return awaitSuccess(attempts = listOf(first, attempt(url = url)))
-    } catch (e: InterruptedException) {
+    return try {
+      first.get(HEDGE_DELAY_MS, TimeUnit.MILLISECONDS)
+    } catch (_: TimeoutException) {
+      awaitSuccess(attempts = listOf(first, attempt(url = url)))
+    } catch (_: ExecutionException) {
+      awaitSuccess(attempts = listOf(first, attempt(url = url)))
+    } catch (interruptedException: InterruptedException) {
       Thread.currentThread().interrupt()
-      throw IOException("registry search interrupted", e)
+      throw IOException("registry search interrupted", interruptedException)
     }
   }
 
@@ -151,14 +147,12 @@ internal object McpRegistryClient {
     }
   }
 
-  /** One blocking fetch + parse of the list endpoint, off the caller thread. */
   private fun attempt(url: String): CompletableFuture<List<McpRegistryResult>> =
     CompletableFuture.supplyAsync(
       { parse(json = fetch(url = url)) },
       searchExecutor
     )
 
-  /** Blocking GET returning the body; throws on transport errors or a non-200. */
   private fun fetch(url: String): String {
     val request: HttpRequest = HttpRequest.newBuilder(URI.create(url))
       .timeout(PluginConfig.API_REQUEST_TIMEOUT)

@@ -31,31 +31,21 @@ private val logger: Logger = LoggerFactory.getLogger("SessionTranscriptWriter")
  */
 object SessionTranscriptWriter {
 
-  /** Transcript file name inside each session directory. */
   const val TRANSCRIPT_FILE: String = "conversation.md"
-
-  /** Max characters kept for a session title. */
   const val MAX_TITLE_LENGTH: Int = 48
-
-  /** The session header always lives in the first lines; no need to read the body. */
   private const val HEADER_LINE_LIMIT: Int = 8
-
   private const val HEADER_V1: String = "<!-- gradum-transcript v1 -->"
   private const val SESSION_PREFIX: String = "<!-- gradum-session"
   private const val THINKING_MARKER: String = "<!-- gradum-thinking -->"
   private const val TOOLRESULT_MARKER: String = "<!-- gradum-toolresult -->"
   private const val RESPONSE_MARKER: String = "<!-- gradum-response -->"
-
   private const val USER_HEADER: String = "## user"
   private const val ASSISTANT_HEADER: String = "## assistant"
-
-  /** Same attribute shape the plugin parser reads: `key="value"` pairs. */
   private val ATTRIBUTE_PATTERN: Regex = Regex(pattern = """(\w+)="((?:\\.|[^"])*)"""")
 
-  /** Metadata carried by a transcript's session header line. */
   data class TranscriptMeta(
-    val sessionId: String,
     val title: String,
+    val sessionId: String,
     val modelName: String,
     val createdAt: Long,
     val updatedAt: Long
@@ -82,8 +72,8 @@ object SessionTranscriptWriter {
     val sessionCreatedAt: Long =
       ChatDb.sessionTimestamps(projectRoot = projectRoot, sessionId = trimmedId)?.first ?: nowMillis
     val sessionMeta = TranscriptMeta(
-      sessionId = trimmedId,
       title = title ?: titleFor(messages),
+      sessionId = trimmedId,
       modelName = modelName,
       createdAt = sessionCreatedAt,
       updatedAt = nowMillis
@@ -269,7 +259,6 @@ object SessionTranscriptWriter {
           }
 
           if (toolCalls.isNotEmpty()) {
-            // Tool result messages immediately follow their assistant message.
             val pairedResults: MutableList<Map<*, *>> = mutableListOf()
             var lookahead: Int = messageIndex + 1
             while (lookahead < messages.size && messages[lookahead]["role"] == "tool") {
@@ -403,8 +392,8 @@ object SessionTranscriptWriter {
           if (currentLine.startsWith(SESSION_PREFIX)) {
             val attributeMap: Map<String, String> = parseAttributes(currentLine)
             return TranscriptMeta(
-              sessionId = attributeMap["id"].orEmpty(),
               title = attributeMap["title"].orEmpty(),
+              sessionId = attributeMap["id"].orEmpty(),
               modelName = attributeMap["model"].orEmpty(),
               createdAt = attributeMap["createdAt"]?.toLongOrNull() ?: 0L,
               updatedAt = attributeMap["updatedAt"]?.toLongOrNull() ?: 0L
@@ -421,7 +410,7 @@ object SessionTranscriptWriter {
     }
   }
 
-  /** Temp file + atomic rename, matching `ContextManager`'s crash-safe write. */
+  /** Temp file and atomic rename, matching `ContextManager`'s crash-safe write. */
   private fun atomicWrite(targetFile: Path, content: String) {
     val tempFile: Path = targetFile.resolveSibling("${targetFile.fileName}.tmp-${System.nanoTime()}")
     Files.writeString(tempFile, content, Charsets.UTF_8)

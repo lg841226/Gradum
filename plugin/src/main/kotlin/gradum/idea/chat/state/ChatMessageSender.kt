@@ -21,9 +21,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Duration.Companion.milliseconds
 
-/**
- * Raw response from the `/models` endpoint, containing the list of discovered LLM models.
- */
+
 @Serializable
 internal data class ModelsListResponse(
   val models: List<ModelInfo>
@@ -115,7 +113,6 @@ internal suspend fun GradumChatSession.sendMessage(
     return
   }
 
-  // Ensure the "Sending" animation is visible for at least MIN_SENDING_MS.
   val elapsed: Long = System.currentTimeMillis() - validationStart
   if (elapsed < GradumChatSession.MIN_SENDING_MS)
     delay(duration = (GradumChatSession.MIN_SENDING_MS - elapsed).milliseconds)
@@ -157,18 +154,18 @@ internal suspend fun GradumChatSession.sendMessage(
 
     apiClient.sendMessage(
       request = GradumApiClient.SendMessageRequest(
-        message = messageWithHint,
         toolMode = toolMode,
-        modelName = selectedModel?.name,
-        sessionId = activeSessionId,
         messageId = messageId,
-        projectRoot = project?.basePath,
+        modelParams = modelConfig,
         toolCallXml = toolCallXml,
         loadContext = loadContext,
-        modelParams = modelConfig,
+        displayText = userMessage,
+        message = messageWithHint,
+        sessionId = activeSessionId,
+        modelName = selectedModel?.name,
+        projectRoot = project?.basePath,
         thinkingLevel = thinkingLevel.name.lowercase(),
-        imageAttachments = imageAttachments,
-        displayText = userMessage
+        imageAttachments = imageAttachments
       ),
       onStreamGap = { _, _, _ -> streamGapDetected = true }
     ).catch { exception: Throwable ->
@@ -254,9 +251,6 @@ internal suspend fun GradumChatSession.sendMessage(
       }
     }
 
-    // The stream lost events, so the locally assembled turn may be missing
-    // pieces. Now that the server has finished and written its sidecar, replace
-    // the messages with its projection rather than keeping a diverged copy.
     if (streamGapDetected && receivedSessionEnd) {
       val sessionKey: String? = activeSessionId
       if (sessionKey != null) {

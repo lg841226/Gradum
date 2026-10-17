@@ -104,7 +104,6 @@ class GradumChatSession : Disposable {
   }
 
   var hasSentMessage: Boolean by mutableStateOf(false)
-
   private val _thinkingLevel = mutableStateOf(ThinkingLevel.MEDIUM)
   val thinkingLevel: ThinkingLevel get() = _thinkingLevel.value
   fun setThinkingLevel(level: ThinkingLevel) {
@@ -112,11 +111,13 @@ class GradumChatSession : Disposable {
   }
 
   var isSending: Boolean by mutableStateOf(false)
-  var isWaitingForResponse: Boolean by mutableStateOf(false)
   var isFocused: Boolean by mutableStateOf(false)
-  var isMenuVisible: Boolean by mutableStateOf(false)
+
   var isExpanded: Boolean by mutableStateOf(false)
   var showAddMenu: Boolean by mutableStateOf(false)
+  var isMenuVisible: Boolean by mutableStateOf(false)
+  var isWaitingForResponse: Boolean by mutableStateOf(false)
+
   var selectedPermission: String by mutableStateOf(PermissionMode.READONLY)
 
   init {
@@ -145,22 +146,16 @@ class GradumChatSession : Disposable {
 
   val models: SnapshotStateList<ModelInfo> = mutableStateListOf()
   val pinnedModels: SnapshotStateList<ModelInfo> = mutableStateListOf()
-  var selectedModel: ModelInfo? by mutableStateOf(null)
   var modelsLoaded: Boolean by mutableStateOf(false)
+  var selectedModel: ModelInfo? by mutableStateOf(null)
   var suggestionVariants: List<Int> by mutableStateOf(List(4) { Random.nextInt(5) })
 
-  /**
-   * True when the last /models request failed, i.e. the local Gradum runtime
-   * cannot be reached. Drives the "runtime unreachable" banner.
-   */
   var runtimeUnreachable: Boolean by mutableStateOf(false)
     private set
 
-  /** Diagnostic text of the last runtime failure, shown when copied. */
   var runtimeErrorMessage: String by mutableStateOf("")
     private set
 
-  /** The classified cause of the last runtime failure; null while reachable. */
   var runtimeFailureCause: RuntimeFailureCause? by mutableStateOf(null)
     private set
 
@@ -169,22 +164,21 @@ class GradumChatSession : Disposable {
   val isPendingQueueFull: Boolean
     get() = pendingMessages.size >= MAX_PENDING_MESSAGES
 
-  var currentJob: Job? by mutableStateOf(null)
+  private var sessionRefreshJob: Job? = null
   internal var subAgentTimeoutJob: Job? = null
-  /** Id of the in-flight `/events` run; the client sends it to `/stop`. */
   var runId: String? by mutableStateOf(null)
+  var currentJob: Job? by mutableStateOf(null)
   var activeSessionId: String? by mutableStateOf(null)
+  var sendingPhase: String by mutableStateOf("")
   var currentSessionTitle: String by mutableStateOf("")
+  var isMergeModeActive: Boolean by mutableStateOf(false)
 
   val sessions: SnapshotStateList<SessionMeta> = mutableStateListOf()
-  private var sessionRefreshJob: Job? = null
-  var isMergeModeActive: Boolean by mutableStateOf(false)
   val mergeSelection: SnapshotStateList<String> = mutableStateListOf()
 
   private val chatStore: ChatSessionStore?
     get() = project?.basePath?.let { ChatSessionStore(Path.of(it), apiClient) }
 
-  var sendingPhase: String by mutableStateOf("")
   private var pollingJob: Job? = null
   private var probeRefreshJob: Job? = null
   val subAgentState: SubAgentState = SubAgentState()
@@ -292,9 +286,6 @@ class GradumChatSession : Disposable {
     if (isSending) return false
     val sessionStore: ChatSessionStore = chatStore ?: return false
 
-    // The structured projection is the authority; fall back to the Markdown
-    // transcript only when the sidecar is missing (a session that predates it,
-    // or a failed write), so old history still opens.
     val projection: GradumApiClient.ApiSessionState? = sessionStore.loadSessionState(targetSessionId)
     val projectedState: GradumApiClient.ApiSessionState? = projection?.takeIf { it.messages.isNotEmpty() }
     val transcript: ChatTranscript.ParsedTranscript? =
@@ -345,7 +336,6 @@ class GradumChatSession : Disposable {
     }
   }
 
-  /** Balloon so a failed delete is visible without reading IDE logs. */
   private fun notifySessionDeleteFailed() {
     val notificationProject: Project = project ?: return
     NotificationGroupManager.getInstance()
@@ -530,10 +520,6 @@ class GradumChatSession : Disposable {
     CoroutineScope(context = SupervisorJob() + Dispatchers.Main.immediate)
   }
 
-  /**
-   * Starts (or restarts) model polling on the session-owned
-   * [modelPollingScope], replacing any previous polling jobs.
-   */
   @OptIn(ExperimentalCoroutinesApi::class)
   fun startModelPolling(autoDetect: Boolean, pollIntervalMs: Long) {
     stopModelPolling()

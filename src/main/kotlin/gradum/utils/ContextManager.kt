@@ -222,22 +222,24 @@ class ContextManager(private val outputDirectory: Path) {
   }
 
   /** Reads the `model` field from the context header (blank when absent/unreadable). */
-  private fun modelName(): String = if (useDatabase) {
-    // In database mode the model name is embedded in the encrypted blob;
-    // we don't have a separate header field, so return empty string.
-    ""
-  } else {
-    val contextFile: File = contextFilePath.toFile()
-    if (!contextFile.exists()) return ""
-    return try {
-      val parsedJson: JsonObject =
-        jsonFormatter.parseToJsonElement(contextFile.readText(Charsets.UTF_8)).jsonObject
-      parsedJson["model"]?.jsonPrimitive?.contentOrNull ?: ""
-    } catch (readException: Exception) {
-      logger.warn("Failed to read model field: ${readException.message}")
+  private fun modelName(): String =
+    if (useDatabase) {
+      // In database mode the model name is embedded in the encrypted blob;
+      // we don't have a separate header field, so return empty string.
       ""
+    } else {
+      val contextFile: File = contextFilePath.toFile()
+      if (!contextFile.exists()) return ""
+
+      return try {
+        val parsedJson: JsonObject =
+          jsonFormatter.parseToJsonElement(contextFile.readText(Charsets.UTF_8)).jsonObject
+        parsedJson["model"]?.jsonPrimitive?.contentOrNull ?: ""
+      } catch (readException: Exception) {
+        logger.warn("Failed to read model field: ${readException.message}")
+        ""
+      }
     }
-  }
 
   /**
    * Prepares history for persistence. Text turns (user / assistant) are kept
@@ -262,10 +264,8 @@ class ContextManager(private val outputDirectory: Path) {
       val content: String = rawContent as? String ?: ""
 
       when (role) {
-        // Re-injected fresh on every request; storing stale copies is pointless.
         "system" -> continue
 
-        // Empty assistant shells (no text, no calls) carry no information.
         "assistant" -> {
           if (content.isNotBlank() || readListOfMaps(message["tool_calls"]).isNotEmpty()) {
             cleanedMessages.add(message)
@@ -274,16 +274,10 @@ class ContextManager(private val outputDirectory: Path) {
 
         "tool" -> cleanedMessages.add(buildToolStub(message, toolCallsByCallId))
 
-        // Keep the original content structure: multimodal user messages
-        // carry content as a List (text + images): casting to String
-        // would wipe it. And don't trim(): trailing newlines are
-        // meaningful when this history is re-sent to the model.
         else -> cleanedMessages.add(
           buildMap {
             put("role", role)
             put("content", rawContent ?: "")
-            // Preserve the plugin-generated message id so a "rewind"
-            // (withdraw) can locate this exact message in the store.
             message["id"]?.let { put("id", it) }
           }
         )
@@ -317,14 +311,13 @@ class ContextManager(private val outputDirectory: Path) {
    */
   private fun buildToolStub(
     toolMessage: Map<String, Any>,
-    toolCallsByCallId: Map<String, Map<String, Any>>,
+    toolCallsByCallId: Map<String, Map<String, Any>>
   ): Map<String, Any> {
     val callId: String = toolMessage["tool_call_id"] as? String ?: ""
     val toolCall: Map<String, Any> = toolCallsByCallId[callId] ?: emptyMap()
     val function: Map<String, Any> = readStringMap(toolCall["function"])
     val functionName: String = function["name"] as? String ?: ""
 
-    // Same resolution order as ToolExecutor: built-in registry first, then MCP adapters.
     val skillInstance: Skill? = functionName.takeIf { it.isNotBlank() }?.let {
       SkillRegistry.getSkill(skillName = it) ?: McpToolCatalog.adapterFor(name = it)
     }
@@ -401,10 +394,6 @@ class ContextManager(private val outputDirectory: Path) {
     return when (element) {
       is JsonPrimitive if element.isString -> element.content
       is JsonPrimitive -> JsonUtil.fromJsonElement(element) ?: element.toString()
-      // Preserve the structured Map / List (tool_calls, multimodal
-      // content arrays). Calling .toString() here flattens them into the
-      // Kotlin container's toString() (e.g. `[{id=call_1, ...}]`) which
-      // corrupts the wire shape when this history is re-sent to the LLM.
       is JsonArray, is JsonObject -> JsonUtil.fromJsonElement(element) ?: ""
     }
   }

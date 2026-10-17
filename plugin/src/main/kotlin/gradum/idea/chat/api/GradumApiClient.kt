@@ -98,20 +98,13 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     val projectRoot: String? = null,
     val toolCallXml: String? = null,
     val loadContext: Boolean = true,
+    val displayText: String? = null,
     val promptVariant: String? = null,
-    val modelParams: Map<String, String>? = null,
-    /**
-     * Requested thinking effort for this turn (`low` / `medium` / `high`),
-     * decoded server-side into a structured thinking parameter. Null keeps
-     * the server default; replaces the old prompt-suffix injection.
-     */
     val thinkingLevel: String? = null,
-    val imageAttachments: List<ApiImageAttachment> = emptyList(),
-    /** Raw user input for transcript display; [message] carries the prompt-wrapped view sent to the model. */
-    val displayText: String? = null
+    val modelParams: Map<String, String>? = null,
+    val imageAttachments: List<ApiImageAttachment> = emptyList()
   )
 
-  /** Lenient parser used for NDJSON lines so a missing `type` field does not throw. */
   private val ndjsonParser: Json = Json {
     ignoreUnknownKeys = true; isLenient = true
   }
@@ -328,18 +321,19 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
       if (response.statusCode() != 200) return@withContext null
       val parsed: JsonObject = ndjsonParser.parseToJsonElement(response.body()) as? JsonObject
         ?: return@withContext null
+
       ApiSessionState(
-        sessionId = parsed.stringOrNull("sessionId") ?: sessionId,
         runId = parsed.stringOrNull("runId"),
-        isRunning = (parsed["isRunning"] as? JsonPrimitive)?.booleanOrNull ?: false,
-        lastMessageIndex = (parsed["lastMessageIndex"] as? JsonPrimitive)?.intOrNull ?: -1,
+        messages = parsed.objectList("messages"),
+        subAgents = parsed.objectList("subAgents"),
+        pendingAsks = parsed.objectList("pendingAsks"),
         title = parsed.stringOrNull("title").orEmpty(),
         modelName = parsed.stringOrNull("modelName").orEmpty(),
+        sessionId = parsed.stringOrNull("sessionId") ?: sessionId,
         createdAt = (parsed["createdAt"] as? JsonPrimitive)?.longOrNull ?: 0L,
         updatedAt = (parsed["updatedAt"] as? JsonPrimitive)?.longOrNull ?: 0L,
-        messages = parsed.objectList("messages"),
-        pendingAsks = parsed.objectList("pendingAsks"),
-        subAgents = parsed.objectList("subAgents")
+        isRunning = (parsed["isRunning"] as? JsonPrimitive)?.booleanOrNull ?: false,
+        lastMessageIndex = (parsed["lastMessageIndex"] as? JsonPrimitive)?.intOrNull ?: -1
       )
     } catch (fetchException: Exception) {
       if (fetchException is CancellationException) throw fetchException
@@ -348,11 +342,9 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     }
   }
 
-  /** Lenient string field: missing or JSON-null both read as `null`. */
   private fun JsonObject.stringOrNull(key: String): String? =
     (this[key] as? JsonPrimitive)?.contentOrNull
 
-  /** Elements of an array field, keeping only the objects; missing or non-array fields read as empty. */
   private fun JsonObject.objectList(key: String): List<JsonObject> =
     (this[key] as? JsonArray)?.filterIsInstance<JsonObject>() ?: emptyList()
 
@@ -454,10 +446,10 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    *   the request failed.
    */
   suspend fun saveTranscript(
-    projectRoot: String,
-    sessionId: String,
     title: String,
-    content: String
+    content: String,
+    sessionId: String,
+    projectRoot: String
   ): Boolean = withContext(Dispatchers.IO) {
     val requestBody: JsonObject = buildJsonObject {
       put("projectRoot", projectRoot)
@@ -620,7 +612,6 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     return sequence
   }
 
-  /** Cap on how much of a malformed line we copy into the IDE log. */
   private companion object {
     const val MAX_LOGGED_LINE: Int = 200
   }

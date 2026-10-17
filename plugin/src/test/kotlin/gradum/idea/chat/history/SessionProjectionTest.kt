@@ -116,15 +116,53 @@ class SessionProjectionTest {
   }
 
   @Test
-  fun `missing numeric fields default to zero and a blank usage map yields no usage`() {
-    val partial: List<ChatMessage> = project(
-      """{"role":"assistant","content":"x","tokenUsage":{"totalTokens":5}}""",
-      """{"role":"assistant","content":"y","tokenUsage":{}}"""
+  fun `a turn stored as several assistant rows merges into one bubble`() {
+    val messages: List<ChatMessage> = project(
+      """{"role":"assistant","tool_calls":[{"id":"call-1","type":"function","function":{"name":"read_file","arguments":"{\"path\":\"Main.kt\"}"}}],"modelName":"qwen2.5"}""",
+      """{"role":"tool","alias":"Read","tool_call_id":"call-1","content":"file body"}""",
+      """{"role":"assistant","content":"the file is empty","modelName":"qwen2.5","tokenUsage":{"promptTokens":10,"completionTokens":4,"totalTokens":14,"contextTokens":10}}"""
     )
 
+    assertEquals(1, messages.size)
+    val assistant: ChatMessage = messages.first()
+    assertEquals("qwen2.5", assistant.modelName)
+    assertEquals(14, assistant.tokenUsage?.totalTokens)
+
+    val events: List<ChatEvent> = assistant.events
+    assertEquals(2, events.size)
+    assertTrue(events[0] is ChatEvent.ToolCall)
+    assertTrue(events[1] is ChatEvent.Response)
+    assertEquals("the file is empty", assistant.responseContent)
+    assertEquals("file body", (events[0] as ChatEvent.ToolCall).info.result)
+  }
+
+  @Test
+  fun `thinking across rows folds into one event before the tool calls`() {
+    val messages: List<ChatMessage> = project(
+      """{"role":"assistant","thinking":"step one","tool_calls":[{"id":"call-1","type":"function","function":{"name":"ls","arguments":"{}"}}]}""",
+      """{"role":"tool","tool_call_id":"call-1","content":"a, b"}""",
+      """{"role":"assistant","thinking":"step two","content":"done"}"""
+    )
+
+    assertEquals(1, messages.size)
+    val events: List<ChatEvent> = messages.first().events
+    assertEquals(3, events.size)
+    assertEquals("step one\n\nstep two", (events[0] as ChatEvent.Thinking).content)
+    assertTrue(events[1] is ChatEvent.ToolCall)
+    assertEquals("done", (events[2] as ChatEvent.Response).content)
+  }
+
+  @Test
+  fun `missing numeric fields default to zero and the last usage row wins`() {
+    val partial: List<ChatMessage> = project(
+      """{"role":"assistant","content":"x","tokenUsage":{"totalTokens":5}}""",
+      """{"role":"assistant","content":"y"}"""
+    )
+
+    assertEquals(1, partial.size)
+    assertEquals("x\n\ny", partial[0].responseContent)
     assertEquals(5, partial[0].tokenUsage?.totalTokens)
     assertEquals(0, partial[0].tokenUsage?.contextTokens)
-    assertEquals(null, partial[1].tokenUsage)
   }
 
   @Test

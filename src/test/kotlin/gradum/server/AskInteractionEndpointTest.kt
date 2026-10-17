@@ -15,7 +15,6 @@ import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
-/** Tests for `POST /events/respond`, the answer back-channel of ask_interaction. */
 class AskInteractionEndpointTest {
 
   @Test
@@ -78,7 +77,6 @@ class AskInteractionEndpointTest {
       assertEquals(HttpStatusCode.OK, first.status)
       assertContains(first.bodyAsText(), "delivered")
 
-      // Duplicate delivery for the same requestId is an idempotent no-op.
       val duplicate = client.post("/events/respond") {
         contentType(ContentType.Application.Json)
         setBody("""{"sessionId":"sess","requestId":"req-1","text":"again"}""")

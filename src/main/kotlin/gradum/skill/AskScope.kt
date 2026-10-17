@@ -49,12 +49,16 @@ class AskScope(
 
     val requestId: String = UUID.randomUUID().toString()
     val payload: Map<String, Any> = request.toWire(requestId = requestId, sessionId = sessionId)
+
     emitEvent?.invoke(GradumEventType.ASK_INTERACTION.wireName, payload)
+
     return when (val result: AskResult = pendingQuestions.await(sessionId, requestId, payload)) {
-      is AskResult.Case -> AskResult.Case(
-        id = result.id,
-        meaning = request.meaningFor(result.id) ?: Choice.Meaning.REJECT
-      )
+
+      is AskResult.Case ->
+        AskResult.Case(
+          id = result.id,
+          meaning = request.meaningFor(result.id) ?: Choice.Meaning.REJECT
+        )
 
       else -> result
     }

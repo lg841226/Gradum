@@ -263,7 +263,6 @@ internal fun GradumChatSession.handleSubAgentToolCall(data: JsonObject?) {
     arguments = callArguments
   )
 
-  // Deduplicate by toolCallId: replace existing entry if present, otherwise append
   val existingIndex: Int = subAgentState.toolCalls.indexOfFirst { it.toolCallId == toolCallId }
   subAgentState.toolCalls = if (existingIndex >= 0) {
     subAgentState.toolCalls.toMutableList().also {
@@ -332,7 +331,6 @@ internal fun GradumChatSession.handleSubAgentError(data: JsonObject?) {
   subAgentTimeoutJob?.cancel(cause = CancellationException("Gradum: cancel sub-agent timeout on error"))
   log.warn("Sub-agent error: [$errorCode] $errorMessage")
 
-  // Update the delegate capsule in the main chat to show the error
   val assistantIndex: Int = messages.lastIndex
   if (assistantIndex >= 0 && assistantIndex < messages.size
     && !messages[assistantIndex].isUserMessage

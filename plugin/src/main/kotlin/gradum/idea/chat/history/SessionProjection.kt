@@ -5,15 +5,7 @@ import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.TokenUsage
 import gradum.idea.chat.model.ToolCallInfo
 import gradum.idea.editor.AttachedText
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.*
 
 /**
  * Rebuilds the bubble UI's [ChatMessage] list from the server's
@@ -51,7 +43,7 @@ object SessionProjection {
 
         "assistant" -> {
           val (assistantMessage: ChatMessage?, nextIndex: Int) =
-            assistantMessage(projectedMessage, projectedMessages, messageIndex, timestamp)
+            mergedAssistantMessage(messageIndex, timestamp, projectedMessages)
           if (assistantMessage != null) rebuiltMessages.add(assistantMessage)
           messageIndex = nextIndex
         }
@@ -76,46 +68,106 @@ object SessionProjection {
   }
 
   /**
-   * Rebuilds one assistant message and reports the index to resume at, having
-   * consumed the `tool` result rows that immediately follow its tool calls.
+   * Rebuilds one assistant bubble from every consecutive `assistant` / `tool`
+   * row starting at [startIndex], reporting the index to resume at.
+   *
+   * A single turn is persisted as several assistant rows : one per model step
+   * (tool-call rows first, the final text row last) : but the live view renders
+   * the whole turn as one bubble, because the event stream keeps appending to
+   * the same message. The rebuild merges the rows the same way: all thinking
+   * folds into one event, every tool call pairs with its result row, and the
+   * response texts concatenate, so a reopened session shows one bubble instead
+   * of a split "fold group + reply" pair.
    */
-  private fun assistantMessage(
-    message: JsonObject,
-    allMessages: List<JsonObject>,
+  private fun mergedAssistantMessage(
     startIndex: Int,
-    timestamp: Long
+    timestamp: Long,
+    allMessages: List<JsonObject>
   ): Pair<ChatMessage?, Int> {
-    val thinkingText: String = message.text("thinking")
-    val responseText: String = message.text("content")
-    val toolCalls: JsonArray = message["tool_calls"] as? JsonArray ?: JsonArray(emptyList())
+    val thinkingParts: MutableList<String> = mutableListOf()
+    val responseParts: MutableList<String> = mutableListOf()
+    val callRows: MutableList<Pair<JsonArray, List<JsonObject>>> = mutableListOf()
+    var modelName = ""
+    var messageId = ""
+    var usage: TokenUsage? = null
 
-    val toolResults: MutableList<JsonObject> = mutableListOf()
-    var lookahead: Int = startIndex + 1
-    while (lookahead < allMessages.size && allMessages[lookahead].text("role") == "tool") {
-      toolResults.add(allMessages[lookahead])
-      lookahead++
+    var index: Int = startIndex
+    while (index < allMessages.size) {
+      val row: JsonObject = allMessages[index]
+      when (row.text("role")) {
+        "assistant" -> {
+          row.text("thinking").takeIf { it.isNotBlank() }?.let { thinkingParts.add(it) }
+          row.text("content").takeIf { it.isNotBlank() }?.let { responseParts.add(it) }
+          if (modelName.isBlank()) modelName = row.text("modelName")
+          if (messageId.isBlank()) messageId = row.text("id")
+          row["tokenUsage"]?.let { usage = tokenUsage(row) ?: usage }
+
+          val toolCalls: JsonArray = row["tool_calls"] as? JsonArray ?: JsonArray(emptyList())
+          if (toolCalls.isNotEmpty()) {
+            val results: MutableList<JsonObject> = mutableListOf()
+            var lookahead: Int = index + 1
+            while (lookahead < allMessages.size && allMessages[lookahead].text("role") == "tool") {
+              results.add(allMessages[lookahead])
+              lookahead++
+            }
+            callRows.add(toolCalls to results)
+            index = lookahead
+          } else {
+            index++
+          }
+        }
+
+        "tool" -> index++
+
+        else -> return finishedAssistantMessage(
+          timestamp, messageId, modelName, usage, thinkingParts, responseParts, callRows
+        ) to index
+      }
     }
+    return finishedAssistantMessage(
+      timestamp, messageId, modelName, usage, thinkingParts, responseParts, callRows
+    ) to index
+  }
 
-    val events: MutableList<ChatEvent> = mutableListOf()
-    if (thinkingText.isNotBlank()) events.add(ChatEvent.Thinking(thinkingText))
-    events.addAll(toolCallEvents(toolCalls, toolResults))
-    if (thinkingText.isBlank() && responseText.isBlank() && events.isEmpty()) return null to lookahead
-    if (responseText.isNotBlank()) events.add(ChatEvent.Response(responseText))
+  /** Assembles the merged rows into one bubble, or null when the turn is empty. */
+  private fun finishedAssistantMessage(
+    timestamp: Long,
+    messageId: String,
+    modelName: String,
+    usage: TokenUsage?,
+    thinkingParts: List<String>,
+    responseParts: List<String>,
+    callRows: List<Pair<JsonArray, List<JsonObject>>>
+  ): ChatMessage? {
+    val thinkingText: String = thinkingParts.joinToString(separator = "\n\n")
+    val responseText: String = responseParts.joinToString(separator = "\n\n")
+    if (thinkingText.isBlank() && responseText.isBlank() && callRows.isEmpty()) return null
 
-    var rebuiltMessage: ChatMessage = ChatMessage(
+    var rebuiltMessage = ChatMessage(
       role = "assistant",
       timestamp = timestamp,
-      modelName = message.text("modelName"),
-      tokenUsage = tokenUsage(message)
+      modelName = modelName,
+      messageId = messageId,
+      tokenUsage = usage
     )
-    events.forEach { event: ChatEvent -> rebuiltMessage = rebuiltMessage.appendEvent(event) }
-    return rebuiltMessage to lookahead
+    if (thinkingText.isNotBlank())
+      rebuiltMessage = rebuiltMessage.appendEvent(ChatEvent.Thinking(thinkingText))
+
+    callRows.forEach { (toolCalls: JsonArray, toolResults: List<JsonObject>) ->
+      toolCallEvents(toolCalls, toolResults).forEach { event: ChatEvent ->
+        rebuiltMessage = rebuiltMessage.appendEvent(event)
+      }
+    }
+    if (responseText.isNotBlank())
+      rebuiltMessage = rebuiltMessage.appendEvent(ChatEvent.Response(responseText))
+
+    return rebuiltMessage
   }
 
   /**
    * Pairs each tool call with its result row. The raw history stores the
    * arguments the model produced and the result as an opaque string, and no
-   * success flag, so a rebuilt call is always marked successful — the same
+   * success flag, so a rebuilt call is always marked successful: the same
    * fidelity the Markdown transcript offers on reload.
    */
   private fun toolCallEvents(toolCalls: JsonArray, toolResults: List<JsonObject>): List<ChatEvent> {
@@ -139,7 +191,6 @@ object SessionProjection {
     }
   }
 
-  /** Removes and returns the result matching [callId], falling back to the first, mirroring the transcript writer. */
   private fun takeResult(remainingResults: MutableList<JsonObject>, callId: String): JsonObject? {
     val matched: JsonObject? = when {
       callId.isNotBlank() -> remainingResults.firstOrNull { it.text("tool_call_id") == callId }
@@ -184,7 +235,6 @@ object SessionProjection {
     )
   }
 
-  /** Arguments are a JSON-encoded string for most providers and a nested object for Ollama. */
   private fun toolArguments(element: JsonElement?): Map<String, Any> {
     return when (element) {
       is JsonPrimitive -> parseArguments(element.content)
@@ -208,7 +258,7 @@ object SessionProjection {
       is JsonPrimitive -> when {
         element.isString -> element.content
         else -> element.booleanOrNull ?: element.intOrNull ?: element.longOrNull
-          ?: element.content.toDoubleOrNull() ?: element.content
+        ?: element.content.toDoubleOrNull() ?: element.content
       }
 
       is JsonArray -> element.map { toPlainValue(it) }
@@ -216,13 +266,11 @@ object SessionProjection {
     }
   }
 
-  /** Lenient string field: missing or JSON-null both read as empty. */
   private fun JsonObject.text(key: String): String {
     val value: JsonPrimitive = this[key] as? JsonPrimitive ?: return ""
     return value.contentOrNull.orEmpty()
   }
 
-  /** Numeric field read as an [Int], defaulting to 0 for missing or non-numeric values. */
   private fun JsonObject.number(key: String): Int {
     val value: JsonPrimitive = this[key] as? JsonPrimitive ?: return 0
     return value.content.toIntOrNull() ?: 0

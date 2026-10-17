@@ -8,11 +8,7 @@ import io.ktor.http.*
 import io.ktor.server.testing.*
 import java.nio.file.Files
 import java.nio.file.Path
-import kotlin.test.Test
-import kotlin.test.assertContains
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
-import kotlin.test.fail
+import kotlin.test.*
 
 /**
  * Verifies the debug tool-call playback mode end-to-end: manuscript
@@ -28,11 +24,12 @@ import kotlin.test.fail
 class DebugPlaybackEndToEndTest {
 
   @Test
-  fun `plays a scenario and streams playback events`(): Unit = testApplication {
-    application { module(ServerConfiguration()) }
-    val projectRoot = System.getProperty("user.dir")
+  fun `plays a scenario and streams playback events`(): Unit =
+    testApplication {
+      application { module(ServerConfiguration()) }
+      val projectRoot = System.getProperty("user.dir")
 
-    val scenarioXml = """
+      val scenarioXml = """
       <tls>
         <tt>Let me inspect the error codes first.</tt>
         <t nam="read_file" pth="src/main/kotlin/gradum/ErrorCode.kt" lin="1-10"/>
@@ -42,47 +39,47 @@ class DebugPlaybackEndToEndTest {
       </tls>
     """.trimIndent()
 
-    val body = postScenario(client, Path.of(projectRoot), scenarioXml)
+      val body = postScenario(client, Path.of(projectRoot), scenarioXml)
 
-    assertTrue(
-      body.lines().any {
-        it.contains(other = "\"type\":\"playback_start\"")
-      },
-      "missing playback_start"
-    )
-    assertTrue(
-      body.lines().any {
-        it.contains(other = "\"type\":\"response\"")
-          && it.contains(other = "Let me inspect the error codes first.")
-      },
-      "missing response narration"
-    )
-    assertTrue(
-      body.lines().any {
-        it.contains(other = "\"type\":\"tool_call\"")
-      },
-      "missing tool_call"
-    )
-    assertTrue(
-      body.lines().any {
-        it.contains(other = "\"type\":\"playback_end\"")
-      },
-      "missing playback_end"
-    )
-    assertTrue(
-      body.lines().any {
-        it.contains(other = "\"type\":\"session_end\"")
-      },
-      "missing session_end"
-    )
-    assertTrue(
-      body.lines().any {
-        it.contains(other = "playback_2")
-          && it.contains(other = "\"tool\":\"grep\"")
-      },
-      "grep tool_call event should carry the playback call id"
-    )
-  }
+      assertTrue(
+        body.lines().any {
+          it.contains(other = "\"type\":\"playback_start\"")
+        },
+        "missing playback_start"
+      )
+      assertTrue(
+        body.lines().any {
+          it.contains(other = "\"type\":\"response\"")
+            && it.contains(other = "Let me inspect the error codes first.")
+        },
+        "missing response narration"
+      )
+      assertTrue(
+        body.lines().any {
+          it.contains(other = "\"type\":\"tool_call\"")
+        },
+        "missing tool_call"
+      )
+      assertTrue(
+        body.lines().any {
+          it.contains(other = "\"type\":\"playback_end\"")
+        },
+        "missing playback_end"
+      )
+      assertTrue(
+        body.lines().any {
+          it.contains(other = "\"type\":\"session_end\"")
+        },
+        "missing session_end"
+      )
+      assertTrue(
+        body.lines().any {
+          it.contains(other = "playback_2")
+            && it.contains(other = "\"tool\":\"grep\"")
+        },
+        "grep tool_call event should carry the playback call id"
+      )
+    }
 
   /**
    * Playback is only the vehicle here: it produces a deterministic NDJSON

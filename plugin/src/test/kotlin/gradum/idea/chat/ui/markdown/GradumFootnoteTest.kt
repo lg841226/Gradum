@@ -22,11 +22,11 @@ class GradumFootnoteTest {
 
   private fun render(text: String): InlineMarkdownRenderResult =
     parseInlineMarkdown(
-      linkColor = testLinkColor,
       plainText = text,
-      fontSizeSp = testFontSizeSp,
-      imageAltColor = testImageAltColor,
       codeColor = testTint,
+      linkColor = testLinkColor,
+      fontSizeSp = testFontSizeSp,
+      imageAltColor = testImageAltColor
     )
 
   private fun inlineRender(text: String): InlineMarkdownRender =
@@ -42,7 +42,6 @@ class GradumFootnoteTest {
     return out.toString()
   }
 
-  /** Count PUA placeholders of a given base character. */
   private fun countPlaceholders(annotated: AnnotatedString, base: Char): Int {
     var count = 0
     for (element in annotated)

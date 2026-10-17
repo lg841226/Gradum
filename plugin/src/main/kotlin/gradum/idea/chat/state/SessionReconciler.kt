@@ -44,7 +44,6 @@ internal fun GradumChatSession.applyServerProjection(state: GradumApiClient.ApiS
   hasSentMessage = messages.isNotEmpty()
 }
 
-/** Appends replayed ask cards to the last assistant message, where a live ask would land. */
 private fun GradumChatSession.appendPendingAsks(payloads: List<JsonObject>) {
   val assistantIndex: Int = messages.lastIndex
   if (assistantIndex < 0 || messages[assistantIndex].isUserMessage) return
