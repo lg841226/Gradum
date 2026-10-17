@@ -14,6 +14,13 @@ data class ModelInfo(
   val openWeights: Boolean = false,
   val attachment: Boolean = false,
   /**
+   * Upstream host reported by the server from Ollama `/api/tags`
+   * (`remote_host`); non-null means the model runs in Ollama Cloud.
+   */
+  val remoteHost: String? = null,
+  /** Official parameter count from the server (`details.parameter_size`), e.g. 8.0 for `8.0B`. */
+  val parameterSizeB: Double? = null,
+  /**
    * `true` while the model is reachable. The server's `ModelDiscovery`
    * flips it to `false` on a failed health check; the plugin filters out
    * `available = false` entries in `GradumChatSession.applyModelList`.

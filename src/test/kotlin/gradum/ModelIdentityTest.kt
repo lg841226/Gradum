@@ -67,16 +67,18 @@ class ModelIdentityTest {
   }
 
   @Test
-  fun `isCloudTagged matches cloud in name`() {
+  fun `isCloudTagged matches the official cloud naming convention`() {
     assertTrue(ModelIdentity.isCloudTagged(modelName = "minimax-m2.5:cloud"))
     assertTrue(ModelIdentity.isCloudTagged(modelName = "qwen3-coder-480b-cloud"))
     assertTrue(ModelIdentity.isCloudTagged(modelName = "FOO-CLOUD"))
   }
 
   @Test
-  fun `isCloudTagged rejects names without cloud`() {
+  fun `isCloudTagged rejects names where cloud is not the tag`() {
     assertFalse(ModelIdentity.isCloudTagged(modelName = "qwen-14b"))
     assertFalse(ModelIdentity.isCloudTagged(modelName = "gpt-4o"))
+    assertFalse(ModelIdentity.isCloudTagged(modelName = "cloudrunner:7b"))
+    assertFalse(ModelIdentity.isCloudTagged(modelName = "cloudsmith:latest"))
   }
 
   @Test

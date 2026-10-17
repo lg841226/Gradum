@@ -898,6 +898,8 @@ fun Application.registerAllRoutes(
           "attachment" to entry.attachment,
           "serverName" to entry.serverName,
           "openWeights" to entry.openWeights,
+          "remoteHost" to entry.remoteHost,
+          "parameterSizeB" to entry.parameterSizeB,
           "contextLimit" to entry.contextLimit,
           "unavailableReason" to entry.unavailableReason?.name
         )

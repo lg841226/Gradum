@@ -28,6 +28,10 @@ data class ModelEntry(
   val reasoning: Boolean = false,
   val attachment: Boolean = false,
   val openWeights: Boolean = false,
+  /** Upstream host reported by Ollama `/api/tags` (`remote_host`); non-null means the model runs in Ollama Cloud. */
+  val remoteHost: String? = null,
+  /** Official parameter count from Ollama `/api/tags` (`details.parameter_size`), e.g. 8.0 for `8.0B`. */
+  val parameterSizeB: Double? = null,
   val unavailableReason: UnavailableReason? = null
 )
 
@@ -190,21 +194,24 @@ object ModelIdentity {
     pattern = """(\d+\.?\d*)b(?:\s|$|:|[-_])""", option = RegexOption.IGNORE_CASE
   )
 
-  private val CLOUD_KEYWORDS: Set<String> = setOf(
-    "cloud", "api", "gpt", "claude", "gemini",
-    "sonnet", "haiku", "opus", "pro", "flash",
-    "turbo", "mini", "large", "xxl",
-  )
+  /** Fallback for servers that predate the `remote_host` field on `/api/tags`: Ollama's official cloud naming convention. */
+  fun isCloudTagged(modelName: String): Boolean {
+    val lowerName: String = modelName.lowercase()
+    if (lowerName.endsWith(suffix = "-cloud")) return true
+    return lowerName.substringAfter(':', missingDelimiterValue = "") == "cloud"
+  }
 
-  fun isCloudTagged(modelName: String): Boolean =
-    modelName.contains(other = "cloud", ignoreCase = true)
-
+  /**
+   * Name-only heuristic used where no [ModelEntry] is at hand (schema
+   * variant resolution before discovery results arrive). Cloud models are
+   * never "small" regardless of what a size token in their name suggests.
+   * Providers that expose no parameter-size API (DeepSeek, Zhipu) stay on
+   * this path; Ollama entries carry the official `parameter_size` instead.
+   */
   fun isSmallModel(modelName: String): Boolean {
     if (modelName.isBlank()) return false
-    val lowerName = modelName.lowercase()
-
-    if (CLOUD_KEYWORDS.any { lowerName.contains(other = it) }) return false
-    val match = PARAMETER_PATTERN.find(input = lowerName) ?: return false
+    if (isCloudTagged(modelName)) return false
+    val match: MatchResult = PARAMETER_PATTERN.find(input = modelName.lowercase()) ?: return false
     val modelSize = match.groupValues[1].toDoubleOrNull() ?: return false
 
     return modelSize <= MAX_SMALL_MODEL_PARAMETERS_B
@@ -658,24 +665,81 @@ object ModelIdentity {
           return ProbeResult.HttpError(probe.status)
         }
 
-        val modelNames: List<String> = parseModelNamesFromBody(server.providerType, probe.body)
-        val visionModels: Set<String> = detectVisionModels(server = server, probeBody = probe.body, modelNames = modelNames)
+        if (server.providerType == Provider.OLLAMA.wireType) {
+          val ollamaModels: List<OllamaModelInfo> = parseOllamaModelsFromBody(body = probe.body)
+          val modelNames: List<String> = ollamaModels.map { it.modelName }
+          val visionModels: Set<String> = detectVisionModels(server = server, probeBody = probe.body, modelNames = modelNames)
 
-        ProbeResult.Ok(models = modelNames.map {
-          ModelEntry(
-            modelName = it,
-            serverName = server.name,
-            serverUrl = server.baseUrl,
-            attachment = it in visionModels,
-            providerType = server.providerType
-          )
-        })
+          ProbeResult.Ok(models = ollamaModels.map {
+            ModelEntry(
+              modelName = it.modelName,
+              serverName = server.name,
+              serverUrl = server.baseUrl,
+              attachment = it.modelName in visionModels,
+              providerType = server.providerType,
+              remoteHost = it.remoteHost,
+              parameterSizeB = it.parameterSizeB
+            )
+          })
+        } else {
+          val modelNames: List<String> = parseModelNamesFromBody(server.providerType, probe.body)
+          val visionModels: Set<String> = detectVisionModels(server = server, probeBody = probe.body, modelNames = modelNames)
+
+          ProbeResult.Ok(models = modelNames.map {
+            ModelEntry(
+              modelName = it,
+              serverName = server.name,
+              serverUrl = server.baseUrl,
+              attachment = it in visionModels,
+              providerType = server.providerType
+            )
+          })
+        }
       } catch (_: Exception) {
         ProbeResult.Unreachable
       } catch (probeError: Throwable) {
         throw probeError
       }
     }
+
+    /** One model row from an Ollama `/api/tags` payload. */
+    private data class OllamaModelInfo(
+      val modelName: String,
+      val remoteHost: String?,
+      val parameterSizeB: Double?
+    )
+
+    /**
+     * Parses the full Ollama `/api/tags` response so discovery can read the
+     * official identity fields instead of guessing from the model name:
+     * `remote_host` (non-null means the model runs in Ollama Cloud) and
+     * `details.parameter_size` (official parameter count, e.g. `"8.0B"`).
+     */
+    private fun parseOllamaModelsFromBody(body: String): List<OllamaModelInfo> {
+      if (body.isBlank()) return emptyList()
+
+      val responseJson: JsonObject = try {
+        jsonParser.parseToJsonElement(string = body).jsonObject
+      } catch (_: Exception) {
+        return emptyList()
+      }
+
+      return responseJson["models"]?.jsonArray?.mapNotNull { element ->
+        val modelJson: JsonObject = element.jsonObject
+        val name: String = modelJson["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+        OllamaModelInfo(
+          modelName = name,
+          remoteHost = modelJson["remote_host"]?.jsonPrimitive?.contentOrNull
+            ?.trim()?.takeIf { it.isNotEmpty() },
+          parameterSizeB = modelJson["details"]?.jsonObject?.get("parameter_size")
+            ?.jsonPrimitive?.contentOrNull?.let(::parseParameterSize)
+        )
+      } ?: emptyList()
+    }
+
+    /** Extracts the numeric part of an official `parameter_size` value (`"8.0B"` → 8.0, `"7B"` → 7.0). */
+    private fun parseParameterSize(raw: String): Double? =
+      Regex(pattern = """\d+\.?\d*""").find(input = raw)?.value?.toDoubleOrNull()
 
     /**
      * Detects which models in [modelNames] support image inputs by
@@ -784,7 +848,8 @@ object ModelIdentity {
     }
 
     private fun isOllamaCloudModel(entry: ModelEntry): Boolean =
-      entry.providerType == Provider.OLLAMA.wireType && isCloudTagged(entry.modelName)
+      entry.providerType == Provider.OLLAMA.wireType &&
+        (!entry.remoteHost.isNullOrBlank() || isCloudTagged(entry.modelName))
 
     private fun probeCloudModel(entry: ModelEntry): UnavailableReason? = try {
       HttpClient().use { client ->
