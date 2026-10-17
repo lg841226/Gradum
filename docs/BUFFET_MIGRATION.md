@@ -1,0 +1,194 @@
+# Gradum Buffet: Server-Authoritative State Migration
+
+> Version: **0.1** · Branch: `feature/@gradum-gwy-buffet-projection` · Opened: **2026-10-17** · Status: **Step 1 done**
+
+"Buffet" is the working name for moving session-state authority from the IDE
+plugin back to the server. The plugin should *serve* state (render it, ask the
+user, forward input), not *derive* it. Right now it does a lot of deriving, and
+two writers of the same state drift apart.
+
+This document is the step-by-step plan and the alignment point for status. Each
+step is independently shippable, keeps the public API and `settings.json`
+schema backward compatible, and is accepted only when the existing test suite
+stays green.
+
+---
+
+## 1. Problem
+
+Three kinds of responsibility overlap between the plugin and the server:
+
+1. **State reconstruction.** The plugin rebuilds server state in memory from the
+   event stream (`thinking` / `response` / `tool_call` / ...). The server's
+   `Agent` / `LLMClient` is the real owner; the plugin keeps a second copy that
+   can silently diverge when an event is lost.
+2. **Duplicated format and semantics.** The same conversation-transcript format,
+   title rule, and error-code list are implemented twice, once per module. A
+   change on one side that misses the other corrupts history.
+3. **Decisions that belong to the server.** Session id, message id, session
+   merge, model availability, and "is it running" are decided client-side.
+
+The root cause of (1) is that the event stream has **no reconciliation anchor**:
+there is no sequence number and no way to re-fetch the authoritative state. A
+stalled or reconnecting client cannot tell whether it missed anything.
+
+## 2. Target model
+
+Split state into two kinds, and give each a clear transport:
+
+- **Cold (finished) state** — the authoritative projection. The plugin *pulls*
+  it over REST; the server computes it from its own durable store. The plugin
+  never derives a finished message from raw events.
+- **Hot (live) state** — the in-flight stream. Stays push (NDJSON), but every
+  event carries an anchor (`seq` + `gap`) so the client can detect loss, and the
+  client periodically reconciles against the cold projection.
+
+The plugin becomes thin: it renders, it asks, it forwards. Renumbering,
+retitling, merging, and availability checks move back to the server.
+
+## 3. Responsibility inventory
+
+The overlap, item by item. "Step" is the step that removes it.
+
+| # | The plugin currently... | Truth lives in | Step |
+|---|--------------------------|----------------|------|
+| 1 | assembles the assistant reply from raw events | server `Agent` / `LLMClient` | 3 |
+| 2 | guesses the phase ("thinking / connecting / weaving") | server run state | 3 |
+| 3 | keeps its own sub-agent progress | server sub-agent | 3 |
+| 4 | tracks isSending / isWaiting / hasSent / session lifecycle | server run state | 3 |
+| 5 | accumulates token usage per turn | server usage ledger | 3 |
+| 6 | remembers dismissed ask-cards | server pending questions | 3 |
+| 7 | writes and parses the transcript format | one format, server-owned | 4 |
+| 8 | derives the session title (first user line) | server | 4 |
+| 9 | duplicates the error-code enum | server `ErrorCode` | 4 |
+| 10 | maps error codes to user-facing text | server sends code only | 4 |
+| 11 | generates the session id | server | 5 |
+| 12 | generates the message id (UUID) used for rewind | server | 5 |
+| 13 | merges sessions by weaving transcripts client-side | server merge endpoint | 5 |
+| 14 | numbers merged titles (`N+1`) | server | 5 |
+| 15 | pre-validates that the selected model exists | server rejects at request time | 5 |
+| 16 | blocks image attachments by guessing vision support | server | 5 |
+| 17 | guesses "not installed" vs "not started" | `/health` capability flags | 5 |
+| 18 | optimistically deletes then calls rewind | server-first, then local | 5 |
+
+## 4. Steps
+
+Legend: ✅ done · 🔜 next · ⬜ planned.
+
+### Step 1 — Stream sequence + drop reporting ✅
+
+Make a lost event *visible*. This is the anchor every later reconciliation
+depends on; without it the client cannot know when to reconcile.
+
+- Add `EventStreamSequencer` (`src/main/kotlin/gradum/server/EventStreamSequencer.kt`):
+  a per-request monotonic `seq` and a `gap` count of events the transport dropped.
+- `/events` envelope (`src/main/kotlin/gradum/server/Routes.kt`) gains `seq` and
+  `gap`. A number is claimed for every event, including dropped ones, so a
+  discontinuity equals "dropped + 1". Drops left unreported when the stream ends
+  are logged.
+- Plugin `GradumApiClient` parses `seq` / `gap` and logs a WARN on a
+  discontinuity.
+
+Deliberately **not** changed: NDJSON transport, the `sessionId` semantics
+`/stop` relies on, and the client state model. Old clients can ignore the new
+fields.
+
+Acceptance: `./gradlew :test` green; a deterministic playback stream shows
+contiguous `seq` from 1 with `gap` always 0.
+Commit: `48cf91d`.
+
+### Step 2 — Authoritative state endpoint 🔜
+
+Add the server-side projection the client will reconcile against, and split the
+two session identities that are currently conflated.
+
+- Split identities in the event envelope: keep `sessionId` as the *run id*
+  (what `/stop` uses) and add the stable `conversationId`.
+- Add `GET /session/state?projectRoot=…&sessionId=…&since=<messageSeq>` returning
+  the authoritative state as structured JSON (not Markdown):
+  `isRunning` / `runId`, `messages` (role, content, events, tool calls, usage,
+  messageId), `lastSeq`, `tokenUsage`, `pendingAsk`, `subAgents`.
+- Source it from the durable store (`ChatDb`, which already has `seq` and a hash
+  chain) plus the existing `ContextManager` decrypt path. Idempotent; `since`
+  returns a delta, otherwise the full projection.
+
+Acceptance: endpoint is idempotent; a delta request returns exactly the
+messages after `since`; unit test covers the projection.
+
+### Step 3 — Client reconciliation ⬜
+
+Make the plugin stop trusting its own assembly once a turn is over.
+
+- On `session_end`, on `gap > 0`, and when (re)opening a session, call
+  `GET /session/state` and **replace** local messages with the projection.
+- Crash / kill with no `session_end` is covered by the reconnect path, not by a
+  terminal event.
+- `GradumChatSession.switchSession` stops parsing the transcript markdown and
+  reads the projection instead.
+
+Acceptance: a forced `gap` or a reopened session yields messages identical to the
+server projection; no local-only divergence.
+
+### Step 3.5 — Optional live resume ⬜ (phase 2)
+
+Only if "reconnect mid-run and keep watching" is actually needed: a per-run ring
+buffer keyed by `runId` + `seq`, plus `GET /events/{runId}?since=seq`. Not
+required for Step 3.
+
+### Step 4 — One authority for the format ⬜
+
+Remove the duplicated format and semantics.
+
+- Conversation transcript format, title rule, and `ErrorCode` become
+  server-owned; the plugin consumes structured JSON (`Step 2`), not markdown.
+- Delete the client-side parser/writer (`plugin/.../history/ChatTranscript.kt`)
+  and the duplicated `ErrorCode` (`plugin/.../model/ErrorCode.kt`) once nothing
+  needs them.
+
+Acceptance: history opens correctly with the client parser removed; a single
+source defines the format.
+
+### Step 5 — Move decisions back to the server ⬜
+
+- Server allocates the session id and the message id.
+- Add `POST /sessions/merge`; delete `ChatSessionStore.mergeSessions` /
+  `interleaveMessages` and `nextMergeTitle`.
+- Drop the client-side model pre-validation and vision guessing; let the server
+  return the error code. Runtime reachability becomes `/health` capability flags.
+- Rewind becomes server-first, then local (no optimistic delete).
+
+Acceptance: creating, merging, rewind, and "model gone" flows produce no
+client-authoritative ids or decisions.
+
+### Step 5.5 — Thin the plugin ⬜
+
+Only after Steps 2–4 land: drop `renderBlocks` / event-assembly from
+`ChatMessage.kt` and `ChatEventHandlers.kt`, keeping rendering only. This is the
+payoff step and the riskiest, so it goes last.
+
+## 5. Open decisions
+
+1. **Transport: NDJSON or SSE?** Step 1 keeps NDJSON (no client reader change) and
+   designs the envelope so a later move to `text/event-stream` (free
+   `Last-Event-ID` / `id:` / `event:`) is mechanical. Decide before Step 3.
+2. **Live resume in scope?** Step 3.5 is optional; the default is "reconcile,
+   don't resume".
+
+## 6. Explicit non-goals
+
+- Not changing the public HTTP surface in a breaking way; new fields and new
+  endpoints only.
+- Not changing `settings.json` (e.g. `commandFilter`) for this work.
+- Not moving *logic* into the plugin; the direction is strictly outward.
+
+## 7. Step log
+
+| Step | Status | Commit | Note |
+|------|--------|--------|------|
+| 1 | ✅ done | `48cf91d` | `seq` + `gap` on `/events`; client WARN on discontinuity; 457 tests green |
+| 2 | 🔜 next | — | `GET /session/state` + `runId` / `conversationId` split |
+| 3 | ⬜ | — | client reconcile (session_end / gap / reopen) |
+| 3.5 | ⬜ optional | — | live resume via per-run ring buffer |
+| 4 | ⬜ | — | transcript / title / error-code single authority |
+| 5 | ⬜ | — | id, merge, availability, rewind authority |
+| 5.5 | ⬜ | — | thin the plugin (drop event assembly) |
