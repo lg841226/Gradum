@@ -240,28 +240,4 @@ class ChatTranscriptTest {
       ), ChatTranscript.parseMeta("# just markdown")
     )
   }
-
-  @Test
-  fun `titleFor uses first non blank user line truncated`() {
-    val messages = listOf(
-      ChatMessage(
-        role = "user",
-        timestamp = 1L,
-        content = "\n  Fix the render block bug in ChatMessage.kt and its tests\nmore"
-      ),
-      ChatMessage(role = "assistant", timestamp = 2L)
-    )
-    assertEquals(
-      "Fix the render block bug in ChatMessage.kt and i",
-      ChatTranscript.titleFor(messages)
-    )
-  }
-
-  @Test
-  fun `titleFor falls back to empty for no user message`() {
-    assertEquals(
-      "",
-      ChatTranscript.titleFor(messages = listOf(ChatMessage(role = "assistant")))
-    )
-  }
 }

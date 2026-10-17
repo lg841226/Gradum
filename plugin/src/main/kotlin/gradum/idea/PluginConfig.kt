@@ -52,9 +52,6 @@ object PluginConfig {
   /** Default sub-agent timeout fallback when server doesn't provide one. */
   const val SUB_AGENT_TIMEOUT_FALLBACK: Int = 600
 
-  /** Max chars for auto-generated transcript title. */
-  const val MAX_TITLE_LENGTH: Int = 48
-
   /** Max chars of model display name in selector. */
   const val MAX_MODEL_NAME_CHARS: Int = 14
 

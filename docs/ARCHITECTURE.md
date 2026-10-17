@@ -263,8 +263,10 @@ sessionDir(projectRoot, sessionId) = <projectRoot>/.gradum/sessions/<sessionId>
   id) genuinely forgets.
 - A blank/`null` `sessionId` falls back to the legacy
   `<projectRoot>/.gradum/context.json` for old-clients compatibility.
-- The plugin persists a full-detail transcript per session (`ChatSessionStore` + `ChatTranscript`) that restores the
-  exact bubble UI (thinking, tool calls + results, errors, token usage).
+- The server writes each session's transcript (`conversation.md`) and a rich
+  `session-state.json` sidecar from one save; the plugin restores the exact
+  bubble UI (thinking, tool calls + results, errors, token usage) from the
+  sidecar via `GET /session/state` (`ChatSessionStore` + `SessionProjection`).
 - `POST /session/delete` removes a whole session directory on the server (path-traversal guarded); the plugin cascades
   locally first.
 
@@ -860,7 +862,7 @@ flowchart TD
     RESP --> RP1["PendingQuestions.complete{Choice,Text,Cancelled}<br/>unblocks the waiting skill<br/>{status: delivered|not_found} (400 on bad body)"]
     PS --> S1["abort active session by sessionId<br/>{status: stopped|not_found}"]
     SD --> SD1["delete .gradum/sessions/{sessionId}<br/>strict-child path-traversal guard"]
-    SR --> SR1["truncate session context to messageId<br/>rewrites .gradum/context.json<br/>(conversation.md is plugin-side only)"]
+    SR --> SR1["truncate session context to messageId<br/>rewrites .gradum/context.json<br/>and refreshes the session transcript"]
     GH --> H1["Return JSON<br/>{status: 'healthy', version, uptimeSeconds, timestamp}"]
     GM --> M1["ModelIdentity.discoverModels()<br/>HealthCache TTL 60s,<br/>config-fingerprint invalidation"]
     M1 --> M2["Return JSON<br/>{models: [...]}"]

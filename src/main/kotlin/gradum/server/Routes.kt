@@ -28,7 +28,11 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ChannelResult
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -891,7 +895,7 @@ fun Application.registerAllRoutes(
             "runId" to activeRunId,
             "sessionId" to sessionKey,
             "isRunning" to (activeRunId != null),
-            "lastSeq" to (fullMessages.size - 1),
+            "lastMessageIndex" to (fullMessages.size - 1),
             "title" to (transcriptMeta?.title ?: ""),
             "messages" to fullMessages.drop(sinceSeq + 1),
             "modelName" to (transcriptMeta?.modelName ?: ""),

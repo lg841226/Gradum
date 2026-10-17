@@ -114,7 +114,7 @@ two session identities that are currently conflated.
   image payloads are stripped (names only), matching the transcript's fidelity.
 - **2c · the endpoint** — `GET /session/state?projectRoot=…&sessionId=…&since=<seq>`
   returns the stored history as structured JSON plus `isRunning` / `runId`,
-  `modelName`, `title`, `createdAt`, `updatedAt`, `lastSeq`. A message's `seq` is
+  `modelName`, `title`, `createdAt`, `updatedAt`, `lastMessageIndex`. A message's index is
   its 0-based position; `since` returns the delta after it. The endpoint is
   idempotent and keyed on the session (`SessionEntry.sessionId`).
 - **2d · the live extras** — the payload also carries `tokenUsage` (summed from
@@ -156,18 +156,33 @@ Not in scope for now: the default is "reconcile, don't resume". Only if
 buffer keyed by `runId` + `seq`, plus `GET /events/{runId}?since=seq`. Not
 required for Step 3.
 
-### Step 4 — One authority for the format ⬜
+### Step 4 — One authority for the format ✅ (merge-dependent pieces deferred)
 
-Remove the duplicated format and semantics.
+The sidecar is the single authority, and the plugin keeps no copy of what it no
+longer needs.
 
-- Conversation transcript format, title rule, and `ErrorCode` become
-  server-owned; the plugin consumes structured JSON (`Step 2`), not markdown.
-- Delete the client-side parser/writer (`plugin/.../history/ChatTranscript.kt`)
-  and the duplicated `ErrorCode` (`plugin/.../model/ErrorCode.kt`) once nothing
-  needs them.
+- `conversation.md` is now a render of `session-state.json`:
+  `ContextManager.saveContext` projects the history once, writes the sidecar, and
+  feeds the very same projection to `SessionTranscriptWriter`, so the two files
+  cannot drift.
+- The plugin's `ErrorCode` (a byte-for-byte copy of `gradum.ErrorCode`) is
+  deleted. Codes from the server are opaque strings; only the two the plugin
+  raises itself live on, in `plugin/.../model/ChatErrorCode.kt`.
+- The client-side title rule is deleted (`ChatTranscript.titleFor`,
+  `PluginConfig.MAX_TITLE_LENGTH`); `SessionTranscriptWriter.titleFor` is the
+  only one left.
 
-Acceptance: history opens correctly with the client parser removed; a single
-source defines the format.
+Deferred, because they still need the Markdown format:
+
+- The `conversation.md` fallback in `GradumChatSession.switchSession`. Merge
+  uploads Markdown to `POST /session/save` with **no** sidecar, so the plugin
+  must keep reading it until merge moves to the server (`Step 5`).
+- Deleting `plugin/.../history/ChatTranscript.kt` and the delegate capsule's
+  Markdown round-trip (`handleSubAgentEnd` → `transcriptMarkdown` →
+  `SubChatView`).
+
+Acceptance: the transcript is a render of the sidecar, and no client code
+duplicates the title rule or the error-code vocabulary.
 
 ### Step 5 — Move decisions back to the server ⬜
 
@@ -191,14 +206,20 @@ payoff step and the riskiest, so it goes last.
 
 1. ~~**Rich history source.**~~ **Resolved (Step 2b): the JSON sidecar
    `session-state.json`**, written from the same `ContextManager.saveContext`
-   call as `conversation.md`. Step 4 then makes the transcript a render of the
-   sidecar, so the sidecar becomes the single authority.
+   call as `conversation.md`. **Step 4 renders the transcript from the sidecar's
+   projection**, so the sidecar is the single authority.
 2. ~~**Transport: NDJSON or SSE?**~~ **Resolved: stay on NDJSON.** The envelope
    already carries `seq` / `gap`, and reconciliation goes through the REST
    endpoint (`/session/state`), so SSE's built-in resume buys nothing. The
    envelope stays shaped so a later SSE move would be mechanical.
 3. ~~**Live resume in scope?**~~ **Resolved (Step 3): deferred.** Step 3.5 is
    phase 2; the default is "reconcile, don't resume", so Step 3 ships without it.
+4. **One session, several live runs.** `GET /session/state` resolves `runId`
+   with a `firstOrNull` over `activeSessions` keyed by `sessionId`, so when two
+   runs share one session the reported run is arbitrary. Single-client usage
+   makes this unreachable today; revisit only if concurrent runs per session
+   become a real scenario (then the endpoint needs a `runId` parameter or a
+   defined pick).
 
 ## 6. Explicit non-goals
 
@@ -217,6 +238,6 @@ payoff step and the riskiest, so it goes last.
 | 2d   | ✅ done     | this PR   | `/session/state` also serves `tokenUsage`, `pendingAsks`, `subAgents`     |
 | 3    | ✅ done     | this PR   | client reconcile on `gap`/reopen; projection→bubbles; 498 plugin tests green |
 | 3.5  | ⬜ phase 2 | —         | live resume (`runId` ring buffer + `GET /events/{runId}?since=`)           |
-| 4    | ⬜          | —         | transcript / title / error-code single authority                          |
+| 4    | ✅ done     | this PR   | sidecar→transcript render; plugin `ErrorCode`/title rule dropped; 466 server + 496 plugin green |
 | 5    | ⬜          | —         | id, merge, availability, rewind authority                                 |
 | 5.5  | ⬜          | —         | thin the plugin (drop event assembly)                                     |

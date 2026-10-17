@@ -471,7 +471,7 @@ class GradumFootnoteTest {
     )
     assertTrue(
       "Expected footnote placeholder in inlineContent",
-      render.inlineContent.values.any { it is androidx.compose.foundation.text.InlineTextContent }
+      render.inlineContent.isNotEmpty()
     )
   }
 

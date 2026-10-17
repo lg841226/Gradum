@@ -18,8 +18,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import gradum.idea.chat.model.ChatErrorCode
 import gradum.idea.chat.model.ChatMessage
-import gradum.idea.chat.model.ErrorCode
 import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.ui.chat.skill.humanizeToolName
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
@@ -531,7 +531,7 @@ private fun MessageActionsRow(
 
 @Composable
 private fun ErrorBlock(block: RenderBlock.Error) {
-  val isInterrupted: Boolean = block.code == ErrorCode.INTERRUPTED.code
+  val isInterrupted: Boolean = block.code == ChatErrorCode.INTERRUPTED
   val textErrorColor: Color = JewelTheme.globalColors.text.error
 
   if (isInterrupted) return

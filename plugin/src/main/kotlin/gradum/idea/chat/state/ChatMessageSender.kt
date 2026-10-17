@@ -2,8 +2,8 @@ package gradum.idea.chat.state
 
 import gradum.idea.chat.api.GradumApiClient
 import gradum.idea.chat.history.ChatSessionStore
+import gradum.idea.chat.model.ChatErrorCode
 import gradum.idea.chat.model.ChatEvent
-import gradum.idea.chat.model.ErrorCode
 import gradum.idea.chat.model.ModelInfo
 import gradum.idea.editor.AttachedContext
 import gradum.idea.editor.AttachedFile
@@ -85,7 +85,7 @@ internal suspend fun GradumChatSession.sendMessage(
     if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
       messages[assistantIndex] = messages[assistantIndex].appendEvent(
         ChatEvent.Error(
-          code = ErrorCode.CLIENT_ERROR.code,
+          code = ChatErrorCode.CLIENT_ERROR,
           message = "Model ${currentModel.name} is no longer available"
         )
       )
@@ -103,7 +103,7 @@ internal suspend fun GradumChatSession.sendMessage(
     if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
       messages[assistantIndex] = messages[assistantIndex].appendEvent(
         ChatEvent.Error(
-          code = ErrorCode.CLIENT_ERROR.code,
+          code = ChatErrorCode.CLIENT_ERROR,
           message = "Cannot reach server at ${apiClient.baseUrl}"
         )
       )
@@ -145,7 +145,7 @@ internal suspend fun GradumChatSession.sendMessage(
       if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
         messages[assistantIndex] = messages[assistantIndex].appendEvent(
           ChatEvent.Error(
-            code = ErrorCode.CLIENT_ERROR.code,
+            code = ChatErrorCode.CLIENT_ERROR,
             message = message("gradum.model.no.vision")
           )
         )
@@ -181,7 +181,7 @@ internal suspend fun GradumChatSession.sendMessage(
           if (hasOutput) {
             wasCancelled = true
             messages[assistantIndex] = messages[assistantIndex].appendEvent(
-              ChatEvent.Error(message = "", code = ErrorCode.INTERRUPTED.code)
+              ChatEvent.Error(message = "", code = ChatErrorCode.INTERRUPTED)
             )
             sendingPhase = message("gradum.phase.stopped")
           } else {
@@ -200,7 +200,7 @@ internal suspend fun GradumChatSession.sendMessage(
         messages[assistantIndex] = messages[assistantIndex].appendEvent(
           ChatEvent.Error(
             message = exception.message ?: "Connection failed",
-            code = ErrorCode.CLIENT_ERROR.code
+            code = ChatErrorCode.CLIENT_ERROR
           )
         )
       }
@@ -274,7 +274,7 @@ internal suspend fun GradumChatSession.sendMessage(
         if (hasOutput) {
           wasCancelled = true
           messages[assistantIndex] = messages[assistantIndex].appendEvent(
-            ChatEvent.Error(message = "", code = ErrorCode.INTERRUPTED.code)
+            ChatEvent.Error(message = "", code = ChatErrorCode.INTERRUPTED)
           )
           sendingPhase = message("gradum.phase.stopped")
         } else {
@@ -295,7 +295,7 @@ internal suspend fun GradumChatSession.sendMessage(
     if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
       messages[assistantIndex] = messages[assistantIndex].appendEvent(
         ChatEvent.Error(
-          message = exception.message ?: "Streaming interrupted", code = ErrorCode.CLIENT_ERROR.code
+          message = exception.message ?: "Streaming interrupted", code = ChatErrorCode.CLIENT_ERROR
         )
       )
     }

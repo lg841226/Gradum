@@ -34,7 +34,7 @@ object SessionTranscriptWriter {
   /** Transcript file name inside each session directory. */
   const val TRANSCRIPT_FILE: String = "conversation.md"
 
-  /** Max characters kept for a session title (mirror of `PluginConfig.MAX_TITLE_LENGTH`). */
+  /** Max characters kept for a session title. */
   const val MAX_TITLE_LENGTH: Int = 48
 
   /** The session header always lives in the first lines; no need to read the body. */

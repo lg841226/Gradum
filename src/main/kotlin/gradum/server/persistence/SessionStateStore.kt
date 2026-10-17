@@ -76,11 +76,11 @@ object SessionStateStore {
   /**
    * Shapes the in-memory history into what the client renders: system prompts
    * are dropped (re-injected fresh on every request, never shown) and base64
-   * image payloads are reduced to their metadata. `conversation.md` already
-   * makes both choices, so the sidecar matches its fidelity instead of storing
-   * megabytes of base64 inside the project directory.
+   * image payloads are reduced to their metadata. The transcript is rendered
+   * from this same projection, so the two files describe one conversation and
+   * cannot drift.
    */
-  private fun projectionMessages(messages: List<Map<String, Any>>): List<Map<String, Any>> {
+  fun projectionMessages(messages: List<Map<String, Any>>): List<Map<String, Any>> {
     return messages
       .filter { message: Map<String, Any> -> message["role"] != "system" }
       .map { message: Map<String, Any> ->

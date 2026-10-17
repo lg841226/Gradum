@@ -120,25 +120,15 @@ class ContextManager(private val outputDirectory: Path) {
   }
 
   fun saveContext(messages: List<Map<String, Any>>, modelName: String): Boolean {
-    try {
-      SessionTranscriptWriter.writeTranscript(
-        projectRoot = projectRoot,
-        sessionId = sessionId,
-        modelName = modelName,
-        messages = messages
-      )
-    } catch (transcriptException: Exception) {
-      logger.warn(
-        "Failed to write session transcript: ${transcriptException.javaClass.simpleName}: ${transcriptException.message}"
-      )
-    }
-
+    // The sidecar is the source of truth; the transcript renders the same
+    // projected history so the two files cannot disagree.
+    val projection: List<Map<String, Any>> = SessionStateStore.projectionMessages(messages)
     try {
       SessionStateStore.write(
         projectRoot = projectRoot,
         sessionId = sessionId,
         modelName = modelName,
-        messages = messages
+        messages = projection
       )
     } catch (stateException: Exception) {
       logger.warn(
@@ -146,6 +136,18 @@ class ContextManager(private val outputDirectory: Path) {
       )
     }
 
+    try {
+      SessionTranscriptWriter.writeTranscript(
+        projectRoot = projectRoot,
+        sessionId = sessionId,
+        modelName = modelName,
+        messages = projection
+      )
+    } catch (transcriptException: Exception) {
+      logger.warn(
+        "Failed to write session transcript: ${transcriptException.javaClass.simpleName}: ${transcriptException.message}"
+      )
+    }
 
     return if (useDatabase) {
       cachedMessages = null
