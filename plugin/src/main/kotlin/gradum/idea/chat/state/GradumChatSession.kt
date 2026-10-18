@@ -40,7 +40,6 @@ import java.nio.file.Path
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
-
 /**
  * Why the runtime could not be reached, classified when a call fails. The
  * chat banner names the actual cause instead of one vague message: nothing
@@ -353,7 +352,7 @@ class GradumChatSession : Disposable {
 
     scope?.launch {
       // The server owns the history, so the bubble goes only once the rewind
-      // is accepted; a turn the server never saw has nothing to undo.
+      // is accepted; a turn the server never saw has anything to undo.
       val rewound: Boolean =
         if (sessionKey != null && projectRoot != null && messageId.isNotBlank())
           apiClient.rewindSession(projectRoot, sessionKey, messageId)

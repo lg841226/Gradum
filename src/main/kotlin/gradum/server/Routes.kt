@@ -295,9 +295,7 @@ fun Application.registerAllRoutes(
         return@post
       }
 
-      // Blank means "new chat": the server names the session.
-      val resolvedSessionId: String =
-        requestBody.sessionId?.trim()?.takeIf { it.isNotEmpty() } ?: SessionIds.next()
+      val resolvedSessionId: String = requestBody.sessionId?.trim()?.takeIf { it.isNotEmpty() } ?: SessionIds.next()
       val eventsChannel: Channel<String> = Channel(capacity = EVENTS_CHANNEL_CAPACITY)
       val eventSequencer = EventStreamSequencer()
       val configOverrides: ConfigOverrides = fromRequestMap(requestBody.config)
