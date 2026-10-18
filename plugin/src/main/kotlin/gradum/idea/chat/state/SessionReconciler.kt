@@ -2,8 +2,8 @@ package gradum.idea.chat.state
 
 import gradum.idea.chat.api.GradumApiClient
 import gradum.idea.chat.history.SessionProjection
-import gradum.idea.chat.model.ChatEvent
 import gradum.idea.chat.model.ChatMessage
+import gradum.idea.chat.model.RenderBlock
 import kotlinx.serialization.json.JsonObject
 
 /**
@@ -50,8 +50,8 @@ private fun GradumChatSession.appendPendingAsks(payloads: List<JsonObject>) {
 
   var assistantMessage: ChatMessage = messages[assistantIndex]
   payloads.forEach { payload: JsonObject ->
-    val interaction: ChatEvent.AskInteraction = parseAskInteraction(payload) ?: return@forEach
-    assistantMessage = assistantMessage.appendEvent(interaction)
+    val interaction: RenderBlock.AskInteraction = parseAskInteraction(payload) ?: return@forEach
+    assistantMessage = assistantMessage.appendBlock(interaction)
   }
   messages[assistantIndex] = assistantMessage
 }

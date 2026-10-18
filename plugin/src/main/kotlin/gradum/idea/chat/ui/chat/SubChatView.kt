@@ -14,7 +14,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.RenderBlock
-import gradum.idea.chat.model.ToolCallInfo
 import gradum.idea.chat.model.formatTimestamp
 import gradum.idea.chat.ui.input.formatModelName
 import gradum.idea.chat.ui.markdown.GradumMarkdown
@@ -55,7 +54,7 @@ fun SubChatView(
   wasInterrupted: Boolean = false,
   subAgentResponse: String = "",
   historyMessages: List<ChatMessage> = emptyList(),
-  toolCalls: List<ToolCallInfo> = emptyList()
+  toolCalls: List<RenderBlock.ToolCall> = emptyList()
 ) {
   val scrollState: ScrollState = rememberScrollState()
 
@@ -170,7 +169,7 @@ private fun SubChatStreamingContent(
   wasInterrupted: Boolean,
   subAgentResponse: String,
   scrollState: ScrollState,
-  toolCalls: List<ToolCallInfo>
+  toolCalls: List<RenderBlock.ToolCall>
 ) {
   Column(
     modifier = Modifier
@@ -187,10 +186,10 @@ private fun SubChatStreamingContent(
 
     ModelNameHeader(modelName = modelName)
 
-    toolCalls.forEachIndexed { index: Int, toolCall: ToolCallInfo ->
+    toolCalls.forEachIndexed { index: Int, toolCall: RenderBlock.ToolCall ->
       ToolCallBlock(
         onSubChatClick = null,
-        block = toolCall.toRenderBlock(),
+        block = toolCall,
         onOpenInEditor = { _: String, _: Int, _: Int -> },
         onViewDiff = { _: String, _: String, _: String -> },
       )
@@ -310,15 +309,3 @@ private fun SubChatConversationContent(
     }
   }
 }
-
-private fun ToolCallInfo.toRenderBlock(): RenderBlock.ToolCall = RenderBlock.ToolCall(
-  alias = alias,
-  success = success,
-  result = result,
-  toolCallId = toolCallId,
-  errorDetail = errorDetail,
-  errorMessage = errorMessage,
-  timeoutSeconds = timeoutSeconds,
-  pending = pending,
-  arguments = arguments
-)

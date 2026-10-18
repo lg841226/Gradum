@@ -146,7 +146,7 @@ private
 
 ### 5.1 Wire events → UI blocks
 
-The server streams multiple `ChatEvent` subtypes as NDJSON. The `ChatMessageSender` maps them to `RenderBlock` kinds for
+The server streams the events below as NDJSON. `ChatMessageSender.sendMessage` maps each to a `RenderBlock` kind for
 rendering, and dispatches sub-agent events to a separate `SubChatView`:
 
 | Wire event              | Render block                 | Behaviour                                                                                                         |
@@ -169,8 +169,8 @@ rendering, and dispatches sub-agent events to a separate `SubChatView`:
 Dispatch lives in `ChatMessageSender.sendMessage` (one `when` branch per type) with the per-type handlers in
 `ChatEventHandlers.kt`; `guardrail` and `mission_revoked` are not wired up yet.
 
-`ChatMessage.appendEvent` performs an O (1) update. It never re-iterates the existing list. `updateLastError` likewise
-does an O (1) `indexOfLast +
+`ChatMessage.appendBlock` performs an O(1) update. It never re-iterates the existing list. `updateLastError` likewise
+does an O(1) `indexOfLast +
 set` to patch a failed tool call's error message after the fact.
 
 ### 5.2 Per-tool call content
@@ -296,7 +296,7 @@ the session blocks until the plugin answers. The plugin side of that round-trip:
 
 1. **Parse** — `ChatEventHandlers.handleAskInteractionEvent` reads `{requestId, sessionId, title, details?, default,
    choices[] | input{placeholder}}`, resolves `title`/`details`/placeholder from their `L10nText` form (`key` →
-   `GradumBundle` lookup with args, `raw` → verbatim text), and appends a `ChatEvent.AskInteraction` to the
+   `GradumBundle` lookup with args, `raw` → verbatim text), and appends a `RenderBlock.AskInteraction` to the
    current assistant message (there must be one; a card never opens a new bubble).
 2. **Render** — [`AskCard.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/AskCard.kt) shows a warning-icon
    header, the title, the horizontally scrollable details line, then either numbered choice buttons or a text field with

@@ -1,9 +1,7 @@
 package gradum.idea.chat.history
 
-import gradum.idea.chat.model.ChatEvent
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.RenderBlock
-import gradum.idea.chat.model.ToolCallInfo
 import gradum.idea.editor.AttachedText
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -62,21 +60,16 @@ class SessionProjectionTest {
     assertEquals("qwen2.5", assistant.modelName)
     assertEquals(14, assistant.tokenUsage?.totalTokens)
 
-    val events: List<ChatEvent> = assistant.events
-    assertEquals(3, events.size)
-    assertTrue(events[0] is ChatEvent.Thinking)
-    assertTrue(events[1] is ChatEvent.ToolCall)
-    assertTrue(events[2] is ChatEvent.Response)
+    val blocks: List<RenderBlock> = assistant.renderBlocks
+    assertEquals(3, blocks.size)
+    assertTrue(blocks[0] is RenderBlock.Thinking)
+    assertTrue(blocks[1] is RenderBlock.ToolCall)
+    assertTrue(blocks[2] is RenderBlock.Response)
 
-    val toolCall: ToolCallInfo = (events[1] as ChatEvent.ToolCall).info
-    assertEquals("read_file", toolCall.toolName)
+    val toolCall: RenderBlock.ToolCall = blocks[1] as RenderBlock.ToolCall
     assertEquals("Read", toolCall.alias)
     assertEquals("Main.kt", toolCall.arguments["path"])
     assertEquals("file body", toolCall.result)
-
-    val toolBlock: RenderBlock.ToolCall = assistant.renderBlocks
-      .filterIsInstance<RenderBlock.ToolCall>().first()
-    assertEquals("Read", toolBlock.alias)
   }
 
   @Test
@@ -86,8 +79,8 @@ class SessionProjectionTest {
       """{"role":"tool","content":"hit"}"""
     )
 
-    val toolCall: ToolCallInfo = messages.first().events
-      .filterIsInstance<ChatEvent.ToolCall>().first().info
+    val toolCall: RenderBlock.ToolCall = messages.first().renderBlocks
+      .filterIsInstance<RenderBlock.ToolCall>().first()
     assertEquals("foo", toolCall.arguments["pattern"])
     assertEquals("grep", toolCall.alias)
   }
@@ -127,16 +120,16 @@ class SessionProjectionTest {
     assertEquals("qwen2.5", assistant.modelName)
     assertEquals(14, assistant.tokenUsage?.totalTokens)
 
-    val events: List<ChatEvent> = assistant.events
-    assertEquals(2, events.size)
-    assertTrue(events[0] is ChatEvent.ToolCall)
-    assertTrue(events[1] is ChatEvent.Response)
+    val blocks: List<RenderBlock> = assistant.renderBlocks
+    assertEquals(2, blocks.size)
+    assertTrue(blocks[0] is RenderBlock.ToolCall)
+    assertTrue(blocks[1] is RenderBlock.Response)
     assertEquals("the file is empty", assistant.responseContent)
-    assertEquals("file body", (events[0] as ChatEvent.ToolCall).info.result)
+    assertEquals("file body", (blocks[0] as RenderBlock.ToolCall).result)
   }
 
   @Test
-  fun `thinking across rows folds into one event before the tool calls`() {
+  fun `thinking across rows folds into one block before the tool calls`() {
     val messages: List<ChatMessage> = project(
       """{"role":"assistant","thinking":"step one","tool_calls":[{"id":"call-1","type":"function","function":{"name":"ls","arguments":"{}"}}]}""",
       """{"role":"tool","tool_call_id":"call-1","content":"a, b"}""",
@@ -144,11 +137,11 @@ class SessionProjectionTest {
     )
 
     assertEquals(1, messages.size)
-    val events: List<ChatEvent> = messages.first().events
-    assertEquals(3, events.size)
-    assertEquals("step one\n\nstep two", (events[0] as ChatEvent.Thinking).content)
-    assertTrue(events[1] is ChatEvent.ToolCall)
-    assertEquals("done", (events[2] as ChatEvent.Response).content)
+    val blocks: List<RenderBlock> = messages.first().renderBlocks
+    assertEquals(3, blocks.size)
+    assertEquals("step one\n\nstep two", (blocks[0] as RenderBlock.Thinking).content)
+    assertTrue(blocks[1] is RenderBlock.ToolCall)
+    assertEquals("done", (blocks[2] as RenderBlock.Response).content)
   }
 
   @Test
@@ -176,9 +169,8 @@ class SessionProjectionTest {
       """{"role":"tool","alias":"Delegate","tool_call_id":"call-1","content":"sub-agent result"}"""
     )
 
-    val toolCall: ToolCallInfo = messages.first().events
-      .filterIsInstance<ChatEvent.ToolCall>().first().info
-    assertEquals("delegate_task", toolCall.toolName)
+    val toolCall: RenderBlock.ToolCall = messages.first().renderBlocks
+      .filterIsInstance<RenderBlock.ToolCall>().first()
     assertEquals("Delegate", toolCall.alias)
     assertEquals("Investigate", toolCall.arguments["title"])
     assertEquals(false, toolCall.arguments["pending"])

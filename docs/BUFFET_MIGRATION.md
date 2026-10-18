@@ -1,6 +1,6 @@
 # Gradum Buffet: Server-Authoritative State Migration
 
-> Version: **0.1** · Branch: `feature/@gradum-gwy-buffet-projection` · Opened: **2026-10-17** · Status: **Step 5b done**
+> Version: **0.1** · Branch: `feature/@gradum-gwy-buffet-projection` · Opened: **2026-10-17** · Status: **Step 5.5a done**
 
 "Buffet" is the working name for moving session-state authority from the IDE
 plugin back to the server. The plugin should *serve* state (render it, ask the
@@ -221,9 +221,24 @@ client-authoritative ids or decisions.
 
 ### Step 5.5 — Thin the plugin ⬜
 
-Only after Steps 2–4 land: drop `renderBlocks` / event-assembly from
-`ChatMessage.kt` and `ChatEventHandlers.kt`, keeping rendering only. This is the
-payoff step and the riskiest, so it goes last.
+Only after Steps 2–4 land: the plugin should hold one representation of a
+message and never re-derive it. Two shippable sub-steps:
+
+- **5.5a — one representation per message ✅.** `ChatMessage` keeps only
+  `renderBlocks`: the `ChatEvent` sealed class and the `events` list it mirrored
+  are deleted, along with `ToolCallInfo` (the block already carried every field
+  the UI reads, and tool renderers dispatch on the alias, never the tool name).
+  The handlers append blocks directly, so the two lists can no longer drift and
+  the assembly machinery in `ChatMessage.kt` loses its `events` half.
+- **5.5b — the server folds the history ⬜.** `SessionProjection` still derives
+  the cold view from the raw history rows : the same reading
+  `SessionTranscriptWriter` performs for `conversation.md`. Move that reading to
+  one server-side projection, serve block-shaped messages from
+  `GET /session/state`, and let the plugin decode instead of derive.
+
+The live stream stays event-shaped: making the server stream render blocks would
+only relocate the assembly into the server and freeze the UI vocabulary into the
+wire.
 
 ## 5. Open decisions
 
@@ -275,4 +290,5 @@ payoff step and the riskiest, so it goes last.
 | 5c   | ✅ done    | this PR   | `/events` allocates both ids; plugin `nextSessionId` + message UUIDs deleted; 474 server + 492 plugin green |
 | 5d   | ✅ done    | this PR   | `GET /models` probe is reachability only; model + vision guesses deleted; 474 server + 492 plugin green  |
 | 5e   | ✅ done    | this PR   | `deleteMessage` rewinds server-first; bubble withdrawn on success; 474 server + 492 plugin green         |
-| 5.5  | ⬜         | —         | thin the plugin (drop event assembly)                                                                    |
+| 5.5a | ✅ done    | this PR   | `ChatEvent` + `ToolCallInfo` deleted; one block list per message; 474 server + 497 plugin green          |
+| 5.5b | ⬜         | —         | server folds the history into blocks; plugin decodes                                                     |

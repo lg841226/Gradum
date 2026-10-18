@@ -1,9 +1,8 @@
 package gradum.idea.chat.history
 
-import gradum.idea.chat.model.ChatEvent
 import gradum.idea.chat.model.ChatMessage
+import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.model.TokenUsage
-import gradum.idea.chat.model.ToolCallInfo
 import gradum.idea.editor.AttachedText
 import kotlinx.serialization.json.*
 
@@ -78,7 +77,7 @@ object SessionProjection {
    * (tool-call rows first, the final text row last) : but the live view renders
    * the whole turn as one bubble, because the event stream keeps appending to
    * the same message. The rebuild merges the rows the same way: all thinking
-   * folds into one event, every tool call pairs with its result row, and the
+   * folds into one block, every tool call pairs with its result row, and the
    * response texts concatenate, so a reopened session shows one bubble instead
    * of a split "fold group + reply" pair.
    */
@@ -154,15 +153,15 @@ object SessionProjection {
       tokenUsage = usage
     )
     if (thinkingText.isNotBlank())
-      rebuiltMessage = rebuiltMessage.appendEvent(ChatEvent.Thinking(thinkingText))
+      rebuiltMessage = rebuiltMessage.appendBlock(RenderBlock.Thinking(thinkingText))
 
     callRows.forEach { (toolCalls: JsonArray, toolResults: List<JsonObject>) ->
-      toolCallEvents(toolCalls, toolResults).forEach { event: ChatEvent ->
-        rebuiltMessage = rebuiltMessage.appendEvent(event)
+      toolCallBlocks(toolCalls, toolResults).forEach { block: RenderBlock.ToolCall ->
+        rebuiltMessage = rebuiltMessage.appendBlock(block)
       }
     }
     if (responseText.isNotBlank())
-      rebuiltMessage = rebuiltMessage.appendEvent(ChatEvent.Response(responseText))
+      rebuiltMessage = rebuiltMessage.appendBlock(RenderBlock.Response(responseText))
 
     return rebuiltMessage
   }
@@ -173,7 +172,7 @@ object SessionProjection {
    * success flag, so a rebuilt call is always marked successful: the same
    * fidelity the Markdown transcript offers on reload.
    */
-  private fun toolCallEvents(toolCalls: JsonArray, toolResults: List<JsonObject>): List<ChatEvent> {
+  private fun toolCallBlocks(toolCalls: JsonArray, toolResults: List<JsonObject>): List<RenderBlock.ToolCall> {
     val unmatchedResults: MutableList<JsonObject> = toolResults.toMutableList()
     return toolCalls.mapNotNull { callElement: JsonElement ->
       val call: JsonObject = callElement as? JsonObject ?: return@mapNotNull null
@@ -185,15 +184,12 @@ object SessionProjection {
 
       val rebuiltArguments: Map<String, Any> =
         if (toolName == DELEGATE_TOOL_NAME) arguments + ("pending" to false) else arguments
-      ChatEvent.ToolCall(
-        info = ToolCallInfo(
-          toolName = toolName,
-          alias = toolResult?.text("alias").orEmpty().ifBlank { toolName },
-          toolCallId = callId,
-          success = true,
-          result = toolResult?.text("content").orEmpty(),
-          arguments = rebuiltArguments
-        )
+      RenderBlock.ToolCall(
+        alias = toolResult?.text("alias").orEmpty().ifBlank { toolName },
+        success = true,
+        toolCallId = callId,
+        result = toolResult?.text("content").orEmpty(),
+        arguments = rebuiltArguments
       )
     }
   }

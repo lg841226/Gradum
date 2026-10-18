@@ -2,7 +2,7 @@ package gradum.idea.chat.state
 
 import gradum.idea.chat.api.GradumApiClient
 import gradum.idea.chat.model.ChatErrorCode
-import gradum.idea.chat.model.ChatEvent
+import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.model.ModelInfo
 import gradum.idea.editor.AttachedContext
 import gradum.idea.editor.AttachedFile
@@ -87,8 +87,8 @@ internal suspend fun GradumChatSession.sendMessage(
     log.warn("Cannot reach server at ${apiClient.baseUrl}", lastFailure)
     val assistantIndex: Int = messages.lastIndex
     if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-      messages[assistantIndex] = messages[assistantIndex].appendEvent(
-        ChatEvent.Error(
+      messages[assistantIndex] = messages[assistantIndex].appendBlock(
+        RenderBlock.Error(
           code = ChatErrorCode.CLIENT_ERROR,
           message = "Cannot reach server at ${apiClient.baseUrl}"
         )
@@ -140,16 +140,16 @@ internal suspend fun GradumChatSession.sendMessage(
         val assistantIndex: Int = messages.lastIndex
         if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
           val hasOutput: Boolean = messages[assistantIndex].content.isNotEmpty() ||
-            messages[assistantIndex].events.isNotEmpty()
+            messages[assistantIndex].renderBlocks.isNotEmpty()
           if (hasOutput) {
             wasCancelled = true
-            messages[assistantIndex] = messages[assistantIndex].appendEvent(
-              ChatEvent.Error(message = "", code = ChatErrorCode.INTERRUPTED)
+            messages[assistantIndex] = messages[assistantIndex].appendBlock(
+              RenderBlock.Error(message = "", code = ChatErrorCode.INTERRUPTED)
             )
             sendingPhase = message("gradum.phase.stopped")
           } else {
-            messages[assistantIndex] = messages[assistantIndex].appendEvent(
-              ChatEvent.Response(content = "\u2026\u2026")
+            messages[assistantIndex] = messages[assistantIndex].appendBlock(
+              RenderBlock.Response(content = "\u2026\u2026")
             )
             sendingPhase = ""
           }
@@ -160,8 +160,8 @@ internal suspend fun GradumChatSession.sendMessage(
       log.warn("Failed to send message to ${apiClient.baseUrl}", exception)
       val assistantIndex: Int = messages.lastIndex
       if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-        messages[assistantIndex] = messages[assistantIndex].appendEvent(
-          ChatEvent.Error(
+        messages[assistantIndex] = messages[assistantIndex].appendBlock(
+          RenderBlock.Error(
             message = exception.message ?: "Connection failed",
             code = ChatErrorCode.CLIENT_ERROR
           )
@@ -231,16 +231,16 @@ internal suspend fun GradumChatSession.sendMessage(
       val assistantIndex: Int = messages.lastIndex
       if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
         val hasOutput: Boolean = messages[assistantIndex].content.isNotEmpty() ||
-          messages[assistantIndex].events.isNotEmpty()
+          messages[assistantIndex].renderBlocks.isNotEmpty()
         if (hasOutput) {
           wasCancelled = true
-          messages[assistantIndex] = messages[assistantIndex].appendEvent(
-            ChatEvent.Error(message = "", code = ChatErrorCode.INTERRUPTED)
+          messages[assistantIndex] = messages[assistantIndex].appendBlock(
+            RenderBlock.Error(message = "", code = ChatErrorCode.INTERRUPTED)
           )
           sendingPhase = message("gradum.phase.stopped")
         } else {
-          messages[assistantIndex] = messages[assistantIndex].appendEvent(
-            ChatEvent.Response(content = "\u2026\u2026")
+          messages[assistantIndex] = messages[assistantIndex].appendBlock(
+            RenderBlock.Response(content = "\u2026\u2026")
           )
           sendingPhase = ""
         }
@@ -254,8 +254,8 @@ internal suspend fun GradumChatSession.sendMessage(
     log.warn("Streaming interrupted for ${apiClient.baseUrl}", exception)
     val assistantIndex: Int = messages.lastIndex
     if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-      messages[assistantIndex] = messages[assistantIndex].appendEvent(
-        ChatEvent.Error(
+      messages[assistantIndex] = messages[assistantIndex].appendBlock(
+        RenderBlock.Error(
           message = exception.message ?: "Streaming interrupted", code = ChatErrorCode.CLIENT_ERROR
         )
       )

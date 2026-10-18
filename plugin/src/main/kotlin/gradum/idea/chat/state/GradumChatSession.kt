@@ -15,9 +15,9 @@ import gradum.idea.PluginConfig
 import gradum.idea.chat.api.GradumApiClient
 import gradum.idea.chat.history.ChatSessionStore
 import gradum.idea.chat.history.SessionMeta
-import gradum.idea.chat.model.ChatEvent
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.ModelInfo
+import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.model.ThinkingLevel
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.editor.AttachedContext
@@ -391,7 +391,7 @@ class GradumChatSession : Disposable {
       role = "debug",
       modelName = message("gradum.debug.model.name"),
     )
-    messages.add(chatMsg.appendEvent(ChatEvent.Response(content)))
+    messages.add(chatMsg.appendBlock(RenderBlock.Response(content)))
     isSending = false
   }
 

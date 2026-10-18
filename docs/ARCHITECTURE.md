@@ -2542,7 +2542,7 @@ are checked **before** asking, so a granted command or path is not re-asked. Com
 never reach the ask stage — they are refused outright with `COMMAND_BLOCKED`.
 
 **Plugin side** (`plugin/…/chat/`): `ChatEventHandlers.handleAskInteractionEvent` parses the wire payload, resolves
-`L10nText` through `GradumBundle`, and appends a `ChatEvent.AskInteraction` to the current assistant bubble;
+`L10nText` through `GradumBundle`, and appends a `RenderBlock.AskInteraction` to the current assistant bubble;
 `ui/chat/AskCard.kt` renders it (choice buttons or a text field) and calls
 `GradumApiClient.respondToAsk(sessionId, requestId, choice?, text?, cancelled?)`. The card stays in the transcript after
 resolution, so the authorization trail is visible next to the tool call it unlocked.
