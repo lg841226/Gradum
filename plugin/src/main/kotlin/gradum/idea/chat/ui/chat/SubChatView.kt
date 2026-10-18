@@ -7,17 +7,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.intellij.openapi.diagnostic.Logger
-import gradum.idea.chat.history.ChatTranscript
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.RenderBlock
-import gradum.idea.chat.model.ToolCallInfo
 import gradum.idea.chat.model.formatTimestamp
 import gradum.idea.chat.ui.input.formatModelName
 import gradum.idea.chat.ui.markdown.GradumMarkdown
@@ -31,8 +27,6 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
-
-private val logger: Logger = Logger.getInstance("#gradum.idea.chat.ui.chat.SubChatView")
 
 /**
  * Read-only sub-chat view that displays the sub-agent's full
@@ -59,19 +53,9 @@ fun SubChatView(
   hasCompleted: Boolean = false,
   wasInterrupted: Boolean = false,
   subAgentResponse: String = "",
-  transcriptMarkdown: String = "",
-  toolCalls: List<ToolCallInfo> = emptyList()
+  historyMessages: List<ChatMessage> = emptyList(),
+  toolCalls: List<RenderBlock.ToolCall> = emptyList()
 ) {
-  val historyMessages: List<ChatMessage> = remember(key1 = transcriptMarkdown) {
-    if (transcriptMarkdown.isNotBlank()) {
-      try {
-        ChatTranscript.parseTranscript(content = transcriptMarkdown).messages
-      } catch (parseException: Exception) {
-        logger.warn("Failed to parse sub-agent transcript", parseException)
-        emptyList()
-      }
-    } else emptyList()
-  }
   val scrollState: ScrollState = rememberScrollState()
 
   Column(
@@ -185,7 +169,7 @@ private fun SubChatStreamingContent(
   wasInterrupted: Boolean,
   subAgentResponse: String,
   scrollState: ScrollState,
-  toolCalls: List<ToolCallInfo>
+  toolCalls: List<RenderBlock.ToolCall>
 ) {
   Column(
     modifier = Modifier
@@ -202,10 +186,10 @@ private fun SubChatStreamingContent(
 
     ModelNameHeader(modelName = modelName)
 
-    toolCalls.forEachIndexed { index: Int, toolCall: ToolCallInfo ->
+    toolCalls.forEachIndexed { index: Int, toolCall: RenderBlock.ToolCall ->
       ToolCallBlock(
         onSubChatClick = null,
-        block = toolCall.toRenderBlock(),
+        block = toolCall,
         onOpenInEditor = { _: String, _: Int, _: Int -> },
         onViewDiff = { _: String, _: String, _: String -> },
       )
@@ -319,21 +303,9 @@ private fun SubChatConversationContent(
       } else {
         AssistantChatBubble(
           message = message,
-          showActions = false
+          state = BubbleState(showActions = false)
         )
       }
     }
   }
 }
-
-private fun ToolCallInfo.toRenderBlock(): RenderBlock.ToolCall = RenderBlock.ToolCall(
-  alias = alias,
-  success = success,
-  result = result,
-  toolCallId = toolCallId,
-  errorDetail = errorDetail,
-  errorMessage = errorMessage,
-  timeoutSeconds = timeoutSeconds,
-  pending = pending,
-  arguments = arguments
-)

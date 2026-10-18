@@ -18,8 +18,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import gradum.idea.chat.model.ChatErrorCode
 import gradum.idea.chat.model.ChatMessage
-import gradum.idea.chat.model.ErrorCode
 import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.ui.chat.skill.humanizeToolName
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
@@ -46,32 +46,50 @@ import org.jetbrains.jewel.ui.typography
 
 private const val PHASE_FADE_IN_MS: Int = 300
 
-/**
- * Left-aligned assistant message bubble.
- *
- * Renders events in order to preserve the conversation flow:
- * thinking, tool calls, responses, and errors appear in the sequence they occurred.
- */
+/** Everything [AssistantChatBubble] reads besides the message itself. */
+data class BubbleState(
+  val sendingPhase: String = "",
+  val isLoading: Boolean = false,
+  val showActions: Boolean = true,
+  val actionsEnabled: Boolean = true,
+  val dismissedAskRequestIds: Set<String> = emptySet(),
+  val selectedPermission: String = PermissionMode.READONLY
+)
+
+/** Opens a file region in the IDE editor. */
+private typealias OpenInEditorAction = (filePath: String, startLine: Int, endLine: Int) -> Unit
+
+/** Shows a before/after diff for one file. */
+private typealias ShowDiffAction = (filePath: String, originalContent: String, modifiedContent: String) -> Unit
+
+/** Opens the sub-chat conversation behind one tool-call fold. */
+private typealias OpenSubChatAction = (messages: List<ChatMessage>, title: String) -> Unit
+
+/** Resolves an in-flight ask_interaction card. */
+private typealias RespondToAskAction = suspend (
+  sessionId: String, requestId: String, choice: String?, text: String?, cancelled: Boolean
+) -> Unit
+
+/** User-intent callbacks of [AssistantChatBubble], grouped so call sites stay flat. */
+data class BubbleActions(
+  val onRetry: () -> Unit = {},
+  val onUrlClick: (String) -> Unit = {},
+  val onDismissAsk: (String) -> Unit = {},
+  val onSubChatClick: OpenSubChatAction? = null,
+  val onViewDiff: ShowDiffAction = { _, _, _ -> },
+  val onOpenInEditor: OpenInEditorAction = { _, _, _ -> },
+  val onRespondToAsk: RespondToAskAction = { _, _, _, _, _ -> }
+)
+
 @Composable
 fun AssistantChatBubble(
   message: ChatMessage,
-  sendingPhase: String = "",
-  onRetry: () -> Unit = {},
-  isLoading: Boolean = false,
-  showActions: Boolean = true,
   modifier: Modifier = Modifier,
-  actionsEnabled: Boolean = true,
-  onUrlClick: (String) -> Unit = {},
-  selectedPermission: String = PermissionMode.READONLY,
-  onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _: String, _: Int, _: Int -> },
-  onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) -> Unit = { _: String, _: String, _: String -> },
-  onSubChatClick: ((conversationJson: String, toolCallsJson: String, title: String) -> Unit)? = null,
-  onRespondToAsk: suspend (
-    sessionId: String, requestId: String, choice: String?, text: String?, cancelled: Boolean
-  ) -> Unit = { _: String, _: String, _: String?, _: String?, _: Boolean -> },
-  dismissedAskRequestIds: Set<String> = emptySet(),
-  onDismissAsk: (String) -> Unit = {}
+  state: BubbleState = BubbleState(),
+  actions: BubbleActions = BubbleActions()
 ) {
+  val (sendingPhase, isLoading, showActions, actionsEnabled, dismissedAskRequestIds, selectedPermission) = state
+  val (onRetry, onUrlClick, onDismissAsk, onSubChatClick, onViewDiff, onOpenInEditor, onRespondToAsk) = actions
   val renderBlocks: List<RenderBlock> = message.renderBlocks.filter { block ->
     block !is RenderBlock.AskInteraction || block.requestId !in dismissedAskRequestIds
   }
@@ -113,9 +131,10 @@ fun AssistantChatBubble(
         hasContentBefore = true
 
         when (item) {
-          is BubbleItem.ToolGroup -> key("toolgroup_${item.calls.first().first}") {
-            ToolCallGroupSection(item, onOpenInEditor, onViewDiff, onSubChatClick)
-          }
+          is BubbleItem.ToolGroup ->
+            key("toolgroup_${item.calls.first().first}") {
+              ToolCallGroupSection(item, onOpenInEditor, onViewDiff, onSubChatClick)
+            }
 
           is BubbleItem.Single -> key(item.block.key(item.index)) {
             when (val block: RenderBlock = item.block) {
@@ -153,11 +172,11 @@ fun AssistantChatBubble(
         hasContentBefore = true
         TokenStatusRow(
           isLoading = isLoading,
-          contextTokenCount = contextTokenCount,
-          totalTokenCount = totalTokenCount,
           sendingPhase =
             if (isLoading) sendingPhase
-            else sendingPhase.takeIf { it.isNotBlank() } ?: message("gradum.done")
+            else sendingPhase.takeIf { it.isNotBlank() } ?: message("gradum.done"),
+          totalTokenCount = totalTokenCount,
+          contextTokenCount = contextTokenCount
         )
       }
 
@@ -185,7 +204,6 @@ private fun RenderBlock.key(index: Int): String = when (this) {
   is RenderBlock.AskInteraction -> "ask_${index}_${requestId}"
 }
 
-/** A render-flow item inside one assistant bubble: either a standalone block or a run of consecutive tool calls. */
 private sealed interface BubbleItem {
   data class Single(val block: RenderBlock, val index: Int) : BubbleItem
   data class ToolGroup(val calls: List<Pair<Int, RenderBlock.ToolCall>>) : BubbleItem
@@ -237,7 +255,7 @@ private fun ToolCallGroupSection(
   group: BubbleItem.ToolGroup,
   onOpenInEditor: (path: String, startLine: Int, endLine: Int) -> Unit,
   onViewDiff: (path: String, originalContent: String, modifiedContent: String) -> Unit,
-  onSubChatClick: ((conversationJson: String, toolCallsJson: String, title: String) -> Unit)?
+  onSubChatClick: OpenSubChatAction?
 ) {
   val groupIsRunning: Boolean = group.calls.any { (_, toolCall) -> toolCall.pending }
   var isExpanded: Boolean by remember { mutableStateOf(groupIsRunning) }
@@ -317,7 +335,7 @@ fun ToolCallBlock(
   block: RenderBlock.ToolCall,
   onOpenInEditor: (path: String, startLine: Int, endLine: Int) -> Unit,
   onViewDiff: (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> },
-  onSubChatClick: ((conversationJson: String, toolCallsJson: String, title: String) -> Unit)? = null
+  onSubChatClick: OpenSubChatAction? = null
 ) {
   if (block.pending && !(ToolCallRendererRegistry.find(aliasName = block.alias)?.rendersWhilePending() ?: false))
     return
@@ -358,8 +376,7 @@ fun ToolCallBlock(
       arguments = delegateArgs,
       result = parseJsonResult(serializedResult = block.result)
     )
-  // The catch-all renderer can't see `block.alias` (parseContent only gets
-  // arguments + result), so surface the real tool name through the content.
+
   val displayContent: ToolCallContent =
     if (renderer.alias() == ToolCallRendererRegistry.DEFAULT_ALIAS) content.copy(aliasName = block.alias)
     else content
@@ -404,17 +421,21 @@ fun ToolCallBlock(
 
 @Composable
 private fun TokenStatusRow(
-  isLoading: Boolean, sendingPhase: String, contextTokenCount: Int = 0, totalTokenCount: Int = 0
+  isLoading: Boolean,
+  sendingPhase: String,
+  totalTokenCount: Int = 0,
+  contextTokenCount: Int = 0
 ) {
-  val tokenText: String = when {
-    contextTokenCount > 0 ->
-      "$sendingPhase & ${message("gradum.tokens.used", formatTokenCount(contextTokenCount))}"
+  val tokenText: String =
+    when {
+      contextTokenCount > 0 ->
+        "$sendingPhase & ${message("gradum.tokens.used", formatTokenCount(contextTokenCount))}"
 
-    totalTokenCount > 0 ->
-      "$sendingPhase & ${message("gradum.tokens.used", formatTokenCount(totalTokenCount))}"
+      totalTokenCount > 0 ->
+        "$sendingPhase & ${message("gradum.tokens.used", formatTokenCount(totalTokenCount))}"
 
-    else -> sendingPhase.ifEmpty { "..." }
-  }
+      else -> sendingPhase.ifEmpty { "..." }
+    }
 
   val fadeAlpha = remember { Animatable(initialValue = 1f) }
   var displayText: String by remember { mutableStateOf(value = sendingPhase) }
@@ -451,7 +472,12 @@ private fun TokenStatusRow(
     if (contextTokenCount > 0 && totalTokenCount > 0) {
       Tooltip(
         tooltip = {
-          Text(text = message("gradum.tokens.total.tooltip", formatTokenCount(totalTokenCount)))
+          Text(
+            text = message(
+              "gradum.tokens.total.tooltip",
+              formatTokenCount(totalTokenCount)
+            )
+          )
         }
       ) { tokenTextContent() }
     } else {
@@ -531,7 +557,7 @@ private fun MessageActionsRow(
 
 @Composable
 private fun ErrorBlock(block: RenderBlock.Error) {
-  val isInterrupted: Boolean = block.code == ErrorCode.INTERRUPTED.code
+  val isInterrupted: Boolean = block.code == ChatErrorCode.INTERRUPTED
   val textErrorColor: Color = JewelTheme.globalColors.text.error
 
   if (isInterrupted) return

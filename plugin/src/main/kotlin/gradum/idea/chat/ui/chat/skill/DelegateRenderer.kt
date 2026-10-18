@@ -2,11 +2,10 @@ package gradum.idea.chat.ui.chat.skill
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
+import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallErrorInfo
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
@@ -55,7 +54,8 @@ class DelegateRenderer : ToolCallRenderer {
   override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
     val title: String = content.fieldMap["title"] as? String ?: ""
     val isPending: Boolean = content.fieldMap["pending"] as? Boolean ?: true
-    val transcriptMarkdown: String = content.fieldMap["transcriptMarkdown"] as? String ?: ""
+    val subChatMessages: List<ChatMessage> =
+      (content.fieldMap["subChatMessages"] as? List<*>)?.filterIsInstance<ChatMessage>() ?: emptyList()
     val startTimestamp: Long = (content.fieldMap["startTimestamp"] as? Number)?.toLong() ?: 0L
     val endTimestamp: Long? =
       if (isPending) null
@@ -71,14 +71,20 @@ class DelegateRenderer : ToolCallRenderer {
       }
     }
 
-    val elapsedSeconds: Long = ((endTimestamp ?: currentTimeMillis) - startTimestamp) / 1000
 
-    val durationText: String = if (elapsedSeconds > 0) {
-      val min = (elapsedSeconds / 60).toInt()
-      val sec = (elapsedSeconds % 60).toInt()
-      if (min > 0) message("gradum.tool.delegate.duration", min, sec)
-      else message("gradum.tool.delegate.duration.seconds", sec)
-    } else ""
+    val durationText: String = if (startTimestamp <= 0L) {
+      ""
+    } else {
+      val elapsedSeconds: Long = ((endTimestamp ?: currentTimeMillis) - startTimestamp) / 1000
+      if (elapsedSeconds > 0) {
+        val min = (elapsedSeconds / 60).toInt()
+        val sec = (elapsedSeconds % 60).toInt()
+        if (min > 0) message("gradum.tool.delegate.duration", min, sec)
+        else message("gradum.tool.delegate.duration.seconds", sec)
+      } else ""
+    }
+
+    val canOpenSubChat: Boolean = subChatMessages.isNotEmpty() || startTimestamp > 0L
 
     ToolCallCapsule(
       label = message("gradum.tool.delegate"),
@@ -92,8 +98,8 @@ class DelegateRenderer : ToolCallRenderer {
         toolDetails = ctx.toolDetails.orEmpty()
       ),
       trailingText = title,
-      modifier = Modifier.clickable {
-        ctx.onSubChatClick?.invoke(transcriptMarkdown, "", title)
+      modifier = Modifier.clickable(enabled = canOpenSubChat) {
+        ctx.onSubChatClick?.invoke(subChatMessages, title)
       },
       trailingIcon = {
         if (durationText.isNotBlank()) {
@@ -106,11 +112,13 @@ class DelegateRenderer : ToolCallRenderer {
             modifier = Modifier.padding(end = GradumSpacing.sml)
           )
         }
-        Icon(
-          contentDescription = null,
-          modifier = Modifier.size(16.dp),
-          key = AllIconsKeys.General.ChevronRight
-        )
+
+        if (canOpenSubChat) {
+          Icon(
+            contentDescription = null,
+            key = AllIconsKeys.General.ChevronRight
+          )
+        }
       }
     )
   }

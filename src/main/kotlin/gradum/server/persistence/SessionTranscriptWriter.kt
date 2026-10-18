@@ -2,7 +2,6 @@ package gradum.server.persistence
 
 import gradum.server.persistence.SessionTranscriptWriter.HEADER_LINE_LIMIT
 import gradum.server.persistence.SessionTranscriptWriter.parseAttributes
-import gradum.utils.JsonUtil
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.nio.file.AtomicMoveNotSupportedException
@@ -14,48 +13,38 @@ private val logger: Logger = LoggerFactory.getLogger("SessionTranscriptWriter")
 
 /**
  * Server-side writer of the structured-Markdown chat transcript
- * (`conversation.md`) for a session, replacing the plugin's own
- * `ChatSessionStore` writes. The on-disk format is the plugin's v1
- * transcript contract (see `gradum.idea.chat.history.ChatTranscript`):
- * a `gradum-transcript v1` header with a session metadata line, then
- * `## user` / `## assistant` sections whose content blocks are framed by
+ * (`conversation.md`) for a session. The sidecar `session-state.json` is the
+ * machine-readable authority (`SessionStateStore`); this file is its
+ * human-readable render, kept so `GET /sessions` can read the header cheaply.
+ * The format is a `gradum-transcript v1` header with a session metadata line,
+ * then `## user` / `## assistant` sections whose content blocks are framed by
  * `gradum-msg` / `gradum-thinking` / `gradum-toolcall` / `gradum-toolresult`
- * / `gradum-response` / `gradum-attachment` markers, so the plugin parser
- * can read the file back with no fidelity loss.
+ * / `gradum-response` / `gradum-attachment` markers. The client no longer
+ * parses it back; the sidecar is what it cold-loads.
  *
  * Messages arrive as the raw agent history maps (role / content plus the
  * bookkeeping keys `id`, `modelName`, `thinking`, `tokenUsage`,
  * `attachments`, `alias`, `tool_calls`, `tool_call_id`); tool result
  * messages are folded into the toolcall blocks of the assistant message
- * that issued the call, matching how the plugin serializes its events.
+ * that issued the call.
  */
 object SessionTranscriptWriter {
 
-  /** Transcript file name inside each session directory. */
   const val TRANSCRIPT_FILE: String = "conversation.md"
-
-  /** Max characters kept for a session title (mirror of `PluginConfig.MAX_TITLE_LENGTH`). */
   const val MAX_TITLE_LENGTH: Int = 48
-
-  /** The session header always lives in the first lines; no need to read the body. */
   private const val HEADER_LINE_LIMIT: Int = 8
-
   private const val HEADER_V1: String = "<!-- gradum-transcript v1 -->"
   private const val SESSION_PREFIX: String = "<!-- gradum-session"
   private const val THINKING_MARKER: String = "<!-- gradum-thinking -->"
   private const val TOOLRESULT_MARKER: String = "<!-- gradum-toolresult -->"
   private const val RESPONSE_MARKER: String = "<!-- gradum-response -->"
-
   private const val USER_HEADER: String = "## user"
   private const val ASSISTANT_HEADER: String = "## assistant"
-
-  /** Same attribute shape the plugin parser reads: `key="value"` pairs. */
   private val ATTRIBUTE_PATTERN: Regex = Regex(pattern = """(\w+)="((?:\\.|[^"])*)"""")
 
-  /** Metadata carried by a transcript's session header line. */
   data class TranscriptMeta(
-    val sessionId: String,
     val title: String,
+    val sessionId: String,
     val modelName: String,
     val createdAt: Long,
     val updatedAt: Long
@@ -64,7 +53,8 @@ object SessionTranscriptWriter {
   /**
    * Renders [messages] into `<projectRoot>/.gradum/sessions/<sessionId>/conversation.md`
    * (temp file + atomic rename, like `ContextManager`). The header's
-   * `createdAt` comes from the ChatDb session row when one exists, and the
+   * `createdAt` is [createdAt] when given (merge passes its earliest origin),
+   * else the ChatDb session row when one exists, else the write time; the
    * per-message timestamps fall back to the write time: the in-memory
    * history carries no per-message clock, and the stored rows share one
    * `created_at` per save anyway.
@@ -75,15 +65,17 @@ object SessionTranscriptWriter {
     modelName: String,
     messages: List<Map<String, Any>>,
     title: String? = null,
+    createdAt: Long? = null,
   ) {
     val sessionDirectory: Path = sessionDirectory(projectRoot, sessionId) ?: return
     val trimmedId: String = sessionId.trim()
     val nowMillis: Long = System.currentTimeMillis()
-    val sessionCreatedAt: Long =
-      ChatDb.sessionTimestamps(projectRoot = projectRoot, sessionId = trimmedId)?.first ?: nowMillis
+    val sessionCreatedAt: Long = createdAt
+      ?: ChatDb.sessionTimestamps(projectRoot = projectRoot, sessionId = trimmedId)?.first
+      ?: nowMillis
     val sessionMeta = TranscriptMeta(
-      sessionId = trimmedId,
       title = title ?: titleFor(messages),
+      sessionId = trimmedId,
       modelName = modelName,
       createdAt = sessionCreatedAt,
       updatedAt = nowMillis
@@ -115,19 +107,6 @@ object SessionTranscriptWriter {
         }
     }
     return sessionList.sortedByDescending { it.updatedAt }
-  }
-
-  /** Loads one session's full transcript text; null when absent or unreadable. */
-  fun loadTranscript(projectRoot: Path, sessionId: String): String? {
-    val sessionDirectory: Path = sessionDirectory(projectRoot, sessionId) ?: return null
-    val transcriptFile: Path = sessionDirectory.resolve(TRANSCRIPT_FILE)
-    if (!Files.isRegularFile(transcriptFile)) return null
-    return try {
-      Files.readString(transcriptFile, Charsets.UTF_8)
-    } catch (readException: Exception) {
-      logger.warn("Failed to read transcript for session {}: {}", sessionId, readException.message)
-      null
-    }
   }
 
   /** Header metadata of one session's transcript; null when absent or unparseable. */
@@ -167,38 +146,8 @@ object SessionTranscriptWriter {
     }
   }
 
-  /**
-   * Persists [content] verbatim as the session's transcript
-   * `conversation.md`, creating the session directory when missing. This
-   * backs the plugin's merge flow: the client weaves several transcripts
-   * into a fresh Markdown document and uploads it here, so the server stays
-   * the single writer of `.gradum/sessions/`. When [newTitle] is non-blank
-   * the session marker's `title` attribute is stamped first, matching
-   * [renameSession]'s behavior. Returns `false` when the session id is
-   * unsafe or the write fails.
-   */
-  fun saveTranscript(projectRoot: Path, sessionId: String, newTitle: String, content: String): Boolean {
-    val sessionDirectory: Path = sessionDirectory(projectRoot, sessionId) ?: return false
-    val trimmedTitle: String = newTitle.trim()
-    val transcriptContent: String =
-      if (trimmedTitle.isEmpty()) content
-      else content
-        .lines().joinToString(separator = "\n") { line: String ->
-          if (line.startsWith(SESSION_PREFIX)) sessionMarkerLine(markerLine = line, newTitle = trimmedTitle)
-          else line
-        }
-    return try {
-      Files.createDirectories(sessionDirectory)
-      atomicWrite(targetFile = sessionDirectory.resolve(TRANSCRIPT_FILE), content = transcriptContent)
-      true
-    } catch (saveException: Exception) {
-      logger.warn("Failed to save transcript for session {}: {}", sessionId, saveException.message)
-      false
-    }
-  }
-
   /** Resolves the session directory, rejecting blank/legacy/path-traversing ids. */
-  private fun sessionDirectory(projectRoot: Path, sessionId: String): Path? {
+  internal fun sessionDirectory(projectRoot: Path, sessionId: String): Path? {
     val trimmedId: String = sessionId.trim()
     val isUnsafeId: Boolean = trimmedId.isEmpty() || trimmedId == "." || trimmedId == ".." ||
       trimmedId == ".gradum" || trimmedId.contains(char = '/') || trimmedId.contains(char = '\\')
@@ -214,7 +163,8 @@ object SessionTranscriptWriter {
     val firstUserMessage: Map<String, Any> =
       messages.firstOrNull { it["role"] == "user" } ?: return ""
     val firstLine: String =
-      userText(firstUserMessage).lineSequence().firstOrNull { it.isNotBlank() }?.trim() ?: ""
+      SessionBubbleProjection.readUser(firstUserMessage).text
+        .lineSequence().firstOrNull { it.isNotBlank() }?.trim() ?: ""
     return firstLine.take(n = MAX_TITLE_LENGTH)
   }
 
@@ -236,145 +186,82 @@ object SessionTranscriptWriter {
       val message: Map<String, Any> = messages[messageIndex]
       when (message["role"] as? String) {
         "user" -> {
+          val user: UserRow = SessionBubbleProjection.readUser(message)
           contentBuilder.append(USER_HEADER).append('\n')
           contentBuilder.append(
-            "<!-- gradum-msg role=\"user\" timestamp=\"$writtenAt\"${idAttribute(message)} -->"
+            "<!-- gradum-msg role=\"user\" timestamp=\"$writtenAt\"${idAttribute(user.id)} -->"
           ).append('\n')
-          for (attachmentName: String in attachmentNames(message)) {
+          for (attachmentName: String in user.attachmentNames) {
             contentBuilder.append(
               "<!-- gradum-attachment name=\"${escapeValue(attachmentName)}\" path=\"\" -->\n"
             )
           }
-          contentBuilder.append(userText(message)).append('\n')
+          contentBuilder.append(user.text).append('\n')
+          messageIndex++
         }
 
         "assistant" -> {
-          val thinkingText: String = message["thinking"] as? String ?: ""
-          val responseText: String = message["content"] as? String ?: ""
-          val toolCalls: List<Map<*, *>> = readListOfMaps(message["tool_calls"])
-          if (thinkingText.isBlank() && responseText.isBlank() && toolCalls.isEmpty()) {
+          val row: AssistantRow = SessionBubbleProjection.readAssistant(messages, messageIndex)
+          if (row.thinking.isBlank() && row.response.isBlank() && row.toolCalls.isEmpty()) {
             messageIndex++; continue
           }
 
           contentBuilder.append(ASSISTANT_HEADER).append('\n')
           contentBuilder.append(
-            "<!-- gradum-msg role=\"assistant\" timestamp=\"$writtenAt\"${idAttribute(message)}" +
-              " model=\"${escapeValue(message["modelName"] as? String ?: "")}\"" +
-              " provider=\"\" server=\"\"${tokenAttributes(message)} -->"
+            "<!-- gradum-msg role=\"assistant\" timestamp=\"$writtenAt\"${idAttribute(row.id)}" +
+              " model=\"${escapeValue(row.modelName)}\"" +
+              " provider=\"\" server=\"\"${tokenAttributes(row.tokenUsage)} -->"
           ).append('\n')
 
-          if (thinkingText.isNotBlank()) {
+          if (row.thinking.isNotBlank()) {
             contentBuilder.append(THINKING_MARKER).append('\n')
-            contentBuilder.append(thinkingText).append('\n')
+            contentBuilder.append(row.thinking).append('\n')
           }
 
-          if (toolCalls.isNotEmpty()) {
-            // Tool result messages immediately follow their assistant message.
-            val pairedResults: MutableList<Map<*, *>> = mutableListOf()
-            var lookahead: Int = messageIndex + 1
-            while (lookahead < messages.size && messages[lookahead]["role"] == "tool") {
-              pairedResults.add(messages[lookahead])
-              lookahead++
-            }
-            messageIndex = lookahead - 1
-
-            for (toolCall: Map<*, *> in toolCalls) {
-              val function: Map<*, *> = toolCall["function"] as? Map<*, *> ?: emptyMap<Any?, Any?>()
-              val callId: String = toolCall["id"] as? String ?: ""
-              val toolResult: Map<*, *>? =
-                if (callId.isNotBlank())
-                  pairedResults.firstOrNull { it["tool_call_id"] == callId }
-                    ?: pairedResults.firstOrNull()
-                else pairedResults.firstOrNull()
-              if (toolResult != null) pairedResults.remove(element = toolResult)
-              val toolAlias: String = toolResult?.get("alias") as? String ?: ""
-
-              contentBuilder.append(
-                "<!-- gradum-toolcall " +
-                  "name=\"${escapeValue(function["name"] as? String ?: "")}\" " +
-                  "alias=\"${escapeValue(toolAlias)}\" " +
-                  "id=\"${escapeValue(callId)}\" " +
-                  "success=\"true\" " +
-                  "errorMessage=\"\" errorDetail=\"\" -->\n"
-              )
-              contentBuilder.append(argumentsJson(function["arguments"])).append('\n')
-              contentBuilder.append(TOOLRESULT_MARKER).append('\n')
-              contentBuilder.append(toolResult?.get("content") as? String ?: "").append('\n')
-            }
+          for (call: ProjectedToolCall in row.toolCalls) {
+            contentBuilder.append(
+              "<!-- gradum-toolcall " +
+                "name=\"${escapeValue(call.name)}\" " +
+                "alias=\"${escapeValue(call.alias)}\" " +
+                "id=\"${escapeValue(call.callId)}\" " +
+                "success=\"true\" " +
+                "errorMessage=\"\" errorDetail=\"\" -->\n"
+            )
+            contentBuilder.append(SessionBubbleProjection.argumentsJson(call.arguments)).append('\n')
+            contentBuilder.append(TOOLRESULT_MARKER).append('\n')
+            contentBuilder.append(call.result).append('\n')
           }
 
-          if (responseText.isNotBlank()) {
+          if (row.response.isNotBlank()) {
             contentBuilder.append(RESPONSE_MARKER).append('\n')
-            contentBuilder.append(responseText).append('\n')
+            contentBuilder.append(row.response).append('\n')
           }
+          messageIndex = row.nextIndex
         }
+
+        else -> messageIndex++
       }
-      messageIndex++
     }
     return contentBuilder.toString()
   }
 
   /** ` id="..."` fragment when the message carries a non-blank id, else empty. */
-  private fun idAttribute(message: Map<String, Any>): String {
-    val messageId: String = message["id"] as? String ?: ""
+  private fun idAttribute(messageId: String): String {
     if (messageId.isBlank()) return ""
     return " id=\"${escapeValue(messageId)}\""
   }
 
-  /** Token-usage attributes when the message carries a usage map with positive totals. */
-  private fun tokenAttributes(message: Map<String, Any>): String {
-    val usageMap: Map<*, *> = message["tokenUsage"] as? Map<*, *> ?: return ""
-    fun tokenValue(key: String): Int = (usageMap[key] as? Number)?.toInt() ?: 0
-    val totalTokens: Int = tokenValue("totalTokens")
-    if (totalTokens <= 0) return ""
-    return " promptTokens=\"${tokenValue("promptTokens")}\"" +
-      " completionTokens=\"${tokenValue("completionTokens")}\"" +
+  /** Token-usage attributes for a row's usage map (never present with a zero total). */
+  private fun tokenAttributes(usage: Map<String, Any>?): String {
+    if (usage == null) return ""
+    val promptTokens: Int = (usage["promptTokens"] as? Number)?.toInt() ?: 0
+    val completionTokens: Int = (usage["completionTokens"] as? Number)?.toInt() ?: 0
+    val totalTokens: Int = (usage["totalTokens"] as? Number)?.toInt() ?: 0
+    val contextTokens: Int = (usage["contextTokens"] as? Number)?.toInt() ?: 0
+    return " promptTokens=\"$promptTokens\"" +
+      " completionTokens=\"$completionTokens\"" +
       " totalTokens=\"$totalTokens\"" +
-      " contextTokens=\"${tokenValue("contextTokens")}\""
-  }
-
-  /** Attachment display names recorded on the user message (base64 payloads excluded). */
-  private fun attachmentNames(message: Map<String, Any>): List<String> {
-    return readListOfMaps(message["attachments"]).mapNotNull { attachment: Map<*, *> ->
-      val attachmentName: String = attachment["name"] as? String ?: ""
-      attachmentName.takeIf { it.isNotEmpty() }
-    }
-  }
-
-  /** User text: the display-only view when present (prompt wrappers stripped), else the wire content. */
-  private fun userText(message: Map<String, Any>): String {
-    val displayText: Any? = message["displayText"]
-    if (displayText is String && displayText.isNotBlank()) return displayText
-    return when (val content: Any? = message["content"]) {
-      is String -> content
-      is List<*> -> content.filterIsInstance<Map<*, *>>()
-        .filter { it["type"] == "text" }
-        .mapNotNull { it["text"] as? String }
-        .joinToString(separator = "\n\n")
-
-      else -> ""
-    }
-  }
-
-  /**
-   * Tool-call arguments as a JSON object string: OpenAI-shaped histories
-   * already carry the JSON verbatim; Ollama-shaped ones carry a plain map.
-   */
-  private fun argumentsJson(rawArguments: Any?): String {
-    return when (rawArguments) {
-      is String -> rawArguments.ifBlank { "{}" }
-      is Map<*, *> -> {
-        val stringKeyed: Map<String, Any?> = rawArguments.entries
-          .associate { (key, value) -> key.toString() to value }
-        if (stringKeyed.isEmpty()) "{}" else JsonUtil.encodeMap(input = stringKeyed)
-      }
-
-      else -> "{}"
-    }
-  }
-
-  private fun readListOfMaps(rawList: Any?): List<Map<*, *>> {
-    return (rawList as? List<*>)?.filterIsInstance<Map<*, *>>() ?: emptyList()
+      " contextTokens=\"$contextTokens\""
   }
 
   /**
@@ -403,8 +290,8 @@ object SessionTranscriptWriter {
           if (currentLine.startsWith(SESSION_PREFIX)) {
             val attributeMap: Map<String, String> = parseAttributes(currentLine)
             return TranscriptMeta(
-              sessionId = attributeMap["id"].orEmpty(),
               title = attributeMap["title"].orEmpty(),
+              sessionId = attributeMap["id"].orEmpty(),
               modelName = attributeMap["model"].orEmpty(),
               createdAt = attributeMap["createdAt"]?.toLongOrNull() ?: 0L,
               updatedAt = attributeMap["updatedAt"]?.toLongOrNull() ?: 0L
@@ -421,7 +308,7 @@ object SessionTranscriptWriter {
     }
   }
 
-  /** Temp file + atomic rename, matching `ContextManager`'s crash-safe write. */
+  /** Temp file and atomic rename, matching `ContextManager`'s crash-safe write. */
   private fun atomicWrite(targetFile: Path, content: String) {
     val tempFile: Path = targetFile.resolveSibling("${targetFile.fileName}.tmp-${System.nanoTime()}")
     Files.writeString(tempFile, content, Charsets.UTF_8)
@@ -448,7 +335,7 @@ object SessionTranscriptWriter {
     return attributeMap
   }
 
-  /** Same escaping rules as the plugin's `ChatTranscript.escapeValue`. */
+  /** Escaping rules for marker attribute values (`\` and `"`, newlines folded to spaces). */
   private fun escapeValue(value: String): String {
     return value
       .replace("\\", "\\\\")

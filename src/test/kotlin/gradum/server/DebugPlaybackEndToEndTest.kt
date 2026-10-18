@@ -1,5 +1,6 @@
 package gradum.server
 
+import gradum.server.persistence.SessionStateStore
 import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -7,9 +8,7 @@ import io.ktor.http.*
 import io.ktor.server.testing.*
 import java.nio.file.Files
 import java.nio.file.Path
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 /**
  * Verifies the debug tool-call playback mode end-to-end: manuscript
@@ -25,11 +24,12 @@ import kotlin.test.assertTrue
 class DebugPlaybackEndToEndTest {
 
   @Test
-  fun `plays a scenario and streams playback events`(): Unit = testApplication {
-    application { module(ServerConfiguration()) }
-    val projectRoot = System.getProperty("user.dir")
+  fun `plays a scenario and streams playback events`(): Unit =
+    testApplication {
+      application { module(ServerConfiguration()) }
+      val projectRoot = System.getProperty("user.dir")
 
-    val scenarioXml = """
+      val scenarioXml = """
       <tls>
         <tt>Let me inspect the error codes first.</tt>
         <t nam="read_file" pth="src/main/kotlin/gradum/ErrorCode.kt" lin="1-10"/>
@@ -39,46 +39,183 @@ class DebugPlaybackEndToEndTest {
       </tls>
     """.trimIndent()
 
-    val body = postScenario(client, Path.of(projectRoot), scenarioXml)
+      val body = postScenario(client, Path.of(projectRoot), scenarioXml)
+
+      assertTrue(
+        body.lines().any {
+          it.contains(other = "\"type\":\"playback_start\"")
+        },
+        "missing playback_start"
+      )
+      assertTrue(
+        body.lines().any {
+          it.contains(other = "\"type\":\"response\"")
+            && it.contains(other = "Let me inspect the error codes first.")
+        },
+        "missing response narration"
+      )
+      assertTrue(
+        body.lines().any {
+          it.contains(other = "\"type\":\"tool_call\"")
+        },
+        "missing tool_call"
+      )
+      assertTrue(
+        body.lines().any {
+          it.contains(other = "\"type\":\"playback_end\"")
+        },
+        "missing playback_end"
+      )
+      assertTrue(
+        body.lines().any {
+          it.contains(other = "\"type\":\"session_end\"")
+        },
+        "missing session_end"
+      )
+      assertTrue(
+        body.lines().any {
+          it.contains(other = "playback_2")
+            && it.contains(other = "\"tool\":\"grep\"")
+        },
+        "grep tool_call event should carry the playback call id"
+      )
+    }
+
+  @Test
+  fun `session start carries the server-allocated ids when the request omits them`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+    val project = Files.createTempDirectory("gradum_playback_ids_")
+    val body = postScenario(client, project, scenarioXml = """<tls nam="ids"><tt>hello</tt></tls>""")
+
+    val start: String = body.lines().first { it.contains(other = "\"type\":\"session_start\"") }
+    val sessionId: String = Regex(""""sessionId":"([^"]*)"""").find(start)?.groupValues?.get(1).orEmpty()
+    val messageId: String = Regex(""""messageId":"([^"]*)"""").find(start)?.groupValues?.get(1).orEmpty()
+
+    assertTrue(sessionId.isNotBlank(), "the server should name the session")
+    assertTrue(messageId.isNotBlank(), "the server should name the turn's user message")
+  }
+
+  /**
+   * Playback is only the vehicle here: it produces a deterministic NDJSON
+   * stream without an LLM, which is what this test needs to check the
+   * envelope fields (`seq`, `gap`, `runId`, `sessionId`) the client relies on
+   * to detect a lost event and to reconcile against the right session.
+   */
+  @Test
+  fun `every streamed event carries a contiguous sequence and both ids`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+
+    val project = temporaryProject()
+    val scenarioXml = """
+      <tls nam="seq_probe">
+        <tt>Looking for the file.</tt>
+        <t nam="read_file" pth="gradum-does-not-exist.txt" exp="error"/>
+      </tls>
+    """.trimIndent()
+
+    val body = postScenario(client, project, scenarioXml, sessionId = "seq-probe-session")
+    val sequences: List<Long> = body.lines()
+      .filter { it.isNotBlank() }
+      .map { line ->
+        val match = Regex(""""seq":(\d+)""").find(line)
+        match?.groupValues?.get(1)?.toLong() ?: fail(message = "event without a seq field: $line")
+      }
+
+    assertEquals(
+      (1L..sequences.size.toLong()).toList(),
+      sequences,
+      "seq must be contiguous and start at 1"
+    )
+    val eventsWithoutZeroGap: List<String> = body.lines()
+      .filter { it.isNotBlank() && !it.contains(other = "\"gap\":0") }
 
     assertTrue(
-      body.lines().any {
-        it.contains(other = "\"type\":\"playback_start\"")
-      },
-      "missing playback_start"
+      eventsWithoutZeroGap.isEmpty(),
+      "no event should report a dropped predecessor, offenders=$eventsWithoutZeroGap"
     )
+    val eventsWithoutSessionId: List<String> = body.lines()
+      .filter { it.isNotBlank() && !it.contains(other = "\"sessionId\":\"seq-probe-session\"") }
+
     assertTrue(
-      body.lines().any {
-        it.contains(other = "\"type\":\"response\"")
-          && it.contains(other = "Let me inspect the error codes first.")
-      },
-      "missing response narration"
+      eventsWithoutSessionId.isEmpty(),
+      "every event should carry the session id, offenders=$eventsWithoutSessionId"
     )
+    val eventsWithoutRunId: List<String> = body.lines()
+      .filter { it.isNotBlank() && !Regex(""""runId":"[0-9a-f-]{36}"""").containsMatchIn(it) }
+
     assertTrue(
-      body.lines().any {
-        it.contains(other = "\"type\":\"tool_call\"")
-      },
-      "missing tool_call"
+      eventsWithoutRunId.isEmpty(),
+      "every event should carry a run id, offenders=$eventsWithoutRunId"
     )
+  }
+
+  @Test
+  fun `session state endpoint returns the persisted rich history`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+
+    val project = temporaryProject()
+    val sessionId = "state-probe-session"
+    postScenario(
+      client,
+      project,
+      scenarioXml = """<tls nam="state_probe"><tt>Looking.</tt><t nam="read_file" pth="missing.txt" exp="error"/></tls>""",
+      sessionId = sessionId
+    )
+
     assertTrue(
-      body.lines().any {
-        it.contains(other = "\"type\":\"playback_end\"")
-      },
-      "missing playback_end"
+      Files.isRegularFile(project.resolve(".gradum").resolve("sessions").resolve(sessionId).resolve("session-state.json")),
+      "the sidecar should be written next to the transcript"
     )
-    assertTrue(
-      body.lines().any {
-        it.contains(other = "\"type\":\"session_end\"")
-      },
-      "missing session_end"
-    )
-    assertTrue(
-      body.lines().any {
-        it.contains(other = "playback_2")
-          && it.contains(other = "\"tool\":\"grep\"")
-      },
-      "grep tool_call event should carry the playback call id"
-    )
+
+    val response: HttpResponse =
+      client.get("/session/state?projectRoot=${project.toAbsolutePath()}&sessionId=$sessionId")
+    assertEquals(HttpStatusCode.OK, response.status)
+
+    val body: String = response.bodyAsText()
+    assertContains(body, "\"sessionId\":\"$sessionId\"")
+    assertContains(body, "\"isRunning\":false")
+    assertContains(body, "\"messages\":[{\"role\":\"user\"")
+    assertContains(body, "\"pendingAsks\":[]")
+    assertContains(body, "\"subAgents\":[]")
+    assertContains(body, "\"tokenUsage\":{\"promptTokens\":0")
+  }
+
+  @Test
+  fun `session state endpoint reports an open ask card for the session`(): Unit = testApplication {
+    val project = temporaryProject()
+    val sessionId = "ask-probe-session"
+    val parked = gradum.skill.PendingQuestions()
+    val parkedPayload: Map<String, Any> = mapOf("requestId" to "req-1", "title" to "Run it?")
+    val blocker = Thread { parked.await(sessionId, "req-1", parkedPayload) }
+    blocker.start()
+    val parkedDeadline: Long = System.currentTimeMillis() + 2000
+    while (!parked.isPending(sessionId, "req-1") && System.currentTimeMillis() < parkedDeadline) {
+      Thread.sleep(5)
+    }
+
+    SessionStateStore.write(project, sessionId, "model-x", emptyList())
+
+    application { module(ServerConfiguration(), pendingQuestions = parked) }
+
+    val response: HttpResponse =
+      client.get("/session/state?projectRoot=${project.toAbsolutePath()}&sessionId=$sessionId")
+    assertEquals(HttpStatusCode.OK, response.status)
+
+    val body: String = response.bodyAsText()
+    assertContains(body, "\"pendingAsks\":[{\"requestId\":\"req-1\",\"title\":\"Run it?\"}]")
+    assertContains(body, "\"subAgents\":[]")
+
+    parked.completeCancelled(sessionId, "req-1")
+    blocker.join(2000)
+  }
+
+  @Test
+  fun `session state endpoint rejects a missing session id`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+
+    val response: HttpResponse = client.get("/session/state?projectRoot=/tmp")
+
+    assertEquals(HttpStatusCode.BadRequest, response.status)
   }
 
   @Test
@@ -338,18 +475,18 @@ class DebugPlaybackEndToEndTest {
   }
 
   @Test
-  fun `context falls back to legacy file when sessionId is absent`(): Unit = testApplication {
+  fun `allocates a session when sessionId is absent`(): Unit = testApplication {
     application { module(ServerConfiguration()) }
-    val project = Files.createTempDirectory("gradum_playback_legacy_")
+    val project = Files.createTempDirectory("gradum_playback_alloc_")
     postScenario(client, project, scenarioXml = """<tls nam="ctx_legacy"><t nam="read_file" pth="x.txt" exp="error"/></tls>""")
 
     assertTrue(
-      Files.isRegularFile(project.resolve(".gradum").resolve("context.json")),
-      "legacy .gradum/context.json should still be used when no sessionId is sent"
+      Files.isDirectory(project.resolve(".gradum").resolve("sessions")),
+      "the server should allocate a session directory when no sessionId is sent"
     )
     assertTrue(
-      Files.notExists(project.resolve(".gradum").resolve("sessions")),
-      "no sessions dir should be created when no sessionId is sent"
+      Files.notExists(project.resolve(".gradum").resolve("context.json")),
+      "legacy .gradum/context.json should not be used once the server names the session"
     )
   }
 

@@ -18,10 +18,7 @@ import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.formatTimestamp
 import gradum.idea.chat.state.ChatSessionState
-import gradum.idea.chat.ui.chat.AssistantChatBubble
-import gradum.idea.chat.ui.chat.MessageTimestamp
-import gradum.idea.chat.ui.chat.SubChatView
-import gradum.idea.chat.ui.chat.UserChatBubble
+import gradum.idea.chat.ui.chat.*
 import gradum.idea.chat.ui.input.ChatInputSection
 import gradum.idea.chat.ui.markdown.*
 import gradum.idea.settings.*
@@ -49,10 +46,10 @@ private fun ChatMessage.minimapTargetKey(index: Int): String =
  * Auto-scrolls to the bottom when new content arrives and the user was at
  * the bottom; otherwise a `JumpToBottomButton` appears.
  *
-  * [showMinimap] adds the editor host's [ChatMinimap] navigation strip
-  * flush to the panel's outer edge: equally spaced click-to-jump bars,
-  * one per user message, with the message at the viewport top highlighted
-  * (the latest message when scrolled to the bottom).
+ * [showMinimap] adds the editor host's [ChatMinimap] navigation strip
+ * flush to the panel's outer edge: equally spaced click-to-jump bars,
+ * one per user message, with the message at the viewport top highlighted
+ * (the latest message when scrolled to the bottom).
  */
 @Composable
 fun ChatScreen(
@@ -60,10 +57,10 @@ fun ChatScreen(
 ) {
   var subChatTitle by remember { mutableStateOf(value = "") }
   var subChatActive by remember { mutableStateOf(value = false) }
-  var subChatTranscriptMarkdown by remember { mutableStateOf(value = "") }
+  var subChatMessages by remember { mutableStateOf(value = emptyList<ChatMessage>()) }
 
-  val onSubChatClick: (String, String, String) -> Unit = { transcriptMarkdown, _, title ->
-    subChatTranscriptMarkdown = transcriptMarkdown
+  val onSubChatClick: (List<ChatMessage>, String) -> Unit = { messages, title ->
+    subChatMessages = messages
     subChatTitle = title
     subChatActive = true
   }
@@ -71,7 +68,7 @@ fun ChatScreen(
   val onBackToMainChat: () -> Unit = {
     subChatActive = false
     subChatTitle = ""
-    subChatTranscriptMarkdown = ""
+    subChatMessages = emptyList()
   }
 
   if (subChatActive) {
@@ -93,7 +90,7 @@ fun ChatScreen(
       userQuery = state.subAgentState.userQuery,
       modelName = state.subAgentState.modelName,
       hasCompleted = !state.subAgentState.isActive,
-      transcriptMarkdown = subChatTranscriptMarkdown,
+      historyMessages = subChatMessages,
       errorMessage = state.subAgentState.errorMessage,
       wasInterrupted = state.subAgentState.wasInterrupted,
       subAgentResponse = state.subAgentState.streamingResponse,
@@ -255,28 +252,32 @@ fun ChatScreen(
                   CompositionLocalProvider(value = LocalFootnoteRegistry provides footnoteRegistry) {
                     AssistantChatBubble(
                       message = message,
-                      sendingPhase =
-                        if (index == displayMessages.lastIndex && !message.isUserMessage &&
-                          (state.isLoading || state.sendingPhase.isNotBlank())
-                        ) state.sendingPhase
-                        else "",
-                      onRetry = { state.onRetryMessage(index) },
-                      isLoading = isLastAssistant,
-                      actionsEnabled = !state.isWaitingForResponse,
-                      onUrlClick = { url: String ->
-                        try {
-                          Desktop.getDesktop().browse(URI(url))
-                        } catch (iOException: IOException) {
-                          logger.warn("Failed to open URL: $url", iOException)
-                        }
-                      },
-                      onViewDiff = state.onViewDiff,
-                      onSubChatClick = onSubChatClick,
-                      onOpenInEditor = state.onOpenInEditor,
-                      selectedPermission = state.selectedPermission,
-                      onRespondToAsk = state.onRespondToAsk,
-                      dismissedAskRequestIds = state.dismissedAskRequestIds,
-                      onDismissAsk = state.onDismissAsk
+                      state = BubbleState(
+                        sendingPhase =
+                          if (index == displayMessages.lastIndex && !message.isUserMessage &&
+                            (state.isLoading || state.sendingPhase.isNotBlank())
+                          ) state.sendingPhase
+                          else "",
+                        isLoading = isLastAssistant,
+                        actionsEnabled = !state.isWaitingForResponse,
+                        dismissedAskRequestIds = state.dismissedAskRequestIds,
+                        selectedPermission = state.selectedPermission
+                      ),
+                      actions = BubbleActions(
+                        onRetry = { state.onRetryMessage(index) },
+                        onUrlClick = { url: String ->
+                          try {
+                            Desktop.getDesktop().browse(URI(url))
+                          } catch (iOException: IOException) {
+                            logger.warn("Failed to open URL: $url", iOException)
+                          }
+                        },
+                        onDismissAsk = state.onDismissAsk,
+                        onSubChatClick = onSubChatClick,
+                        onViewDiff = state.onViewDiff,
+                        onOpenInEditor = state.onOpenInEditor,
+                        onRespondToAsk = state.onRespondToAsk
+                      )
                     )
                   }
                 }

@@ -3,7 +3,7 @@ package gradum.idea.chat.state
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import gradum.idea.chat.model.ToolCallInfo
+import gradum.idea.chat.model.RenderBlock
 
 /**
  * Independent state for the currently running (or completed) sub-agent
@@ -26,7 +26,7 @@ class SubAgentState {
   var modelName: String by mutableStateOf(value = "")
 
   /** Tool calls made by the sub-agent during its execution. */
-  var toolCalls: List<ToolCallInfo> by mutableStateOf(value = emptyList())
+  var toolCalls: List<RenderBlock.ToolCall> by mutableStateOf(value = emptyList())
 
   /** Error message from the sub-agent, non-empty when an error occurred. */
   var errorMessage: String by mutableStateOf(value = "")

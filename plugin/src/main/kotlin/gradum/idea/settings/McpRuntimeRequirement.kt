@@ -10,7 +10,6 @@ import gradum.idea.utils.GradumBundle.message
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Link
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
-import java.io.File
 
 /**
  * A runtime dependency one command family needs, and where to get it.
@@ -61,26 +60,6 @@ internal fun runtimeRequirementFor(commandText: String): RuntimeRequirement? {
 
     else -> null
   }
-}
-
-// Scans PATH the way a shell does: the first directory holding the binary
-// wins. Windows resolution also tries the PATHEXT-style suffixes, so a
-// node.cmd install is found just like a unix node.
-internal fun findExecutable(executable: String): Boolean {
-  val suffixes: List<String> =
-    if (System.getProperty("os.name").lowercase().contains("windows")) {
-      listOf("", ".exe", ".cmd", ".bat")
-    } else {
-      listOf("")
-    }
-  val pathDirectories: List<String> =
-    System.getenv("PATH")?.split(File.pathSeparator) ?: return false
-  for (directory: String in pathDirectories) {
-    for (suffix: String in suffixes) {
-      if (File(directory, executable + suffix).isFile) return true
-    }
-  }
-  return false
 }
 
 /**

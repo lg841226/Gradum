@@ -43,12 +43,12 @@ class ServerRoutesValidationTest {
   }
 
   @Test
-  fun `POST stop with an unknown session responds with 404`(): Unit = testApplication {
+  fun `POST stop with an unknown run responds with 404`(): Unit = testApplication {
     application { module(ServerConfiguration()) }
 
     val response: HttpResponse = client.post("/stop") {
       contentType(ContentType.Application.Json)
-      setBody("""{"sessionId":"does-not-exist"}""")
+      setBody("""{"runId":"does-not-exist"}""")
     }
 
     assertEquals(
@@ -56,5 +56,37 @@ class ServerRoutesValidationTest {
       response.status
     )
     assertContains(charSequence = response.bodyAsText(), other = "not_found")
+  }
+
+  @Test
+  fun `POST sessions merge with fewer than two sessions rejects with 400`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+
+    val response: HttpResponse = client.post("/sessions/merge") {
+      contentType(ContentType.Application.Json)
+      setBody("""{"projectRoot":"/tmp","sessionIds":["only-one"],"baseTitle":"Merged"}""")
+    }
+
+    assertEquals(
+      HttpStatusCode.BadRequest,
+      response.status
+    )
+    assertContains(charSequence = response.bodyAsText(), other = "at least two sessions")
+  }
+
+  @Test
+  fun `POST sessions merge without baseTitle rejects with 400`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+
+    val response: HttpResponse = client.post("/sessions/merge") {
+      contentType(ContentType.Application.Json)
+      setBody("""{"projectRoot":"/tmp","sessionIds":["alpha","beta"],"baseTitle":"  "}""")
+    }
+
+    assertEquals(
+      HttpStatusCode.BadRequest,
+      response.status
+    )
+    assertContains(charSequence = response.bodyAsText(), other = "baseTitle is required")
   }
 }

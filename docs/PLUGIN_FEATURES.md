@@ -127,7 +127,7 @@ Source: [`UserChatBubble.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat
 
 - Renders an inline sub-agent chat panel when the main agent delegates a task to a sub-agent.
 - Two rendering paths: **runtime** (sub-agent is actively streaming, shows `toolCalls` + live response text) and
-  **history** (sub-agent has completed, renders a static transcript from `ChatTranscript.parseTranscript()`).
+  **history** (sub-agent has completed, renders the structured `subChatMessages` carried by the delegate capsule).
 - Handles 5 sub-agent wire events: `sub_agent:start` (opens the panel), `sub_agent:response` (appends to response text),
   `sub_agent:tool_call` (appends to tool call list), `sub_agent:error` (shows failure state), and
   `sub_agent:session_end` (closes the panel with final status).
@@ -138,7 +138,7 @@ Source: [`SubChatView.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/Su
 private
 `SubChatConversationContent` transcript renderer),
 [`AssistantChatBubble.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/AssistantChatBubble.kt) (`ToolCallBlock`),
-[`ChatTranscript.kt`](../plugin/src/main/kotlin/gradum/idea/chat/history/ChatTranscript.kt).
+[`DelegateRenderer.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/skill/DelegateRenderer.kt).
 
 ---
 
@@ -146,7 +146,7 @@ private
 
 ### 5.1 Wire events → UI blocks
 
-The server streams multiple `ChatEvent` subtypes as NDJSON. The `ChatMessageSender` maps them to `RenderBlock` kinds for
+The server streams the events below as NDJSON. `ChatMessageSender.sendMessage` maps each to a `RenderBlock` kind for
 rendering, and dispatches sub-agent events to a separate `SubChatView`:
 
 | Wire event              | Render block                 | Behaviour                                                                                                         |
@@ -169,8 +169,8 @@ rendering, and dispatches sub-agent events to a separate `SubChatView`:
 Dispatch lives in `ChatMessageSender.sendMessage` (one `when` branch per type) with the per-type handlers in
 `ChatEventHandlers.kt`; `guardrail` and `mission_revoked` are not wired up yet.
 
-`ChatMessage.appendEvent` performs an O (1) update. It never re-iterates the existing list. `updateLastError` likewise
-does an O (1) `indexOfLast +
+`ChatMessage.appendBlock` performs an O(1) update. It never re-iterates the existing list. `updateLastError` likewise
+does an O(1) `indexOfLast +
 set` to patch a failed tool call's error message after the fact.
 
 ### 5.2 Per-tool call content
@@ -296,7 +296,7 @@ the session blocks until the plugin answers. The plugin side of that round-trip:
 
 1. **Parse** — `ChatEventHandlers.handleAskInteractionEvent` reads `{requestId, sessionId, title, details?, default,
    choices[] | input{placeholder}}`, resolves `title`/`details`/placeholder from their `L10nText` form (`key` →
-   `GradumBundle` lookup with args, `raw` → verbatim text), and appends a `ChatEvent.AskInteraction` to the
+   `GradumBundle` lookup with args, `raw` → verbatim text), and appends a `RenderBlock.AskInteraction` to the
    current assistant message (there must be one; a card never opens a new bubble).
 2. **Render** — [`AskCard.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/AskCard.kt) shows a warning-icon
    header, the title, the horizontally scrollable details line, then either numbered choice buttons or a text field with
@@ -1060,38 +1060,39 @@ and merging sessions.
 
 ### 20.1 Session persistence (`ChatSessionStore`)
 
-Sessions are stored as JSON files under the project's `.gradum/sessions/` directory. Each session contains a unique ID,
-title, creation timestamp, update timestamp, and the full message transcript. `ChatSessionStore` handles all CRUD
-operations:
+The server owns `<projectRoot>/.gradum/sessions/`: after every turn it writes each session's machine-readable
+`session-state.json` sidecar (the durable history the client cold-loads, folded into render blocks by
+`GET /session/state`) plus a human-readable `conversation.md` render.
+`ChatSessionStore` is a thin REST client over that store:
 
-| Operation       | Method                                   | Notes                                                  |
-|-----------------|------------------------------------------|--------------------------------------------------------|
-| List all        | `getAllSessions()`                       | Returns `List<SessionMeta>` sorted by `updatedAt`.     |
-| Read transcript | `readTranscript(sessionId)`              | Returns `ChatTranscript` or `null`.                    |
-| Save transcript | `saveTranscript(sessionId, transcript)`  | Creates or overwrites the session file.                |
-| Delete session  | `deleteSession(sessionId)`               | Removes the file from disk.                            |
-| Rename session  | `renameSession(sessionId, newTitle)`     | Updates title in the JSON; returns `false` if missing. |
-| Merge sessions  | `mergeSessions(sessionIds, resultTitle)` | N-way merge; returns the new merged session ID.        |
-| Auto-name       | `generateUniqueTitle()`                  | "New conversation" with collision avoidance.           |
+| Operation | Method                                 | Notes                                                                  |
+|-----------|----------------------------------------|------------------------------------------------------------------------|
+| List all  | `listSessions()`                       | `GET /sessions`; returns `List<SessionMeta>` sorted by `updatedAt`.    |
+| Cold load | `loadSessionState(sessionId)`          | `GET /session/state`; returns the folded projection, or `null`.        |
+| Merge     | `mergeSessions(sessionIds, baseTitle)` | `POST /sessions/merge`; the server weaves and numbers the title.       |
+| Rename    | `renameSession(sessionId, newTitle)`   | `POST /session/rename`; returns `false` when missing.                  |
+| Delete    | `deleteSession(sessionId)`             | `POST /session/delete`; removes the directory and the chat DB row.     |
 
-Source: [`ChatSessionStore.kt`](../plugin/src/main/kotlin/gradum/idea/chat/history/ChatSessionStore.kt),
-[`ChatSessionStoreTest.kt`](../plugin/src/test/kotlin/gradum/idea/chat/history/ChatSessionStoreTest.kt).
+Source: [`ChatSessionStore.kt`](../plugin/src/main/kotlin/gradum/idea/chat/history/ChatSessionStore.kt).
+
+The server also names each session: the first `/events` with a blank `sessionId`
+allocates one (`SessionIds.next()`) and echoes it on `session_start`, which the
+plugin adopts for later turns.
 
 ### 20.2 Session state (`GradumChatSession`)
 
 `GradumChatSession` (project-level service) owns the active session and exposes:
 
-- `currentSessionId`: the currently loaded session.
-- `currentSessionTitle`: the display title; persisted to disk on save.
+- `activeSessionId`: the currently loaded session; `null` until the server names one.
+- `currentSessionTitle`: the display title.
 - `sessions: SnapshotStateList<SessionMeta>`: live list of all saved sessions.
 - `mergeSelection: SnapshotStateList<String>`: IDs selected for merge/delete in the management board.
 - `isMergeModeActive`: whether the management board is visible.
 
 Key methods:
 
-- `switchSession(sessionId)`: saves the current session, loads the target.
-- `saveCurrentSession()`: persists the current message list under `currentSessionTitle`.
-- `reset()`: clears messages, enters merge mode if needed, generates a new session.
+- `switchSession(sessionId)`: cold-loads the target projection from the server.
+- `reset()`: clears messages and the active id; the next send starts a server-named session.
 - `enterMergeMode()` / `exitMergeMode()`: toggles the management board.
 - `mergeSelectedSessions()`: performs the N-way merge and refreshes the list.
 - `deleteSessions(ids)`: batch-deletes multiple sessions.
@@ -1224,15 +1225,16 @@ Deleting one user message withdraws the turn instead of the whole session:
    `gradum.delete.action`); confirming calls `onDeleteMessage`, wired in
    [`GradumUI.kt`](../plugin/src/main/kotlin/gradum/idea/ui/GradumUI.kt) to
    `GradumChatSession.deleteMessage(index)`.
-2. **Local withdrawal** — `deleteMessage` validates the index is a user message, removes it **and** the assistant reply
-   that follows it; if the conversation becomes empty it resets the send state and clears the conversation. The
-   withdrawn text is prepended into the input field (position 0) so the user can edit and re-send it, without clobbering
-   anything already typed.
-3. **Server-side rewind** — it then fires `POST /session/rewind {projectRoot, sessionId, messageId}` (fire-and-forget,
-   only when an active server session and a non-blank `messageId` exist) and re-saves the transcript. The server
-   truncates its stored context at that message (`ContextManager.rewindTo`), so `context.json` and the on-screen
-   transcript stay aligned. Unknown ids answer `404 {"status":"message_not_found"}`, which the client ignores.
-   The route carries the same strict-child path-traversal guard as `/session/delete`.
+2. **Server-side rewind first** — `deleteMessage` validates the index is a user message, then calls
+   `POST /session/rewind {projectRoot, sessionId, messageId}` (only when an active server session and a non-blank
+   `messageId` exist; a turn the server never saw has nothing to undo). The server truncates its stored context at that
+   message (`ContextManager.rewindTo`), so `context.json` and the on-screen transcript stay aligned. Unknown ids answer
+   `404 {"status":"message_not_found"}` and a failed call raises a `gradum.rewind.failed.*` notification; either way the
+   bubble stays. The route carries the same strict-child path-traversal guard as `/session/delete`.
+3. **Local withdrawal on success** — only once the rewind is accepted does it remove the user message **and** the
+   assistant reply that follows it; if the conversation becomes empty it resets the send state and clears the
+   conversation. The withdrawn text is prepended into the input field (position 0) so the user can edit and re-send it,
+   without clobbering anything already typed.
 
 Source: [`GradumChatSession.kt`](../plugin/src/main/kotlin/gradum/idea/chat/state/GradumChatSession.kt),
 [`UserChatBubble.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/UserChatBubble.kt),

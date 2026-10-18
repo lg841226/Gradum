@@ -1,6 +1,7 @@
 package gradum.idea.chat.ui.chat.skill.spi
 
 import com.intellij.openapi.project.Project
+import gradum.idea.chat.model.ChatMessage
 
 /**
  * Per-render callback context. A [ToolCallRenderer] reads the IDE
@@ -40,9 +41,8 @@ data class ToolCallRenderContext(
   /**
    * Opens a read-only sub-chat view showing the sub-agent's full
    * conversation. Called by [gradum.idea.chat.ui.chat.skill.DelegateRenderer] when the user clicks
-   * the delegate capsule. The first argument is a Markdown transcript
-   * string (ChatTranscript format) of the sub-agent's conversation,
-   * the second is unused.
+   * the delegate capsule, with the sub-agent's structured messages and the
+   * capsule's title.
    */
-  val onSubChatClick: ((transcriptMarkdown: String, unused: String, title: String) -> Unit)? = null
+  val onSubChatClick: ((messages: List<ChatMessage>, title: String) -> Unit)? = null
 )

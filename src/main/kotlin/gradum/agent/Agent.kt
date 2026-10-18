@@ -21,6 +21,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.UUID
 
 private val logger: Logger = LoggerFactory.getLogger("Agent")
 
@@ -174,11 +175,14 @@ class Agent(
     toolExecutor.reset()
 
     val sessionKey: String = configuration.sessionId?.trim().orEmpty()
+    // Server-named turn id, echoed on `session_start` for the plugin's rewind.
+    val resolvedMessageId: String =
+      messageId?.trim()?.takeIf { it.isNotEmpty() } ?: UUID.randomUUID().toString()
     if (sessionKey.isNotEmpty() && registerChildSession != null)
       SessionSnapshotManager.createSnapshot(
         sessionId = sessionKey,
         projectRoot = configuration.projectRoot,
-        turnMessageId = messageId?.trim()?.takeIf { candidateTurnId: String -> candidateTurnId.isNotEmpty() },
+        turnMessageId = resolvedMessageId,
       )
 
     val contextLoaded: Boolean =
@@ -202,14 +206,16 @@ class Agent(
         "model" to configuration.modelName,
         "version" to Version.GRADUM_VERSION,
         "think" to configuration.enableThinking,
-        "contextMessages" to conversationHistory.size
+        "contextMessages" to conversationHistory.size,
+        "sessionId" to sessionKey,
+        "messageId" to resolvedMessageId
       )
     )
 
     conversationHistory.addUserMessage(
       text = userInput,
       attachments = attachments,
-      messageId = messageId,
+      messageId = resolvedMessageId,
       displayText = displayText
     )
 

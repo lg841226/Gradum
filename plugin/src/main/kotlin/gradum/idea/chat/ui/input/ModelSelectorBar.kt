@@ -217,17 +217,19 @@ private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () ->
             )
           }
         }
-        if (formatted.parameterSize != null) {
+        val sizeBadge: String? =
+          model.parameterSizeB?.let(::formatParameterSize) ?: formatted.parameterSize
+        if (sizeBadge != null) {
           Spacer(modifier = Modifier.width(GradumSpacing.sm))
           Badge(
-            content = { Text(formatted.parameterSize) },
+            content = { Text(sizeBadge) },
             style = LocalBadgeStyle.current.graySecondary
           )
           Spacer(modifier = Modifier.width(GradumSpacing.sm))
         }
       }
       Row(verticalAlignment = Alignment.CenterVertically) {
-        if (model.name.contains("cloud") || isCloudHosted(model)) {
+        if (isCloudModel(model)) {
           Icon(
             key = GradumIcons.Cloud,
             contentDescription = message("gradum.cloud")
@@ -250,6 +252,13 @@ private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () ->
     )
   }
 }
+
+/**
+ * Renders the official parameter count as a badge label, trimming the
+ * trailing `.0` (8.0 → "8B", 7.6 → "7.6B").
+ */
+private fun formatParameterSize(sizeB: Double): String =
+  if (sizeB % 1.0 == 0.0) "${sizeB.toInt()}B" else "${sizeB}B"
 
 private fun resolveSelectorText(selectedModel: ModelInfo?): String = when {
   selectedModel != null -> clipModelName(formatModelName(selectedModel.name))
@@ -280,3 +289,19 @@ private val CLOUD_SERVER_NAMES = setOf(
 
 private fun isCloudHosted(model: ModelInfo): Boolean =
   model.serverName in CLOUD_SERVER_NAMES
+
+/**
+ * Cloud detection for the badge row. Primary signal is the official
+ * `remote_host` the server read from Ollama `/api/tags`; the naming
+ * convention (`:cloud` tag or `-cloud` suffix) only covers servers old
+ * enough to predate that field. The core's ModelIdentity is not visible
+ * from the plugin module, so this fallback is duplicated here on purpose.
+ */
+private fun isCloudModel(model: ModelInfo): Boolean {
+  if (!model.remoteHost.isNullOrBlank()) return true
+  if (isCloudHosted(model)) return true
+
+  val lowerName: String = model.name.lowercase()
+  if (lowerName.endsWith("-cloud")) return true
+  return lowerName.substringAfter(':') == "cloud"
+}

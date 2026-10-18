@@ -2,8 +2,6 @@ package gradum.idea.chat.state
 
 import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.PluginConfig
-import gradum.idea.chat.history.ChatTranscript
-import gradum.idea.chat.history.SessionMeta
 import gradum.idea.chat.model.*
 import gradum.idea.chat.ui.chat.errorDetailText
 import gradum.idea.chat.ui.chat.friendlyErrorMessage
@@ -27,7 +25,7 @@ internal fun GradumChatSession.handleResponseEvent(responseData: JsonObject?) {
   val responseContent: String = responseData["content"]?.jsonPrimitive?.content ?: ""
 
   if (responseContent.isNotEmpty()) {
-    updatedMessage = updatedMessage.appendEvent(ChatEvent.Response(responseContent))
+    updatedMessage = updatedMessage.appendBlock(RenderBlock.Response(responseContent))
   }
 
   if (totalTokens > 0) {
@@ -49,7 +47,7 @@ internal fun GradumChatSession.handleThinkingEvent(data: JsonObject?) {
   val assistantIndex: Int = messages.lastIndex
 
   if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage)
-    messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Thinking(content))
+    messages[assistantIndex] = messages[assistantIndex].appendBlock(RenderBlock.Thinking(content))
 }
 
 /**
@@ -71,12 +69,11 @@ internal fun GradumChatSession.handleToolCallStartEvent(data: JsonObject?) {
     emptyMap()
   }
 
-  val toolCall = ToolCallInfo(
+  val toolCall = RenderBlock.ToolCall(
     result = "",
     success = true,
     pending = true,
     alias = toolAlias,
-    toolName = toolName,
     toolCallId = toolCallId,
     arguments = callArguments
   )
@@ -84,7 +81,7 @@ internal fun GradumChatSession.handleToolCallStartEvent(data: JsonObject?) {
   val assistantIndex: Int = messages.lastIndex
   if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
     try {
-      messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(info = toolCall))
+      messages[assistantIndex] = messages[assistantIndex].appendBlock(toolCall)
       sendingPhase = toolPendingPhase(toolName, toolAlias)
     } catch (appendException: Exception) {
       log.warn("Failed to append tool_call_start event", appendException)
@@ -112,9 +109,8 @@ internal fun GradumChatSession.handleToolCallEvent(data: JsonObject?) {
     emptyMap()
   }
 
-  val toolCall = ToolCallInfo(
+  val toolCall = RenderBlock.ToolCall(
     alias = toolAlias,
-    toolName = toolName,
     success = callSuccess,
     toolCallId = toolCallId,
     result = toolResultString,
@@ -124,7 +120,7 @@ internal fun GradumChatSession.handleToolCallEvent(data: JsonObject?) {
   val assistantIndex: Int = messages.lastIndex
   if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
     try {
-      messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(info = toolCall))
+      messages[assistantIndex] = messages[assistantIndex].appendBlock(toolCall)
       scope?.launch {
         delay(duration = WEAVING_FADE_BUFFER_MS.milliseconds)
         sendingPhase = message("gradum.phase.weaving")
@@ -145,8 +141,8 @@ internal fun GradumChatSession.handleToolExpectMismatch(data: JsonObject?) {
 
   val assistantIndex: Int = messages.lastIndex
   if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-    messages[assistantIndex] = messages[assistantIndex].appendEvent(
-      ChatEvent.Error(errorMessage, code = "TOOL_EXPECT_MISMATCH")
+    messages[assistantIndex] = messages[assistantIndex].appendBlock(
+      RenderBlock.Error(errorMessage, code = "TOOL_EXPECT_MISMATCH")
     )
   }
 }
@@ -165,8 +161,8 @@ internal fun GradumChatSession.handleErrorEvent(data: JsonObject?) {
     if (updatedMessage !== messages[assistantIndex])
       messages[assistantIndex] = updatedMessage
     else
-      messages[assistantIndex] = messages[assistantIndex].appendEvent(
-        ChatEvent.Error(rawMessage, errorCode, tool = errorToolName)
+      messages[assistantIndex] = messages[assistantIndex].appendBlock(
+        RenderBlock.Error(rawMessage, errorCode)
       )
   }
 }
@@ -198,19 +194,18 @@ internal fun GradumChatSession.handleSubAgentStart(data: JsonObject?) {
     "startTimestamp" to System.currentTimeMillis()
   )
 
-  val toolCall = ToolCallInfo(
+  val toolCall = RenderBlock.ToolCall(
     success = true,
     pending = true,
     alias = "Delegate",
     arguments = delegateArgs,
-    toolName = "delegate_task",
     toolCallId = "delegate_task",
     result = "Sub-agent running",
     timeoutSeconds = timeoutSeconds
   )
 
   try {
-    messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(info = toolCall))
+    messages[assistantIndex] = messages[assistantIndex].appendBlock(toolCall)
   } catch (appendException: Exception) {
     log.warn("Failed to update delegate block on start", appendException)
   }
@@ -253,17 +248,15 @@ internal fun GradumChatSession.handleSubAgentToolCall(data: JsonObject?) {
     emptyMap()
   }
 
-  val toolCall = ToolCallInfo(
+  val toolCall = RenderBlock.ToolCall(
     alias = alias,
     pending = false,
     success = success,
-    toolName = toolName,
     toolCallId = toolCallId,
     result = toolResultString,
     arguments = callArguments
   )
 
-  // Deduplicate by toolCallId: replace existing entry if present, otherwise append
   val existingIndex: Int = subAgentState.toolCalls.indexOfFirst { it.toolCallId == toolCallId }
   subAgentState.toolCalls = if (existingIndex >= 0) {
     subAgentState.toolCalls.toMutableList().also {
@@ -297,12 +290,11 @@ internal fun GradumChatSession.cleanupSubAgent() {
     if (assistantIndex >= 0 && assistantIndex < messages.size
       && !messages[assistantIndex].isUserMessage
     ) {
-      val updateToolCall = ToolCallInfo(
+      val updateToolCall = RenderBlock.ToolCall(
         success = false,
         pending = false,
         alias = "Delegate",
         result = "Interrupted",
-        toolName = "delegate_task",
         toolCallId = "delegate_task",
         arguments = mapOf(
           "pending" to false,
@@ -313,7 +305,7 @@ internal fun GradumChatSession.cleanupSubAgent() {
         ),
       )
       try {
-        messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(info = updateToolCall))
+        messages[assistantIndex] = messages[assistantIndex].appendBlock(updateToolCall)
       } catch (appendException: Exception) {
         log.warn("Failed to update delegate capsule on sub-agent cleanup", appendException)
       }
@@ -332,17 +324,15 @@ internal fun GradumChatSession.handleSubAgentError(data: JsonObject?) {
   subAgentTimeoutJob?.cancel(cause = CancellationException("Gradum: cancel sub-agent timeout on error"))
   log.warn("Sub-agent error: [$errorCode] $errorMessage")
 
-  // Update the delegate capsule in the main chat to show the error
   val assistantIndex: Int = messages.lastIndex
   if (assistantIndex >= 0 && assistantIndex < messages.size
     && !messages[assistantIndex].isUserMessage
   ) {
-    val toolCall = ToolCallInfo(
+    val toolCall = RenderBlock.ToolCall(
       success = false,
       pending = false,
       alias = "Delegate",
       result = errorMessage,
-      toolName = "delegate_task",
       toolCallId = "delegate_task",
       arguments = mapOf(
         "pending" to false,
@@ -354,7 +344,7 @@ internal fun GradumChatSession.handleSubAgentError(data: JsonObject?) {
       ),
     )
     try {
-      messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(info = toolCall))
+      messages[assistantIndex] = messages[assistantIndex].appendBlock(toolCall)
     } catch (appendException: Exception) {
       log.warn("Failed to update delegate block on error", appendException)
     }
@@ -368,39 +358,24 @@ internal fun GradumChatSession.handleSubAgentEnd(data: JsonObject?) {
 
   val resultText: String = data?.get("result")?.jsonPrimitive?.content ?: "(no output)"
 
-  val subMessages: List<ChatMessage> = buildList {
+  val subChatMessages: List<ChatMessage> = buildList {
     if (subAgentState.userQuery.isNotBlank()) {
       add(ChatMessage(role = "user", content = subAgentState.userQuery))
     }
-    val assistantEvents: MutableList<ChatEvent> = mutableListOf()
-    subAgentState.toolCalls.forEach { toolCall: ToolCallInfo ->
-      assistantEvents.add(ChatEvent.ToolCall(info = toolCall))
-    }
+    val assistantBlocks: MutableList<RenderBlock> = mutableListOf()
+    assistantBlocks.addAll(subAgentState.toolCalls)
     if (subAgentState.streamingResponse.isNotBlank()) {
-      assistantEvents.add(ChatEvent.Response(content = subAgentState.streamingResponse))
+      assistantBlocks.add(RenderBlock.Response(subAgentState.streamingResponse))
     }
     add(
       ChatMessage(
         role = "assistant",
-        events = assistantEvents,
+        renderBlocks = assistantBlocks,
         content = subAgentState.streamingResponse,
         modelName = subAgentState.modelName
       )
     )
   }
-
-  val transcriptMarkdown: String = ChatTranscript.generateTranscript(
-    messages = subMessages,
-    sessionMeta = SessionMeta(
-      title = subAgentState.title,
-      modelName = subAgentState.modelName,
-      sessionId = "sub_${System.nanoTime()}",
-      createdAt = subAgentState.startTimestamp,
-      updatedAt = System.currentTimeMillis()
-    )
-  )
-
-  log.warn("handleSubAgentEnd transcriptMarkdown length=${transcriptMarkdown.length}")
 
   // Guard against stale assistantIndex: only update if the last message is still the assistant
   val assistantIndex: Int = messages.lastIndex
@@ -415,23 +390,22 @@ internal fun GradumChatSession.handleSubAgentEnd(data: JsonObject?) {
     "result" to resultText,
     "toolMode" to toolMode,
     "title" to subAgentState.title,
-    "transcriptMarkdown" to transcriptMarkdown,
+    "subChatMessages" to subChatMessages,
     "endTimestamp" to System.currentTimeMillis(),
     "startTimestamp" to subAgentState.startTimestamp
   )
 
-  val toolCall = ToolCallInfo(
+  val toolCall = RenderBlock.ToolCall(
     success = true,
     pending = false,
     alias = "Delegate",
     result = resultText,
     arguments = delegateArgs,
-    toolName = "delegate_task",
     toolCallId = "delegate_task"
   )
 
   try {
-    messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(info = toolCall))
+    messages[assistantIndex] = messages[assistantIndex].appendBlock(toolCall)
   } catch (appendException: Exception) {
     log.warn("Failed to update delegate block on end", appendException)
   }
@@ -444,47 +418,59 @@ internal fun GradumChatSession.handleSubAgentEnd(data: JsonObject?) {
  * `input`), resolves title/details/placeholder from their `L10nText` form via
  * the i18n bundle, and appends an ask card to the current assistant message.
  */
-internal fun GradumChatSession.handleAskInteractionEvent(eventData: JsonObject?) {
-  if (eventData == null) return
-  val requestId: String = eventData["requestId"]?.jsonPrimitive?.contentOrNull ?: return
-  val sessionId: String = eventData["sessionId"]?.jsonPrimitive?.contentOrNull ?: ""
-  val titleText: String = resolveL10n(eventData["title"])
-  val detailText: String = resolveL10n(eventData["details"], fallback = "")
-  val defaultValue: String = eventData["default"]?.jsonPrimitive?.contentOrNull ?: ""
+internal fun GradumChatSession.handleAskInteractionEvent(data: JsonObject?) {
+  val interaction: RenderBlock.AskInteraction = parseAskInteraction(data) ?: return
+
+  val assistantIndex: Int = messages.lastIndex
+  if (assistantIndex < 0 || messages[assistantIndex].isUserMessage) return
+
+  messages[assistantIndex] = messages[assistantIndex].appendBlock(interaction)
+}
+
+/**
+ * Decodes an `ask_interaction` wire payload into a renderable
+ * [RenderBlock.AskInteraction]: a live event and a replayed `pendingAsks` entry
+ * from `/session/state` share this shape and this parser.
+ *
+ * Returns `null` for a malformed payload or one carrying neither `choices` nor
+ * `input` (nothing to render as a card).
+ */
+internal fun parseAskInteraction(data: JsonObject?): RenderBlock.AskInteraction? {
+  if (data == null) return null
+  val requestId: String = data["requestId"]?.jsonPrimitive?.contentOrNull ?: return null
+  val sessionId: String = data["sessionId"]?.jsonPrimitive?.contentOrNull ?: ""
+  val titleText: String = resolveL10n(data["title"])
+  val detailText: String = resolveL10n(data["details"], fallback = "")
+  val defaultValue: String = data["default"]?.jsonPrimitive?.contentOrNull ?: ""
 
   val askPrompt: AskPrompt =
     when {
-      eventData["choices"]?.jsonArray != null -> {
-        val choiceOptions: List<AskChoice> = eventData["choices"]!!.jsonArray.mapNotNull { choiceElement: JsonElement ->
+      data["choices"]?.jsonArray != null -> {
+        val choiceOptions: List<AskChoice> = data["choices"]!!.jsonArray.mapNotNull { choiceElement: JsonElement ->
           val choiceObject: JsonObject = choiceElement as? JsonObject ?: return@mapNotNull null
           val semanticCode: String = choiceObject["semantics"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
           val labelKey: String? = choiceObject["labelKey"]?.jsonPrimitive?.contentOrNull
           AskChoice(semantics = semanticCode, labelKey = labelKey)
         }
-        if (choiceOptions.isEmpty()) return
+        if (choiceOptions.isEmpty()) return null
         AskPrompt.Choices(choiceOptions)
       }
 
-      eventData["input"]?.jsonObject != null -> {
-        val placeholderText: String = resolveL10n(eventData["input"]!!.jsonObject["placeholder"], fallback = "")
+      data["input"]?.jsonObject != null -> {
+        val placeholderText: String = resolveL10n(data["input"]!!.jsonObject["placeholder"], fallback = "")
         AskPrompt.Input(placeholderText)
       }
 
-      else -> return
+      else -> return null
     }
 
-  val assistantIndex: Int = messages.lastIndex
-  if (assistantIndex < 0 || messages[assistantIndex].isUserMessage) return
-
-  messages[assistantIndex] = messages[assistantIndex].appendEvent(
-    ChatEvent.AskInteraction(
-      requestId = requestId,
-      sessionId = sessionId,
-      title = titleText,
-      details = detailText,
-      default = defaultValue,
-      prompt = askPrompt
-    )
+  return RenderBlock.AskInteraction(
+    requestId = requestId,
+    sessionId = sessionId,
+    title = titleText,
+    details = detailText,
+    default = defaultValue,
+    prompt = askPrompt
   )
 }
 

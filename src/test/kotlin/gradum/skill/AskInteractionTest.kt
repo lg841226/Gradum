@@ -51,6 +51,30 @@ class AskInteractionTest {
   }
 
   @Test
+  fun `pending replays the payloads of the questions still open for a session`() {
+    val pending = PendingQuestions()
+    val firstPayload = mapOf<String, Any>("requestId" to "r1", "title" to "run rm -rf?")
+    val secondPayload = mapOf<String, Any>("requestId" to "r2", "title" to "other session")
+
+    val firstThread = Thread { pending.await("sessionA", "r1", firstPayload) }
+    firstThread.start()
+    waitUntil { pending.isPending("sessionA", "r1") }
+    val secondThread = Thread { pending.await("sessionB", "r2", secondPayload) }
+    secondThread.start()
+    waitUntil { pending.isPending("sessionB", "r2") }
+
+    assertEquals(listOf(firstPayload), pending.pending("sessionA"))
+    assertTrue(pending.pending("sessionC").isEmpty(), "no open question for that session")
+
+    pending.completeChoice("sessionA", "r1", "allow_once")
+    firstThread.join(2000)
+    assertTrue(pending.pending("sessionA").isEmpty(), "an answered question is no longer open")
+
+    pending.completeCancelled("sessionB", "r2")
+    secondThread.join(2000)
+  }
+
+  @Test
   fun `responding to an unknown or already resolved key returns null`() {
     val pending = PendingQuestions()
     assertNull(pending.completeChoice("nobody", "asked", "x"), "unknown key")

@@ -2,6 +2,7 @@ package gradum.utils
 
 import gradum.mcp.McpToolCatalog
 import gradum.server.persistence.ChatDb
+import gradum.server.persistence.SessionStateStore
 import gradum.server.persistence.SessionTranscriptWriter
 import gradum.skill.Skill
 import gradum.skill.SkillRegistry
@@ -119,24 +120,9 @@ class ContextManager(private val outputDirectory: Path) {
   }
 
   fun saveContext(messages: List<Map<String, Any>>, modelName: String): Boolean {
-    // Session transcript (conversation.md) is written from the full
-    // in-memory history before tool results get stubbed below. Failure to
-    // write it must never block the context save itself.
-    try {
-      SessionTranscriptWriter.writeTranscript(
-        projectRoot = projectRoot,
-        sessionId = sessionId,
-        modelName = modelName,
-        messages = messages
-      )
-    } catch (transcriptException: Exception) {
-      logger.warn(
-        "Failed to write session transcript: ${transcriptException.javaClass.simpleName}: ${transcriptException.message}"
-      )
-    }
+    writeDerivedSessionFiles(messages = messages, modelName = modelName)
 
     return if (useDatabase) {
-      // Database mode
       cachedMessages = null
       val cleanedMessages: List<Map<String, Any>> = cleanMessageHistory(messages)
       val serializedMessages: List<Map<String, Any>> = cleanedMessages.map { message ->
@@ -149,7 +135,6 @@ class ContextManager(private val outputDirectory: Path) {
         messages = serializedMessages
       )
     } else {
-      // Legacy file mode
       outputDirectory.toFile().mkdirs()
       cachedMessages = null
 
@@ -191,16 +176,64 @@ class ContextManager(private val outputDirectory: Path) {
   }
 
   /**
+   * Renders the session's two derived files from [messages]: the
+   * machine-readable `session-state.json` sidecar and the human-readable
+   * `conversation.md` transcript. Both come from the same projection, so they
+   * cannot disagree; a failure to write either is logged but never aborts the
+   * context save.
+   */
+  private fun writeDerivedSessionFiles(messages: List<Map<String, Any>>, modelName: String) {
+    val projection: List<Map<String, Any>> = SessionStateStore.projectionMessages(messages)
+    try {
+      SessionStateStore.write(
+        projectRoot = projectRoot,
+        sessionId = sessionId,
+        modelName = modelName,
+        messages = projection
+      )
+    } catch (stateException: Exception) {
+      logger.warn(
+        "Failed to write session state: ${stateException.javaClass.simpleName}: ${stateException.message}"
+      )
+    }
+
+    try {
+      SessionTranscriptWriter.writeTranscript(
+        projectRoot = projectRoot,
+        sessionId = sessionId,
+        modelName = modelName,
+        messages = projection
+      )
+    } catch (transcriptException: Exception) {
+      logger.warn(
+        "Failed to write session transcript: ${transcriptException.javaClass.simpleName}: ${transcriptException.message}"
+      )
+    }
+  }
+
+  /**
    * Rewinds the persisted context to just before the message identified by
    * [messageId]: that message and everything after it is dropped, so a
    * withdrawn user turn (and its tool calls / assistant reply) leaves no
    * trace in the resumed context. Returns `true` only when the id was found
    * and the store was updated; `false` when the target is absent (no change).
+   *
+   * The derived sidecar and transcript are refreshed from the surviving
+   * history in both modes, so a rewind never leaves them showing dropped turns.
    */
   fun rewindTo(messageId: String): Boolean = if (useDatabase) {
     if (messageId.isBlank()) return false
-    ChatDb.rewindTo(projectRoot = projectRoot, sessionId = sessionId, messageId = messageId)
-      .also { rewound -> if (rewound) cachedMessages = null }
+    val rewound: Boolean =
+      ChatDb.rewindTo(projectRoot = projectRoot, sessionId = sessionId, messageId = messageId)
+    if (rewound) {
+      cachedMessages = null
+      // The database rewind only touches the model context; re-render the
+      // derived files from what survives, preserving the stored model name.
+      val existingModel: String =
+        SessionTranscriptWriter.readMeta(projectRoot, sessionId)?.modelName.orEmpty()
+      writeDerivedSessionFiles(messages = loadContext(), modelName = existingModel)
+    }
+    rewound
   } else {
     if (messageId.isBlank()) return false
     val messages: List<Map<String, Any>> = loadContext()
@@ -210,22 +243,24 @@ class ContextManager(private val outputDirectory: Path) {
   }
 
   /** Reads the `model` field from the context header (blank when absent/unreadable). */
-  private fun modelName(): String = if (useDatabase) {
-    // In database mode the model name is embedded in the encrypted blob;
-    // we don't have a separate header field, so return empty string.
-    ""
-  } else {
-    val contextFile: File = contextFilePath.toFile()
-    if (!contextFile.exists()) return ""
-    return try {
-      val parsedJson: JsonObject =
-        jsonFormatter.parseToJsonElement(contextFile.readText(Charsets.UTF_8)).jsonObject
-      parsedJson["model"]?.jsonPrimitive?.contentOrNull ?: ""
-    } catch (readException: Exception) {
-      logger.warn("Failed to read model field: ${readException.message}")
+  private fun modelName(): String =
+    if (useDatabase) {
+      // In database mode the model name is embedded in the encrypted blob;
+      // we don't have a separate header field, so return empty string.
       ""
+    } else {
+      val contextFile: File = contextFilePath.toFile()
+      if (!contextFile.exists()) return ""
+
+      return try {
+        val parsedJson: JsonObject =
+          jsonFormatter.parseToJsonElement(contextFile.readText(Charsets.UTF_8)).jsonObject
+        parsedJson["model"]?.jsonPrimitive?.contentOrNull ?: ""
+      } catch (readException: Exception) {
+        logger.warn("Failed to read model field: ${readException.message}")
+        ""
+      }
     }
-  }
 
   /**
    * Prepares history for persistence. Text turns (user / assistant) are kept
@@ -250,10 +285,8 @@ class ContextManager(private val outputDirectory: Path) {
       val content: String = rawContent as? String ?: ""
 
       when (role) {
-        // Re-injected fresh on every request; storing stale copies is pointless.
         "system" -> continue
 
-        // Empty assistant shells (no text, no calls) carry no information.
         "assistant" -> {
           if (content.isNotBlank() || readListOfMaps(message["tool_calls"]).isNotEmpty()) {
             cleanedMessages.add(message)
@@ -262,16 +295,10 @@ class ContextManager(private val outputDirectory: Path) {
 
         "tool" -> cleanedMessages.add(buildToolStub(message, toolCallsByCallId))
 
-        // Keep the original content structure: multimodal user messages
-        // carry content as a List (text + images): casting to String
-        // would wipe it. And don't trim(): trailing newlines are
-        // meaningful when this history is re-sent to the model.
         else -> cleanedMessages.add(
           buildMap {
             put("role", role)
             put("content", rawContent ?: "")
-            // Preserve the plugin-generated message id so a "rewind"
-            // (withdraw) can locate this exact message in the store.
             message["id"]?.let { put("id", it) }
           }
         )
@@ -305,14 +332,13 @@ class ContextManager(private val outputDirectory: Path) {
    */
   private fun buildToolStub(
     toolMessage: Map<String, Any>,
-    toolCallsByCallId: Map<String, Map<String, Any>>,
+    toolCallsByCallId: Map<String, Map<String, Any>>
   ): Map<String, Any> {
     val callId: String = toolMessage["tool_call_id"] as? String ?: ""
     val toolCall: Map<String, Any> = toolCallsByCallId[callId] ?: emptyMap()
     val function: Map<String, Any> = readStringMap(toolCall["function"])
     val functionName: String = function["name"] as? String ?: ""
 
-    // Same resolution order as ToolExecutor: built-in registry first, then MCP adapters.
     val skillInstance: Skill? = functionName.takeIf { it.isNotBlank() }?.let {
       SkillRegistry.getSkill(skillName = it) ?: McpToolCatalog.adapterFor(name = it)
     }
@@ -389,10 +415,6 @@ class ContextManager(private val outputDirectory: Path) {
     return when (element) {
       is JsonPrimitive if element.isString -> element.content
       is JsonPrimitive -> JsonUtil.fromJsonElement(element) ?: element.toString()
-      // Preserve the structured Map / List (tool_calls, multimodal
-      // content arrays). Calling .toString() here flattens them into the
-      // Kotlin container's toString() (e.g. `[{id=call_1, ...}]`) which
-      // corrupts the wire shape when this history is re-sent to the LLM.
       is JsonArray, is JsonObject -> JsonUtil.fromJsonElement(element) ?: ""
     }
   }

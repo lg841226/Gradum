@@ -256,15 +256,22 @@ flowchart LR
 sessionDir(projectRoot, sessionId) = <projectRoot>/.gradum/sessions/<sessionId>
 ```
 
-- `sessionId` is a client-generated `yyyyMMdd-HHmmss-xxxxxx` id sent in every
-  `POST /events` request of the same chat thread. The `ContextManager`
-  (`contextOutputDirectory` in `Agent.kt`) writes that session's context to
-  `.gradum/sessions/<sessionId>/context.json`, so switching conversation switches model memory and "New Chat" (a fresh
-  id) genuinely forgets.
-- A blank/`null` `sessionId` falls back to the legacy
-  `<projectRoot>/.gradum/context.json` for old-clients compatibility.
-- The plugin persists a full-detail transcript per session (`ChatSessionStore` + `ChatTranscript`) that restores the
-  exact bubble UI (thinking, tool calls + results, errors, token usage).
+- The server names the session: the first `/events` with a blank `sessionId`
+  allocates one (`SessionIds.next()`, `yyyyMMdd-HHmmss-xxxxxx`) and echoes it on
+  `session_start`; the plugin adopts it and re-sends it every later turn. The
+  `ContextManager` (`contextOutputDirectory` in `Agent.kt`) writes that
+  session's context to `.gradum/sessions/<sessionId>/context.json`, so switching
+  conversation switches model memory and "New Chat" genuinely forgets.
+- The agent names the turn's user message (`messageId`) the same way, echoing it
+  on `session_start` so the plugin can rewind to it without inventing ids.
+- A blank/`null` `sessionId` never reaches the `ContextManager` through
+  `/events`; the legacy `<projectRoot>/.gradum/context.json` remains only for
+  callers that build an agent without a session id.
+- The server writes each session's transcript (`conversation.md`) and a rich
+  `session-state.json` sidecar from one save. `GET /session/state` folds that
+  sidecar (`SessionBubbleProjection`) into one entry per user message and per
+  turn, with the turn's tool calls paired to their results; the plugin decodes
+  it straight into the bubble UI (`ChatSessionStore` + `SessionProjection`).
 - `POST /session/delete` removes a whole session directory on the server (path-traversal guarded); the plugin cascades
   locally first.
 
@@ -860,7 +867,7 @@ flowchart TD
     RESP --> RP1["PendingQuestions.complete{Choice,Text,Cancelled}<br/>unblocks the waiting skill<br/>{status: delivered|not_found} (400 on bad body)"]
     PS --> S1["abort active session by sessionId<br/>{status: stopped|not_found}"]
     SD --> SD1["delete .gradum/sessions/{sessionId}<br/>strict-child path-traversal guard"]
-    SR --> SR1["truncate session context to messageId<br/>rewrites .gradum/context.json<br/>(conversation.md is plugin-side only)"]
+    SR --> SR1["truncate session context to messageId<br/>rewrites .gradum/context.json<br/>and refreshes the session transcript"]
     GH --> H1["Return JSON<br/>{status: 'healthy', version, uptimeSeconds, timestamp}"]
     GM --> M1["ModelIdentity.discoverModels()<br/>HealthCache TTL 60s,<br/>config-fingerprint invalidation"]
     M1 --> M2["Return JSON<br/>{models: [...]}"]
@@ -1976,8 +1983,13 @@ to third-party plugins at all, so they ship too.
 - `POST /session/delete {projectRoot, sessionId}` removes a session directory;
   `POST /session/rewind {projectRoot, sessionId, messageId}` truncates the stored history up to an earlier message (the
   plugin's per-message delete / rewind)
-- `POST /stop?sessionId=...` (or `{sessionId}` in the body) aborts the active session server-side, which the client uses
-  to cancel an in-flight stream, alongside the `AbortController`-style client-side cancellation
+- `POST /stop {runId}` aborts the active server-side run (the `runId` the `/events` envelope carries), which the client
+  uses to cancel an in-flight stream, alongside the `AbortController`-style client-side cancellation
+- `GET /session/state?projectRoot=…&sessionId=…&since=<seq>` returns the session's authoritative cold projection,
+  folded from the stored history into render blocks one entry per user message and per turn (thinking, tool call +
+  result, response, token usage), plus `isRunning` / `runId` for the live run and the live extras `pendingAsks` /
+  `subAgents`. A message's `seq` is its 0-based position and `since` asks for the delta after it. The plugin decodes
+  this projection when a stream `gap` is seen or a session is reopened, instead of trusting its event-stream assembly.
 - `GET /models`, `GET /health`, and `GET /skills` support model polling, server liveness checks, and capability
   discovery
 - `POST /provider/probe` is the settings-page connectivity check: the plugin forwards `{kind, baseUrl, apiKey}` to the
@@ -2531,7 +2543,7 @@ are checked **before** asking, so a granted command or path is not re-asked. Com
 never reach the ask stage — they are refused outright with `COMMAND_BLOCKED`.
 
 **Plugin side** (`plugin/…/chat/`): `ChatEventHandlers.handleAskInteractionEvent` parses the wire payload, resolves
-`L10nText` through `GradumBundle`, and appends a `ChatEvent.AskInteraction` to the current assistant bubble;
+`L10nText` through `GradumBundle`, and appends a `RenderBlock.AskInteraction` to the current assistant bubble;
 `ui/chat/AskCard.kt` renders it (choice buttons or a text field) and calls
 `GradumApiClient.respondToAsk(sessionId, requestId, choice?, text?, cancelled?)`. The card stays in the transcript after
 resolution, so the authorization trail is visible next to the tool call it unlocked.

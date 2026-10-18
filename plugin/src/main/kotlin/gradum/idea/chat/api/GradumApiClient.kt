@@ -3,9 +3,9 @@ package gradum.idea.chat.api
 import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.PluginConfig
 import gradum.idea.server.ServerTokenStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
@@ -94,24 +94,16 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     val toolMode: String? = null,
     val modelName: String? = null,
     val sessionId: String? = null,
-    val messageId: String? = null,
     val projectRoot: String? = null,
     val toolCallXml: String? = null,
     val loadContext: Boolean = true,
+    val displayText: String? = null,
     val promptVariant: String? = null,
-    val modelParams: Map<String, String>? = null,
-    /**
-     * Requested thinking effort for this turn (`low` / `medium` / `high`),
-     * decoded server-side into a structured thinking parameter. Null keeps
-     * the server default; replaces the old prompt-suffix injection.
-     */
     val thinkingLevel: String? = null,
-    val imageAttachments: List<ApiImageAttachment> = emptyList(),
-    /** Raw user input for transcript display; [message] carries the prompt-wrapped view sent to the model. */
-    val displayText: String? = null
+    val modelParams: Map<String, String>? = null,
+    val imageAttachments: List<ApiImageAttachment> = emptyList()
   )
 
-  /** Lenient parser used for NDJSON lines so a missing `type` field does not throw. */
   private val ndjsonParser: Json = Json {
     ignoreUnknownKeys = true; isLenient = true
   }
@@ -144,13 +136,13 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
   }
 
   /**
-   * Stops an active session on the server.
+   * Aborts an in-flight `/events` run on the server.
    *
-   * @param sessionId The ID of the session to stop.
+   * @param runId The run to stop (the envelope's `runId`).
    * @return A JSON string with the stop status.
    */
-  suspend fun stopSession(sessionId: String): String = withContext(Dispatchers.IO) {
-    val requestBody: JsonObject = buildJsonObject { put("sessionId", sessionId) }
+  suspend fun stopSession(runId: String): String = withContext(Dispatchers.IO) {
+    val requestBody: JsonObject = buildJsonObject { put("runId", runId) }
 
     val response: HttpResponse<String> =
       sendWithAuthRetry(HttpResponse.BodyHandlers.ofString()) {
@@ -281,6 +273,82 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
   )
 
   /**
+   * The server's authoritative session projection from `GET /session/state`.
+   *
+   * [messages] are the render bubbles the server folded from the stored
+   * history (`session-state.json`); the caller decodes them straight into the
+   * UI view. [pendingAsks] / [subAgents] are live extras computed per request,
+   * and [isRunning] reports whether a run is in flight for this session.
+   */
+  data class ApiSessionState(
+    val sessionId: String,
+    val runId: String?,
+    val isRunning: Boolean,
+    val lastMessageIndex: Int,
+    val title: String,
+    val modelName: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val messages: List<JsonObject>,
+    val pendingAsks: List<JsonObject>,
+    val subAgents: List<JsonObject>
+  )
+
+  /**
+   * Fetches one session's authoritative projection. [since] drops the bubbles
+   * at or before that 0-based index; the default (-1) returns the whole
+   * history.
+   *
+   * @return The projection, or `null` when the session does not exist or the
+   *   request failed.
+   */
+  suspend fun fetchSessionState(
+    projectRoot: String,
+    sessionId: String,
+    since: Int = -1
+  ): ApiSessionState? = withContext(Dispatchers.IO) {
+    val encodedRoot: String = URLEncoder.encode(projectRoot, StandardCharsets.UTF_8)
+    val encodedSession: String = URLEncoder.encode(sessionId, StandardCharsets.UTF_8)
+    try {
+      val response: HttpResponse<String> =
+        sendWithAuthRetry(HttpResponse.BodyHandlers.ofString()) {
+          newRequest(
+            "$baseUrl/session/state?projectRoot=$encodedRoot&sessionId=$encodedSession&since=$since"
+          )
+            .GET()
+            .build()
+        }
+      if (response.statusCode() != 200) return@withContext null
+      val parsed: JsonObject = ndjsonParser.parseToJsonElement(response.body()) as? JsonObject
+        ?: return@withContext null
+
+      ApiSessionState(
+        runId = parsed.stringOrNull("runId"),
+        messages = parsed.objectList("messages"),
+        subAgents = parsed.objectList("subAgents"),
+        pendingAsks = parsed.objectList("pendingAsks"),
+        title = parsed.stringOrNull("title").orEmpty(),
+        modelName = parsed.stringOrNull("modelName").orEmpty(),
+        sessionId = parsed.stringOrNull("sessionId") ?: sessionId,
+        createdAt = (parsed["createdAt"] as? JsonPrimitive)?.longOrNull ?: 0L,
+        updatedAt = (parsed["updatedAt"] as? JsonPrimitive)?.longOrNull ?: 0L,
+        isRunning = (parsed["isRunning"] as? JsonPrimitive)?.booleanOrNull ?: false,
+        lastMessageIndex = (parsed["lastMessageIndex"] as? JsonPrimitive)?.intOrNull ?: -1
+      )
+    } catch (fetchException: Exception) {
+      if (fetchException is CancellationException) throw fetchException
+      log.warn("Failed to load session state for session $sessionId on server", fetchException)
+      null
+    }
+  }
+
+  private fun JsonObject.stringOrNull(key: String): String? =
+    (this[key] as? JsonPrimitive)?.contentOrNull
+
+  private fun JsonObject.objectList(key: String): List<JsonObject> =
+    (this[key] as? JsonArray)?.filterIsInstance<JsonObject>() ?: emptyList()
+
+  /**
    * Lists every saved session for [projectRoot], most recently updated first.
    * The server reads only each transcript's leading header lines, so the
    * plugin gets the same cheap listing it used to build from local files.
@@ -317,24 +385,41 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     }
 
   /**
-   * Loads one session's full transcript markdown from the server.
+   * Merges several sessions into a fresh server-side session.
    *
-   * @return The raw `conversation.md` text, or `null` when the session does
-   *   not exist or the request failed.
+   * The server reads each source's sidecar, concatenates their messages in
+   * timeline order, numbers [baseTitle] per the existing sessions, and writes
+   * the merged session itself, so the plugin makes no merge decisions.
+   *
+   * @return The new session id, or `null` when a source is missing or the
+   *   request failed.
    */
-  suspend fun loadTranscript(projectRoot: String, sessionId: String): String? =
+  suspend fun mergeSessions(projectRoot: String, sessionIds: List<String>, baseTitle: String): String? =
     withContext(Dispatchers.IO) {
-      val encodedRoot: String = URLEncoder.encode(projectRoot, StandardCharsets.UTF_8)
+      val requestBody: JsonObject = buildJsonObject {
+        put("projectRoot", projectRoot)
+        put("baseTitle", baseTitle)
+        putJsonArray("sessionIds") { sessionIds.forEach { add(it) } }
+      }
+
       try {
         val response: HttpResponse<String> =
           sendWithAuthRetry(HttpResponse.BodyHandlers.ofString()) {
-            newRequest("$baseUrl/session/transcript?projectRoot=$encodedRoot&sessionId=$sessionId")
-              .GET()
+            newRequest("$baseUrl/sessions/merge")
+              .header("Content-Type", "application/json")
+              .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
               .build()
           }
-        if (response.statusCode() == 200) response.body() else null
-      } catch (loadException: Exception) {
-        log.warn("Failed to load transcript for session $sessionId on server", loadException)
+        if (response.statusCode() != 200) {
+          log.warn("Server rejected merge for sessions $sessionIds: HTTP ${response.statusCode()}")
+          return@withContext null
+        }
+        val parsed: JsonObject = ndjsonParser.parseToJsonElement(response.body()) as? JsonObject
+          ?: return@withContext null
+        parsed.stringOrNull("sessionId")
+      } catch (mergeException: Exception) {
+        if (mergeException is CancellationException) throw mergeException
+        log.warn("Failed to merge sessions on server", mergeException)
         null
       }
     }
@@ -369,43 +454,6 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     }
 
   /**
-   * Uploads a full transcript markdown for [sessionId] (used by the merge
-   * flow, which weaves several sessions into a new one). The server stores
-   * [content] verbatim under `<projectRoot>/.gradum/sessions/<sessionId>/`
-   * and stamps [title] into the session header when non-blank.
-   *
-   * @return `true` when the server persisted the transcript, `false` when
-   *   the request failed.
-   */
-  suspend fun saveTranscript(
-    projectRoot: String,
-    sessionId: String,
-    title: String,
-    content: String
-  ): Boolean = withContext(Dispatchers.IO) {
-    val requestBody: JsonObject = buildJsonObject {
-      put("projectRoot", projectRoot)
-      put("sessionId", sessionId)
-      put("title", title)
-      put("content", content)
-    }
-
-    try {
-      val response: HttpResponse<String> =
-        sendWithAuthRetry(HttpResponse.BodyHandlers.ofString()) {
-          newRequest("$baseUrl/session/save")
-            .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
-            .build()
-        }
-      response.statusCode() == 200
-    } catch (saveException: Exception) {
-      log.warn("Failed to save transcript for session $sessionId on server", saveException)
-      false
-    }
-  }
-
-  /**
    * Sends a chat message and returns a streaming response of pre-parsed NDJSON events.
    *
    * Server processes through an agent loop (tool calls, file editing, search, etc.)
@@ -416,10 +464,20 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    * connection-level failures abort the flow (caught by caller's `.catch`).
    * Line payload truncated to [MAX_LOGGED_LINE] chars in logs.
    *
+   * **Sequence check:** every event carries a monotonic `seq` (plus a `gap`
+   * count); a discontinuity is logged at WARN and reported to [onStreamGap] so
+   * the caller can reconcile against the authoritative projection instead of
+   * trusting an incomplete local view.
+   *
    * @param request The chat message and its associated parameters.
-   * @return A [Flow] of [JsonObject] events. Failed lines are skipped silently.
+   * @param onStreamGap Invoked with `(expected, received, dropped)` when the
+   *   stream skips an event. Local state may be incomplete from then on.
+   * @return A [Flow] of [JsonObject] events. Failed lines are skipped without aborting the flow.
    */
-  fun sendMessage(request: SendMessageRequest): Flow<JsonObject> = flow {
+  fun sendMessage(
+    request: SendMessageRequest,
+    onStreamGap: (expected: Long, received: Long, dropped: Int) -> Unit = { _, _, _ -> }
+  ): Flow<JsonObject> = flow {
     val requestBody: JsonObject = buildJsonObject {
       put("message", request.message)
 
@@ -440,7 +498,6 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
       if (request.toolMode != null) put("toolMode", request.toolMode)
       if (request.thinkingLevel != null) put("thinkingLevel", request.thinkingLevel)
       if (request.sessionId != null) put("sessionId", request.sessionId)
-      if (request.messageId != null) put("messageId", request.messageId)
       if (request.toolCallXml != null) put("toolCallXml", request.toolCallXml)
       if (request.projectRoot != null) put("projectRoot", request.projectRoot)
       if (request.promptVariant != null) put("promptVariant", request.promptVariant)
@@ -468,46 +525,72 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
           .build()
       }
 
+    var previousSeq: Long = 0
+
     response.body().bufferedReader().use { reader: BufferedReader ->
       reader.useLines { lines ->
         lines
           .withIndex()
           .filter { it.value.isNotBlank() }
           .forEach { (index: Int, line: String) ->
-            parseAndEmit(line, lineNumber = index + 1)
+            val event: JsonObject = parseLine(line, lineNumber = index + 1) ?: return@forEach
+            previousSeq = warnOnStreamGap(
+              event = event, previousSeq = previousSeq, onStreamGap = onStreamGap
+            )
+            emit(value = event)
           }
       }
     }
   }.flowOn(context = Dispatchers.IO)
 
   /**
-   * Parses a single NDJSON line into a [JsonObject] and emits it. Failures
-   * are logged with a truncated preview and swallowed so the stream keeps
-   * flowing. Returns nothing: the result (success or skipped) is expressed
-   * through whether [emit][kotlinx.coroutines.flow.FlowCollector.emit] was
-   * called.
+   * Parses a single NDJSON line into a [JsonObject]. A malformed line is logged
+   * with a truncated preview and skipped (`null`), so the stream keeps flowing.
    */
-  private suspend fun FlowCollector<JsonObject>.parseAndEmit(line: String, lineNumber: Int) {
+  private fun parseLine(line: String, lineNumber: Int): JsonObject? {
     val parsed: JsonElement =
       try {
         ndjsonParser.parseToJsonElement(string = line)
       } catch (exception: SerializationException) {
         val preview: String = line.take(n = MAX_LOGGED_LINE)
         log.warn("Skipping malformed NDJSON line #$lineNumber (len=${line.length}): $preview", exception)
-        return
+        return null
       }
-    val asObject: JsonObject =
-      when (parsed) {
-        is JsonObject -> parsed
-        else -> {
-          log.warn("Skipping NDJSON line #$lineNumber: expected object, got ${parsed::class.simpleName}")
-          return
-        }
+    return when (parsed) {
+      is JsonObject -> parsed
+      else -> {
+        log.warn("Skipping NDJSON line #$lineNumber: expected object, got ${parsed::class.simpleName}")
+        null
       }
-    emit(value = asObject)
+    }
   }
 
-  /** Cap on how much of a malformed line we copy into the IDE log. */
+  /**
+   * Compares an event's `seq` with the previous one and logs when part of the
+   * stream was lost. The server reserves a number even for events it had to
+   * drop, so both `gap > 0` and a sequence jump mean the client is missing
+   * events. Returns the sequence to remember for the next event.
+   */
+  private fun warnOnStreamGap(
+    event: JsonObject,
+    previousSeq: Long,
+    onStreamGap: (expected: Long, received: Long, dropped: Int) -> Unit
+  ): Long {
+    val sequence: Long = (event["seq"] as? JsonPrimitive)?.longOrNull ?: return previousSeq
+    if (previousSeq != 0L) {
+      val expected: Long = previousSeq + 1
+      val dropped: Int = (event["gap"] as? JsonPrimitive)?.intOrNull ?: 0
+      if (dropped > 0 || sequence != expected) {
+        log.warn(
+          "Stream gap: expected event #$expected but received #$sequence " +
+            "(server reported $dropped dropped event(s)) \u2014 local state may be incomplete"
+        )
+        onStreamGap(expected, sequence, dropped)
+      }
+    }
+    return sequence
+  }
+
   private companion object {
     const val MAX_LOGGED_LINE: Int = 200
   }

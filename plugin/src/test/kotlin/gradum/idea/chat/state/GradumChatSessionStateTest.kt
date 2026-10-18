@@ -1,10 +1,13 @@
 package gradum.idea.chat.state
 
 import com.intellij.openapi.vfs.VirtualFile
+import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.ThinkingLevel
 import gradum.idea.editor.AttachedText
 import gradum.idea.editor.PendingMessage
 import io.mockk.mockk
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -144,5 +147,38 @@ class GradumChatSessionStateTest {
       "open @file:Missing.kt" to false,
       result
     )
+  }
+
+  @Test
+  fun `session start adopts the server session and message ids`() {
+    val session = GradumChatSession()
+    session.messages.add(ChatMessage(role = "user"))
+    session.messages.add(ChatMessage(role = "assistant"))
+
+    session.applySessionStart(
+      buildJsonObject {
+        put("sessionId", "20261018-120000-a1b2c3")
+        put("messageId", "server-1")
+      }
+    )
+
+    assertEquals("20261018-120000-a1b2c3", session.activeSessionId)
+    assertEquals("server-1", session.messages[0].messageId)
+  }
+
+  @Test
+  fun `session start ignores a blank id payload`() {
+    val session = GradumChatSession()
+    session.messages.add(ChatMessage(role = "user"))
+
+    session.applySessionStart(
+      buildJsonObject {
+        put("sessionId", "")
+        put("messageId", "")
+      }
+    )
+
+    assertNull(session.activeSessionId)
+    assertEquals("", session.messages[0].messageId)
   }
 }

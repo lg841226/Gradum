@@ -47,9 +47,14 @@ fun createServerInstance(serverConfiguration: ServerConfiguration): GradumServer
  * Ktor module that wires JSON content negotiation and registers all
  * application routes defined in [registerAllRoutes]. [pairingCode] fixes the
  * five-character unlock code (tests use it); a null default generates a fresh
- * one per start, printed below with the editor URLs.
+ * one per start, printed below with the editor URLs. [pendingQuestions] is
+ * injectable so a test can drive the ask channel.
  */
-fun Application.module(serverConfiguration: ServerConfiguration, pairingCode: String? = null) {
+fun Application.module(
+  serverConfiguration: ServerConfiguration,
+  pairingCode: String? = null,
+  pendingQuestions: gradum.skill.PendingQuestions = gradum.skill.PendingQuestions()
+) {
   val pairingState = PairingState(pairingCode ?: PairingState.generatePairingCode())
 
   install(plugin = ContentNegotiation) {
@@ -62,7 +67,11 @@ fun Application.module(serverConfiguration: ServerConfiguration, pairingCode: St
 
   installRequestGuard(serverConfiguration)
 
-  registerAllRoutes(pairingState = pairingState, serverConfiguration)
+  registerAllRoutes(
+    pairingState = pairingState,
+    serverConfiguration = serverConfiguration,
+    pendingQuestions = pendingQuestions,
+  )
   val skills = SkillRegistry.getAllSkills().sortedBy { it.skillName }
   if (skills.isNotEmpty()) {
     logger.info("Available skills: ${skills.count()}")

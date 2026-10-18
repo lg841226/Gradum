@@ -1,6 +1,6 @@
 package gradum.idea.chat.ui.chat
 
-import gradum.idea.chat.model.ErrorCode
+import gradum.idea.chat.model.ChatErrorCode
 import gradum.idea.utils.GradumBundle.message
 
 /**
@@ -14,22 +14,22 @@ import gradum.idea.utils.GradumBundle.message
  * @return A human-readable description suitable for the error popup.
  */
 fun friendlyErrorMessage(code: String): String = when (code) {
-  ErrorCode.CLIENT_ERROR.code -> message("gradum.error.client")
-  ErrorCode.FILE_NOT_FOUND.code -> message("gradum.error.file.not.found")
-  ErrorCode.CODE_NOT_FOUND.code -> message("gradum.error.code.not.found")
-  ErrorCode.MULTIPLE_MATCHES.code -> message("gradum.error.multiple.matches")
-  ErrorCode.INVALID_PARAMETER.code -> message("gradum.error.invalid.parameter")
-  ErrorCode.IO_ERROR.code -> message("gradum.error.io")
-  ErrorCode.TIMEOUT.code -> message("gradum.error.timeout")
-  ErrorCode.COMMAND_BLOCKED.code -> message("gradum.error.command.blocked")
-  ErrorCode.PERMISSION_DENIED.code -> message("gradum.error.permission.denied")
-  ErrorCode.FILE_TOO_LARGE.code -> message("gradum.error.file.too.large")
-  ErrorCode.EMPTY_RESULT.code -> message("gradum.error.empty.result")
-  ErrorCode.NOT_INITIALIZED.code -> message("gradum.error.not.initialized")
-  ErrorCode.ALREADY_INITIALIZED.code -> message("gradum.error.already.initialized")
-  ErrorCode.ALL_COMPLETED.code -> message("gradum.error.all.completed")
-  ErrorCode.INTERRUPTED.code -> message("gradum.error.interrupted")
-  ErrorCode.TOOL_NOT_PERMITTED.code -> message("gradum.error.tool.not.permitted")
+  ChatErrorCode.CLIENT_ERROR -> message("gradum.error.client")
+  "FILE_NOT_FOUND" -> message("gradum.error.file.not.found")
+  "CODE_NOT_FOUND" -> message("gradum.error.code.not.found")
+  "MULTIPLE_MATCHES" -> message("gradum.error.multiple.matches")
+  "INVALID_PARAMETER" -> message("gradum.error.invalid.parameter")
+  "IO_ERROR" -> message("gradum.error.io")
+  "TIMEOUT" -> message("gradum.error.timeout")
+  "COMMAND_BLOCKED" -> message("gradum.error.command.blocked")
+  "PERMISSION_DENIED" -> message("gradum.error.permission.denied")
+  "FILE_TOO_LARGE" -> message("gradum.error.file.too.large")
+  "EMPTY_RESULT" -> message("gradum.error.empty.result")
+  "NOT_INITIALIZED" -> message("gradum.error.not.initialized")
+  "ALREADY_INITIALIZED" -> message("gradum.error.already.initialized")
+  "ALL_COMPLETED" -> message("gradum.error.all.completed")
+  ChatErrorCode.INTERRUPTED -> message("gradum.error.interrupted")
+  "TOOL_NOT_PERMITTED" -> message("gradum.error.tool.not.permitted")
   else -> message("gradum.error.unexpected")
 }
 

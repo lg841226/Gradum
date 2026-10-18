@@ -675,7 +675,7 @@ private fun isUnresolvablePath(targetPath: String): Boolean {
 private fun stripWrapping(rawToken: String): String {
   var value: String = rawToken
   if (value.startsWith(prefix = "$(")) value = value.removePrefix(prefix = "$(")
-  else if (value.startsWith(prefix = "\${")) value = value.removePrefix(prefix = "\${")
+  else if (value.startsWith(prefix = $$"${")) value = value.removePrefix(prefix = $$"${")
   return value
     .trimStart('`', '"', '\'', '(')
     .trimEnd(')', '}', '`', '"', '\'')

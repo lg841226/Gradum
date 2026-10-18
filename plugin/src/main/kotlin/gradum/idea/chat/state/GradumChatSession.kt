@@ -14,11 +14,10 @@ import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.PluginConfig
 import gradum.idea.chat.api.GradumApiClient
 import gradum.idea.chat.history.ChatSessionStore
-import gradum.idea.chat.history.ChatTranscript
 import gradum.idea.chat.history.SessionMeta
-import gradum.idea.chat.model.ChatEvent
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.ModelInfo
+import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.model.ThinkingLevel
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.editor.AttachedContext
@@ -33,11 +32,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.nio.file.Path
-import java.util.*
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -55,6 +54,11 @@ enum class RuntimeFailureCause {
   NOT_RESPONDING,
   UNREACHABLE
 }
+
+@Serializable
+internal data class ModelsListResponse(
+  val models: List<ModelInfo>
+)
 
 @Service(Service.Level.PROJECT)
 class GradumChatSession : Disposable {
@@ -104,7 +108,6 @@ class GradumChatSession : Disposable {
   }
 
   var hasSentMessage: Boolean by mutableStateOf(false)
-
   private val _thinkingLevel = mutableStateOf(ThinkingLevel.MEDIUM)
   val thinkingLevel: ThinkingLevel get() = _thinkingLevel.value
   fun setThinkingLevel(level: ThinkingLevel) {
@@ -112,11 +115,13 @@ class GradumChatSession : Disposable {
   }
 
   var isSending: Boolean by mutableStateOf(false)
-  var isWaitingForResponse: Boolean by mutableStateOf(false)
   var isFocused: Boolean by mutableStateOf(false)
-  var isMenuVisible: Boolean by mutableStateOf(false)
+
   var isExpanded: Boolean by mutableStateOf(false)
   var showAddMenu: Boolean by mutableStateOf(false)
+  var isMenuVisible: Boolean by mutableStateOf(false)
+  var isWaitingForResponse: Boolean by mutableStateOf(false)
+
   var selectedPermission: String by mutableStateOf(PermissionMode.READONLY)
 
   init {
@@ -145,22 +150,16 @@ class GradumChatSession : Disposable {
 
   val models: SnapshotStateList<ModelInfo> = mutableStateListOf()
   val pinnedModels: SnapshotStateList<ModelInfo> = mutableStateListOf()
-  var selectedModel: ModelInfo? by mutableStateOf(null)
   var modelsLoaded: Boolean by mutableStateOf(false)
+  var selectedModel: ModelInfo? by mutableStateOf(null)
   var suggestionVariants: List<Int> by mutableStateOf(List(4) { Random.nextInt(5) })
 
-  /**
-   * True when the last /models request failed, i.e. the local Gradum runtime
-   * cannot be reached. Drives the "runtime unreachable" banner.
-   */
   var runtimeUnreachable: Boolean by mutableStateOf(false)
     private set
 
-  /** Diagnostic text of the last runtime failure, shown when copied. */
   var runtimeErrorMessage: String by mutableStateOf("")
     private set
 
-  /** The classified cause of the last runtime failure; null while reachable. */
   var runtimeFailureCause: RuntimeFailureCause? by mutableStateOf(null)
     private set
 
@@ -169,21 +168,21 @@ class GradumChatSession : Disposable {
   val isPendingQueueFull: Boolean
     get() = pendingMessages.size >= MAX_PENDING_MESSAGES
 
-  var currentJob: Job? by mutableStateOf(null)
+  private var sessionRefreshJob: Job? = null
   internal var subAgentTimeoutJob: Job? = null
-  var sessionId: String? by mutableStateOf(null)
+  var runId: String? by mutableStateOf(null)
+  var currentJob: Job? by mutableStateOf(null)
   var activeSessionId: String? by mutableStateOf(null)
+  var sendingPhase: String by mutableStateOf("")
   var currentSessionTitle: String by mutableStateOf("")
+  var isMergeModeActive: Boolean by mutableStateOf(false)
 
   val sessions: SnapshotStateList<SessionMeta> = mutableStateListOf()
-  private var sessionRefreshJob: Job? = null
-  var isMergeModeActive: Boolean by mutableStateOf(false)
   val mergeSelection: SnapshotStateList<String> = mutableStateListOf()
 
   private val chatStore: ChatSessionStore?
     get() = project?.basePath?.let { ChatSessionStore(Path.of(it), apiClient) }
 
-  var sendingPhase: String by mutableStateOf("")
   private var pollingJob: Job? = null
   private var probeRefreshJob: Job? = null
   val subAgentState: SubAgentState = SubAgentState()
@@ -214,8 +213,8 @@ class GradumChatSession : Disposable {
       }
     }
     clearSendState()
-    sessionId = null
-    activeSessionId = chatStore?.let { ChatSessionStore.nextSessionId() }
+    runId = null
+    activeSessionId = null
     currentSessionTitle = ""
     hasSentMessage = false
     clearConversationState()
@@ -255,23 +254,11 @@ class GradumChatSession : Disposable {
   suspend fun mergeSelectedSessions(): Boolean {
     if (mergeSelection.size < MIN_MERGE_SESSIONS) return false
     val sessionStore: ChatSessionStore = chatStore ?: return false
-    val resultTitle: String = nextMergeTitle()
-    sessionStore.mergeSessions(sessionIds = mergeSelection.toList(), resultTitle) ?: return false
+    val baseTitle: String = message("gradum.merge.titled")
+    sessionStore.mergeSessions(sessionIds = mergeSelection.toList(), baseTitle = baseTitle) ?: return false
     mergeSelection.clear()
     refreshSessions()
     return true
-  }
-
-  private fun nextMergeTitle(): String {
-    val base: String = message("gradum.merge.titled")
-    val numberedTitlePattern = Regex(pattern = "^${Regex.escape(literal = base)}\\s+(\\d+)$")
-    var maxIndex = 0
-    sessions.forEach { sessionMeta: SessionMeta ->
-      val match: MatchResult? = numberedTitlePattern.matchEntire(input = sessionMeta.title)
-      val index: Int = match?.groupValues?.get(1)?.toIntOrNull() ?: 0
-      if (index > maxIndex) maxIndex = index
-    }
-    return "$base ${maxIndex + 1}"
   }
 
   suspend fun renameSession(sessionId: String, newTitle: String): Boolean {
@@ -290,20 +277,20 @@ class GradumChatSession : Disposable {
   suspend fun switchSession(targetSessionId: String): Boolean {
     if (isSending) return false
     val sessionStore: ChatSessionStore = chatStore ?: return false
-    val loadedTranscript: ChatTranscript.ParsedTranscript =
-      sessionStore.loadSession(targetSessionId) ?: return false
+
+    val projection: GradumApiClient.ApiSessionState? = sessionStore.loadSessionState(targetSessionId)
+    val projectedState: GradumApiClient.ApiSessionState? = projection?.takeIf { it.messages.isNotEmpty() }
+    if (projectedState == null) return false
 
     val job = currentJob
     currentJob = null
     job?.cancel(cause = CancellationException("Gradum: switch session"))
-    sessionId = null
+    runId = null
     clearSendState()
 
     clearConversationState()
-    messages.addAll(elements = loadedTranscript.messages)
+    applyServerProjection(state = projectedState)
     activeSessionId = targetSessionId
-    currentSessionTitle = loadedTranscript.sessionMeta.title
-    hasSentMessage = loadedTranscript.messages.isNotEmpty()
     return true
   }
 
@@ -332,7 +319,6 @@ class GradumChatSession : Disposable {
     }
   }
 
-  /** Balloon so a failed delete is visible without reading IDE logs. */
   private fun notifySessionDeleteFailed() {
     val notificationProject: Project = project ?: return
     NotificationGroupManager.getInstance()
@@ -345,31 +331,57 @@ class GradumChatSession : Disposable {
       .notify(notificationProject)
   }
 
+  private fun notifyRewindFailed() {
+    val notificationProject: Project = project ?: return
+    NotificationGroupManager.getInstance()
+      .getNotificationGroup("Gradum")
+      .createNotification(
+        title = message("gradum.rewind.failed.title"),
+        content = message("gradum.rewind.failed.content"),
+        type = NotificationType.ERROR
+      )
+      .notify(notificationProject)
+  }
+
   fun deleteMessage(userMessageIndex: Int) {
     if (userMessageIndex !in messages.indices) return
     if (!messages[userMessageIndex].isUserMessage) return
 
-    val withdrawn: ChatMessage = messages[userMessageIndex]
-    val withdrawnContent: String = withdrawn.content
-    val messageId: String = withdrawn.messageId
-
-    while (messages.size > userMessageIndex) {
-      messages.removeAt(userMessageIndex)
-    }
-    if (messages.isEmpty()) {
-      clearSendState()
-      hasSentMessage = false
-      clearConversationState()
-    }
-
-    if (withdrawnContent.isNotBlank()) {
-      textState.edit { replace(start = 0, end = 0, withdrawnContent) }
-    }
-
     val sessionKey: String? = activeSessionId
     val projectRoot: String? = project?.basePath
-    if (sessionKey != null && projectRoot != null && messageId.isNotBlank()) {
-      scope?.launch { apiClient.rewindSession(projectRoot, sessionKey, messageId) }
+    val messageId: String = messages[userMessageIndex].messageId
+
+    scope?.launch {
+      // The server owns the history, so the bubble goes only once the rewind
+      // is accepted; a turn the server never saw has nothing to undo.
+      val rewound: Boolean =
+        if (sessionKey != null && projectRoot != null && messageId.isNotBlank())
+          apiClient.rewindSession(projectRoot, sessionKey, messageId)
+        else true
+
+      if (!rewound) {
+        notifyRewindFailed()
+        return@launch
+      }
+      if (userMessageIndex !in messages.indices ||
+        messages[userMessageIndex].messageId != messageId
+      ) {
+        return@launch
+      }
+
+      val withdrawnContent: String = messages[userMessageIndex].content
+      while (messages.size > userMessageIndex) {
+        messages.removeAt(userMessageIndex)
+      }
+      if (messages.isEmpty()) {
+        clearSendState()
+        hasSentMessage = false
+        clearConversationState()
+      }
+
+      if (withdrawnContent.isNotBlank()) {
+        textState.edit { replace(start = 0, end = 0, withdrawnContent) }
+      }
     }
   }
 
@@ -379,7 +391,7 @@ class GradumChatSession : Disposable {
       role = "debug",
       modelName = message("gradum.debug.model.name"),
     )
-    messages.add(chatMsg.appendEvent(ChatEvent.Response(content)))
+    messages.add(chatMsg.appendBlock(RenderBlock.Response(content)))
     isSending = false
   }
 
@@ -389,13 +401,11 @@ class GradumChatSession : Disposable {
       val displayName: String = selectedModel?.name ?: ""
       val providerName: String = selectedModel?.provider ?: ""
       val serverLabel: String = selectedModel?.serverName ?: ""
-      val messageId: String = UUID.randomUUID().toString()
       messages.add(
         ChatMessage(
           role = "user",
           attachments = next.attachments,
-          content = next.content,
-          messageId = messageId
+          content = next.content
         )
       )
       messages.add(
@@ -414,7 +424,6 @@ class GradumChatSession : Disposable {
           userMessage = next.content,
           next.attachments,
           contextPath = "",
-          messageId = messageId,
         )
       }
     }
@@ -517,10 +526,6 @@ class GradumChatSession : Disposable {
     CoroutineScope(context = SupervisorJob() + Dispatchers.Main.immediate)
   }
 
-  /**
-   * Starts (or restarts) model polling on the session-owned
-   * [modelPollingScope], replacing any previous polling jobs.
-   */
   @OptIn(ExperimentalCoroutinesApi::class)
   fun startModelPolling(autoDetect: Boolean, pollIntervalMs: Long) {
     stopModelPolling()
@@ -607,14 +612,14 @@ class GradumChatSession : Disposable {
         log.warn("Failed to cancel current job on stopSession", throwable)
       }
     }
-    val currentSessionId: String? = sessionId
-    if (currentSessionId != null) {
+    val currentRunId: String? = runId
+    if (currentRunId != null) {
       try {
-        apiClient.stopSession(currentSessionId)
+        apiClient.stopSession(currentRunId)
       } catch (cancelError: Exception) {
-        log.warn("Failed to send stop request for session $currentSessionId", cancelError)
+        log.warn("Failed to send stop request for run $currentRunId", cancelError)
       }
-      sessionId = null
+      runId = null
     }
     clearSendState()
     processPendingQueue()
