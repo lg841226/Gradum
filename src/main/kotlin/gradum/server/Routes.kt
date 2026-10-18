@@ -13,6 +13,8 @@ import gradum.skill.SkillRegistry
 import gradum.skill.external.DeployResult
 import gradum.skill.external.ExternalDiagnosticSeverity
 import gradum.skill.external.ExternalSkillHost
+import gradum.task.BackgroundTaskManager
+import gradum.task.JobOutcome
 import gradum.utils.ContextManager
 import gradum.utils.JsonUtil
 import gradum.vcs.SessionSnapshotManager
@@ -42,6 +44,8 @@ import java.time.LocalDateTime
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors.newFixedThreadPool
 
 private val logger: Logger = LoggerFactory.getLogger("GradumServerRoutes")
 
@@ -242,6 +246,14 @@ internal data class SkillDeployRequest(val name: String, val source: String)
 @Serializable
 internal data class PairRequestBody(val code: String = "")
 
+@Serializable
+internal data class TaskSubmitRequest(
+  val command: String,
+  val sessionId: String,
+  val projectRoot: String,
+  val timeoutSeconds: Long? = null
+)
+
 /**
  * Registers every HTTP route the Gradum server exposes:
  * - `POST /events`: streams an agent run as NDJSON.
@@ -264,6 +276,16 @@ fun Application.registerAllRoutes(
 ) {
   val serverStartTime: LocalDateTime = LocalDateTime.now()
   val activeSessions: ConcurrentHashMap<String, SessionEntry> = ConcurrentHashMap()
+
+  val backgroundTaskWorkers: ExecutorService =
+    newFixedThreadPool(4) { runnable ->
+      Thread(runnable, "gradum-bg-task").apply { isDaemon = true }
+    }
+  val backgroundTaskOutcomes: Channel<JobOutcome> = Channel(capacity = 256)
+  val backgroundTaskManager = BackgroundTaskManager.initialize(
+    workers = backgroundTaskWorkers,
+    outcomes = backgroundTaskOutcomes,
+  )
 
   routing {
     post("/events") {
@@ -345,7 +367,9 @@ fun Application.registerAllRoutes(
         contextWindowSize = configOverrides.numCtx ?: AgentConfiguration.DEFAULT_CONTEXT_WINDOW_SIZE,
         keepAliveMinutes = configOverrides.keepAliveMinutes ?: serverConfiguration.defaultKeepAliveMinutes,
         maxTokensToGenerate = configOverrides.numPredict ?: AgentConfiguration.DEFAULT_MAX_TOKENS_TO_GENERATE,
-        sessionId = resolvedSessionId
+        sessionId = resolvedSessionId,
+        serverUrl = "http://${serverConfiguration.hostAddress}:${serverConfiguration.portNumber}",
+        serverApiKey = serverConfiguration.authToken
       )
 
       launch(Dispatchers.IO) {
@@ -599,6 +623,8 @@ fun Application.registerAllRoutes(
         projectRoot = projectRootPath.toString()
       )
 
+      backgroundTaskManager.cancelSession(sessionKey)
+
       ChatDb.deleteSession(projectRoot = projectRootPath, sessionId = sessionKey)
 
       val isDeleted: Boolean = sessionFile.deleteRecursively()
@@ -665,6 +691,9 @@ fun Application.registerAllRoutes(
 
       val previousTitle: String = SessionTranscriptWriter
         .readMeta(projectRoot = projectRootPath, sessionId = sessionKey)?.title.orEmpty()
+
+      backgroundTaskManager.cancelSession(sessionKey)
+
       val rewinded: Boolean = ContextManager(sessionDir).rewindTo(messageId)
       if (rewinded) {
         SessionSnapshotManager.revertTurnSnapshot(
@@ -827,6 +856,7 @@ fun Application.registerAllRoutes(
             "updatedAt" to (transcriptMeta?.updatedAt ?: 0L),
             "tokenUsage" to aggregateTokenUsage(storedMessages),
             "pendingAsks" to pendingQuestions.pending(sessionKey),
+            "pendingBackgroundTasks" to backgroundTaskManager.pendingForSession(sessionKey),
             "subAgents" to (activeEntry?.value?.subAgents?.toList() ?: emptyList())
           )
         ),
@@ -1160,6 +1190,171 @@ fun Application.registerAllRoutes(
         return@get
       }
       call.respondText(text = body, contentType = contentType)
+    }
+
+    post("/tasks") {
+      val requestBody = call.receive<TaskSubmitRequest>()
+      val sessionId: String = requestBody.sessionId.trim()
+      if (sessionId.isEmpty()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "sessionId is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+      val command: String = requestBody.command.trim()
+      if (command.isEmpty()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "command is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+
+      val projectRoot: String = requestBody.projectRoot.trim()
+      if (projectRoot.isEmpty()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "projectRoot is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+
+      val timeoutSeconds: Long = requestBody.timeoutSeconds ?: 600L
+      val backgroundJob = backgroundTaskManager.submit(
+        sessionId = sessionId,
+        command = command,
+        projectRoot = projectRoot,
+        timeoutSeconds = timeoutSeconds,
+      )
+
+      call.respondText(
+        status = HttpStatusCode.Accepted,
+        text = JsonUtil.encodeMap(
+          mapOf(
+            "taskId" to backgroundJob.taskId,
+            "status" to backgroundJob.status.name.lowercase(),
+            "startedAt" to backgroundJob.startedAt,
+          )
+        ),
+        contentType = ContentType.Application.Json,
+      )
+    }
+
+    get("/tasks") {
+      val sessionId: String = call.request.queryParameters["sessionId"]?.trim().orEmpty()
+      if (sessionId.isEmpty()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "sessionId query parameter is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@get
+      }
+
+      val jobs = backgroundTaskManager.listForSession(sessionId)
+      call.respondText(
+        text = Json.encodeToString(
+          JsonElement.serializer(),
+          JsonUtil.toJsonElement(jobs.map { job ->
+            mapOf(
+              "taskId" to job.taskId,
+              "status" to job.status.name.lowercase(),
+              "command" to job.command,
+              "startedAt" to job.startedAt,
+            )
+          })
+        ),
+        contentType = ContentType.Application.Json,
+      )
+    }
+
+    get("/tasks/{taskId}") {
+      val taskId: String = call.parameters["taskId"]?.trim().orEmpty()
+      if (taskId.isEmpty()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "taskId path parameter is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@get
+      }
+
+      val outcome = backgroundTaskManager.getOutcome(taskId)
+      if (outcome == null) {
+        val jobSnapshot = backgroundTaskManager.get(taskId)
+        if (jobSnapshot == null) {
+          call.respondText(
+            status = HttpStatusCode.NotFound,
+            text = JsonUtil.encodeMap(mapOf("status" to "not_found", "taskId" to taskId)),
+            contentType = ContentType.Application.Json,
+          )
+          return@get
+        }
+        call.respondText(
+          text = JsonUtil.encodeMap(
+            mapOf(
+              "output" to null,
+              "exitCode" to null,
+              "durationMs" to null,
+              "taskId" to jobSnapshot.taskId,
+              "command" to jobSnapshot.command,
+              "startedAt" to jobSnapshot.startedAt,
+              "status" to jobSnapshot.status.name.lowercase()
+            )
+          ),
+          contentType = ContentType.Application.Json,
+        )
+        return@get
+      }
+
+      call.respondText(
+        text = JsonUtil.encodeMap(
+          mapOf(
+            "taskId" to outcome.job.taskId,
+            "status" to outcome.job.status.name.lowercase(),
+            "command" to outcome.job.command,
+            "startedAt" to outcome.job.startedAt,
+            "exitCode" to outcome.exitCode,
+            "durationMs" to outcome.durationMs,
+            "output" to outcome.output,
+          )
+        ),
+        contentType = ContentType.Application.Json,
+      )
+    }
+
+    delete("/tasks/{taskId}") {
+      val taskId: String = call.parameters["taskId"]?.trim().orEmpty()
+      if (taskId.isEmpty()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "taskId path parameter is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@delete
+      }
+
+      val cancelled: Boolean = backgroundTaskManager.cancel(taskId)
+      if (!cancelled) {
+        val jobSnapshot = backgroundTaskManager.get(taskId)
+        if (jobSnapshot == null) {
+          call.respondText(
+            status = HttpStatusCode.NotFound,
+            text = JsonUtil.encodeMap(mapOf("status" to "not_found", "taskId" to taskId)),
+            contentType = ContentType.Application.Json,
+          )
+          return@delete
+        }
+      }
+
+      call.respondText(
+        text = JsonUtil.encodeMap(mapOf("status" to "cancelled", "taskId" to taskId)),
+        contentType = ContentType.Application.Json,
+      )
     }
   }
 }

@@ -174,6 +174,22 @@ data class AgentConfiguration(
   val sessionId: String? = null,
 
   /**
+   * Base URL of the Gradum server (e.g. `http://localhost:8765`). Skills
+   * that need to call server HTTP APIs (e.g. background task submission)
+   * use this to reach the correct endpoint. Null when the server address
+   * is unknown (tests or embedded callers).
+   */
+  val serverUrl: String? = null,
+
+  /**
+   * Bearer token for calling this server's own HTTP APIs (e.g. background
+   * task submission). Carries [gradum.server.ServerConfiguration.authToken]
+   * so skill-side HTTP clients can authenticate; null when auth is disabled
+   * (tests and embedded callers).
+   */
+  val serverApiKey: String? = null,
+
+  /**
    * When non-null, the agent runs as a focused sub-agent dedicated to
    * this task. The task description is injected into the system prompt,
    * and the agent's conversation history is NOT persisted to disk.

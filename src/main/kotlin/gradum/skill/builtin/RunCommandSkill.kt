@@ -2,24 +2,17 @@ package gradum.skill.builtin
 
 import gradum.*
 import gradum.skill.*
-import gradum.skill.dsl.SchemaBuilder
-import gradum.skill.dsl.boolean
-import gradum.skill.dsl.integer
-import gradum.skill.dsl.string
+import gradum.skill.dsl.*
+import gradum.task.captureDescendants
+import gradum.task.killProcessTree
+import gradum.task.startStreamReader
 import gradum.utils.CommandVerdict
 import gradum.utils.classifyCommand
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
-import java.io.BufferedReader
+import gradum.utils.normalizeCommandOutput
+import gradum.utils.trimmedOutputLines
 import java.io.File
-import java.io.InputStream
-import java.io.InputStreamReader
-import java.nio.file.Path
-import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
-
-private val logger: Logger = LoggerFactory.getLogger("RunCommandSkill")
 
 /** Default timeout in seconds: delegated to [GradumConfig]. */
 private const val DEFAULT_TIMEOUT_SECONDS: Long = GradumConfig.COMMAND_DEFAULT_TIMEOUT_SECONDS
@@ -32,12 +25,6 @@ private const val FORCE_KILL_DELAY_MS: Long = GradumConfig.COMMAND_FORCE_KILL_DE
 
 /** Cap on how much command output is read into the LLM context: delegated to [GradumConfig]. */
 private const val MAX_OUTPUT_CHARS: Int = GradumConfig.COMMAND_MAX_OUTPUT_CHARS
-
-/** Reader used for stdout/stderr draining that happens before waitFor. */
-private val streamReaderPool: java.util.concurrent.ExecutorService =
-  Executors.newCachedThreadPool { runnable ->
-    Thread(runnable, "gradum-run-cmd-stream").apply { isDaemon = true }
-  }
 
 /**
  * Resolves authorization for a command that received a
@@ -81,7 +68,6 @@ private fun captureDescendants(process: Process): List<ProcessHandle> {
   return try {
     process.toHandle().descendants().toList()
   } catch (_: Exception) {
-    // ProcessHandle may throw on unsupported platforms
     emptyList()
   }
 }
@@ -116,25 +102,14 @@ private fun killProcessTree(process: Process, descendants: List<ProcessHandle>) 
   process.destroyForcibly()
 }
 
-/**
- * Executes a shell command and captures its output.
- *
- * Every command is pre-classified via [classifyCommand] and rejected with
- * `COMMAND_BLOCKED` if it touches a critical path or unsafe executable.
- * All execution sites are annotated `@OptIn(DangerousOperation::class)`.
- *
- * Process isolation is handled by [killProcessTree]: on timeout the entire
- * process tree is killed (SIGTERM -> grace period -> SIGKILL), matching the
- * `forceKillAfter` pattern from opencode's bash tool. No orphan processes
- * are left behind.
- */
+
 class RunCommandSkill : Skill() {
 
   override val skillName: String = "run_cmd"
   override val alias: String = "Ran"
   override val description: String =
     "Execute a shell command. " +
-      "Use detached=true for background execution. " +
+      "Use background=true for background execution. " +
       "Timeout defaults to ${DEFAULT_TIMEOUT_SECONDS}s, max ${MAX_TIMEOUT_SECONDS}s."
 
   override val toolDisplay: ToolDisplay =
@@ -154,8 +129,9 @@ class RunCommandSkill : Skill() {
     string(name = "reason", description = "Why this command is needed")
     cloudOnly {
       boolean(
-        name = "detached",
-        description = "Run in background mode (fire-and-forget)",
+        name = "background",
+        description = "Run in background. Returns a taskId immediately; the command output " +
+          "is appended to the conversation automatically when the command exits.",
       )
       integer(
         name = "timeout",
@@ -164,10 +140,9 @@ class RunCommandSkill : Skill() {
     }
   }
 
-  @OptIn(DangerousOperation::class)
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val commandText: String = arguments["command"] as? String ?: ""
-    val runDetached: Boolean = arguments["detached"] as? Boolean ?: false
+    val runInBackground: Boolean = arguments["background"] as? Boolean ?: false
     val projectRoot: String = context.projectRoot
     val useSimpleOutput = context.isSimpleModel
 
@@ -208,11 +183,41 @@ class RunCommandSkill : Skill() {
       )
     }
 
-    // Simple models always run blocking (no detached mode)
-    if (runDetached && !useSimpleOutput)
-      return executeDetached(commandText, skillContext = context)
+    // Simple models always run blocking (no background mode)
+    if (runInBackground && !useSimpleOutput)
+      return executeBackground(commandText, context)
 
     return executeBlocking(commandText, projectRoot, useSimpleOutput, arguments)
+  }
+
+  private fun executeBackground(commandText: String, context: SkillContext): SkillResult {
+    return try {
+      val handle = context.background {
+        this.command = commandText
+      }
+
+      makeSuccess {
+        boolean("background", true)
+        string("taskId", handle.taskId)
+        string("command", commandText)
+        string(
+          "message",
+          "Command is running in background (task ${handle.taskId}). " +
+            "Its output will be appended to this conversation when it finishes. " +
+            "Continue with other work or end your turn."
+        )
+      }
+    } catch (submissionException: Exception) {
+      makeFailure(
+        code = ErrorCode.IO_ERROR,
+        message = buildXmlError(
+          code = "IO_ERROR",
+          message = submissionException.message ?: "Failed to submit background command.",
+          fixHint = "This is not your fault. Check the command syntax and try again."
+        ),
+        context = mapOf("command" to commandText)
+      )
+    }
   }
 
   private fun executeBlocking(
@@ -235,9 +240,9 @@ class RunCommandSkill : Skill() {
       val commandProcess: Process = processBuilder.start()
 
       val stdoutFuture: Future<String> =
-        startStreamReader(commandProcess.inputStream, label = "stdout")
+        startStreamReader(commandProcess.inputStream, label = "stdout", maxChars = MAX_OUTPUT_CHARS)
       val stderrFuture: Future<String> =
-        startStreamReader(inputStream = commandProcess.errorStream, label = "stderr")
+        startStreamReader(inputStream = commandProcess.errorStream, label = "stderr", maxChars = MAX_OUTPUT_CHARS)
 
       val processFinished: Boolean = commandProcess.waitFor(timeoutSeconds, TimeUnit.SECONDS)
 
@@ -255,7 +260,7 @@ class RunCommandSkill : Skill() {
             code = "TIMEOUT",
             message = "Command timed out after $timeoutSeconds seconds.",
             fixHint = "The command took too long. Try a longer timeout " +
-              "($MAX_TIMEOUT_SECONDS s max), a simpler command, or detached=true for fire-and-forget tasks."
+              "($MAX_TIMEOUT_SECONDS s max), a simpler command, or background=true for fire-and-forget tasks."
           ),
           context = mapOf("command" to commandText, "timeout" to true),
         )
@@ -273,28 +278,27 @@ class RunCommandSkill : Skill() {
       val stderrTruncated = truncatedMarker in stderrText
       val outputTruncated = stdoutTruncated || stderrTruncated
 
-      val commandOutput: String = buildString {
-        if (exitCode != 0) {
-          if (stderrText.isNotBlank()) append(stderrText)
-          if (stdoutText.isNotBlank()) {
-            if (isNotEmpty()) append("\n(stderr)")
-            append(stdoutText)
+      val commandOutput: String = buildXml {
+        element("Output") {
+          element("ExitCode") { text(exitCode.toString()) }
+          val stdoutLines: List<String> = trimmedOutputLines(stdoutText)
+          element("Stdout") {
+            if (stdoutLines.isEmpty()) text("(empty)")
+            else stdoutLines.forEach { line -> element("Line") { text(line) } }
           }
-        } else {
-          if (stdoutText.isNotBlank()) append(stdoutText)
-          if (stderrText.isNotBlank()) {
-            if (isNotEmpty()) append("\n(stderr)")
-            append(stderrText)
+          val stderrLines: List<String> = trimmedOutputLines(stderrText)
+          element("Stderr") {
+            if (stderrLines.isEmpty()) text("(empty)")
+            else stderrLines.forEach { line -> element("Line") { text(line) } }
           }
         }
-        if (isEmpty()) append("(no output)")
       }
 
       if (useSimpleOutput) {
         makeSuccess {
           integer("exitCode", exitCode)
           string("command", commandText)
-          string("output", commandOutput.take(n = 3000))
+          string("output", normalizeCommandOutput(commandOutput.take(n = 3000)))
         }
       } else {
         makeSuccess {
@@ -315,88 +319,6 @@ class RunCommandSkill : Skill() {
         ),
         context = mapOf("command" to commandText)
       )
-    }
-  }
-
-  @DangerousOperation
-  private fun executeDetached(commandText: String, skillContext: SkillContext): SkillResult {
-    return try {
-      val logDirectory: Path = Path.of(skillContext.projectRoot, ".gradum", "run_cmd")
-      logDirectory.toFile().mkdirs()
-      val logFile = File(logDirectory.toFile(), "${System.currentTimeMillis()}.log")
-
-      val processBuilder = ProcessBuilder(
-        "sh", "-c", "nohup $commandText </dev/null >${logFile.absolutePath} 2>&1 &"
-      )
-
-      val detachedProcess: Process = processBuilder.start()
-      val processId: Long = detachedProcess.pid()
-
-      logger.info("Detached command (PID $processId): $commandText to ${logFile.absolutePath}")
-
-      detachedProcess.waitFor(5, TimeUnit.SECONDS)
-      detachedProcess.toHandle().onExit()
-
-      makeSuccess {
-        string("command", commandText)
-        boolean("detached", true)
-        integer("processId", processId.toInt())
-        string("logPath", logFile.absolutePath)
-        string("message", "Command started in background with PID $processId")
-      }
-    } catch (detachedStartException: Exception) {
-      makeFailure(
-        code = ErrorCode.IO_ERROR,
-        message = buildXmlError(
-          code = "IO_ERROR",
-          message = detachedStartException.message ?: "Failed to start detached command.",
-          fixHint = "This is not your fault. Check the command syntax and system resources."
-        ),
-        context = mapOf("command" to commandText)
-      )
-    }
-  }
-
-  /**
-   * Kicks off a background drain of [inputStream] and returns a Future that
-   * resolves to the captured text once the stream is exhausted. Must be
-   * called for BOTH stdout and stderr BEFORE `waitFor`, otherwise a
-   * large-output child blocks on a full pipe and deadlocks the wait.
-   */
-  private fun startStreamReader(inputStream: InputStream, label: String): Future<String> {
-    return streamReaderPool.submit<String> {
-      readStreamOutput(inputStream, label)
-    }
-  }
-
-  private fun readStreamOutput(inputStream: InputStream, label: String): String {
-    return try {
-      val outputBuilder = StringBuilder()
-      BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { bufferedReader ->
-        val charBuffer = CharArray(size = 4096)
-        while (true) {
-          val charsRead: Int = bufferedReader.read(charBuffer, 0, charBuffer.size)
-          if (charsRead < 0) break
-          outputBuilder.appendRange(value = charBuffer, startIndex = 0, endIndex = charsRead)
-          if (outputBuilder.length >= MAX_OUTPUT_CHARS) {
-            outputBuilder.append(
-              "\n(output truncated at ${MAX_OUTPUT_CHARS / 1024} KiB, the full $label is not shown)"
-            ).also {
-              while (bufferedReader.read(charBuffer, 0, charBuffer.size) >= 0) {
-                // Discard remaining output
-              }
-            }
-            logger.debug("Discarded remaining output for $label after truncation")
-            break
-          }
-        }
-      }
-      outputBuilder.toString()
-    } catch (streamReadException: Exception) {
-      val reason: String = streamReadException.message
-        ?: streamReadException::class.simpleName ?: "unknown I/O error"
-      logger.warn("Failed to read $label stream: $reason")
-      "(stream read failed for $label: $reason)"
     }
   }
 }

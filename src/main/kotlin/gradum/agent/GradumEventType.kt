@@ -25,6 +25,7 @@ enum class GradumEventType(val wireName: String) {
   SUB_AGENT_START("sub_agent:start"),
   SUB_AGENT_SESSION_END("sub_agent:session_end"),
   ASK_INTERACTION("ask_interaction"),
+  BACKGROUND_RESULT("background_result"),
 }
 
 const val SUB_AGENT_EVENT_PREFIX: String = "sub_agent:"
