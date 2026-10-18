@@ -207,9 +207,11 @@ Split into five shippable sub-steps:
   deleted `ChatSessionStore.nextSessionId` and every client-side message
   `UUID.randomUUID()`: a fresh chat sends no session id, and the send path
   adopts both from the envelope.
-- **5d — Availability ⬜.** Drop the client-side model pre-validation and vision
-  guessing; the server rejects at request time. Runtime reachability stays as
-  is (see §5, item 5).
+- **5d — Availability ✅.** The send-time `GET /models` probe keeps only its
+  reachability job (retry + backoff): the "model is gone" verdict and the
+  client-side vision guess (`gradum.model.no.vision`) are deleted, and the
+  bundle key with them. `ModelsListResponse` moves to its only remaining
+  consumer, `GradumChatSession`.
 - **5e — Server-first rewind ⬜.** `deleteMessage` calls the server first and
   removes the bubble only on success (no optimistic delete).
 
@@ -270,6 +272,6 @@ payoff step and the riskiest, so it goes last.
 | 5a   | ✅ done    | this PR   | server-side merge; client `interleaveMessages` / `nextMergeTitle` deleted; 472 server + 497 plugin green |
 | 5b   | ✅ done    | this PR   | sidecar-only cold load; `ChatTranscript` + Markdown endpoints deleted; 473 server + 490 plugin green     |
 | 5c   | ✅ done    | this PR   | `/events` allocates both ids; plugin `nextSessionId` + message UUIDs deleted; 474 server + 492 plugin green |
-| 5d   | ⬜         | —         | drop client model pre-validation and vision guessing                                                     |
+| 5d   | ✅ done    | this PR   | `GET /models` probe is reachability only; model + vision guesses deleted; 474 server + 492 plugin green  |
 | 5e   | ⬜         | —         | rewind becomes server-first, then local                                                                  |
 | 5.5  | ⬜         | —         | thin the plugin (drop event assembly)                                                                    |

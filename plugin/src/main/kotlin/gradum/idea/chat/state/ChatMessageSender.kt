@@ -14,17 +14,11 @@ import gradum.idea.utils.GradumBundle.message
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Duration.Companion.milliseconds
 
-
-@Serializable
-internal data class ModelsListResponse(
-  val models: List<ModelInfo>
-)
 
 /** Adopts the server-named session id and this turn's user-message id. */
 internal fun GradumChatSession.applySessionStart(payload: JsonObject?) {
@@ -65,19 +59,19 @@ internal suspend fun GradumChatSession.sendMessage(
   val messageWithHint = "${prefix}${userMessage}"
 
   sendingPhase = message("gradum.phase.synthesizing")
-  val validationStart: Long = System.currentTimeMillis()
+  val sendStart: Long = System.currentTimeMillis()
   var lastFailure: Exception? = null
-  var response: ModelsListResponse? = null
+  var serverReachable = false
 
   for (attempt: Int in 1..GradumChatSession.MAX_CONNECT_ATTEMPTS) {
     try {
-      val modelsJson: String = apiClient.getModels()
-      response = GradumChatSession.jsonFormat.decodeFromString<ModelsListResponse>(modelsJson)
+      apiClient.getModels()
+      serverReachable = true
       break
     } catch (exception: Exception) {
       if (exception is CancellationException) throw exception
       log.warn(
-        "Model validation failed for ${apiClient.baseUrl} (attempt $attempt/" +
+        "Cannot reach server at ${apiClient.baseUrl} (attempt $attempt/" +
           "$GradumChatSession.MAX_CONNECT_ATTEMPTS)",
         exception
       )
@@ -88,29 +82,8 @@ internal suspend fun GradumChatSession.sendMessage(
       }
     }
   }
-  val currentModel: ModelInfo? = selectedModel
 
-  if (response != null && currentModel != null && response.models.none {
-      it.name == currentModel.name
-    }) {
-    val assistantIndex: Int = messages.lastIndex
-
-    if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-      messages[assistantIndex] = messages[assistantIndex].appendEvent(
-        ChatEvent.Error(
-          code = ChatErrorCode.CLIENT_ERROR,
-          message = "Model ${currentModel.name} is no longer available"
-        )
-      )
-    }
-    sendingPhase = ""
-    isSending = false
-    isWaitingForResponse = false
-    processPendingQueue()
-    return
-  }
-
-  if (response == null) {
+  if (!serverReachable) {
     log.warn("Cannot reach server at ${apiClient.baseUrl}", lastFailure)
     val assistantIndex: Int = messages.lastIndex
     if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
@@ -128,7 +101,7 @@ internal suspend fun GradumChatSession.sendMessage(
     return
   }
 
-  val elapsed: Long = System.currentTimeMillis() - validationStart
+  val elapsed: Long = System.currentTimeMillis() - sendStart
   if (elapsed < GradumChatSession.MIN_SENDING_MS)
     delay(duration = (GradumChatSession.MIN_SENDING_MS - elapsed).milliseconds)
 
@@ -145,25 +118,6 @@ internal suspend fun GradumChatSession.sendMessage(
             filename = attachment.originalName
           )
         }
-
-    if (imageAttachments.isNotEmpty() && selectedModel?.attachment != true) {
-      val userIndex: Int = messages.lastIndex
-      if (userIndex >= 0 && messages[userIndex].isUserMessage)
-        messages.removeAt(userIndex)
-
-      val assistantIndex: Int = messages.lastIndex
-      if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-        messages[assistantIndex] = messages[assistantIndex].appendEvent(
-          ChatEvent.Error(
-            code = ChatErrorCode.CLIENT_ERROR,
-            message = message("gradum.model.no.vision")
-          )
-        )
-      }
-      isSending = false
-      sendingPhase = ""
-      return
-    }
 
     apiClient.sendMessage(
       request = GradumApiClient.SendMessageRequest(

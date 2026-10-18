@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -53,6 +54,11 @@ enum class RuntimeFailureCause {
   NOT_RESPONDING,
   UNREACHABLE
 }
+
+@Serializable
+internal data class ModelsListResponse(
+  val models: List<ModelInfo>
+)
 
 @Service(Service.Level.PROJECT)
 class GradumChatSession : Disposable {
