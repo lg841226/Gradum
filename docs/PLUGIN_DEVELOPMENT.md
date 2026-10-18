@@ -1,7 +1,7 @@
 # Gradum Skill Development Guide
 
-How to develop new skills for Gradum. New **external** skills are best developed in **Gradum Workspace** — the
-server's bundled web editor — rather than by editing `~/.gradum/skills/` in your own IDE; see the guide in
+How to develop new skills for Gradum. New **external** skills are best developed in **Gradum Workspace**: the
+server's bundled web editor: rather than by editing `~/.gradum/skills/` in your own IDE; see the guide in
 [§6](#6-developing-a-new-skill-step-by-step-guide).
 
 ---
@@ -31,17 +31,17 @@ server's bundled web editor — rather than by editing `~/.gradum/skills/` in yo
 Gradum discovers skills at runtime; nothing is hardcoded and there is no manual registration step. A skill is a Kotlin
 class that extends the `Skill` abstract base class, and it can live in one of two places:
 
-| Where                                | Package              | Discovery                                          | Rebuild?                                     |
-|--------------------------------------|----------------------|----------------------------------------------------|----------------------------------------------|
-| In-repo (ships with Gradum)          | `gradum.skill.builtin` | classpath scan by `SkillRegistry` at startup       | Yes (`./gradlew run`)                        |
-| External (`~/.gradum/skills/*.kt`)   | `external`           | directory scanner, compiled at runtime, hot-reloaded | No — deploy it from Gradum Workspace (§6)    |
+| Where                              | Package                | Discovery                                            | Rebuild?                                 |
+|------------------------------------|------------------------|------------------------------------------------------|------------------------------------------|
+| In-repo (ships with Gradum)        | `gradum.skill.builtin` | classpath scan by `SkillRegistry` at startup         | Yes (`./gradlew run`)                    |
+| External (`~/.gradum/skills/*.kt`) | `external`             | directory scanner, compiled at runtime, hot-reloaded | No: deploy it from Gradum Workspace (§6) |
 
 **Key characteristics:**
 
 - Skills are fully decoupled from each other
 - All skills share a unified `SkillResult` output shape, built with the `makeSuccess` / `makeFailure` factories
 - Built-in skills are discovered automatically by scanning the `gradum.skill.builtin` package
-- External skills compile at runtime and hot-reload when the file changes — no rebuild, no restart
+- External skills compile at runtime and hot-reload when the file changes: no rebuild, no restart
 - Parameters are declared once with the `gradum.skill.dsl` SchemaBuilder DSL (§5)
 
 **Registration flow (classpath scanning):**
@@ -83,9 +83,9 @@ flowchart TD
 
 ### Adding a New Skill
 
-1. **External skill (recommended while iterating)** — develop it in Gradum Workspace (§6): the Run button writes the
+1. **External skill (recommended while iterating)**: develop it in Gradum Workspace (§6): the Run button writes the
    file to `~/.gradum/skills/`, compiles it synchronously, and the scanner registers it without a restart.
-2. **Built-in skill (ships with Gradum)** — create the class in `src/main/kotlin/gradum/skill/builtin/`; the classpath
+2. **Built-in skill (ships with Gradum)**: create the class in `src/main/kotlin/gradum/skill/builtin/`; the classpath
    scan picks it up at startup. No configuration files either way.
 
 Both start from the same skeleton:
@@ -217,7 +217,7 @@ abstract class Skill {
     protected open val simpleDescription: String? = null
 
     /**
-     * Main entry point. @param context per-session SkillContext — see §11.
+     * Main entry point. @param context per-session SkillContext: see §11.
      */
     abstract fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult
 
@@ -244,7 +244,7 @@ abstract class Skill {
 
     /**
      * Post-process the CURRENT result before it is stored. Do not use it
-     * to strip volatile keys — that is recordAndCompactHistory's job.
+     * to strip volatile keys: that is recordAndCompactHistory's job.
      */
     open fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> = result
 
@@ -263,17 +263,17 @@ abstract class Skill {
 
 ### Required Class Properties
 
-| Property            | Type                      | Purpose                                          | Example                  |
-|---------------------|---------------------------|--------------------------------------------------|--------------------------|
-| `skillName`         | `String`                  | Unique name used for LLM function calls          | `"write_file"`           |
-| `description`       | `String`                  | Description shown to the LLM (the schema's description) | `"Atomic find-and-replace in a file"` |
-| `alias`             | `String`                  | Verb (past-tense) used in NDJSON events          | `"Ran"`, `"Planned"`     |
-| `schemaProperties`  | `SchemaBuilder.() -> Unit` | Declares every parameter with the DSL — see [§5](#5-declaring-parameters-with-the-schemabuilder-dsl) | `{ string(name = "path", ...) }` |
+| Property           | Type                       | Purpose                                                                                             | Example                               |
+|--------------------|----------------------------|-----------------------------------------------------------------------------------------------------|---------------------------------------|
+| `skillName`        | `String`                   | Unique name used for LLM function calls                                                             | `"write_file"`                        |
+| `description`      | `String`                   | Description shown to the LLM (the schema's description)                                             | `"Atomic find-and-replace in a file"` |
+| `alias`            | `String`                   | Verb (past-tense) used in NDJSON events                                                             | `"Ran"`, `"Planned"`                  |
+| `schemaProperties` | `SchemaBuilder.() -> Unit` | Declares every parameter with the DSL: see [§5](#5-declaring-parameters-with-the-schemabuilder-dsl) | `{ string(name = "path", ...) }`      |
 
 ### Required Methods
 
-| Method                                                       | Purpose                                               |
-|--------------------------------------------------------------|-------------------------------------------------------|
+| Method                                                        | Purpose                                                                 |
+|---------------------------------------------------------------|-------------------------------------------------------------------------|
 | `execute(arguments: Map<String, Any>, context: SkillContext)` | Main entry point, dispatched by the Agent when the LLM invokes the tool |
 
 `getSchema(context)` is **not** required: the base class implements it as a template method over `schemaProperties`.
@@ -283,7 +283,7 @@ Override it only to emit a native schema envelope the DSL cannot express (MCP ad
 
 | Property               | Type            | Default                    | Purpose                                                                                                                        |
 |------------------------|-----------------|----------------------------|--------------------------------------------------------------------------------------------------------------------------------|
-| `allowedToolModes`     | `Set<ToolMode>` | `{AGENT, EDIT, READ_ONLY}` | The tiers under which this skill is allowed to run. See [§10](#10-declaring-allowedtoolmodes-the-three-tier-permission-model).  |
+| `allowedToolModes`     | `Set<ToolMode>` | `{AGENT, EDIT, READ_ONLY}` | The tiers under which this skill is allowed to run. See [§10](#10-declaring-allowedtoolmodes-the-three-tier-permission-model). |
 | `simpleDescription`    | `String?`       | `null`                     | Shorter skill description used when rendering the simple (local) model schema                                                  |
 | `manageOwnEventStream` | `Boolean`       | `false`                    | Opt out of the agent's standard `tool_call_start` / `tool_call` pair and emit your own events.                                 |
 | `toolDisplay`          | `ToolDisplay`   | `ToolDisplay()`            | Label / parameter key / icon kind for the tool-call capsule in client UIs                                                      |
@@ -294,8 +294,8 @@ Override it only to emit a native schema envelope the DSL cannot express (MCP ad
 
 | Method                                                             | Return                                            | Purpose                                                                                              |
 |--------------------------------------------------------------------|---------------------------------------------------|------------------------------------------------------------------------------------------------------|
-| `getSchema(context: SkillContext? = null): Map<String, Any>`       | Emit a native schema envelope                     | The DSL-built default covers nearly everything; override for MCP-style adapters                       |
-| `prepareHistoryResult(result: Map<String, Any>): Map<String, Any>` | Post-process the **current** result before saving | Default returns it unchanged; per-call pruning lives in `recordAndCompactHistory` / `compactHistory`  |
+| `getSchema(context: SkillContext? = null): Map<String, Any>`       | Emit a native schema envelope                     | The DSL-built default covers nearly everything; override for MCP-style adapters                      |
+| `prepareHistoryResult(result: Map<String, Any>): Map<String, Any>` | Post-process the **current** result before saving | Default returns it unchanged; per-call pruning lives in `recordAndCompactHistory` / `compactHistory` |
 
 ---
 
@@ -366,26 +366,26 @@ flowchart LR
 
 ### Standard Error Codes
 
-| Error Code               | Applicable Scenario                                                       |
-|--------------------------|---------------------------------------------------------------------------|
-| `INVALID_PARAMETER`      | Missing or malformed parameter                                            |
-| `FILE_NOT_FOUND`         | Target file does not exist                                                |
-| `FILE_TOO_LARGE`         | File size or line count exceeds limits                                    |
-| `IO_ERROR`               | Filesystem or process exception                                           |
-| `CODE_NOT_FOUND`         | Edit search text does not appear in the file                              |
-| `MULTIPLE_MATCHES`       | Edit search text appears multiple times in the file                       |
-| `EMPTY_RESULT`           | The file becomes empty after editing, prevents accidental wiping          |
-| `COMMAND_BLOCKED`        | Command rejected by the safety filter                                     |
-| `PERMISSION_DENIED`      | The user rejected an `ask_interaction` authorization card                 |
-| `TOOL_NOT_PERMITTED`     | Runtime gate rejected the call (skill's `allowedToolModes` excludes the active tier) |
-| `TIMEOUT`                | Operation timed out                                                       |
-| `INTERRUPTED`            | Execution was interrupted (e.g. session stop)                             |
-| `ALREADY_INITIALIZED`    | Duplicate initialization (e.g. to_do)                                     |
-| `NOT_INITIALIZED`        | Operation requires initialization that has not happened                   |
-| `ALL_COMPLETED`          | All tasks are already completed                                           |
-| `CONCURRENT_MODIFICATION`| Another writer changed the target while this call ran                     |
-| `INVALID_SCENARIO_XML`   | Malformed scenario XML payload                                            |
-| `CLIENT_ERROR`           | Plugin-side error (e.g. model validation failed)                          |
+| Error Code                | Applicable Scenario                                                                  |
+|---------------------------|--------------------------------------------------------------------------------------|
+| `INVALID_PARAMETER`       | Missing or malformed parameter                                                       |
+| `FILE_NOT_FOUND`          | Target file does not exist                                                           |
+| `FILE_TOO_LARGE`          | File size or line count exceeds limits                                               |
+| `IO_ERROR`                | Filesystem or process exception                                                      |
+| `CODE_NOT_FOUND`          | Edit search text does not appear in the file                                         |
+| `MULTIPLE_MATCHES`        | Edit search text appears multiple times in the file                                  |
+| `EMPTY_RESULT`            | The file becomes empty after editing, prevents accidental wiping                     |
+| `COMMAND_BLOCKED`         | Command rejected by the safety filter                                                |
+| `PERMISSION_DENIED`       | The user rejected an `ask_interaction` authorization card                            |
+| `TOOL_NOT_PERMITTED`      | Runtime gate rejected the call (skill's `allowedToolModes` excludes the active tier) |
+| `TIMEOUT`                 | Operation timed out                                                                  |
+| `INTERRUPTED`             | Execution was interrupted (e.g. session stop)                                        |
+| `ALREADY_INITIALIZED`     | Duplicate initialization (e.g. to_do)                                                |
+| `NOT_INITIALIZED`         | Operation requires initialization that has not happened                              |
+| `ALL_COMPLETED`           | All tasks are already completed                                                      |
+| `CONCURRENT_MODIFICATION` | Another writer changed the target while this call ran                                |
+| `INVALID_SCENARIO_XML`    | Malformed scenario XML payload                                                       |
+| `CLIENT_ERROR`            | Plugin-side error (e.g. model validation failed)                                     |
 
 ---
 
@@ -393,7 +393,7 @@ flowchart LR
 
 Every skill declares its parameters once in `schemaProperties`, a `SchemaBuilder.() -> Unit` block (an abstract member
 of `Skill`, see §3). The base class's `getSchema(context)` template method renders the block into the OpenAI
-function-schema envelope — you never hand-roll `mapOf("type" to "function", ...)` yourself.
+function-schema envelope: you never hand-roll `mapOf("type" to "function", ...)` yourself.
 
 ```kotlin
 override val schemaProperties: SchemaBuilder.() -> Unit = {
@@ -427,17 +427,17 @@ override val schemaProperties: SchemaBuilder.() -> Unit = {
 All helpers live in `gradum.skill.dsl` and share the shape
 `(name, description, required = false, ...)`:
 
-| Helper                                                              | Emits                                                        |
-|---------------------------------------------------------------------|--------------------------------------------------------------|
-| `string(name, description, required, enumValues)`                   | `"type": "string"` (plus `enum` when `enumValues` is non-empty) |
-| `integer(name, description, required, constraints = IntConstraints())` | `"type": "integer"` (plus `default` / `minimum` / `maximum`) |
-| `boolean(name, description, required)`                              | `"type": "boolean"`                                          |
-| `stringArray(name, description, required)`                          | `"type": "array"` of strings                                 |
-| `objectArray(name, description, required, itemRequired) { ... }`    | `"type": "array"` of objects shaped by the inner `items { }` block |
+| Helper                                                                 | Emits                                                              |
+|------------------------------------------------------------------------|--------------------------------------------------------------------|
+| `string(name, description, required, enumValues)`                      | `"type": "string"` (plus `enum` when `enumValues` is non-empty)    |
+| `integer(name, description, required, constraints = IntConstraints())` | `"type": "integer"` (plus `default` / `minimum` / `maximum`)       |
+| `boolean(name, description, required)`                                 | `"type": "boolean"`                                                |
+| `stringArray(name, description, required)`                             | `"type": "array"` of strings                                       |
+| `objectArray(name, description, required, itemRequired) { ... }`       | `"type": "array"` of objects shaped by the inner `items { }` block |
 
 Notes:
 
-- **`required` defaults to `false`** — pass `required = true` for mandatory parameters.
+- **`required` defaults to `false`**: pass `required = true` for mandatory parameters.
 - `IntConstraints(default, minimum, maximum)` attaches numeric bounds to `integer`.
 - The skill's `description` becomes the schema's `description`; it is the primary mechanism for guiding the LLM, so
   include when to use the skill, its constraints, and hints about related skills (§8.4).
@@ -466,14 +466,15 @@ declared outside both blocks stays `ParameterLevel.ALL`. When simple models also
 
 ### Overriding `getSchema`
 
-Only override `getSchema(context)` when the DSL cannot faithfully express your schema — the canonical case is an MCP
+Only override `getSchema(context)` when the DSL cannot faithfully express your schema: the canonical case is an MCP
 tool wrapper that must emit its native JSON Schema envelope. Everything else should stay on `schemaProperties`.
 
 ---
 
 ## 6. Developing a New Skill: Step-by-Step Guide
 
-Skills come in two flavors: **built-in** skills that live in Gradum's own classpath (`src/main/kotlin/gradum/skill/builtin/`,
+Skills come in two flavors: **built-in** skills that live in Gradum's own classpath
+(`src/main/kotlin/gradum/skill/builtin/`,
 rebuilt with the project) and **external** skills dropped into `~/.gradum/skills/*.kt`, which the server compiles at
 runtime and hot-reloads whenever the file changes. For anything you are iterating on, develop the external skill **in
 Gradum Workspace**; the guide starts there, and the numbered steps that follow cover the built-in path.
@@ -482,7 +483,7 @@ Gradum Workspace**; the guide starts there, and the numbered steps that follow c
 
 Gradum Workspace is the skill editor the server bundles at `GET /skills/editor`. It gives a Kotlin surface with
 syntax highlighting, a Problems panel that shows compile diagnostics with click-to-jump line positions, and a Run
-button that writes the source into `~/.gradum/skills/` and compiles it synchronously — no rebuild, no restart.
+button that writes the source into `~/.gradum/skills/` and compiles it synchronously: no rebuild, no restart.
 
 1. Start the server (see the README's Getting Started). The startup log prints the editor URL together with its
    token:
@@ -496,11 +497,11 @@ button that writes the source into `~/.gradum/skills/` and compiles it synchrono
    on; if the page answers 401 later, reopen it with `?token=` followed by the contents of `~/.gradum/server.token`.
 3. Press **+** in the Skill Explorer to create a skill: a new tab opens with the `HelloSkill` starter template,
    named `NewSkill1.kt`.
-4. Write the skill. Double-click the tab to rename it — the name becomes the file deployed to
+4. Write the skill. Double-click the tab to rename it: the name becomes the file deployed to
    `~/.gradum/skills/<Name>.kt`.
 5. Press **Run** (menubar button or Cmd/Ctrl+Enter). The source is written and compiled in the same request; errors
    come back into the Problems panel as rows and squiggles with `Ln x:y` positions you can click to jump to.
-6. On success the class registers immediately — verify it with `curl -H "Authorization: Bearer
+6. On success the class registers immediately: verify it with `curl -H "Authorization: Bearer
    $(cat ~/.gradum/server.token)" http://localhost:8765/skills` or just ask the agent to use it. Edit and Run again
    to redeploy.
 
@@ -510,7 +511,7 @@ When the skill should **ship inside Gradum itself** as a built-in, follow the in
 
 The in-repo path for a built-in skill. Create
 `src/main/kotlin/gradum/skill/builtin/YourSkill.kt` (an external skill instead goes to
-`~/.gradum/skills/YourSkill.kt` with `package external` — normally deployed through Gradum Workspace, see the guide
+`~/.gradum/skills/YourSkill.kt` with `package external`: normally deployed through Gradum Workspace, see the guide
 above):
 
 ```kotlin
@@ -549,7 +550,7 @@ class YourSkill : Skill() {
     /**
      * @param arguments LLM-supplied tool-call arguments. The
      *   `projectRoot` is provided by the agent; do NOT read it from
-     *   here — use [context].projectRoot instead.
+     *   here: use [context].projectRoot instead.
      * @param context per-session context (tool mode + project root).
      */
     override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
@@ -584,7 +585,7 @@ class YourSkill : Skill() {
 **No registration required!**
 
 - **Built-in**: the `SkillRegistry` scans the `gradum.skill.builtin` package for concrete `Skill` subclasses at
-  startup — placing the class file under `src/main/kotlin/gradum/skill/builtin/` is enough.
+  startup: placing the class file under `src/main/kotlin/gradum/skill/builtin/` is enough.
 - **External**: the directory scanner compiles every `~/.gradum/skills/*.kt` file (package `external`) at runtime and
   hot-reloads the class whenever the file changes. The Gradum Workspace Run button deploys there for you.
 
@@ -635,7 +636,7 @@ See `ReadFileSkill` for a real-world example.
 **Key behavior**: Resolves relative paths against `context.projectRoot`, supports `lineRange`, and returns
 `{path, lineRange, totalLines, contentHashShort, content}` (cloud) or `{path, content: {lineNumber: line}}` (simple
 models). Max file size 1MB, max 10,000 lines. A target outside `projectRoot` goes through `scope.askInteraction`
-(`once` / `always` → `authorizedReadPaths` / `no` → `PERMISSION_DENIED`).
+(`once` / `always` -> `authorizedReadPaths` / `no` -> `PERMISSION_DENIED`).
 
 #### WriteFileSkill (Mutating, search-and-replace or create/overwrite)
 
@@ -662,8 +663,8 @@ current result before it is stored, so diff payloads never enter history at all.
 | `historyKeepCount`    | 3                         |
 | `historyVolatileKeys` | `listOf("output")`        |
 
-**Key behavior**: Classifies every command with `CommandFilter.classifyCommand()` (`Blocked` → `COMMAND_BLOCKED`,
-`NeedsApproval` → `ask_interaction` → `once`/`always`/`no`). Default timeout 120 s, hard max 600 s, output capped at
+**Key behavior**: Classifies every command with `CommandFilter.classifyCommand()` (`Blocked` -> `COMMAND_BLOCKED`,
+`NeedsApproval` -> `ask_interaction` -> `once`/`always`/`no`). Default timeout 120 s, hard max 600 s, output capped at
 16 KiB. Two execution modes: **Blocking** (waits for completion) and **Detached** (background, returns PID + log path;
 cloud-only).
 
@@ -863,19 +864,19 @@ fun getTodoManagerInstance(): TodoManager = sharedTodoManager
 
 Built-in skills live under `src/main/kotlin/gradum/skill/builtin/` (plus `mcp_tools` in `gradum/mcp/`):
 
-| Skill Class         | skillName           | Purpose                                                             |
-|---------------------|---------------------|---------------------------------------------------------------------|
-| `ReadFileSkill`     | `read_file`         | Read a file (full content or a line range)                          |
-| `WriteFileSkill`    | `write_file`        | Search-and-replace editing, or create/overwrite a file              |
-| `RunCommandSkill`   | `run_cmd`           | Execute a shell command (blocking / detached)                       |
-| `TodoSkill`         | `to_do`             | Initialize a task list                                              |
-| `CompletePlanSkill` | `finish_to_do_item` | Mark a task as completed                                            |
-| `ExploreProjectSkill` | `explore_project` | Explore the project tree with depth control and file stats          |
-| `GrepSkill`         | `grep`              | Content regex search across project files                           |
-| `GlobSkill`         | `glob`              | Glob path matcher for file discovery                                |
-| `WebSearchSkill`    | `search_web`        | Web search via the Tavily API (needs `TAVILY_API_KEY`)              |
-| `DelegateSkill`     | `delegate_task`     | Spawn a sub-agent for a focused task                                |
-| `McpToolsSkill`     | `mcp_tools`         | Materialize tools from the MCP servers declared in `settings.json`  |
+| Skill Class           | skillName           | Purpose                                                            |
+|-----------------------|---------------------|--------------------------------------------------------------------|
+| `ReadFileSkill`       | `read_file`         | Read a file (full content or a line range)                         |
+| `WriteFileSkill`      | `write_file`        | Search-and-replace editing, or create/overwrite a file             |
+| `RunCommandSkill`     | `run_cmd`           | Execute a shell command (blocking / detached)                      |
+| `TodoSkill`           | `to_do`             | Initialize a task list                                             |
+| `CompletePlanSkill`   | `finish_to_do_item` | Mark a task as completed                                           |
+| `ExploreProjectSkill` | `explore_project`   | Explore the project tree with depth control and file stats         |
+| `GrepSkill`           | `grep`              | Content regex search across project files                          |
+| `GlobSkill`           | `glob`              | Glob path matcher for file discovery                               |
+| `WebSearchSkill`      | `search_web`        | Web search via the Tavily API (needs `TAVILY_API_KEY`)             |
+| `DelegateSkill`       | `delegate_task`     | Spawn a sub-agent for a focused task                               |
+| `McpToolsSkill`       | `mcp_tools`         | Materialize tools from the MCP servers declared in `settings.json` |
 
 External skills (`~/.gradum/skills/*.kt`) appear in the same registry after the directory scanner compiles them.
 
@@ -965,7 +966,7 @@ if (yourSkill.allowedToolModes == setOf(ToolMode.READ_ONLY, ToolMode.EDIT, ToolM
 
 `allowedToolModes` decides *which mode* a skill may run in. The second half of the permission story is runtime
 authorization: when a call is legal for the active mode but touches something the user has not approved yet (paths
-outside the project root, dangerous command categories, MCP tools), the skill itself asks — through the `AskScope` block
+outside the project root, dangerous command categories, MCP tools), the skill itself asks: through the `AskScope` block
 DSL handed to it in `context.scope`:
 
 ```kotlin
@@ -989,21 +990,21 @@ if (decision !is AskResult.Case || decision.meaning == Choice.Meaning.REJECT) {
 ```
 
 - `askInteraction` pushes an `ask_interaction` card to the plugin and **blocks** the calling thread until the user
-  answers — there is intentionally no timeout (see `AskScope`; `execute` is non-suspend).
+  answers: there is intentionally no timeout (see `AskScope`; `execute` is non-suspend).
 - Exactly one flavor per card, enforced by `validate()`: a `choices { }` block (returns `AskResult.Case`) **or** an
   `input { }` block (returns `AskResult.Text`). `title` is required; `default` must be one of the declared choices.
-- The answer carries a semantic `Choice.Meaning` — `ALLOW_ONCE` / `ALLOW_ALWAYS` / `REJECT` (wire values
+- The answer carries a semantic `Choice.Meaning`: `ALLOW_ONCE` / `ALLOW_ALWAYS` / `REJECT` (wire values
   `allow_once` / `allow_always` / `reject`). There is no separate choice id to keep in sync.
 - `l10n.key(...)` / `l10n.raw(...)` build the title/details text inside the builder block.
 - On `ALLOW_ALWAYS`, remember the approval for the session in the matching `SkillContext` cache and skip the ask next
   time; all caches are in-memory only, so a restart asks again:
 
-| Cache                            | Populated by                                              |
-|----------------------------------|-----------------------------------------------------------|
-| `context.authorizedReadPaths`    | `read_file` targets outside the project root              |
-| `context.authorizedWritePaths`   | `write_file` targets outside the project root             |
+| Cache                                 | Populated by                                            |
+|---------------------------------------|---------------------------------------------------------|
+| `context.authorizedReadPaths`         | `read_file` targets outside the project root            |
+| `context.authorizedWritePaths`        | `write_file` targets outside the project root           |
 | `context.authorizedCommandCategories` | `run_cmd` `NeedsApproval` categories (e.g. `rm:delete`) |
-| `context.authorizedMcpTools`     | MCP tools the user allowed every time                     |
+| `context.authorizedMcpTools`          | MCP tools the user allowed every time                   |
 
 See `ReadFileSkill` (path authorization) and `RunCommandSkill.authorizeCommand` (command categories) for canonical
 implementations, and [§8.5](#85-shell-command-safety) for the `@OptIn(DangerousOperation::class)` marker that
@@ -1036,7 +1037,7 @@ data class SkillContext(
     val authorizedMcpTools: MutableSet<String> = mutableSetOf()
     val materializedMcpTools: MaterializedMcpTools = MaterializedMcpTools()
 
-    /** SchemaVariant.resolve(modelName) == SIMPLE — single source of truth for tier checks. */
+    /** SchemaVariant.resolve(modelName) == SIMPLE: single source of truth for tier checks. */
     val isSimpleModel: Boolean get() = /* SchemaVariant.resolve(modelName) == SchemaVariant.SIMPLE */
 }
 ```
@@ -1070,7 +1071,7 @@ sequenceDiagram
     participant Server
     participant Agent
     participant Skill
-    IDE ->> Plugin: User opens project → Project.basePath
+    IDE ->> Plugin: User opens project -> Project.basePath
     Plugin ->> Server: POST /events {message, projectRoot: basePath, toolMode: "read_only"}
     Note over Server: Routes validates projectRoot is non-empty<br/>+ points to an existing directory
     Server ->> Agent: new Agent(AgentConfiguration(toolMode, projectRoot))
@@ -1087,7 +1088,7 @@ it, `Routes` returns
 
 ```kotlin
 override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-    // Read these from context — never from arguments, never from a global.
+    // Read these from context: never from arguments, never from a global.
     val projectRoot: String = context.projectRoot
     val toolMode: ToolMode = context.toolMode
 
@@ -1109,19 +1110,19 @@ override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillR
 ### 11.4 What NOT to do
 
 ```kotlin
-// WRONG — reads from arguments. The agent injects projectRoot for
+// WRONG: reads from arguments. The agent injects projectRoot for
 // audit/NDJSON reasons, but Skills should treat the arguments as
 // "what the LLM sent us" and read session scanState from context.
 val projectRoot: String = arguments["projectRoot"] as? String ?: ""
 
-// WRONG — process-global. Two concurrent sessions will overwrite
+// WRONG: process-global. Two concurrent sessions will overwrite
 // each other.
 val projectRoot: String = ProjectPaths.outputDirectory().toString()
 
-// WRONG — derives from CWD. This is the bug SkillContext replaces.
+// WRONG: derives from CWD. This is the bug SkillContext replaces.
 val projectRoot: String = System.getProperty("user.dir")
 
-// RIGHT — single source of truth, per-session, immutable.
+// RIGHT: single source of truth, per-session, immutable.
 val projectRoot: String = context.projectRoot
 ```
 
@@ -1170,10 +1171,10 @@ in [§15](#15-schemavariant-api-reference).
 
 History is retained **indefinitely**. There is no time-based expiry. The only constraint is message count:
 
-| Layer                            | Constant               | Limit | Source                                              |
-|----------------------------------|------------------------|-------|-----------------------------------------------------|
+| Layer                            | Constant               | Limit | Source                                                         |
+|----------------------------------|------------------------|-------|----------------------------------------------------------------|
 | **Persistence** (ContextManager) | `MAX_CONTEXT_MESSAGES` | 30    | `ContextManager.kt:21` (= `GradumConfig.MAX_HISTORY_MESSAGES`) |
-| **Runtime** (Agent)              | `maxHistoryMessages`   | 30    | `Agent.kt:142` (same shared constant)               |
+| **Runtime** (Agent)              | `maxHistoryMessages`   | 30    | `Agent.kt:142` (same shared constant)                          |
 
 ### 12.2 How History is Cleaned
 
@@ -1220,8 +1221,8 @@ preserving the most recent messages. That keeps local LLMs from getting overwhel
 
 ### "Tool not permitted" / "Command blocked" in read-only mode
 
-- The skill's `allowedToolModes` excludes `READ_ONLY`, or `CommandFilter` refused the command (`Blocked` →
-  `COMMAND_BLOCKED`, `NeedsApproval` → the user answered "no" → `PERMISSION_DENIED`). Either switch the IDE
+- The skill's `allowedToolModes` excludes `READ_ONLY`, or `CommandFilter` refused the command (`Blocked` ->
+  `COMMAND_BLOCKED`, `NeedsApproval` -> the user answered "no" -> `PERMISSION_DENIED`). Either switch the IDE
   to `edit`/`agent` mode (user action) or declare a broader
   `allowedToolModes` (skill author action). The agent's gate is the same on both sides. The LLM is told the tool
   doesn't exist AND the runtime rejects the call if it tries anyway.
@@ -1296,19 +1297,19 @@ object ModelIdentity {
 
 **Detection rules** (in order):
 
-1. Blank name → `false` (assume capable → `FULL`).
+1. Blank name -> `false` (assume capable -> `FULL`).
 2. Name contains any cloud keyword (`cloud`, `api`, `gpt`, `claude`, `gemini`, `sonnet`, `haiku`, `opus`, `pro`,
-   `flash`, `turbo`, `mini`, `large`, `xxl`) → `false`.
+   `flash`, `turbo`, `mini`, `large`, `xxl`) -> `false`.
 3. Otherwise, match a parameter-size tag with `(\d+\.?\d*)b(\s|$|:|[-_])` (case-insensitive): `7b`, `14b`, `70b`,
-   `qwen2.5:14b-quant` … and compare against the 32 B threshold — `≤ 32` → `true`, `> 32` → `false`.
-4. No size tag → `false` (default to large).
+   `qwen2.5:14b-quant` … and compare against the 32 B threshold: `<= 32` -> `true`, `> 32` -> `false`.
+4. No size tag -> `false` (default to large).
 
 **Examples:**
 
 | Model Name          | isSmall | Reason                          |
 |---------------------|---------|---------------------------------|
-| `"qwen2.5:7b"`      | true    | 7B ≤ 32B threshold              |
-| `"qwen2.5:14b"`     | true    | 14B ≤ 32B threshold             |
+| `"qwen2.5:7b"`      | true    | 7B <= 32B threshold             |
+| `"qwen2.5:14b"`     | true    | 14B <= 32B threshold            |
 | `"qwen2.5:72b"`     | false   | 72B > 32B threshold             |
 | `"gpt-4o"`          | false   | Contains "gpt" cloud keyword    |
 | `"claude-3-sonnet"` | false   | Contains "claude" cloud keyword |

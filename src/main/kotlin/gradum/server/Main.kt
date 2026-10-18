@@ -118,7 +118,7 @@ private fun startHttp(arguments: Array<String>) {
     }
   } else if (settings.allowRemote) {
     logger.info(
-      "server.allowRemote is on, but server.host is '${settings.host}' — still serving this machine only"
+      "server.allowRemote is on, but server.host is '${settings.host}': still serving this machine only"
     )
   }
 

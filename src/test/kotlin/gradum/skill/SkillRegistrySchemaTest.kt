@@ -18,7 +18,7 @@ import kotlin.test.assertTrue
  * If a future refactor adds a new Skill, this test does not need to
  * change: the new Skill declares its own `allowedToolModes` and
  * that single declaration is the only thing the registry reads. If
- * a future refactor re-introduces a hardcoded mode → skill mapping
+ * a future refactor re-introduces a hardcoded mode -> skill mapping
  * anywhere, the assertSkillNamesSeen list will surface the change
  * because the order of the registered skills (and the names they
  * claim) is part of the visible contract with the LLM.

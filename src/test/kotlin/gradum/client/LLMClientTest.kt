@@ -316,7 +316,7 @@ class LLMClientTest {
     assertEquals(
       1,
       requestCount,
-      "4xx is not transient — must not retry"
+      "4xx is not transient: must not retry"
     )
   }
 

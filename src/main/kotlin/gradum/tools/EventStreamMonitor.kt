@@ -14,10 +14,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import javax.swing.*
 
+private const val MAX_LINES: Int = 5_000
 private const val POLL_INTERVAL_MILLIS: Long = 200L
 private const val MAX_READ_BYTES: Long = 8L * 1024L * 1024L
-private const val MAX_LINES: Int = 5_000
-
 private val logger = LoggerFactory.getLogger(EventStreamMonitor::class.java)
 
 

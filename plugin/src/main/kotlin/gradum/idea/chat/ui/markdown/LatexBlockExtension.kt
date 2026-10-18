@@ -33,7 +33,7 @@ class LatexBlock : CustomBlock() {
  * `HtmlRenderer` entirely: the Markdown UI is Compose, not HTML.)
  *
  * Register on every commonmark [Parser] in the project so the
- * inline path (`splitPlainAtBlocks` → `RenderNonProseBlock`
+ * inline path (`splitPlainAtBlocks` -> `RenderNonProseBlock`
  * round-trip) and the reparse path (code-block fallback
  * `GradumMarkdownProcessor`) both see the same `LatexBlock` nodes.
  */

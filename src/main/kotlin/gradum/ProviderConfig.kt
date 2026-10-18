@@ -159,7 +159,7 @@ object ProviderConfigStore {
   fun allowRemoteKey(configKey: String?): String? =
     configKey?.let { "$it.allowRemote" }
 
-  /** Reads the provider's "allow remote" flag. Absent/unparseable → `false`,
+  /** Reads the provider's "allow remote" flag. Absent/unparseable -> `false`,
    *  i.e. only localhost connections are permitted by default. */
   fun isAllowRemote(configKey: String?): Boolean {
     migrateLegacyProviderEnv()

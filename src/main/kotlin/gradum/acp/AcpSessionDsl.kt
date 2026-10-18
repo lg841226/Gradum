@@ -152,7 +152,7 @@ internal fun acpPermissionOption(optionId: String, name: String, kind: String): 
   }
 
 /**
- * Params for the agent→client `session/request_permission` request. The
+ * Params for the agent->client `session/request_permission` request. The
  * `toolCall` field is a partial ToolCallUpdate: `toolCallId` is required, and
  * `title` echoes the same display text used when the tool call was announced,
  * so clients that bind permission buttons to a known tool call can resolve it.

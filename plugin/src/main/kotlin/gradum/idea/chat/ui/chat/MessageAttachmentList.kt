@@ -55,7 +55,7 @@ private fun AttachmentChip(attachment: AttachedContext) {
         horizontal = GradumSpacing.md,
         vertical = GradumSpacing.sm
       )
-      .clickable { /* open file in editor — wired by parent */ },
+      .clickable { /* open file in editor: wired by parent */ },
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
   ) {

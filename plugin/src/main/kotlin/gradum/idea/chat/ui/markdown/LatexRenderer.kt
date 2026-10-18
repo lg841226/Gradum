@@ -34,7 +34,7 @@ import org.jetbrains.jewel.ui.component.Text
  * `Center` horizontally centers the formula within the panel.
  * Sizing: outer `Box` is `fillMaxWidth`, inner `Latex` sizes to content (no fillMaxWidth).
  * Layout-shift defense: `heightIn(min=...)` reserves 44dp for the formula so the Box
- * stays stable on the first frame (library async-parses, first frame is 0×0).
+ * stays stable on the first frame (library async-parses, first frame is 0x0).
  * Vertical padding: 48dp each side (see [MarkdownStyle.BlockLatex.VERTICAL_PADDING_DP]).
  */
 @Composable

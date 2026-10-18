@@ -1,7 +1,7 @@
 # Gradum Plugin Infrastructure Pitfall Record (Jewel / Compose / Classloader)
 
 > A record of **runtime errors, API traps, and engineering lessons** from integrating
-> IntelliJ Platform 2026.2 + Jewel + Compose. Each section includes: symptoms → root cause → fix → verification.
+> IntelliJ Platform 2026.2 + Jewel + Compose. Each section includes: symptoms -> root cause -> fix -> verification.
 > The goal is to prevent the next person (and your future self within six months) from **spending 7 hours** on this.
 
 > **[WARNING] Disclaimer**: This document reflects the author's experience with a specific IDE version (2026.2) and
@@ -14,16 +14,16 @@
 
 ## 0. Project Baseline
 
-| Config                          | Value                                     | Notes                                                     |
-|---------------------------------|-------------------------------------------|-----------------------------------------------------------|
-| IDE                             | IntelliJ IDEA Ultimate 2026.2             | `Build #IU-262.8665.258`, July 15 2026                    |
-| Kotlin                          | 2.3.0 (plugin) / 2.4.20-dev (IDE bundled) | `plugin/build.gradle.kts:213`                             |
-| Jewel                           | IDE 2026.2 bundled 0.38                   | `Contents/lib/intellij.platform.jewel.*.jar`              |
-| Compose                         | CMP 1.11.0                                | IDE bundled                                               |
-| Skiko                           | 0.9.x                                     | IDE bundled                                               |
-| IntelliJ Platform Gradle Plugin | 2.x                                       | `plugin/build.gradle.kts:6-7`                             |
-| Gradle                          | 9.5.1                                     | -                                                         |
-| JVM Target                      | 25                                        | Supported by Kotlin 2.3.0                                 |
+| Config                          | Value                                     | Notes                                        |
+|---------------------------------|-------------------------------------------|----------------------------------------------|
+| IDE                             | IntelliJ IDEA Ultimate 2026.2             | `Build #IU-262.8665.258`, July 15 2026       |
+| Kotlin                          | 2.3.0 (plugin) / 2.4.20-dev (IDE bundled) | `plugin/build.gradle.kts:213`                |
+| Jewel                           | IDE 2026.2 bundled 0.38                   | `Contents/lib/intellij.platform.jewel.*.jar` |
+| Compose                         | CMP 1.11.0                                | IDE bundled                                  |
+| Skiko                           | 0.9.x                                     | IDE bundled                                  |
+| IntelliJ Platform Gradle Plugin | 2.x                                       | `plugin/build.gradle.kts:6-7`                |
+| Gradle                          | 9.5.1                                     | -                                            |
+| JVM Target                      | 25                                        | Supported by Kotlin 2.3.0                    |
 
 **Project directory**: `/Users/xxx/Documents/Code_Project/Gradum`
 **Plugin submodule**: `/Users/xxx/Documents/Code_Project/Gradum/plugin`
@@ -31,7 +31,7 @@
 
 ---
 
-## 1. StackOverflowError — Compose / Jewel Duplicate Classloader Conflict
+## 1. StackOverflowError: Compose / Jewel Duplicate Classloader Conflict
 
 ### Symptoms
 
@@ -138,14 +138,14 @@ Two-layer fix:
    compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
    ```
    `compileOnly` **won't** put the jar into plugin/lib, but the Kotlin compiler can resolve the API. At runtime,
-   PluginClassLoader delegates to PathClassLoader to find IDE's copy → **single copy across the JVM** → no conflict.
+   PluginClassLoader delegates to PathClassLoader to find IDE's copy -> **single copy across the JVM** -> no conflict.
 
 ### Verification
 
 - `plugin/lib` no longer has any `kotlinx-coroutines-*` jars.
 - `./gradlew :plugin:compileKotlin` passes (API in compileOnly).
 - `./gradlew :plugin:buildPlugin` passes.
-- Restart IDE → tool window opens.
+- Restart IDE -> tool window opens.
 
 ---
 
@@ -162,7 +162,7 @@ java.lang.NoClassDefFoundError: org/jetbrains/jewel/markdown/rendering/InlinesSt
     at org.jetbrains.jewel.bridge.theme.SwingBridgeThemeKt.SwingBridgeTheme$lambda$1$3(...:62)
 ```
 
-Open tool window → first chat render → crash.
+Open tool window -> first chat render -> crash.
 
 ### Root Cause (Critical, Easy to Get Wrong)
 
@@ -179,7 +179,7 @@ But `plugin.xml`'s `<depends>` element only accepts two types of IDs:
 2. Actual plugin IDs registered in the IDE plugin registry
 
 `<depends>intellij.platform.jewel.markdown.core</depends>` and similar **JetBrains namespace** IDs are all treated as
-plugin IDs by the IDE → not found → IDE refuses to load the plugin.
+plugin IDs by the IDE -> not found -> IDE refuses to load the plugin.
 
 However! `bundledModule(...)` is **only** a **compile-time** mechanism of the IntelliJ Platform Gradle Plugin: it
 provides descriptors to the Gradle resolver so `compileKotlin` can find classes. At runtime, IDE module loading **still
@@ -220,7 +220,7 @@ Keep `plugin.xml` `<depends>` to the **minimum two**:
 ### Verification
 
 `./gradlew :plugin:buildPlugin` succeeds; `ls .intellijPlatform/sandbox/plugin/IU-2026.2/plugins/plugin/lib/` shows 10
-`intellij.platform.jewel.*` / `intellij.libraries.*.jar` files; restart IDE → tool window opens.
+`intellij.platform.jewel.*` / `intellij.libraries.*.jar` files; restart IDE -> tool window opens.
 
 ---
 
@@ -248,7 +248,7 @@ PluginClassLoader.
 
 ### Verification
 
-Restart IDE → no more "requires plugin" errors.
+Restart IDE -> no more "requires plugin" errors.
 
 ---
 
@@ -298,11 +298,11 @@ implementation(files("libs/intellij.platform.jewel.markdown.extensions.images.ja
 
 `unzip -l plugin-0.9.2.jar` no longer nests 5 extension jars;
 `ls .intellijPlatform/sandbox/plugin/IU-2026.2/plugins/plugin/lib/` shows 5 extension jars **flat at the top level**
-(not nested). Restart IDE → Markdown tables / links / GFM all work.
+(not nested). Restart IDE -> Markdown tables / links / GFM all work.
 
 ---
 
-## 6. Why We Ultimately Chose Shadow (Not bundledModule) — Decision Record
+## 6. Why We Ultimately Chose Shadow (Not bundledModule): Decision Record
 
 IDE 2026.2's `Contents/lib/` has 15 jars related to Jewel/Compose/Skiko. JetBrains' official README offers two paths:
 
@@ -345,11 +345,11 @@ Key snippet in `plugin/build.gradle.kts`:
 
 ```kotlin
 dependencies {
-  // 15 IDE jar copies → plugin/lib
+  // 15 IDE jar copies -> plugin/lib
   implementation(files("libs/intellij.libraries.compose.foundation.desktop.jar"))
   // ... 14 more implementation(files("libs/...")) lines
 
-  // kotlinx via compileOnly — runtime delegates to IDE PathClassLoader
+  // kotlinx via compileOnly: runtime delegates to IDE PathClassLoader
   compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
   compileOnly("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
@@ -374,7 +374,7 @@ dependencies {
 > **Do not** add `<depends>` for any `intellij.platform.*` / `intellij.libraries.*`.
 > **Do not** use `bundledModule` to replace `implementation(files(...))`.
 > **Do not** use `bundledModule` for `kotlinx-serialization-json`; IDE's version is re-versioned by JetBrains (reports
-> 2.3.0), which is incompatible with Kotlin 2.3.0 compiler plugin's strict version check → `PROVIDED_RUNTIME_TOO_LOW`.
+> 2.3.0), which is incompatible with Kotlin 2.3.0 compiler plugin's strict version check -> `PROVIDED_RUNTIME_TOO_LOW`.
 > **Do not** use `implementation` for `kotlinx-coroutines-core`; extra CoroutineScope interface in plugin/lib triggers
 > `LinkageError`.
 
@@ -400,16 +400,16 @@ dependencies {
 |-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Morning   | Migrated from shadow to bundledModule approach; all 10 Jewel/Compose bundledModule descriptors resolved; all 293 tests passed                                                                                                                                                                                                                                                                                                                                                                    |
 | Afternoon | User actually ran the plugin; IDE startup reported `loader constraint violation: CoroutineScope`                                                                                                                                                                                                                                                                                                                                                                                                 |
-| 14:00     | Added `bundledModule("intellij.libraries.kotlinx.coroutines.core")` + LaTeX exclude kotlinx → error changed to `PROVIDED_RUNTIME_TOO_LOW` (IDE re-versioned kotlinx-serialization-core) → switched back to `implementation` for kotlinx-serialization                                                                                                                                                                                                                                            |
+| 14:00     | Added `bundledModule("intellij.libraries.kotlinx.coroutines.core")` + LaTeX exclude kotlinx -> error changed to `PROVIDED_RUNTIME_TOO_LOW` (IDE re-versioned kotlinx-serialization-core) -> switched back to `implementation` for kotlinx-serialization                                                                                                                                                                                                                                          |
 | 14:30     | CoroutineScope error gone; `NoClassDefFoundError: InlinesStyling` appeared                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| 14:45     | Tried adding `<depends>intellij.platform.jewel.markdown.core</depends>` etc. to plugin.xml → compiled, IDE reported `requires plugin 'intellij.libraries.skiko' to be installed`                                                                                                                                                                                                                                                                                                                 |
-| 15:00     | Removed all `intellij.libraries.*` `<depends>` for skiko / coroutines → reported `requires plugin 'intellij.platform.compose' to be installed`                                                                                                                                                                                                                                                                                                                                                   |
+| 14:45     | Tried adding `<depends>intellij.platform.jewel.markdown.core</depends>` etc. to plugin.xml -> compiled, IDE reported `requires plugin 'intellij.libraries.skiko' to be installed`                                                                                                                                                                                                                                                                                                                |
+| 15:00     | Removed all `intellij.libraries.*` `<depends>` for skiko / coroutines -> reported `requires plugin 'intellij.platform.compose' to be installed`                                                                                                                                                                                                                                                                                                                                                  |
 | 15:15     | User proposed switching paths. Decision: revert to shadow + forced excludes                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | 15:30     | Copied 15 jars to plugin/libs/, updated build.gradle.kts, deleted composedJar custom block                                                                                                                                                                                                                                                                                                                                                                                                       |
 | 15:45     | `InlinesStyling` error gone; `NoClassDefFoundError: AutolinkProcessorExtension` appeared                                                                                                                                                                                                                                                                                                                                                                                                         |
 | 16:00     | Moved 5 markdown extensions to `implementation` (previously via `composedJar.from`, nested inside main jar, invisible to classloader)                                                                                                                                                                                                                                                                                                                                                            |
 | 16:15     | Plugin finally loads! Chat / Markdown / LaTeX all work                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| 17:00     | User clicked stop button / Gradum tool window icon → `NoSuchMethodError: kotlinx.coroutines.Job.cancel$default(Job, CancellationException, int, Object)`. Initial fix: pass `null` explicitly at the 3 call sites. Final fix (after deeper investigation in § 9): the real root cause is the runIde process serving a **stale plugin class**; the IDE's coroutines rebuild DOES contain the synthetic. Source now uses explicit `CancellationException("...")` + try-catch as defense-in-depth. |
+| 17:00     | User clicked stop button / Gradum tool window icon -> `NoSuchMethodError: kotlinx.coroutines.Job.cancel$default(Job, CancellationException, int, Object)`. Initial fix: pass `null` explicitly at the 3 call sites. Final fix (after deeper investigation in § 9): the real root cause is the runIde process serving a **stale plugin class**; the IDE's coroutines rebuild DOES contain the synthetic. Source now uses explicit `CancellationException("...")` + try-catch as defense-in-depth. |
 
 ---
 
@@ -438,7 +438,7 @@ Triggers the **first** time the user clicks either:
 
 The Gradum icon variant causes a UI freeze because Compose's `DesktopCoroutineExceptionHandler` tries to catch the
 `NoSuchMethodError` and dispatches it as if it were a regular coroutine exception, which doesn't actually repair the
-broken coroutine state → animation/frame loop deadlocks.
+broken coroutine state -> animation/frame loop deadlocks.
 
 ### Root Cause (corrected after a deeper investigation)
 
@@ -535,7 +535,7 @@ verified clean.
 
 ## 10. Compose / Jewel Integration Traps
 
-### 10.1 Inline Content Chip Registration — Silent Drop
+### 10.1 Inline Content Chip Registration: Silent Drop
 
 `Text(annotated, inlineContent = map)` requires `StringAnnotation.item` == map key **AND** a fixed internal tag. Compose
 looks up chips via
@@ -544,7 +544,7 @@ looks up chips via
 
 Using `pushStringAnnotation("INLINE_CODE", placeholder)` (or any custom tag) makes Compose **silently drop every chip**.
 The official extension `AnnotatedString.Builder.appendInlineContent(id, alternateText)` is `internal` in Compose
-foundation 1.7.3; inline its 4-line impl (pushStringAnnotation + pushStyle (SpanStyle ()) + append (alternateText) + 2×
+foundation 1.7.3; inline its 4-line impl (pushStringAnnotation + pushStyle (SpanStyle ()) + append (alternateText) + 2x
 pop). Hardcode the tag string `"androidx.compose.foundation.text.inlineContent"` since the constant is internal.
 
 > **Lesson**: The GradumInlineMarkdown chip renderer (v1, then v1.5) twice got this wrong, first because
@@ -554,7 +554,7 @@ pop). Hardcode the tag string `"androidx.compose.foundation.text.inlineContent"`
 Always pair the `INLINE_CONTENT_TAG` annotation with an `INLINE_CODE_TEXT` annotation (or similar) for the raw code
 text; that one CAN have a user-defined tag and is needed for click-to-copy.
 
-### 10.2 Badge Style Color Trap — Transparent Tint
+### 10.2 Badge Style Color Trap: Transparent Tint
 
 `JewelTheme.badgeStyle.*.colors.background` is `SolidColor(Color.Transparent)` for the default outlined badge style.
 Don't use it as a tint source; `tint.copy(alpha = X)` of transparent is still transparent.
@@ -629,7 +629,7 @@ modifications had zero effect on the inline path.
 
 > **Lesson**: First lock down the code path using LaTeX syntax (inline `$…$` / block `$$…$$`), then choose the
 > Box/Placeholder fix. `$x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$` that appears on its own line is STILL inline; it goes
-> through `RenderInlineLatex` → PUA Placeholder in the text line, NOT `RenderLatexBlock` → standalone Box.
+> through `RenderInlineLatex` -> PUA Placeholder in the text line, NOT `RenderLatexBlock` -> standalone Box.
 
 ### 11.2 Internal Padding from huarangmeng Library
 
@@ -651,9 +651,10 @@ The user's-eye gap is exactly `BLOCK_LATEX_VERTICAL_PADDING_DP` (48.dp) between 
 ### 11.3 Async Parsing with Layout Shift
 
 The `Latex` composable uses `LaunchedEffect(latex) + withContext(Dispatchers.Default)` to parse the formula. First frame
-has `document = LatexNode.Document(emptyList())` → `LatexDocument.measure(empty)` returns tiny
+has `document = LatexNode.Document(emptyList())` -> `LatexDocument.measure(empty)` returns tiny
 `canvasWidth/canvasHeight`
-→ Canvas is ~0×0. After parse completes, `document` updates → `LatexDocument.measure(parsed)` re-measures → Canvas snaps
+-> Canvas is ~0x0. After parse completes, `document` updates -> `LatexDocument.measure(parsed)` re-measures -> Canvas
+snaps
 to formula's real size.
 
 **This causes a layout shift on first frame**, the wrapping Box starts at padding-only height and jumps to the real
@@ -661,27 +662,27 @@ height after parse. Text below visibly jumps.
 
 **Mitigation**: wrap the Latex in a `Box` with
 `Modifier.heightIn(min = BLOCK_LATEX_MIN_CONTENT_HEIGHT_DP.dp + BLOCK_LATEX_VERTICAL_PADDING_DP.dp * 2)` (currently
-44.dp + 48.dp×2 = 140.dp outer) so the Box is a stable size on the first frame.
+44.dp + 48.dpx2 = 140.dp outer) so the Box is a stable size on the first frame.
 
-### 11.4 Inline LaTeX Placeholder Too Short → Formula Overflows Line
+### 11.4 Inline LaTeX Placeholder Too Short -> Formula Overflows Line
 
 `RenderState.allocateLatex(formulaText)` was using the same `PLACEHOLDER_LINE_HEIGHT_MULTIPLIER = 1.0f` as the
-chip/footnote, giving `placeholderHeight = fontSizeSp × 1.0 + 2sp`. For a single line of text that's correct, but for a
-`\frac{a}{b}` the huarangmeng Canvas is 2× the font size tall, and a nested `\frac{...}{...}` or `\sqrt{...}` is 2.5–3×.
+chip/footnote, giving `placeholderHeight = fontSizeSp x 1.0 + 2sp`. For a single line of text that's correct, but for a
+`\frac{a}{b}` the huarangmeng Canvas is 2x the font size tall, and a nested `\frac{...}{...}` or `\sqrt{...}` is 2.5–3x.
 The Placeholder is what the surrounding `Text(annotated, inlineContent = ...)` uses for line height; if the Placeholder
 is too short, the line box is too short, the formula Canvas overflows vertically, and visually covers the next line of
 text.
 
 **Fix**: dedicated `INLINE_LATEX_PLACEHOLDER_LINE_HEIGHT_MULTIPLIER = 2.2f` and `INLINE_LATEX_PLACEHOLDER_PADDING_SP`
-(2sp) used only by `allocateLatex`. 2.2× is a safe default that fits single-line formulas with one small fraction.
+(2sp) used only by `allocateLatex`. 2.2x is a safe default that fits single-line formulas with one small fraction.
 
 ### 11.5 Placeholder Vertical Alignment: Center vs TextCenter
 
 | Mode                   | Behavior                                                           | Problem                                                                                             |
 |------------------------|--------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
-| `Center`               | Placeholder center = line-height center (baseline + 0.75×fontSize) | Formula visual center at x-height (baseline + 0.5×fontSize): offset 0.25×fontSize, looks "elevated" |
-| `AboveBaseline`        | Placeholder bottom = baseline                                      | Formula visual center at baseline + 1.25×fontSize: still elevated                                   |
-| `TextCenter` [CORRECT] | Placeholder center = x-height (baseline + 0.5×fontSize)            | Matches formula visual center: this is what LaTeX `\textstyle` does                                 |
+| `Center`               | Placeholder center = line-height center (baseline + 0.75xfontSize) | Formula visual center at x-height (baseline + 0.5xfontSize): offset 0.25xfontSize, looks "elevated" |
+| `AboveBaseline`        | Placeholder bottom = baseline                                      | Formula visual center at baseline + 1.25xfontSize: still elevated                                   |
+| `TextCenter` [CORRECT] | Placeholder center = x-height (baseline + 0.5xfontSize)            | Matches formula visual center: this is what LaTeX `\textstyle` does                                 |
 
 ### 11.6 Block-Level LaTeX Rendering Structure (Final)
 
@@ -700,7 +701,7 @@ Parent layout: `AssistantChatBubble`'s `Column` has no `verticalArrangement` (in
 ### 11.7 Library Canvas Horizontal Padding Side Effect
 
 `MathConstants.CANVAS_HORIZONTAL_PADDING = 0.15f` (proportional to fontSize) is folded into `renderResult.canvasWidth`,
-so the Latex Canvas width = formula visible width + 2×0.15×fontSize (~5.4dp transparent padding at 18sp). The user
+so the Latex Canvas width = formula visible width + 2x0.15xfontSize (~5.4dp transparent padding at 18sp). The user
 perceiving "large right margin" is actually a visual illusion from the panel content area being much wider than the
 formula; left and right are perfectly symmetric. Cannot be eliminated externally (hardcoded in library); the only way
 to reduce perceived "right margin" is to narrow the chat panel content area (`maxContentWidth`).
@@ -724,14 +725,14 @@ call (each call creates a fresh `RenderState`).
 | Round | User Feedback                                                                   | Root Cause                                                                                                                                                                            | Fix                                                                                                                                 |
 |-------|---------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
 | 1     | Inline code truncated, block LaTeX overlapping, `\(\Delta > 0\)` shows raw text | chip `clip+background` clips children; block LaTeX no vertical padding; CommonMark backslash escaping eats `\(`                                                                       | chip uses `background(rounded)` without clipping; add 2dp vertical padding + 8dp rounded corners; preprocessor PUA-replaces `\(…\)` |
-| 2     | Block LaTeX spacing abnormal                                                    | No vertical padding set                                                                                                                                                               | Add 24dp → 32dp                                                                                                                     |
+| 2     | Block LaTeX spacing abnormal                                                    | No vertical padding set                                                                                                                                                               | Add 24dp -> 32dp                                                                                                                    |
 | 3     | Library draws background as chip, block LaTeX not centered, large right margin  | `LatexConfig.backgroundColor = panelBackground` makes library draw background; internal `Latex` uses `fillMaxWidth`; library `CANVAS_HORIZONTAL_PADDING=0.15f` folds into canvasWidth | Change to `Color.Transparent`; remove internal `fillMaxWidth`; Box uses `fillMaxWidth + contentAlignment=TopCenter`                 |
-| 4     | Block LaTeX still squeezes text below                                           | huarangmeng library **async parsing first frame 0×0** causes layout shift                                                                                                             | Box adds `heightIn(min=44+48×2=140dp)` to lock first frame; vertical padding → 48dp                                                 |
-| 5     | Discovered it's inline formulas blocking                                        | 1.0× Placeholder too short for `\frac{}{}`                                                                                                                                            | `INLINE_LATEX_PLACEHOLDER_LINE_HEIGHT_MULTIPLIER=1.0→2.2`                                                                           |
-| 6     | Increased default + wrote memory file + reported new bug                        | 2.2× still insufficient                                                                                                                                                               | → 2.5×                                                                                                                              |
-| 7     | Inline formula baseline rises                                                   | `PlaceholderVerticalAlign.Center` centers by line-height, formula visual center is at x-height                                                                                        | → `PlaceholderVerticalAlign.TextCenter` (aligns by x-height)                                                                        |
+| 4     | Block LaTeX still squeezes text below                                           | huarangmeng library **async parsing first frame 0x0** causes layout shift                                                                                                             | Box adds `heightIn(min=44+48x2=140dp)` to lock first frame; vertical padding -> 48dp                                                |
+| 5     | Discovered it's inline formulas blocking                                        | 1.0x Placeholder too short for `\frac{}{}`                                                                                                                                            | `INLINE_LATEX_PLACEHOLDER_LINE_HEIGHT_MULTIPLIER=1.0->2.2`                                                                          |
+| 6     | Increased default + wrote memory file + reported new bug                        | 2.2x still insufficient                                                                                                                                                               | -> 2.5x                                                                                                                             |
+| 7     | Inline formula baseline rises                                                   | `PlaceholderVerticalAlign.Center` centers by line-height, formula visual center is at x-height                                                                                        | -> `PlaceholderVerticalAlign.TextCenter` (aligns by x-height)                                                                       |
 
-### 11.10 Inline LaTeX Placeholder Width — From Estimation to Real Measurement
+### 11.10 Inline LaTeX Placeholder Width: From Estimation to Real Measurement
 
 **Problem**: `allocateLatex()` used `estimateLatexWidth()`, a per-character heuristic (letters 0.45em, narrow symbols
 0.25em, digits 0.45em, CJK 1.0em), to set the `Placeholder` width. This produced visible right-side whitespace on
@@ -759,7 +760,8 @@ class LatexMeasurerState {
 **Implementation**:
 
 1. Create `LatexMeasurerState` via `rememberLatexMeasurer()` in composable scope (needs `Density` + `TextMeasurer`).
-2. Pass it through `rememberInlineMarkdownRender()` → `parseInlineMarkdown()` → `buildInlineRender()` → `RenderState`.
+2. Pass it through `rememberInlineMarkdownRender()` -> `parseInlineMarkdown()` -> `buildInlineRender()` ->
+   `RenderState`.
 3. In `allocateLatex()`, call `latexMeasurer.measure(formulaText, config = LatexConfig(fontSize = fontSizeSp.sp))` and
    use
    `dimensions.widthPx / density.density` as the placeholder width.
@@ -770,7 +772,7 @@ class LatexMeasurerState {
 
 - `measure()` is **fully synchronous**: no async, no lazy init, no warmup. `TextMeasurer` is immediately ready on first
   call.
-- It **cannot return 0×0 dimensions**: guard `layout.width <= 0f || layout.height <= 0f` returns `null` instead.
+- It **cannot return 0x0 dimensions**: guard `layout.width <= 0f || layout.height <= 0f` returns `null` instead.
 - No first-call vs subsequent-call difference: the method is stateless.
 - The `LatexConfig` passed to `measure()` must match the one used for rendering (same `fontSize`), otherwise measured
   width won't match actual rendered width.
@@ -787,7 +789,7 @@ fall back to the estimation heuristic, acceptable because heading text rarely co
 
 ## 12. Inline Markdown Engineering (LANDED 2026-07-14, v2.1)
 
-### 12.1 Inline Code Chip — Key Pitfalls
+### 12.1 Inline Code Chip: Key Pitfalls
 
 **Chip lineHeight clips glyphs**: the chip's internal `Text` must explicitly set `lineHeight = fontSize` (1.0x).
 Inheriting the editor style's `lineHeight` (1.5x) clips the glyphs to ~0 visible pixels.
@@ -795,11 +797,11 @@ Inheriting the editor style's `lineHeight` (1.5x) clips the glyphs to ~0 visible
 **Badge background is transparent**: `JewelTheme.badgeStyle.*.colors.background` is `SolidColor(Color.Transparent)`. Use
 `JewelTheme.linkStyle.colors.content` for chip tints instead.
 
-**CJK chip width too narrow**: `MONOSPACE_CHAR_WIDTH_RATIO (0.6f) × code.length` clips CJK characters (which are
+**CJK chip width too narrow**: `MONOSPACE_CHAR_WIDTH_RATIO (0.6f) x code.length` clips CJK characters (which are
 full-width ~1.0). Use `cjkAwareWidthRatio(code)`, 1.0 for CJK, 0.6 for Latin, computed char-by-char.
 
 **`node.unlink()` loses siblings**: `generateSequence { it.next }.forEach { appendChild(it) }` breaks because
-`appendChild` → `unlink` → `next = null` mid-iteration. Always capture `next` BEFORE unlinking:
+`appendChild` -> `unlink` -> `next = null` mid-iteration. Always capture `next` BEFORE unlinking:
 
 ```kotlin
 var current = first.next
@@ -833,7 +835,7 @@ Use `parseInlineNodes` + `rememberInlineMarkdownRenderFromNode` to directly proc
 The inline Markdown system uses a two-layer architecture:
 
 - **Layer 1** (`BlockSplit.kt`): splits `Plain` segments on block boundaries via `splitPlainAtBlocks()`.
-  `Paragraph` → `Plain`, everything else → `NonProseBlock`.
+  `Paragraph` -> `Plain`, everything else -> `NonProseBlock`.
 - **Layer 2** (`InlineMarkdown.kt`): handles `Plain` sub-segments with inline chips (code, image alt, footnote, LaTeX).
   `NonProseBlock` renders via Jewel's `Markdown(...)`.
 
@@ -854,7 +856,7 @@ Key design decisions (see `plugin/src/main/kotlin/gradum/idea/chat/ui/markdown/`
 
 ## 13. Core Principles
 
-### 13.1 Read the Source Code — Don't Guess
+### 13.1 Read the Source Code: Don't Guess
 
 When you encounter an unsolvable problem, **read the actual source code**. Do not guess based on error messages,
 documentation, or blog posts. This document itself was born from guessing:
@@ -911,13 +913,13 @@ Unit tests can pass while the production code is completely broken. This documen
 
 ---
 
-## 14. `applicationConfigurable` extension: `implementation` is silently ignored — use `instance`
+## 14. `applicationConfigurable` extension: `implementation` is silently ignored: use `instance`
 
 > **LANDED 2026-08-15, debugging round 1. The whole Configurable was missing from the Settings tree.**
 
 ### Symptoms
 
-- Settings → Tools does **not** show the "Gradum" entry at all.
+- Settings -> Tools does **not** show the "Gradum" entry at all.
 - Or: clicking the parent's own node shows a *different* page, because the user thought they clicked "Gradum" but
   actually clicked the parent.
 - No exception, no log entry. The Configurable just never registers.
@@ -927,7 +929,7 @@ Unit tests can pass while the production code is completely broken. This documen
 The `com.intellij.applicationConfigurable` extension point (and `projectConfigurable`) declares **only these
 attributes**
 in its EP descriptor
-([Settings Guide → Settings Declaration Attributes](https://plugins.jetbrains.com/docs/intellij/settings-guide.html)):
+([Settings Guide -> Settings Declaration Attributes](https://plugins.jetbrains.com/docs/intellij/settings-guide.html)):
 
 | Attribute           | Required   | Purpose                                               |
 |---------------------|------------|-------------------------------------------------------|
@@ -988,7 +990,7 @@ project when only the application is available). The provider variant requires a
 2. Or: search the JetBrains Settings Guide page source for the word `implementation`; the EP description will
    explicitly say "Either `instance` or `provider` must be specified." That phrase is the contract.
 
-3. After the rename, restart the IDE (not hot-reload, `plugin.xml` changes need a fresh process) and re-open Settings →
+3. After the rename, restart the IDE (not hot-reload, `plugin.xml` changes need a fresh process) and re-open Settings ->
    Tools. The "Gradum" node should appear.
 
 ### Lesson
@@ -1001,7 +1003,7 @@ project when only the application is available). The provider variant requires a
 
 ---
 
-## 15. ComposePanel under `JewelComposePanel` — `Modifier.fillMaxSize()` triggers a 32766×32766 Skia texture request
+## 15. ComposePanel under `JewelComposePanel`: `Modifier.fillMaxSize()` triggers a 32766x32766 Skia texture request
 
 > **LANDED 2026-08-15. Three debugging rounds: (1) `IllegalArgumentException`, (2) plain `Configurable` workarounds
 > via `preferredSize` / `.fillMaxSize` removal, (3) the real "back door", `Configurable.NoScroll`, discovered by
@@ -1027,7 +1029,7 @@ java.lang.IllegalArgumentException: Texture dimensions must be less than maximum
     ...
 ```
 
-The crash happens on **first** paint, every time the user opens Settings → Gradum.
+The crash happens on **first** paint, every time the user opens Settings -> Gradum.
 
 ### Root Cause
 
@@ -1039,7 +1041,7 @@ extends `com.intellij.util.ui.components.BorderLayoutPanel`. Its CENTER child is
 1. **First measure pass**: the Settings dialog drops the panel into a `BorderLayout.CENTER`. BorderLayout asks the
    CENTER child for its `preferredSize` to compute the initial allocation.
 2. **`preferredSize` was `null`** in our code (we never set it). BorderLayout's default behavior is to hand the CENTER
-   child a **`0×0` area** on first measure.
+   child a **`0x0` area** on first measure.
 3. **Compose receives `Constraints(maxWidth=0, maxHeight=0)`**. Our root `Box(modifier = Modifier.fillMaxSize())`
    reacts: "I want to be as large as possible, but the max is 0, so... the only way to be 'filled' is to be
    Int.MAX_VALUE."
@@ -1047,7 +1049,7 @@ extends `com.intellij.util.ui.components.BorderLayoutPanel`. Its CENTER child is
    of 0.
 4. **ComposePanel passes `Int.MAX_VALUE` to the SkiaLayer** as the surface size.
 5. **SkiaLayer calls `SkSurface::MakeRenderTarget(Int.MAX_VALUE, Int.MAX_VALUE)`**. Skia's internal validation truncates
-   `int` to a 16-bit signed value somewhere along the way → `0x7FFE = 32766`.
+   `int` to a 16-bit signed value somewhere along the way -> `0x7FFE = 32766`.
 6. **Metal rejects**: 32766 > 16384 (the GPU texture maximum). `IllegalArgumentException`.
 
 The magic number `32766` is the diagnostic fingerprint: `0x7FFE` is `Int.MAX_VALUE` (`0x7FFFFFFF`) truncated to a 16-bit
@@ -1073,10 +1075,11 @@ class GradumConfigurable : Configurable, Configurable.NoScroll {
 **Why this works** (the actual "back door"):
 
 - A plain `Configurable` is wrapped in a **`JBScrollPane`** by the Settings dialog. `JBScrollPane`'s viewport gives the
-  CENTER child a `0×0` first measure → triggers the cascade below.
+  CENTER child a `0x0` first measure -> triggers the cascade below.
 - `Configurable.NoScroll` is a marker interface that tells the Settings dialog: **"skip the scroll pane, give this
   Configurable the full CENTER area directly."** The first measure then has a real width/height (the dialog's actual
-  size), so `fillMaxWidth()` / `fillMaxSize()` get a finite max constraint and the `0×0 → Int.MAX_VALUE → 32766` cascade
+  size), so `fillMaxWidth()` / `fillMaxSize()` get a finite max constraint and the `0x0 -> Int.MAX_VALUE -> 32766`
+  cascade
   never starts.
 
 Only one piece of the fix matters; the other two options below are obsolete once you add `NoScroll`.
@@ -1114,14 +1117,14 @@ override fun createComponent(): JComponent = JewelComposePanel {
 }
 ```
 
-- `preferredSize = 640×400`: tells BorderLayout to allocate at least that much on first measure, so even a
+- `preferredSize = 640x400`: tells BorderLayout to allocate at least that much on first measure, so even a
   `fillMaxSize()` child receives a real max constraint.
-- `minimumSize = 400×240`: prevents the user from resizing the dialog below the texture's safe size, which would
-  re-trigger the same 0×0 → Int.MAX_VALUE cascade.
+- `minimumSize = 400x240`: prevents the user from resizing the dialog below the texture's safe size, which would
+  re-trigger the same 0x0 -> Int.MAX_VALUE cascade.
 
 ### Verification
 
-1. **Visual**: open Settings → Tools → Gradum. The "Hello, Gradum!" Text must render immediately, no spinner, no
+1. **Visual**: open Settings -> Tools -> Gradum. The "Hello, Gradum!" Text must render immediately, no spinner, no
    exception in `idea.log`.
 2. **Log scan**: `grep -i "32766\|Texture dimensions" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log` must return zero
    matches.
@@ -1135,10 +1138,10 @@ override fun createComponent(): JComponent = JewelComposePanel {
 ### Lesson
 
 > **`fillMaxSize` is a trap under JewelComposePanel, but only when the Configurable is wrapped in a
-> `JBScrollPane`.** Under normal Compose Multiplatform, a 0×0 first-measure constraint degrades to wrap-content. Under
+> `JBScrollPane`.** Under normal Compose Multiplatform, a 0x0 first-measure constraint degrades to wrap-content. Under
 > `JewelComposePanel` + `JBScrollPane`, it degrades to `Int.MAX_VALUE` because the `JBScrollPane` viewport has no
 > preferred size and the chain
-> `JBScrollPane → BorderLayout → ComposePanel → SkiaLayer` doesn't clamp.
+> `JBScrollPane -> BorderLayout -> ComposePanel -> SkiaLayer` doesn't clamp.
 >
 > The fingerprint is the literal number `32766`. If you see it, the **first thing to try** is
 > `class Foo : Configurable, Configurable.NoScroll`, one interface addition, no `preferredSize`, no `.fillMaxSize()`
@@ -1146,7 +1149,7 @@ override fun createComponent(): JComponent = JewelComposePanel {
 
 ---
 
-## 16. Ktor `HttpClient.post()` Buffers the Entire Response Body — Streaming Broken
+## 16. Ktor `HttpClient.post()` Buffers the Entire Response Body: Streaming Broken
 
 > **LANDED 2026-08-22. A "thousand-year-old bug", the Ollama streaming response (thinking tokens) appeared to be
 > "sprayed out" all at once instead of token-by-token. Root cause: Ktor `post()` caches the response body in memory;
@@ -1217,7 +1220,7 @@ httpClient.preparePost(requestUrl) {
 
 ### Files Changed
 
-- `src/main/kotlin/gradum/client/LLMClient.kt`: Ollama `sendChat()` method, line 267→329
+- `src/main/kotlin/gradum/client/LLMClient.kt`: Ollama `sendChat()` method, line 267->329
 
 ### Verification
 
@@ -1236,14 +1239,14 @@ httpClient.preparePost(requestUrl) {
 > function is only truly streaming when called inside the `execute {}` scope. Outside it, `bodyAsChannel()` is a
 > buffer reader.
 >
-> The fingerprint of this bug: `curl -N` works, but your code doesn't. The fix is always the same: `post()` →
+> The fingerprint of this bug: `curl -N` works, but your code doesn't. The fix is always the same: `post()` ->
 > `execute {}`.
 >
 > This bug took half a day of debugging; Ollama logs showed token generation, `curl -N` confirmed Ollama was
 > streaming correctly, but the Ktor client still received everything at once. The Ktor documentation's "Streaming data"
 > section is the key reference, but it's easy to miss when you're focused on the `bodyAsChannel()` function name.
 
-## 17. Inline Code Chip Height — Unreliable Dynamic Measurement vs Formula-Based Approach
+## 17. Inline Code Chip Height: Unreliable Dynamic Measurement vs Formula-Based Approach
 
 > **Date**: 2026-08-24 (3:00 AM, 4 hours of debugging, 12+ iterations)
 > **Files**: `BlockRenderer.kt`, `GradumMarkdown.kt`, `Styling.kt`
@@ -1285,11 +1288,11 @@ The root cause is a chain of compounding issues:
 Replace **dynamic measurement** with a **formula-based approach**:
 
 ```kotlin
-// Styling.kt — named constants
+// Styling.kt: named constants
 internal const val INLINE_CODE_CHIP_HEIGHT_MULTIPLIER: Float = 1.2f
 internal const val INLINE_CODE_CHIP_BASELINE_RATIO: Float = 0.75f
 
-// In drawWithContent — chip height calculation
+// In drawWithContent: chip height calculation
 val chipHeightPx = with(density) { resolvedStyle.fontSize.toPx() * INLINE_CODE_CHIP_HEIGHT_MULTIPLIER }
 
 // Position relative to baseline, not line center

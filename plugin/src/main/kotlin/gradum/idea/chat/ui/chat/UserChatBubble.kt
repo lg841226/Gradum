@@ -37,7 +37,7 @@ import org.jetbrains.jewel.ui.typography
  * Maximum height of the user bubble while expanded. Content past this
  * point is reachable via the bubble's internal vertical scroll rather
  * than letting the bubble grow to fill the entire chat panel. At the
- * current typography (16sp regular × 1.5 line-height ≈ 24dp per line)
+ * current typography (16sp regular x 1.5 line-height ≈ 24dp per line)
  * 200dp fits roughly 5 lines of body text: a tight cap, with most
  * longer pastes scrolling internally rather than growing the bubble.
  */

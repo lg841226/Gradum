@@ -245,7 +245,7 @@ private fun outsideDenied(path: String, reason: String): SkillResult = makeFailu
 
 /**
  * A validated, normalized `start..end` line range. Both bounds are
- * clamped to the document (start ≥ 1) and ordered so `start <= end`.
+ * clamped to the document (start >= 1) and ordered so `start <= end`.
  */
 private data class LineRange(val start: Int, val end: Int)
 

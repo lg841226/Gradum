@@ -191,7 +191,7 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
  * 1. [splitMarkdownAtTables] extracts GFM tables (fast and accurate for pipes).
  * 2. Each `Plain` is reparsed with commonmark and split on top-level block
  *    boundaries via [splitPlainAtBlocks] (heading / list / blockquote / fenced
- *    code / thematic break / HTML → `NonProseBlock`, everything else → `Plain`).
+ *    code / thematic break / HTML -> `NonProseBlock`, everything else -> `Plain`).
  */
 fun splitMarkdown(markdown: String): List<MarkdownSegment> =
   splitMarkdownAtTables(markdown).flatMap { segment: MarkdownSegment ->
@@ -287,9 +287,9 @@ private fun parseAlignments(line: String?, expectedCount: Int): List<TextAlign>?
  * up-front via [rememberTextMeasurer] using the stripped plain text, and
  * the widest cell in each column sets the column width.
  *
- * Background scheme: outer `Box` → `panelBackground`; header row →
- * `panelBackground` (blends with outer); even body rows → `Color.Transparent`;
- * odd body rows → `borders.normal @ 8% alpha` (subtle stripe in both
+ * Background scheme: outer `Box` -> `panelBackground`; header row ->
+ * `panelBackground` (blends with outer); even body rows -> `Color.Transparent`;
+ * odd body rows -> `borders.normal @ 8% alpha` (subtle stripe in both
  * light and dark mode).
  */
 @Composable
@@ -774,7 +774,7 @@ fun TableParseFailurePlaceholder(modifier: Modifier = Modifier) {
 /**
  * Converts a CommonMark [TableBlock] (from the GFM tables extension) into
  * a [MarkdownSegment.Table] that [ScrollableTable] can render. Walks the
- * AST: [TableBlock] → [TableHead]/[TableBody] → [TableRow] → [TableCell],
+ * AST: [TableBlock] -> [TableHead]/[TableBody] -> [TableRow] -> [TableCell],
  * serializing each cell's inline children to plain text.
  */
 internal fun TableBlock.toMarkdownSegmentTable(): MarkdownSegment.Table {

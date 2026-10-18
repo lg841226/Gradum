@@ -49,7 +49,7 @@ class ProviderProfilesDeepSeekMiniMaxTest {
     assertEquals(1024, requestFields["max_completion_tokens"])
     assertFalse(
       requestFields.containsKey("max_tokens"),
-      "MiniMax deprecated max_tokens and ignores it — the cap must go out as max_completion_tokens"
+      "MiniMax deprecated max_tokens and ignores it: the cap must go out as max_completion_tokens"
     )
     assertEquals(0.7, requestFields["temperature"])
     assertEquals(0.9, requestFields["top_p"])

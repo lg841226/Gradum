@@ -24,10 +24,10 @@ data class FormattedModelName(
 )
 
 /**
- * Known families → human-friendly display names.
+ * Known families -> human-friendly display names.
  * Lookup key is the lower-cased family root after stripping org, tag, size, quant, variant.
- * Fuzzy: key miss triggers progressive prefix shortening (`phi-3-mini-4k` → `phi-3-mini` → `phi-3` → `phi`)
- * and no-dash fallback (`llama-3` → `llama3`).
+ * Fuzzy: key miss triggers progressive prefix shortening (`phi-3-mini-4k` -> `phi-3-mini` -> `phi-3` -> `phi`)
+ * and no-dash fallback (`llama-3` -> `llama3`).
  *
  * Map (not regex ladder) because family roots are short, stable, and ~150 entries;
  * a regex would either under- or over-match.
@@ -415,10 +415,10 @@ private val versionPatterns: List<Regex> = listOf(
 /**
  * Parse a raw model identifier into a [FormattedModelName].
  *
- * Pipeline: strip Ollama/LM Studio tag → strip org prefix → strip date stamps → extract
- * [parameterSize] (MoE → decimal → integer) → extract [quant] (long-form GGUF first) → build
- * family-root lookup key → look up [displayName] (exact → no-dash → dashed-insert → prefix drop)
- * → infer [provider] → set [isFromCatalog].
+ * Pipeline: strip Ollama/LM Studio tag -> strip org prefix -> strip date stamps -> extract
+ * [parameterSize] (MoE -> decimal -> integer) -> extract [quant] (long-form GGUF first) -> build
+ * family-root lookup key -> look up [displayName] (exact -> no-dash -> dashed-insert -> prefix drop)
+ * -> infer [provider] -> set [isFromCatalog].
  */
 fun parseModelName(raw: String): FormattedModelName {
   val rawTrimmed: String = raw.trim()
@@ -466,19 +466,19 @@ fun parseModelName(raw: String): FormattedModelName {
  * [FormattedModelName.displayName] of a [parseModelName] call.
  *
  * Kept as a thin wrapper (rather than a duplicate of the logic)
- * so the four existing call sites, [ModelSelectorBar] (3×) and
- * [AssistantChatBubble] (1×), can keep using the `String`
+ * so the four existing call sites, [ModelSelectorBar] (3x) and
+ * [AssistantChatBubble] (1x), can keep using the `String`
  * return type until the badge UI lands.
  */
 fun formatModelName(raw: String): String = parseModelName(raw).displayName
 
 /**
- * Look up the display name in [modelDisplayNames]. Tries in order: literal key → no-dash form
- * (`llama-3` → `llama3`) → dash-inserted form (`glm4` → `glm-4`) → drop last segment
- * (`phi-3-mini-4k` → `phi-3-mini` → ...). First hit wins. Returns `null` on no match.
+ * Look up the display name in [modelDisplayNames]. Tries in order: literal key -> no-dash form
+ * (`llama-3` -> `llama3`) -> dash-inserted form (`glm4` -> `glm-4`) -> drop last segment
+ * (`phi-3-mini-4k` -> `phi-3-mini` -> ...). First hit wins. Returns `null` on no match.
  *
  * Order: "first specific, then general". Step 3 (dash-inserted) exists for Ollama-style names
- * (`glm4:latest` → `glm-4`); the alpha↔digit boundary insert handles `gpt4` → `gpt-4`, `phi3` → `phi-3`.
+ * (`glm4:latest` -> `glm-4`); the alpha↔digit boundary insert handles `gpt4` -> `gpt-4`, `phi3` -> `phi-3`.
  */
 private fun lookupDisplayName(key: String): String? {
   if (key.isEmpty()) return null
@@ -569,9 +569,9 @@ private fun extractParameterSize(name: String): String? {
  * digits+separators) or `null` if none is recognized.
  *
  * Examples:
- *  - `qwen2.5-7b-instruct-q4_k_m` → `Q4_K_M`
- *  - `Mistral-7B-Instruct-v0.2.AWQ` → `AWQ`
- *  - `llama-3-8b-instruct-4bit` → (not matched: 4bit isn't in
+ *  - `qwen2.5-7b-instruct-q4_k_m` -> `Q4_K_M`
+ *  - `Mistral-7B-Instruct-v0.2.AWQ` -> `AWQ`
+ *  - `llama-3-8b-instruct-4bit` -> (not matched: 4bit isn't in
  *    our list; would only show in rawName)
  */
 private fun extractQuant(name: String): String? {
@@ -642,7 +642,7 @@ private fun buildLookupKey(name: String): String {
 
 /**
  * Title-Case-Space-Replace fallback for unrecognized models.
- * Hyphens → spaces, first letter uppercase, rest lowercase.
+ * Hyphens -> spaces, first letter uppercase, rest lowercase.
  * Deliberately simple: if the model isn't in the map, the user
  * gets a readable approximation, not a guess.
  */
@@ -662,7 +662,7 @@ private fun fallbackDisplay(key: String): String =
  * title-casing each segment, and joining with a space.
  *
  * Crucially this keeps the variant suffix visible in the selector:
- * `glm-4.5-air` → `GLM 4.5 Air`, `glm-5-turbo` → `GLM 5 Turbo`.
+ * `glm-4.5-air` -> `GLM 4.5 Air`, `glm-5-turbo` -> `GLM 5 Turbo`.
  * The old `fallbackDisplay` would render both as `Glm 4.5` / `Glm 5`,
  * which made `glm-4.5` (Ollama) and `glm-4.5-air` (Zhipu) look
  * identical to the user.

@@ -5,7 +5,7 @@ import kotlinx.coroutines.runBlocking
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Registry of in-flight agent→user questions, keyed by `sessionId::requestId`.
+ * Registry of in-flight agent->user questions, keyed by `sessionId::requestId`.
  *
  * The skill's [AskScope.askInteraction] registers a [CompletableDeferred]
  * here, together with the question's wire payload, and blocks on it; the

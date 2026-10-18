@@ -84,7 +84,7 @@ class SkillCompactHistoryTest {
       val historyResult: Map<String, Any> = skill.recordAndCompactHistory(ownIndices, data, history)
       assertEquals(
         "body-$i", historyResult["content"],
-        "call #$i: current call's `content` was stripped — keys: ${historyResult.keys}"
+        "call #$i: current call's `content` was stripped: keys: ${historyResult.keys}"
       )
       assertEquals(
         "m-$i", historyResult["metadata"],
@@ -121,11 +121,11 @@ class SkillCompactHistoryTest {
 
     assertFalse(
       parsed[0].containsKey("content"),
-      "call 1 should have `content` stripped — keys: ${parsed[0].keys}"
+      "call 1 should have `content` stripped: keys: ${parsed[0].keys}"
     )
     assertFalse(
       parsed[1].containsKey("content"),
-      "call 2 should have `content` stripped — keys: ${parsed[1].keys}"
+      "call 2 should have `content` stripped: keys: ${parsed[1].keys}"
     )
     assertEquals(
       "body-3", parsed[2]["content"],
@@ -328,7 +328,7 @@ class SkillCompactHistoryTest {
     val otherParsed: Map<String, Any?> = JsonUtil.decodeMap(otherContent)
     assertEquals(
       "other-body", otherParsed["content"],
-      "unrelated skill's tool message was modified — should be untouched"
+      "unrelated skill's tool message was modified: should be untouched"
     )
     assertEquals(
       "hi",

@@ -10,7 +10,7 @@ import org.junit.Test
 
 /**
  * Tests that [SessionProjection] decodes the server's folded projection
- * (`GET /session/state` → `messages`) into the bubble view: blocks keep their
+ * (`GET /session/state` -> `messages`) into the bubble view: blocks keep their
  * order, tool-call arguments keep their plain values, and a bubble with no
  * usable role decodes to nothing.
  */

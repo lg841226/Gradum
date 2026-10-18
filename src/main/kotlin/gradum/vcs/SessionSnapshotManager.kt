@@ -23,7 +23,7 @@ private class GitCommandFailure(gitMessage: String) : Exception(gitMessage)
  *
  * Snapshots live in a dedicated git repository **outside** the project
  * (`~/.gradum/snapshots/<project>-<hash>`), driven with
- * `--git-dir`/`--work-tree` on every invocation — mirroring OpenCode's
+ * `--git-dir`/`--work-tree` on every invocation: mirroring OpenCode's
  * design. The user's repository is never touched: no `git init`, no refs,
  * no object writes, so permission clashes with the user's own git tooling
  * are impossible and plain non-git directories work unchanged.

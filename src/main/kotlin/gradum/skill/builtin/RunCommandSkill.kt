@@ -124,7 +124,7 @@ private fun killProcessTree(process: Process, descendants: List<ProcessHandle>) 
  * All execution sites are annotated `@OptIn(DangerousOperation::class)`.
  *
  * Process isolation is handled by [killProcessTree]: on timeout the entire
- * process tree is killed (SIGTERM → grace period → SIGKILL), matching the
+ * process tree is killed (SIGTERM -> grace period -> SIGKILL), matching the
  * `forceKillAfter` pattern from opencode's bash tool. No orphan processes
  * are left behind.
  */

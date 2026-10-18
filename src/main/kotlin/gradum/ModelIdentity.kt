@@ -737,7 +737,7 @@ object ModelIdentity {
       } ?: emptyList()
     }
 
-    /** Extracts the numeric part of an official `parameter_size` value (`"8.0B"` → 8.0, `"7B"` → 7.0). */
+    /** Extracts the numeric part of an official `parameter_size` value (`"8.0B"` -> 8.0, `"7B"` -> 7.0). */
     private fun parseParameterSize(raw: String): Double? =
       Regex(pattern = """\d+\.?\d*""").find(input = raw)?.value?.toDoubleOrNull()
 

@@ -890,7 +890,7 @@ private fun isFdRedirectionAt(commandText: String, start: Int): Boolean {
 /**
  * Canonicalizes a path to its real, absolute form. Non-existent trailing
  * components are kept and appended to the nearest existing ancestor, which is
- * itself resolved with [Path.toRealPath] so symlinks (`/tmp` → `/private/tmp`)
+ * itself resolved with [Path.toRealPath] so symlinks (`/tmp` -> `/private/tmp`)
  * and a case-insensitive prefix cannot forge a path past the boundary checks.
  */
 private fun canonicalize(rawPath: String): String {

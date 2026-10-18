@@ -257,7 +257,7 @@ object ProviderConfigFile {
   /**
    * Parses a single-line command into its argv tokens: tokens are split
    * on whitespace, and a double quote starts a quoted span that may
-   * contain whitespace (`"a b" c` → `["a b", "c"]`); `\"` inside a
+   * contain whitespace (`"a b" c` -> `["a b", "c"]`); `\"` inside a
    * quoted span is a literal quote. Returns an empty list when a quote
    * is left unterminated, so callers can flag the input as invalid
    * instead of silently guessing.

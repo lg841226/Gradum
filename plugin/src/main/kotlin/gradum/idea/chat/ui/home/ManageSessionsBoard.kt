@@ -53,7 +53,7 @@ import java.time.ZoneId
  * merge/delete selection, and turning the mode off clears it. A hover reveal offers
  * rename (inline, pen becomes a checkmark and cancel while editing) and
  * delete. The bottom action bar only appears for multi-selection
- * (≥[GradumChatSession.MIN_MERGE_SESSIONS]) and offers a merge of
+ * (>=[GradumChatSession.MIN_MERGE_SESSIONS]) and offers a merge of
  * everything selected plus a bulk delete.
  *
  * A top search field filters the list by title; the match-case button

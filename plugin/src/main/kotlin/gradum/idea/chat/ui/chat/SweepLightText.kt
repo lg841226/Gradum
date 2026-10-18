@@ -18,7 +18,7 @@ import org.jetbrains.jewel.ui.component.Text
  * The animation drives a single `offset` from -1f to 2f over
  * [durationMillis] with linear easing and infinite restart. The offset is
  * mapped to the start/end x-coordinates of a 3-stop alpha gradient
- * (low → high → low), so the highlight travels left-to-right and
+ * (low -> high -> low), so the highlight travels left-to-right and
  * seamlessly re-enters from the left on the next cycle. The underlying
  * `Text` re-lays out its `Brush` on every frame.
  *

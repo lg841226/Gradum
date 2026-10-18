@@ -23,7 +23,7 @@ import java.nio.file.Paths
  *   the case where the original path was a hit and the
  *   shifted candidate was not).
  * @property shiftedForm The corrected form: only set when
- *   [shifted] is `true`. Useful for the `original` →
+ *   [shifted] is `true`. Useful for the `original` ->
  *   `shiftedForm` mapping the LLM can observe in the
  *   success response.
  * @property rejectionReason Non-null when the path was

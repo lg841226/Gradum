@@ -71,7 +71,7 @@ val LocalThinkingMode = compositionLocalOf { false }
 
 /**
  * The chat panel's body text style. Slightly tighter than the LaF default
- * (line-height 1.5×). Returned as a [TextStyle] so the inline chip parser
+ * (line-height 1.5x). Returned as a [TextStyle] so the inline chip parser
  * can read the font size for its placeholder width / height.
  */
 @Composable

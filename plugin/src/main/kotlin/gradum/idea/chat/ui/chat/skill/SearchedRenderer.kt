@@ -164,14 +164,14 @@ class SearchedRenderer : ToolCallRenderer {
    *
    * Three states, same outer footprint (size + corner radius) so the
    * result row never reflows while a thumbnail is in flight:
-   *  1. No URL in the fallback chain → no upstream favicon available.
+   *  1. No URL in the fallback chain -> no upstream favicon available.
    *     Renders a neutral gray placeholder box. Returning a real Web
    *     icon here would make rows with images wider than rows without,
    *     which looks like a layout bug.
-   *  2. URL present, fetch still in progress → same gray placeholder
+   *  2. URL present, fetch still in progress -> same gray placeholder
    *     so the row height stays stable and the user sees a "loading"
    *     affordance that matches the final shape.
-   *  3. URL present, fetch resolved (success or failure) → success
+   *  3. URL present, fetch resolved (success or failure) -> success
    *     shows the bitmap, failure (null) falls through to the next
    *     URL in the chain. If every URL fails, we land back on the
    *     gray placeholder.

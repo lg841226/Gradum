@@ -11,13 +11,13 @@ For the server-side protocol, the agent loop, and the Skill contract see
 
 ## At a glance
 
-| Area                                | Count / Scope                                                                                                                                                                                                                                                                                                                                                     |
-|-------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Tool-window / chat UI components    | 2 tool windows (chat + Git analysis)                                                                                                                                                                                                                                                                                                                              |
-| Project-level services              | 1 (`GradumChatSession`)                                                                                                                                                                                                                                                                                                                                           |
-| HTTP endpoints consumed             | 7 (`/events`, `/events/respond`, `/stop`, `/models`, `/session/delete`, `/session/rewind`, `/provider/probe`) — the server's `/health` and `/skills` are for liveness/capability polling outside the chat UI                                                                                                                                                      |
-| Wire event types handled            | 9 main (`session_start` / `session_end` / `response` / `thinking` / `tool_call_start` / `tool_call` / `tool_expect_mismatch` / `error` / `ask_interaction`) + 5 sub-agent (`sub_agent:start` / `sub_agent:response` / `sub_agent:tool_call` / `sub_agent:error` / `sub_agent:session_end`) — `guardrail` and `mission_revoked` are not yet rendered by the plugin |
-| Server skills rendered              | 11 renderers under `ui/chat/skill/` (read, written, ran, explored, grep, glob, searched, planned, completed, delegated, wildcard default)                                                                                                                                                                                                                         |
+| Area                             | Count / Scope                                                                                                                                                                                                                                                                                                                                                    |
+|----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Tool-window / chat UI components | 2 tool windows (chat + Git analysis)                                                                                                                                                                                                                                                                                                                             |
+| Project-level services           | 1 (`GradumChatSession`)                                                                                                                                                                                                                                                                                                                                          |
+| HTTP endpoints consumed          | 7 (`/events`, `/events/respond`, `/stop`, `/models`, `/session/delete`, `/session/rewind`, `/provider/probe`): the server's `/health` and `/skills` are for liveness/capability polling outside the chat UI                                                                                                                                                      |
+| Wire event types handled         | 9 main (`session_start` / `session_end` / `response` / `thinking` / `tool_call_start` / `tool_call` / `tool_expect_mismatch` / `error` / `ask_interaction`) + 5 sub-agent (`sub_agent:start` / `sub_agent:response` / `sub_agent:tool_call` / `sub_agent:error` / `sub_agent:session_end`): `guardrail` and `mission_revoked` are not yet rendered by the plugin |
+| Server skills rendered           | 11 renderers under `ui/chat/skill/` (read, written, ran, explored, grep, glob, searched, planned, completed, delegated, wildcard default)                                                                                                                                                                                                                        |
 
 The plugin is built on JetBrains Jewel + Compose for Desktop. Every visible string is localizable; every color is
 theme-aware through `JewelTheme`; every icon is loaded from the plugin classpath at runtime.
@@ -144,7 +144,7 @@ private
 
 ## 5. Message event timeline
 
-### 5.1 Wire events → UI blocks
+### 5.1 Wire events -> UI blocks
 
 The server streams the events below as NDJSON. `ChatMessageSender.sendMessage` maps each to a `RenderBlock` kind for
 rendering, and dispatches sub-agent events to a separate `SubChatView`:
@@ -169,14 +169,14 @@ rendering, and dispatches sub-agent events to a separate `SubChatView`:
 Dispatch lives in `ChatMessageSender.sendMessage` (one `when` branch per type) with the per-type handlers in
 `ChatEventHandlers.kt`; `guardrail` and `mission_revoked` are not wired up yet.
 
-`ChatMessage.appendBlock` performs an O(1) update. It never re-iterates the existing list. `updateLastError` likewise
-does an O(1) `indexOfLast +
+`ChatMessage.appendBlock` performs an O (1) update. It never re-iterates the existing list. `updateLastError` likewise
+does an O (1) `indexOfLast +
 set` to patch a failed tool call's error message after the fact.
 
 ### 5.2 Per-tool call content
 
-Each server-side skill alias — `Ran`, `Written`, `Read`, `Explored`, `Grep`, `Glob`, `Searched`, `Planned`,
-`Completed`, `Delegate` — is rendered by a dedicated `ToolCallRenderer`
+Each server-side skill alias: `Ran`, `Written`, `Read`, `Explored`, `Grep`, `Glob`, `Searched`, `Planned`,
+`Completed`, `Delegate`: is rendered by a dedicated `ToolCallRenderer`
 implementation registered as a plain Kotlin instance in
 `ToolCallRendererRegistry.RENDERERS` (a `List<ToolCallRenderer>`). The chat panel calls
 `ToolCallRendererRegistry.find(alias)` once per tool invocation and routes the result to the matching renderer's
@@ -264,7 +264,7 @@ See
   blocks and GFM tables inside the thinking text are rendered in simplified mode (`isSimplified = true`)
   without copy/insert-as-file toolbars. Uses `AnimatedVisibility` for expand/collapse transitions.
 - **`AnimatedSegment`**: per-segment fade-in + vertical rise animation on response blocks. Duration varies by segment
-  type (Table 1.5×, NonProseBlock 1.2×, Plain 1.0×) with height-based extra duration capped at `SEGMENT_MAX_EXTRA_MS`.
+  type (Table 1.5x, NonProseBlock 1.2x, Plain 1.0x) with height-based extra duration capped at `SEGMENT_MAX_EXTRA_MS`.
   Newly completed segments animate; previously rendered segments remain static.
 - **`ToolCallIndicator`**: a one-line alias + status icon shown beneath the active tool call (e.g. "Ran read_file");
   lives inside the per-skill renderers under `chat/ui/chat/skill/`.
@@ -294,21 +294,21 @@ rows are in the per-skill renderers under [
 When the agent needs a decision (a destructive command, an out-of-project path) it emits an `ask_interaction` event and
 the session blocks until the plugin answers. The plugin side of that round-trip:
 
-1. **Parse** — `ChatEventHandlers.handleAskInteractionEvent` reads `{requestId, sessionId, title, details?, default,
-   choices[] | input{placeholder}}`, resolves `title`/`details`/placeholder from their `L10nText` form (`key` →
-   `GradumBundle` lookup with args, `raw` → verbatim text), and appends a `RenderBlock.AskInteraction` to the
+1. **Parse**: `ChatEventHandlers.handleAskInteractionEvent` reads `{requestId, sessionId, title, details?, default,
+   choices[] | input{placeholder}}`, resolves `title`/`details`/placeholder from their `L10nText` form (`key` ->
+   `GradumBundle` lookup with args, `raw` -> verbatim text), and appends a `RenderBlock.AskInteraction` to the
    current assistant message (there must be one; a card never opens a new bubble).
-2. **Render** — [`AskCard.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/AskCard.kt) shows a warning-icon
+2. **Render**: [`AskCard.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/AskCard.kt) shows a warning-icon
    header, the title, the horizontally scrollable details line, then either numbered choice buttons or a text field with
    a **Send** button. It fades in over 150 ms and starts with the server's `default` choice pre-selected.
-3. **Label** — each choice shows the server-supplied `labelKey` when present, otherwise a label derived from its stable
-   semantic code (`allow_once` / `allow_always` / `reject` → `gradum.ask.choice.*`), so the card is fully localized and
+3. **Label**: each choice shows the server-supplied `labelKey` when present, otherwise a label derived from its stable
+   semantic code (`allow_once` / `allow_always` / `reject` -> `gradum.ask.choice.*`), so the card is fully localized and
    the wire never carries display copy.
-4. **Answer** — a click POSTs `{sessionId, requestId, choice}` (or `{text}` / `{cancelled}`) through
+4. **Answer**: a click POSTs `{sessionId, requestId, choice}` (or `{text}` / `{cancelled}`) through
    `GradumApiClient.respondToAsk` (see [Section 12.3](#123-post-eventsrespond)). The card immediately locks into an
    *answered* state (`responded = true`) so a double click can never submit twice; the server's `404` for an
    already-resolved id is treated as success.
-5. **Trail** — the card stays in the transcript after resolution, next to the tool call it authorized.
+5. **Trail**: the card stays in the transcript after resolution, next to the tool call it authorized.
 
 The server-side contract (builders, semantics, `PendingQuestions`, which skills ask, and what "always" grants) is
 [`ARCHITECTURE.md` §9.11](ARCHITECTURE.md#911-askscope-interactive-authorization).
@@ -446,7 +446,7 @@ we attempt a custom inline parse:
   `lineHeight = fontSizeSp.sp`** (1.0x, fixes the v1 zero-pixel bug).
 - `maxLines = 1`, `softWrap = false`.
 
-**Bail-out conditions** (return `null` → caller uses `Markdown(...)`):
+**Bail-out conditions** (return `null` -> caller uses `Markdown(...)`):
 
 - Blank input.
 - Input contains any non-`Paragraph` block (list, heading, blockquote, fenced code, `LinkReferenceDefinition`).
@@ -608,7 +608,7 @@ across sessions within the project.
 Raw names from the wire look like `qwen2.5-coder-32b-instruct` or
 `lmstudio-community/qwen2.5-7b`. `formatModelName` strips the
 `username/model` prefix (LM Studio convention), drops the trailing size tag, and looks the remainder up in a
-hand-curated display table that maps `qwen2.5-coder` → `Qwen 2.5 Coder`. Unrecognised names fall back to a title-cased
+hand-curated display table that maps `qwen2.5-coder` -> `Qwen 2.5 Coder`. Unrecognised names fall back to a title-cased
 hyphen substitution.
 
 Source: [`ModelSelectorBar.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/input/ModelSelectorBar.kt),
@@ -688,7 +688,7 @@ being collapsed and re-expanded.
 | `selectedModel`                                       | `ModelInfo?`                         | The model that will be used for the next send.                                                                                   |
 | `modelsLoaded`                                        | `Boolean`                            | True after the first successful `/models` call.                                                                                  |
 | `selectedPermission`                                  | `String`                             | Wire value of the active tier (`read_only` / `edit` / `agent` / `debug`); the derived `toolMode` getter reports it to the sender |
-| `promptVariant`                                       | —                                    | Not session state: sent per request by `GradumApiClient` (`auto` / `cloud` / `local`)                                            |
+| `promptVariant`                                       | :                                    | Not session state: sent per request by `GradumApiClient` (`auto` / `cloud` / `local`)                                            |
 | `sessionId` / `activeSessionId`                       | `String?`                            | Server session id of the live turn / the session being viewed.                                                                   |
 | `sendingPhase` / `isSending` / `isWaitingForResponse` | `String` / `Boolean` / `Boolean`     | Drives the phase label, stop button, and waiting overlay.                                                                        |
 | `suggestionVariants`                                  | `List<Int>`                          | One `Random.nextInt(5)` per quick-start category, drawn once per session.                                                        |
@@ -755,7 +755,7 @@ types (`session_start`, `session_end`, `response`, `thinking`, `tool_call_start`
 ### 12.3 `POST /events/respond`
 
 Answers an in-flight `ask_interaction` card (see [`ARCHITECTURE.md` §9.11](ARCHITECTURE.md)). Body:
-`{sessionId, requestId, choice? | text? | cancelled?}` — exactly one of the three. `GradumApiClient.respondToAsk(...)`
+`{sessionId, requestId, choice? | text? | cancelled?}`: exactly one of the three. `GradumApiClient.respondToAsk(...)`
 treats `200` as delivered and anything else (including `404` for an unknown or already-answered request) as a no-op, so
 a double click is harmless.
 
@@ -766,7 +766,7 @@ path-traversal guard (rejecting `.`/`..`/absolute ids) before deleting `<project
 
 ### 12.5 `POST /session/rewind`
 
-Truncates the server-side context of a session up to an earlier message — the server-side half of the per-message
+Truncates the server-side context of a session up to an earlier message: the server-side half of the per-message
 delete/withdraw gesture (see [Section 20](#20-chat-session-management)). Body:
 `{projectRoot, sessionId, messageId}`; returns `200 {"status":"rewound"}` or `404 {"status":"message_not_found"}`.
 
@@ -912,8 +912,8 @@ Source: [`Spacing.kt`](../plugin/src/main/kotlin/gradum/idea/utils/Spacing.kt),
 
 Since July 2026 the plugin ships a second, self-contained tool window, the **Git analysis** ("Audit") panel, that
 audits the project's Git history and surfaces SXXXX findings and a project quality band. It is the largest feature added
-after the chat panel and runs its own lifecycle end-to-end: script resolution → two-phase scan → live finding tree →
-commit-details panel → summary banner.
+after the chat panel and runs its own lifecycle end-to-end: script resolution -> two-phase scan -> live finding tree ->
+commit-details panel -> summary banner.
 
 ### 19.1 Home screen
 
@@ -1065,13 +1065,13 @@ The server owns `<projectRoot>/.gradum/sessions/`: after every turn it writes ea
 `GET /session/state`) plus a human-readable `conversation.md` render.
 `ChatSessionStore` is a thin REST client over that store:
 
-| Operation | Method                                 | Notes                                                                  |
-|-----------|----------------------------------------|------------------------------------------------------------------------|
-| List all  | `listSessions()`                       | `GET /sessions`; returns `List<SessionMeta>` sorted by `updatedAt`.    |
-| Cold load | `loadSessionState(sessionId)`          | `GET /session/state`; returns the folded projection, or `null`.        |
-| Merge     | `mergeSessions(sessionIds, baseTitle)` | `POST /sessions/merge`; the server weaves and numbers the title.       |
-| Rename    | `renameSession(sessionId, newTitle)`   | `POST /session/rename`; returns `false` when missing.                  |
-| Delete    | `deleteSession(sessionId)`             | `POST /session/delete`; removes the directory and the chat DB row.     |
+| Operation | Method                                 | Notes                                                               |
+|-----------|----------------------------------------|---------------------------------------------------------------------|
+| List all  | `listSessions()`                       | `GET /sessions`; returns `List<SessionMeta>` sorted by `updatedAt`. |
+| Cold load | `loadSessionState(sessionId)`          | `GET /session/state`; returns the folded projection, or `null`.     |
+| Merge     | `mergeSessions(sessionIds, baseTitle)` | `POST /sessions/merge`; the server weaves and numbers the title.    |
+| Rename    | `renameSession(sessionId, newTitle)`   | `POST /session/rename`; returns `false` when missing.               |
+| Delete    | `deleteSession(sessionId)`             | `POST /session/delete`; removes the directory and the chat DB row.  |
 
 Source: [`ChatSessionStore.kt`](../plugin/src/main/kotlin/gradum/idea/chat/history/ChatSessionStore.kt).
 
@@ -1220,18 +1220,18 @@ Sources: [`ManageSessionsBoard.kt`](../plugin/src/main/kotlin/gradum/idea/chat/u
 
 Deleting one user message withdraws the turn instead of the whole session:
 
-1. **Entry point** — hovering a user bubble shows the action row (`MessageCopyButton`, expand/collapse, and a Reset
+1. **Entry point**: hovering a user bubble shows the action row (`MessageCopyButton`, expand/collapse, and a Reset
    button with the `gradum.reset.tooltip` tooltip). Clicking Reset opens a confirmation popup (`gradum.delete.confirm` /
    `gradum.delete.action`); confirming calls `onDeleteMessage`, wired in
    [`GradumUI.kt`](../plugin/src/main/kotlin/gradum/idea/ui/GradumUI.kt) to
    `GradumChatSession.deleteMessage(index)`.
-2. **Server-side rewind first** — `deleteMessage` validates the index is a user message, then calls
+2. **Server-side rewind first**: `deleteMessage` validates the index is a user message, then calls
    `POST /session/rewind {projectRoot, sessionId, messageId}` (only when an active server session and a non-blank
    `messageId` exist; a turn the server never saw has nothing to undo). The server truncates its stored context at that
    message (`ContextManager.rewindTo`), so `context.json` and the on-screen transcript stay aligned. Unknown ids answer
    `404 {"status":"message_not_found"}` and a failed call raises a `gradum.rewind.failed.*` notification; either way the
    bubble stays. The route carries the same strict-child path-traversal guard as `/session/delete`.
-3. **Local withdrawal on success** — only once the rewind is accepted does it remove the user message **and** the
+3. **Local withdrawal on success**: only once the rewind is accepted does it remove the user message **and** the
    assistant reply that follows it; if the conversation becomes empty it resets the send state and clears the
    conversation. The withdrawn text is prepended into the input field (position 0) so the user can edit and re-send it,
    without clobbering anything already typed.
@@ -1245,7 +1245,7 @@ Source: [`GradumChatSession.kt`](../plugin/src/main/kotlin/gradum/idea/chat/stat
 
 ## 21. Settings pages
 
-The plugin registers one IDE settings page — **Settings → Tools → Gradum**
+The plugin registers one IDE settings page: **Settings -> Tools -> Gradum**
 (`<applicationConfigurable id="gradum.settings">` in
 [`plugin.xml`](../plugin/src/main/resources/META-INF/plugin.xml), `instance` of `GradumConfigurable`; the
 `implementation`
@@ -1254,7 +1254,7 @@ attribute is silently ignored by that EP). It is a single scrolling page grouped
 | Group              | Contents                                                                                                                                                                                                                                                                                                                                                                                                |
 |--------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Mainly and Updates | Build stamp (`gradum.settings.devtools.builtAt`) with a copy button, OSS notices link (`ThirdPartyNoticesDialog`), repository link, component list, **Check for Update**, auto-open-after-update toggle                                                                                                                                                                                                 |
-| Model Providers    | `ApiProviderSettings()` — local rows for `ollama` (base URL, API key, *auto-filter* toggle) and `lmstudio` (base URL, API key, *allow remote* toggle), a keep-alive row (enabled + minutes), and `CloudProviderTabsSection` for the cloud kinds (`zhipu`, `deepseek`, `minimax`). Every row has base URL, API key, a **Test** button that POSTs `/provider/probe`, and an enable/disable switch         |
+| Model Providers    | `ApiProviderSettings()`: local rows for `ollama` (base URL, API key, *auto-filter* toggle) and `lmstudio` (base URL, API key, *allow remote* toggle), a keep-alive row (enabled + minutes), and `CloudProviderTabsSection` for the cloud kinds (`zhipu`, `deepseek`, `minimax`). Every row has base URL, API key, a **Test** button that POSTs `/provider/probe`, and an enable/disable switch          |
 | Appearance         | Paragraph density + font size, code-block font size, timestamp / collapse-thinking / model-name / auto-scroll / sticky-section toggles, copy-retry-like-dislike action toggles, welcome layout presets (`qs0_rc6` … `qs5_rc1`: quick-start tiles vs recent rows), remember-permission, session auto-cleanup (30–365 days), message-load window (20–300), feature toggles (`agentEnabled`, `gitEnabled`) |
 | Danger zone        | Reset-to-defaults for the appearance settings                                                                                                                                                                                                                                                                                                                                                           |
 
@@ -1265,7 +1265,7 @@ attribute is silently ignored by that EP). It is a single scrolling page grouped
   in `AppearanceSettings` (`PersistentStateComponent`) and is handed to Compose through
   `AppearanceProvider`'s `CompositionLocal`s, so a settings change takes effect without restarting the tool window.
 - `rememberPermission` + `lastPermission` are what let the permission selector come back as `read_only` (or whatever the
-  user left it on) instead of always resetting — see [Section 9](#9-permission-selector).
+  user left it on) instead of always resetting: see [Section 9](#9-permission-selector).
 - Provider edits are persisted by `ProviderSettings` (`PersistentStateComponent`) **and** mirrored into the server-side
   config file (`ProviderConfigFile`), whose fingerprint the server uses to invalidate its model `HealthCache`. A probe
   that succeeds triggers an immediate `loadModels()`, so the roster updates without waiting for the 3 s poll

@@ -355,7 +355,7 @@ class GradumMarkdownBlockSplitTest {
       "before",
       (segments[0] as MarkdownSegment.Plain).text
     )
-    assertTrue("segment 1 should be Plain (HtmlBlock → strip)", segments[1] is MarkdownSegment.Plain)
+    assertTrue("segment 1 should be Plain (HtmlBlock -> strip)", segments[1] is MarkdownSegment.Plain)
     assertEquals(
       "trace content",
       (segments[1] as MarkdownSegment.Plain).text

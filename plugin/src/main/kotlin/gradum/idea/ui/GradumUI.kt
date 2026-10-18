@@ -70,7 +70,7 @@ private fun truncateToMaxLines(content: String): String {
   val lines = content.lines()
   return if (lines.size > MAX_MARKDOWN_LINES) {
     lines.take(n = MAX_MARKDOWN_LINES).joinToString(separator = "\n") +
-      "**Truncated to $MAX_MARKDOWN_LINES lines — this Markdown file has ${lines.size} lines**"
+      "**Truncated to $MAX_MARKDOWN_LINES lines: this Markdown file has ${lines.size} lines**"
   } else content
 }
 

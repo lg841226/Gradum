@@ -60,7 +60,7 @@ class AcpServer(internal val runtime: GradumRuntime) {
   internal var clientTerminalAuthEnabled: Boolean = false
 
   /**
-   * In-flight agent→client requests (today: `session/request_permission`),
+   * In-flight agent->client requests (today: `session/request_permission`),
    * keyed by the outbound id. Outbound ids are negative so they can never
    * collide with the client's own request ids; [sendClientRequest] parks on
    * the matching deferred and [completeOutboundRequest] resolves it when the
@@ -212,7 +212,7 @@ class AcpServer(internal val runtime: GradumRuntime) {
   }
 
   /**
-   * Sends an agent→client JSON-RPC request and parks until the client answers.
+   * Sends an agent->client JSON-RPC request and parks until the client answers.
    *
    * There is deliberately **no timeout**: the caller blocks however long the
    * client takes (matching [PendingQuestions]' no-timeout ask channel). The

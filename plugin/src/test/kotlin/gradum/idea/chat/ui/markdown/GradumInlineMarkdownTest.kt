@@ -351,7 +351,7 @@ class GradumInlineMarkdownTest {
   fun `inline image renders alt text as italic placeholder and does NOT register a URL annotation`() {
     val render: InlineMarkdownRender = inlineRender("see ![diagram](https://example.com/diagram.png)")
     assertEquals(
-      "image must not register a URL annotation — it is a placeholder, not a link",
+      "image must not register a URL annotation: it is a placeholder, not a link",
       0,
       render.urlAnnotations.size,
     )
@@ -710,7 +710,7 @@ class GradumInlineMarkdownTest {
 
   @Test
   fun `cjkAwareWidthRatio for pure Latin uses latin ratio`() {
-    // 5 ASCII chars × 0.6 = 3.0
+    // 5 ASCII chars x 0.6 = 3.0
     assertEquals(
       3.0f,
       cjkAwareWidthRatio("hello"),
@@ -720,7 +720,7 @@ class GradumInlineMarkdownTest {
 
   @Test
   fun `cjkAwareWidthRatio for pure CJK uses CJK ratio`() {
-    // 3 Chinese ideographs × 1.0 = 3.0: much wider than the
+    // 3 Chinese ideographs x 1.0 = 3.0: much wider than the
     // previous Latin-only `0.6f * 3 = 1.8` would have allocated. This
     // is the bug the user reported: chip clipped Chinese code spans
     // because the old computation under-allocated width for full-width
@@ -734,7 +734,7 @@ class GradumInlineMarkdownTest {
 
   @Test
   fun `cjkAwareWidthRatio for mixed CJK and Latin sums per char`() {
-    // "中a文": 2 CJK × 1.0 + 1 Latin × 0.6 = 2.6
+    // "中a文": 2 CJK x 1.0 + 1 Latin x 0.6 = 2.6
     assertEquals(
       2.6f,
       cjkAwareWidthRatio("中a文"),
@@ -744,10 +744,10 @@ class GradumInlineMarkdownTest {
 
   @Test
   fun `cjkAwareWidthRatio recognizes full-width punctuation`() {
-    // "，" (U+FF0C) is full-width comma → CJK ratio.
+    // "，" (U+FF0C) is full-width comma -> CJK ratio.
     // "a,b": comma is ASCII Latin; "a，b": comma is full-width.
-    assertEquals(1.8f, cjkAwareWidthRatio("a,b"), 0.0001f) // 3 × 0.6
-    assertEquals(2.2f, cjkAwareWidthRatio("a，b"), 0.0001f) // 2 × 0.6 + 1 × 1.0
+    assertEquals(1.8f, cjkAwareWidthRatio("a,b"), 0.0001f) // 3 x 0.6
+    assertEquals(2.2f, cjkAwareWidthRatio("a，b"), 0.0001f) // 2 x 0.6 + 1 x 1.0
   }
 
   @Test
@@ -781,7 +781,7 @@ class GradumInlineMarkdownTest {
   // parseInlineNodes: the AST-walking entry point used by
   // RenderHeading to avoid the serialize-then-re-parse round-trip that
   // would change block structure for headings starting with a list
-  // marker (e.g. `### 2. **bold**` → `2. **bold**` → OrderedList,
+  // marker (e.g. `### 2. **bold**` -> `2. **bold**` -> OrderedList,
   // which bails the inline parser).
 
   @Test
@@ -900,7 +900,7 @@ class GradumInlineMarkdownTest {
     // Walking the AST directly preserves the formatting. Here we
     // build the Paragraph manually (the way RenderListItem /
     // RenderBlockQuoteChild do) and verify bold survives.
-    // AST: Document → OrderedList → ListItem → Paragraph → StrongEmphasis.
+    // AST: Document -> OrderedList -> ListItem -> Paragraph -> StrongEmphasis.
     // The `1. ` is the ListItem's marker (rendered separately by the
     // list renderer), NOT a Text child of the Paragraph: so the
     // Paragraph's children are just `**bold item**`.
@@ -938,7 +938,7 @@ class GradumInlineMarkdownTest {
     // same lossy round-trip as the heading case: commonmark
     // re-interpreted the leading `1. ` as an OrderedList, the inline
     // parser bailed, the bold was lost. Walking the AST keeps it.
-    // AST: Document → BlockQuote → OrderedList → ListItem → Paragraph → StrongEmphasis
+    // AST: Document -> BlockQuote -> OrderedList -> ListItem -> Paragraph -> StrongEmphasis
     val parser: Parser = Parser.builder().build()
     val blockQuote: BlockQuote = parser.parse("> 1. **bold quote**").firstChild as BlockQuote
     val paragraphNode: Paragraph =

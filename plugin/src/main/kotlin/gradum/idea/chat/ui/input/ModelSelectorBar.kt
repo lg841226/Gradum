@@ -255,7 +255,7 @@ private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () ->
 
 /**
  * Renders the official parameter count as a badge label, trimming the
- * trailing `.0` (8.0 → "8B", 7.6 → "7.6B").
+ * trailing `.0` (8.0 -> "8B", 7.6 -> "7.6B").
  */
 private fun formatParameterSize(sizeB: Double): String =
   if (sizeB % 1.0 == 0.0) "${sizeB.toInt()}B" else "${sizeB}B"

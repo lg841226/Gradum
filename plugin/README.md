@@ -1,7 +1,7 @@
 # Gradum IntelliJ IDEA Plugin
 
 A full-featured AI chat panel and Git analysis tool window for IntelliJ IDEA, built with Jetpack Compose
-and Jewel UI. This plugin is the IDE frontend of the Gradum ecosystem — it communicates with the
+and Jewel UI. This plugin is the IDE frontend of the Gradum ecosystem: it communicates with the
 Gradum server to provide AI-powered coding assistance within the IDE.
 
 > [!WARNING]
@@ -14,16 +14,16 @@ Gradum server to provide AI-powered coding assistance within the IDE.
 
 The plugin adds the following to IntelliJ IDEA:
 
-- **AI Chat Panel** — A persistent chat interface powered by the Gradum server, supporting
+- **AI Chat Panel**: A persistent chat interface powered by the Gradum server, supporting
   multi-turn conversations, tool calling, sub-agent delegation, and Markdown rendering with
   tables, LaTeX, and task lists.
-- **Git Analysis Tool Window** — Automated commit-message and PR analysis powered by AI.
-- **Multi-Provider Support** — Seamless switching between cloud-hosted and local LLM providers (OpenAI, Anthropic,
+- **Git Analysis Tool Window**: Automated commit-message and PR analysis powered by AI.
+- **Multi-Provider Support**: Seamless switching between cloud-hosted and local LLM providers (OpenAI, Anthropic,
   DeepSeek, Zhipu AI, Ollama, LM Studio, and more).
-- **Provider Discovery** — Automatic detection of running local providers via WebSocket probe.
-- **Custom Skills** — Extensible tool system that allows the AI to read, search, edit, and run
+- **Provider Discovery**: Automatic detection of running local providers via WebSocket probe.
+- **Custom Skills**: Extensible tool system that allows the AI to read, search, edit, and run
   commands within the project.
-- **Sub-Agent Delegation** — The main AI agent can spawn sub-agents for parallel, isolated tasks
+- **Sub-Agent Delegation**: The main AI agent can spawn sub-agents for parallel, isolated tasks
   with independent conversation history.
 
 ## Prerequisites
@@ -35,12 +35,12 @@ The plugin adds the following to IntelliJ IDEA:
 | JDK           | 21+ (IDE runtime)              |
 | Gradle        | 8.x (via wrapper)              |
 
-> The plugin is a **frontend only** — it requires the Gradum server to be running. See the
+> The plugin is a **frontend only**: it requires the Gradum server to be running. See the
 > [main project README](../README.md#quick-start) for server setup instructions.
 
 ## Special Build Setup
 
-The plugin depends on Jewel, Compose for Desktop, and Skiko — all of which are bundled with IntelliJ
+The plugin depends on Jewel, Compose for Desktop, and Skiko: all of which are bundled with IntelliJ
 IDEA 2026.2 but **not exposed to plugins** through the standard `bundledModule` mechanism. To work
 around this:
 
@@ -92,7 +92,7 @@ These values declare IDE compatibility as IntelliJ IDEA 2025.1, **not** 2026.2. 
 
 - The plugin uses `<depends>com.intellij.modules.platform</depends>` in `plugin.xml`. JetBrains
   Marketplace and the IDE's plugin verifier only check the `pluginSinceBuild`/`pluginUntilBuild`
-  range against this dependency — no actual API compatibility is verified.
+  range against this dependency: no actual API compatibility is verified.
 - The plugin does **not** use any IntelliJ Platform APIs that changed between 251 and 262. All
   UI is rendered through Jetpack Compose/Jewel, which is loaded from the vendored JARs, not the
   IDE's bundled modules.
@@ -103,7 +103,7 @@ These values declare IDE compatibility as IntelliJ IDEA 2025.1, **not** 2026.2. 
 ### 3. Why Not `bundledModule`?
 
 The IDE 2026.2 places all Jewel/Compose/Skiko modules under the `JetBrains` namespace. The plugin
-`<depends>` element only accepts `com.intellij.modules.*` IDs — the IDE rejects any
+`<depends>` element only accepts `com.intellij.modules.*` IDs: the IDE rejects any
 `intellij.platform.jewel.*` entry with "requires plugin ... to be installed" at load time. Direct
 `implementation(files(...))` is the only reliable way to put these classes on the plugin's classpath.
 
@@ -151,7 +151,7 @@ plugin/
 
 ## Troubleshooting
 
-### Missing `plugin/libs/` — Build fails with compilation errors
+### Missing `plugin/libs/`: Build fails with compilation errors
 
 The vendored JARs are gitignored and not included in the repository. Run the copy commands from
 [section 1](#1-copy-ide-jars-to-pluginlibs) above.

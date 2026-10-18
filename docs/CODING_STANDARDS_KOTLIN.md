@@ -76,7 +76,7 @@ catch (ioException: IOException) {
 **Incorrect:**
 
 ```kotlin
-val retry: Int = 3           // too short — "retry" of what?
+val retry: Int = 3           // too short: "retry" of what?
 val id: String = "msg-42"     // id of what?
 val path: String = "..."      // path of what?
 fun load(): AgentConfiguration = ...   // loadProperties what?
@@ -224,11 +224,11 @@ stack traces into the chat or strips the technical detail the LLM needs to self-
   not open.
 
 ```kotlin
-// correct — split between the two audiences
-val errorMessage: String = "ReadFile failed: ${ioException.message}"  // → LLM
-val userMessage: String = message("gradum.error.read.failed")          // → user
+// correct: split between the two audiences
+val errorMessage: String = "ReadFile failed: ${ioException.message}"  // -> LLM
+val userMessage: String = message("gradum.error.read.failed")          // -> user
 
-// incorrect — user sees the stack trace
+// incorrect: user sees the stack trace
 val userMessage: String = "ReadFile failed: ${ioException.message}"
 ```
 
@@ -719,7 +719,7 @@ named after the exception type, never the generic `e` / `ex` / `exception` / `th
 failure mode at the call site.
 
 ```kotlin
-// correct — name derived from the exception type
+// correct: name derived from the exception type
 try {
     val configBytes: ByteArray = configPath.readBytes()
 } catch (ioException: IOException) {
@@ -741,7 +741,7 @@ try {
     return retryWithBackoff(url)
 }
 
-// incorrect — generic 'e' / 'ex' names tell the reader nothing
+// incorrect: generic 'e' / 'ex' names tell the reader nothing
 try {
     val result: String = riskyOperation()
 } catch (e: Exception) {
@@ -749,7 +749,7 @@ try {
     return makeFailure("OPERATION_FAILED", e.message ?: "Unknown error")
 }
 
-// incorrect — missing logger in important catch block
+// incorrect: missing logger in important catch block
 try {
     val result: String = riskyOperation()
 } catch (ioException: IOException) {

@@ -198,7 +198,7 @@ class ToolModeGateTest {
     assertNotEquals(
       (result["error"] as? Map<*, *>)?.get("code"),
       ErrorCode.TOOL_NOT_PERMITTED.name,
-      "AGENT mode must NOT reject write_file — only the mode gate should not fire, " +
+      "AGENT mode must NOT reject write_file: only the mode gate should not fire, " +
         "result was: $result"
     )
     assertEquals(

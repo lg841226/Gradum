@@ -25,7 +25,7 @@ import kotlin.test.*
  * The fix sets `historyKeepCount = Int.MAX_VALUE` and an empty
  * `historyVolatileKeys`, so the LLM-visible result always
  * carries the full file content. The test below pins that
- * behavior: it exercises the full `execute` →
+ * behavior: it exercises the full `execute` ->
  * `prepareHistoryResult` pipeline five times on the same skill
  * instance and asserts that `content` survives every call.
  *
@@ -79,11 +79,11 @@ class ReadFileSkillPrepareHistoryTest {
 
       assertTrue(
         history.containsKey("content"),
-        "call #$i: `content` was stripped from the history result — keys present: ${history.keys}"
+        "call #$i: `content` was stripped from the history result: keys present: ${history.keys}"
       )
       assertTrue(
         history.containsKey("path"),
-        "call #$i: `path` was stripped from the history result — keys present: ${history.keys}"
+        "call #$i: `path` was stripped from the history result: keys present: ${history.keys}"
       )
 
       val rendered: String = when (val content: Any = history["content"]!!) {
@@ -124,7 +124,7 @@ class ReadFileSkillPrepareHistoryTest {
 
       assertTrue(
         history.containsKey("content"),
-        "call #$i (lineRange=2-3): `content` was stripped — keys: ${history.keys}"
+        "call #$i (lineRange=2-3): `content` was stripped: keys: ${history.keys}"
       )
       val rendered: String =
         when (val content: Any = history["content"]!!) {

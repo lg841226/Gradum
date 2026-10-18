@@ -85,7 +85,7 @@ internal fun McpServersSettings() {
    * Writes the working copy back to the file. Env maps are not part of
    * the working copy: they are edited directly in settings.json through
    * the form's open-in-editor button, so every write re-reads them from
-   * disk by name and splices them into the entries being saved — a
+   * disk by name and splices them into the entries being saved: a
    * panel edit can never revert an env change made in the IDE editor.
    * [providedEnvs] overrides the splice for entries whose env should
    * come from somewhere else instead of the file (the online registry
@@ -152,7 +152,7 @@ internal fun McpServersSettings() {
    * Imports a result from the official online registry: builds the stdio
    * command entry, uniquifies the short name against existing tabs, and
    * pre-fills the env hints the registry advertised. The entry lands in
-   * settings.json immediately like any other edit — the embedded server
+   * settings.json immediately like any other edit: the embedded server
    * picks it up after the next runtime restart.
    */
   fun onAddFromRegistry(result: McpRegistryResult) {
@@ -253,8 +253,8 @@ internal fun McpServersSettings() {
 }
 
 /**
- * Removable capsule tab for one MCP server — a direct copy of the
- * cloud-provider tab: click selects the server, the trailing "×"
+ * Removable capsule tab for one MCP server: a direct copy of the
+ * cloud-provider tab: click selects the server, the trailing "x"
  * removes it and shifts the selection one tab to the left.
  */
 @Composable

@@ -13,7 +13,7 @@ import gradum.idea.utils.GradumSpacing
  * punched out of it with [BlendMode.DstOut]: fully opaque at the very edge
  * (content ends at zero alpha) and ramping to transparent over [fadeLength],
  * so the cut reads as a gentle fade instead of a razor-sharp rectangle edge.
- * Each edge can be disabled independently via [fadeTop] / [fadeBottom] — a
+ * Each edge can be disabled independently via [fadeTop] / [fadeBottom]: a
  * list scrolled to its top has no hidden content above, so its top edge does
  * not need the fade. Only the layer's own pixels are affected, never the chat
  * background behind it, and no shadow/drop-shadow is involved.

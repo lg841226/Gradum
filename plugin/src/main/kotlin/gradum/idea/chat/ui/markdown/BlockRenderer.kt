@@ -167,7 +167,7 @@ private fun RenderHeading(heading: Heading, onUrlClick: (String) -> Unit) {
  * Render an unordered list. Each item is its own [RenderListItem] row; the
  * marker column reserves [MarkdownStyle.Block.UNORDERED_MARKER_MIN_WIDTH]. Nested bullet
  * lists recurse with `indentDepth + 1`. The visible start-padding is
- * "one step if nested, zero otherwise", not `indentDepth × step`, so
+ * "one step if nested, zero otherwise", not `indentDepth x step`, so
  * deeply-nested lists stay aligned instead of stair-stepping off-screen.
  */
 @OptIn(ExperimentalJewelApi::class)
@@ -406,7 +406,7 @@ private fun RenderTaskListItem(
 }
 
 /**
- * Stripped-paragraph → CheckboxRow helper. The marker is removed
+ * Stripped-paragraph -> CheckboxRow helper. The marker is removed
  * from a synthetic `Paragraph` (so the original AST is untouched and
  * the serializer's round-trip is preserved) and the inline children
  * walk through [rememberInlineMarkdownRenderFromNode]: same path

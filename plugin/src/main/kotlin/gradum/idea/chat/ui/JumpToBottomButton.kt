@@ -53,8 +53,8 @@ private const val WIDTH_ANIMATION_DURATION_MS = 180
  * Floating "Jump to latest" / "Jump to top" pill.
  *
  * Two-mode button toggled by the Option (Alt) key:
- *  - **Default**: down arrow + "Jump to latest"; click → [onClick]
- *  - **Alternative**: up arrow + "Jump to top"; click → [onJumpToTop]
+ *  - **Default**: down arrow + "Jump to latest"; click -> [onClick]
+ *  - **Alternative**: up arrow + "Jump to top"; click -> [onJumpToTop]
  *
  * Mode is a sticky [mutableStateOf] flipped via [LocalWindowInfo] modifier stream on rising edge.
  *

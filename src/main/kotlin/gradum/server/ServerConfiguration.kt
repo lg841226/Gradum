@@ -33,8 +33,8 @@ data class ServerConfiguration(
    * per machine.
    *
    * Resolved from the first non-blank of: `GRADUM_OPENAI_API_KEY`
-   * → `BIGMODEL_API_KEY` → `DEEPSEEK_API_KEY` → `MiniMax_API_KEY`
-   * → `OPENAI_API_KEY`. Pass `null` to skip the lookup (default),
+   * -> `BIGMODEL_API_KEY` -> `DEEPSEEK_API_KEY` -> `MiniMax_API_KEY`
+   * -> `OPENAI_API_KEY`. Pass `null` to skip the lookup (default),
    * in which case providers without a per-request key fall back
    * to anonymous (works for local Ollama only).
    *
@@ -106,7 +106,7 @@ data class ServerConfiguration(
      * `DEEPSEEK_API_KEY`, `MiniMax_API_KEY`) win over the generic
      * `OPENAI_API_KEY` so that users who only configure one
      * vendor don't need to set the generic variable. The order
-     * is: explicit Gradum key → per-vendor keys → generic
+     * is: explicit Gradum key -> per-vendor keys -> generic
      * fallback. Adding a new provider here is a one-liner that
      * should mirror the `apiKeyEnvVar` declared in
      * [gradum.ModelIdentity.Discovery.baseKnownServers] so probe

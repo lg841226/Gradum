@@ -71,7 +71,7 @@ enum class ToolMode {
  *
  * - [CLOUD] Verbose, philosophy-rich prompt for frontier models (GPT-4, Claude).
  * - [LOCAL] Terse, rule-only prompt for small models (7B-14B).
- * - [AUTO] Based on [Provider]: OPENAI / DEEPSEEK / MINIMAX → CLOUD, others → LOCAL.
+ * - [AUTO] Based on [Provider]: OPENAI / DEEPSEEK / MINIMAX -> CLOUD, others -> LOCAL.
  */
 enum class PromptVariant {
   CLOUD, LOCAL, AUTO;
@@ -84,7 +84,7 @@ enum class PromptVariant {
 
     /**
      * Resolve an [AUTO] request to a concrete variant: every cloud provider
-     * (OPENAI / DEEPSEEK / MINIMAX) → CLOUD, local runtimes → LOCAL.
+     * (OPENAI / DEEPSEEK / MINIMAX) -> CLOUD, local runtimes -> LOCAL.
      */
     fun resolveAuto(provider: Provider): PromptVariant = when (provider) {
       Provider.OPENAI -> CLOUD

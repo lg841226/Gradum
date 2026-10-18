@@ -29,7 +29,7 @@ import gradum.idea.chat.ui.util.FaviconHostCache.Companion.MAX_ENTRIES
  *
  * ## Why a host key, not a URL key
  *
- * A `host → URL` mapping is the natural shape: the result row gives us
+ * A `host -> URL` mapping is the natural shape: the result row gives us
  * the host (from `result.url`), the chain is a function of the host,
  * and once we've discovered "github.com's working favicon is at
  * `https://github.githubassets.com/favicons/favicon.svg`", that's true
@@ -73,7 +73,7 @@ internal class FaviconHostCache(private val maxEntries: Int = MAX_ENTRIES) {
 
   private val lock: Any = Any()
 
-  /** `host → URL` for hosts where we know which chain member works. */
+  /** `host -> URL` for hosts where we know which chain member works. */
   private val winningUrls: MutableMap<String, String> = LinkedHashMap(maxEntries)
 
   /** Hosts where every chain member has failed. Capped at [maxEntries]. */

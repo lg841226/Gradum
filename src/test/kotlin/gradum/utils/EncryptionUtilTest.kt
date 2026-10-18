@@ -58,7 +58,7 @@ class EncryptionUtilTest {
 
   @Test
   fun `unicode plaintext roundtrips byte-perfectly`() {
-    val plaintext = "你好，Gradum！こんにちは 🌍 — émoji"
+    val plaintext = "你好，Gradum！こんにちは 🌍: émoji"
     val ciphertext: String = encryptMessageContent(plaintext)
     assertEquals(
       plaintext,

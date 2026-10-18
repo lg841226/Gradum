@@ -75,8 +75,8 @@ object ServerAuth {
   fun tokenFile(): File = File(ServerSettingsStore.configDir(), TOKEN_FILE_NAME)
 
   /**
-   * Resolves the server token. Precedence: [ENV_TOKEN] → existing
-   * non-blank token file → freshly generated value (persisted 0600).
+   * Resolves the server token. Precedence: [ENV_TOKEN] -> existing
+   * non-blank token file -> freshly generated value (persisted 0600).
    * Never throws: if the file cannot be written the generated token is
    * still returned so the server can start.
    */

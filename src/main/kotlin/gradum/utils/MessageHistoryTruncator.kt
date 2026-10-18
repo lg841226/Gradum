@@ -64,9 +64,9 @@ fun takeLastTurns(messages: List<Map<String, Any>>, maxTurns: Int): List<Map<Str
  * turn, return the index of the *first* message of that turn.
  *
  * Rules:
- *  - If `messages[tailIndex]` is a `user` or `assistant` message →
+ *  - If `messages[tailIndex]` is a `user` or `assistant` message ->
  *    return `tailIndex` (single-message turn).
- *  - If it's a `tool` message → walk back over the contiguous run
+ *  - If it's a `tool` message -> walk back over the contiguous run
  *    of preceding `tool` messages, then include the `assistant`
  *    message that issued those `tool_calls` (it must exist; if not,
  *    the orphan tool messages form their own turn).

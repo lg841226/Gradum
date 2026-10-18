@@ -117,7 +117,7 @@ sealed interface InlineSegment {
   data class LinkSegment(val text: String, val url: String) : InlineSegment
 }
 
-/** Outcome of an inline parse. `render == null` → caller falls back to native `Markdown(...)`. */
+/** Outcome of an inline parse. `render == null` -> caller falls back to native `Markdown(...)`. */
 data class InlineMarkdownRenderResult(val render: InlineMarkdownRender?, val bailReason: String?)
 
 /**
@@ -222,7 +222,7 @@ internal fun dollarLatexCodeSpanRanges(rawText: String): List<IntRange> {
 /** Regex matching PUA chars in the pre-processed LaTeX marker range (U+E100–U+E2FF). */
 internal val INLINE_LATEX_PAREN_MARKER_REGEX: Regex = Regex(pattern = """[\uE100-\uE2FF]""")
 
-/** Pure CommonMark → `AnnotatedString` walk. Theme values passed in by the caller. */
+/** Pure CommonMark -> `AnnotatedString` walk. Theme values passed in by the caller. */
 internal fun parseInlineMarkdown(
   linkColor: Color,
   plainText: String,
@@ -483,7 +483,7 @@ private fun buildInlineRender(
       parenLatexFormulas = config.parenLatexFormulas
     )
     val preview: String = plainText.take(n = BAIL_REASON_LOG_PREVIEW_CHARS).replace("\n", " ")
-    log.debug("InlineMarkdown: parse start — text.length=${plainText.length}, fontSizeSp=${config.fontSizeSp}, text=$preview")
+    log.debug("InlineMarkdown: parse start: text.length=${plainText.length}, fontSizeSp=${config.fontSizeSp}, text=$preview")
     val annotatedString: AnnotatedString = buildAnnotatedString {
       val builder: AnnotatedString.Builder = this
       topBlocks.forEachIndexed { blockIndex, blockNode ->
@@ -493,7 +493,7 @@ private fun buildInlineRender(
         )
       }
     }
-    log.debug("InlineMarkdown: parse done — inlineContent.keys=${renderState.inlineContent.keys}")
+    log.debug("InlineMarkdown: parse done: inlineContent.keys=${renderState.inlineContent.keys}")
     InlineMarkdownRenderResult(
       render = InlineMarkdownRender(
         annotated = annotatedString,
