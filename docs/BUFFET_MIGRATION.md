@@ -212,8 +212,9 @@ Split into five shippable sub-steps:
   client-side vision guess (`gradum.model.no.vision`) are deleted, and the
   bundle key with them. `ModelsListResponse` moves to its only remaining
   consumer, `GradumChatSession`.
-- **5e — Server-first rewind ⬜.** `deleteMessage` calls the server first and
-  removes the bubble only on success (no optimistic delete).
+- **5e — Server-first rewind ✅.** `deleteMessage` asks the server to truncate
+  first and withdraws the bubble only on a `200`, so a failed rewind leaves the
+  history and the input untouched and reports `gradum.rewind.failed.*` instead.
 
 Acceptance: creating, merging, rewind, and "model gone" flows produce no
 client-authoritative ids or decisions.
@@ -273,5 +274,5 @@ payoff step and the riskiest, so it goes last.
 | 5b   | ✅ done    | this PR   | sidecar-only cold load; `ChatTranscript` + Markdown endpoints deleted; 473 server + 490 plugin green     |
 | 5c   | ✅ done    | this PR   | `/events` allocates both ids; plugin `nextSessionId` + message UUIDs deleted; 474 server + 492 plugin green |
 | 5d   | ✅ done    | this PR   | `GET /models` probe is reachability only; model + vision guesses deleted; 474 server + 492 plugin green  |
-| 5e   | ⬜         | —         | rewind becomes server-first, then local                                                                  |
+| 5e   | ✅ done    | this PR   | `deleteMessage` rewinds server-first; bubble withdrawn on success; 474 server + 492 plugin green         |
 | 5.5  | ⬜         | —         | thin the plugin (drop event assembly)                                                                    |

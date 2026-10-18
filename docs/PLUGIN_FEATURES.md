@@ -1224,15 +1224,16 @@ Deleting one user message withdraws the turn instead of the whole session:
    `gradum.delete.action`); confirming calls `onDeleteMessage`, wired in
    [`GradumUI.kt`](../plugin/src/main/kotlin/gradum/idea/ui/GradumUI.kt) to
    `GradumChatSession.deleteMessage(index)`.
-2. **Local withdrawal** — `deleteMessage` validates the index is a user message, removes it **and** the assistant reply
-   that follows it; if the conversation becomes empty it resets the send state and clears the conversation. The
-   withdrawn text is prepended into the input field (position 0) so the user can edit and re-send it, without clobbering
-   anything already typed.
-3. **Server-side rewind** — it then fires `POST /session/rewind {projectRoot, sessionId, messageId}` (fire-and-forget,
-   only when an active server session and a non-blank `messageId` exist) and re-saves the transcript. The server
-   truncates its stored context at that message (`ContextManager.rewindTo`), so `context.json` and the on-screen
-   transcript stay aligned. Unknown ids answer `404 {"status":"message_not_found"}`, which the client ignores.
-   The route carries the same strict-child path-traversal guard as `/session/delete`.
+2. **Server-side rewind first** — `deleteMessage` validates the index is a user message, then calls
+   `POST /session/rewind {projectRoot, sessionId, messageId}` (only when an active server session and a non-blank
+   `messageId` exist; a turn the server never saw has nothing to undo). The server truncates its stored context at that
+   message (`ContextManager.rewindTo`), so `context.json` and the on-screen transcript stay aligned. Unknown ids answer
+   `404 {"status":"message_not_found"}` and a failed call raises a `gradum.rewind.failed.*` notification; either way the
+   bubble stays. The route carries the same strict-child path-traversal guard as `/session/delete`.
+3. **Local withdrawal on success** — only once the rewind is accepted does it remove the user message **and** the
+   assistant reply that follows it; if the conversation becomes empty it resets the send state and clears the
+   conversation. The withdrawn text is prepended into the input field (position 0) so the user can edit and re-send it,
+   without clobbering anything already typed.
 
 Source: [`GradumChatSession.kt`](../plugin/src/main/kotlin/gradum/idea/chat/state/GradumChatSession.kt),
 [`UserChatBubble.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/UserChatBubble.kt),

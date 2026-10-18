@@ -331,31 +331,57 @@ class GradumChatSession : Disposable {
       .notify(notificationProject)
   }
 
+  private fun notifyRewindFailed() {
+    val notificationProject: Project = project ?: return
+    NotificationGroupManager.getInstance()
+      .getNotificationGroup("Gradum")
+      .createNotification(
+        title = message("gradum.rewind.failed.title"),
+        content = message("gradum.rewind.failed.content"),
+        type = NotificationType.ERROR
+      )
+      .notify(notificationProject)
+  }
+
   fun deleteMessage(userMessageIndex: Int) {
     if (userMessageIndex !in messages.indices) return
     if (!messages[userMessageIndex].isUserMessage) return
 
-    val withdrawn: ChatMessage = messages[userMessageIndex]
-    val withdrawnContent: String = withdrawn.content
-    val messageId: String = withdrawn.messageId
-
-    while (messages.size > userMessageIndex) {
-      messages.removeAt(userMessageIndex)
-    }
-    if (messages.isEmpty()) {
-      clearSendState()
-      hasSentMessage = false
-      clearConversationState()
-    }
-
-    if (withdrawnContent.isNotBlank()) {
-      textState.edit { replace(start = 0, end = 0, withdrawnContent) }
-    }
-
     val sessionKey: String? = activeSessionId
     val projectRoot: String? = project?.basePath
-    if (sessionKey != null && projectRoot != null && messageId.isNotBlank()) {
-      scope?.launch { apiClient.rewindSession(projectRoot, sessionKey, messageId) }
+    val messageId: String = messages[userMessageIndex].messageId
+
+    scope?.launch {
+      // The server owns the history, so the bubble goes only once the rewind
+      // is accepted; a turn the server never saw has nothing to undo.
+      val rewound: Boolean =
+        if (sessionKey != null && projectRoot != null && messageId.isNotBlank())
+          apiClient.rewindSession(projectRoot, sessionKey, messageId)
+        else true
+
+      if (!rewound) {
+        notifyRewindFailed()
+        return@launch
+      }
+      if (userMessageIndex !in messages.indices ||
+        messages[userMessageIndex].messageId != messageId
+      ) {
+        return@launch
+      }
+
+      val withdrawnContent: String = messages[userMessageIndex].content
+      while (messages.size > userMessageIndex) {
+        messages.removeAt(userMessageIndex)
+      }
+      if (messages.isEmpty()) {
+        clearSendState()
+        hasSentMessage = false
+        clearConversationState()
+      }
+
+      if (withdrawnContent.isNotBlank()) {
+        textState.edit { replace(start = 0, end = 0, withdrawnContent) }
+      }
     }
   }
 
