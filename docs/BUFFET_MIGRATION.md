@@ -201,9 +201,12 @@ Split into five shippable sub-steps:
   long-standing `/session/rewind` wipe: the route no longer re-renders the
   transcript from the (empty, file-mode) chat DB, since `rewindTo` already
   re-renders sidecar + transcript from the surviving history.
-- **5c — Server-allocated ids ⬜.** The server allocates the session id and the
-  message id (the latter echoed back on `session_start`); the plugin stops
-  fabricating them.
+- **5c — Server-allocated ids ✅.** `/events` names the session when the request
+  omits one (`SessionIds.next()`), and the agent names the turn's user message
+  (a fresh UUID when omitted). Both are echoed on `session_start`, so the plugin
+  deleted `ChatSessionStore.nextSessionId` and every client-side message
+  `UUID.randomUUID()`: a fresh chat sends no session id, and the send path
+  adopts both from the envelope.
 - **5d — Availability ⬜.** Drop the client-side model pre-validation and vision
   guessing; the server rejects at request time. Runtime reachability stays as
   is (see §5, item 5).
@@ -266,7 +269,7 @@ payoff step and the riskiest, so it goes last.
 | 4b   | ✅ done    | `5900b18` | cold projection merges a turn's assistant records into one bubble                                        |
 | 5a   | ✅ done    | this PR   | server-side merge; client `interleaveMessages` / `nextMergeTitle` deleted; 472 server + 497 plugin green |
 | 5b   | ✅ done    | this PR   | sidecar-only cold load; `ChatTranscript` + Markdown endpoints deleted; 473 server + 490 plugin green     |
-| 5c   | ⬜         | —         | server allocates the session id and the message id                                                       |
+| 5c   | ✅ done    | this PR   | `/events` allocates both ids; plugin `nextSessionId` + message UUIDs deleted; 474 server + 492 plugin green |
 | 5d   | ⬜         | —         | drop client model pre-validation and vision guessing                                                     |
 | 5e   | ⬜         | —         | rewind becomes server-first, then local                                                                  |
 | 5.5  | ⬜         | —         | thin the plugin (drop event assembly)                                                                    |

@@ -1,7 +1,6 @@
 package gradum.idea.chat.state
 
 import gradum.idea.chat.api.GradumApiClient
-import gradum.idea.chat.history.ChatSessionStore
 import gradum.idea.chat.model.ChatErrorCode
 import gradum.idea.chat.model.ChatEvent
 import gradum.idea.chat.model.ModelInfo
@@ -27,9 +26,25 @@ internal data class ModelsListResponse(
   val models: List<ModelInfo>
 )
 
+/** Adopts the server-named session id and this turn's user-message id. */
+internal fun GradumChatSession.applySessionStart(payload: JsonObject?) {
+  payload?.get("sessionId")?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
+    ?.let { serverSessionId -> activeSessionId = serverSessionId }
+  payload?.get("messageId")?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
+    ?.let { serverMessageId -> adoptServerMessageId(serverMessageId) }
+}
+
+/** Stamps the id on this turn's user message, which `rewind` looks up. */
+private fun GradumChatSession.adoptServerMessageId(serverMessageId: String) {
+  val userIndex: Int = messages.indexOfLast { it.isUserMessage }
+  if (userIndex >= 0 && messages[userIndex].messageId != serverMessageId) {
+    messages[userIndex] = messages[userIndex].copy(messageId = serverMessageId)
+  }
+}
+
 internal suspend fun GradumChatSession.sendMessage(
   userMessage: String, attachments: List<AttachedContext> = emptyList(),
-  contextPath: String = "", toolCallXml: String? = null, messageId: String? = null
+  contextPath: String = "", toolCallXml: String? = null
 ) {
   var wasCancelled = false
   var receivedSessionEnd = false
@@ -121,8 +136,6 @@ internal suspend fun GradumChatSession.sendMessage(
     val loadContext = true
     sendingPhase = message("gradum.phase.distilling")
 
-    if (activeSessionId == null) activeSessionId = ChatSessionStore.nextSessionId()
-
     val imageAttachments: List<GradumApiClient.ApiImageAttachment> =
       attachments.filterIsInstance<AttachedImage>()
         .map { attachment ->
@@ -155,7 +168,6 @@ internal suspend fun GradumChatSession.sendMessage(
     apiClient.sendMessage(
       request = GradumApiClient.SendMessageRequest(
         toolMode = toolMode,
-        messageId = messageId,
         modelParams = modelConfig,
         toolCallXml = toolCallXml,
         loadContext = loadContext,
@@ -211,6 +223,7 @@ internal suspend fun GradumChatSession.sendMessage(
       when (messageType) {
         "session_start" -> {
           runId = event["runId"]?.jsonPrimitive?.content
+          applySessionStart(payload = payload)
         }
 
         "response" -> {

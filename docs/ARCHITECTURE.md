@@ -256,13 +256,17 @@ flowchart LR
 sessionDir(projectRoot, sessionId) = <projectRoot>/.gradum/sessions/<sessionId>
 ```
 
-- `sessionId` is a client-generated `yyyyMMdd-HHmmss-xxxxxx` id sent in every
-  `POST /events` request of the same chat thread. The `ContextManager`
-  (`contextOutputDirectory` in `Agent.kt`) writes that session's context to
-  `.gradum/sessions/<sessionId>/context.json`, so switching conversation switches model memory and "New Chat" (a fresh
-  id) genuinely forgets.
-- A blank/`null` `sessionId` falls back to the legacy
-  `<projectRoot>/.gradum/context.json` for old-clients compatibility.
+- The server names the session: the first `/events` with a blank `sessionId`
+  allocates one (`SessionIds.next()`, `yyyyMMdd-HHmmss-xxxxxx`) and echoes it on
+  `session_start`; the plugin adopts it and re-sends it every later turn. The
+  `ContextManager` (`contextOutputDirectory` in `Agent.kt`) writes that
+  session's context to `.gradum/sessions/<sessionId>/context.json`, so switching
+  conversation switches model memory and "New Chat" genuinely forgets.
+- The agent names the turn's user message (`messageId`) the same way, echoing it
+  on `session_start` so the plugin can rewind to it without inventing ids.
+- A blank/`null` `sessionId` never reaches the `ContextManager` through
+  `/events`; the legacy `<projectRoot>/.gradum/context.json` remains only for
+  callers that build an agent without a session id.
 - The server writes each session's transcript (`conversation.md`) and a rich
   `session-state.json` sidecar from one save; the plugin restores the exact
   bubble UI (thinking, tool calls + results, errors, token usage) from the

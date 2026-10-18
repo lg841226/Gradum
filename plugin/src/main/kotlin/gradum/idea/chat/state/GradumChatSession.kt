@@ -36,7 +36,6 @@ import kotlinx.serialization.json.Json
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.nio.file.Path
-import java.util.*
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -209,7 +208,7 @@ class GradumChatSession : Disposable {
     }
     clearSendState()
     runId = null
-    activeSessionId = chatStore?.let { ChatSessionStore.nextSessionId() }
+    activeSessionId = null
     currentSessionTitle = ""
     hasSentMessage = false
     clearConversationState()
@@ -370,13 +369,11 @@ class GradumChatSession : Disposable {
       val displayName: String = selectedModel?.name ?: ""
       val providerName: String = selectedModel?.provider ?: ""
       val serverLabel: String = selectedModel?.serverName ?: ""
-      val messageId: String = UUID.randomUUID().toString()
       messages.add(
         ChatMessage(
           role = "user",
           attachments = next.attachments,
-          content = next.content,
-          messageId = messageId
+          content = next.content
         )
       )
       messages.add(
@@ -395,7 +392,6 @@ class GradumChatSession : Disposable {
           userMessage = next.content,
           next.attachments,
           contextPath = "",
-          messageId = messageId,
         )
       }
     }

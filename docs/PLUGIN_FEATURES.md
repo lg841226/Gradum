@@ -1071,26 +1071,27 @@ The server owns `<projectRoot>/.gradum/sessions/`: after every turn it writes ea
 | Merge     | `mergeSessions(sessionIds, baseTitle)` | `POST /sessions/merge`; the server weaves and numbers the title.       |
 | Rename    | `renameSession(sessionId, newTitle)`   | `POST /session/rename`; returns `false` when missing.                  |
 | Delete    | `deleteSession(sessionId)`             | `POST /session/delete`; removes the directory and the chat DB row.     |
-| New id    | `nextSessionId()`                      | `yyyyMMdd-HHmmss-xxxxxx`, lexicographically sortable.                  |
 
-Source: [`ChatSessionStore.kt`](../plugin/src/main/kotlin/gradum/idea/chat/history/ChatSessionStore.kt),
-[`ChatSessionStoreTest.kt`](../plugin/src/test/kotlin/gradum/idea/chat/history/ChatSessionStoreTest.kt).
+Source: [`ChatSessionStore.kt`](../plugin/src/main/kotlin/gradum/idea/chat/history/ChatSessionStore.kt).
+
+The server also names each session: the first `/events` with a blank `sessionId`
+allocates one (`SessionIds.next()`) and echoes it on `session_start`, which the
+plugin adopts for later turns.
 
 ### 20.2 Session state (`GradumChatSession`)
 
 `GradumChatSession` (project-level service) owns the active session and exposes:
 
-- `currentSessionId`: the currently loaded session.
-- `currentSessionTitle`: the display title; persisted to disk on save.
+- `activeSessionId`: the currently loaded session; `null` until the server names one.
+- `currentSessionTitle`: the display title.
 - `sessions: SnapshotStateList<SessionMeta>`: live list of all saved sessions.
 - `mergeSelection: SnapshotStateList<String>`: IDs selected for merge/delete in the management board.
 - `isMergeModeActive`: whether the management board is visible.
 
 Key methods:
 
-- `switchSession(sessionId)`: saves the current session, loads the target.
-- `saveCurrentSession()`: persists the current message list under `currentSessionTitle`.
-- `reset()`: clears messages, enters merge mode if needed, generates a new session.
+- `switchSession(sessionId)`: cold-loads the target projection from the server.
+- `reset()`: clears messages and the active id; the next send starts a server-named session.
 - `enterMergeMode()` / `exitMergeMode()`: toggles the management board.
 - `mergeSelectedSessions()`: performs the N-way merge and refreshes the list.
 - `deleteSessions(ids)`: batch-deletes multiple sessions.

@@ -81,6 +81,20 @@ class DebugPlaybackEndToEndTest {
       )
     }
 
+  @Test
+  fun `session start carries the server-allocated ids when the request omits them`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+    val project = Files.createTempDirectory("gradum_playback_ids_")
+    val body = postScenario(client, project, scenarioXml = """<tls nam="ids"><tt>hello</tt></tls>""")
+
+    val start: String = body.lines().first { it.contains(other = "\"type\":\"session_start\"") }
+    val sessionId: String = Regex(""""sessionId":"([^"]*)"""").find(start)?.groupValues?.get(1).orEmpty()
+    val messageId: String = Regex(""""messageId":"([^"]*)"""").find(start)?.groupValues?.get(1).orEmpty()
+
+    assertTrue(sessionId.isNotBlank(), "the server should name the session")
+    assertTrue(messageId.isNotBlank(), "the server should name the turn's user message")
+  }
+
   /**
    * Playback is only the vehicle here: it produces a deterministic NDJSON
    * stream without an LLM, which is what this test needs to check the
@@ -461,18 +475,18 @@ class DebugPlaybackEndToEndTest {
   }
 
   @Test
-  fun `context falls back to legacy file when sessionId is absent`(): Unit = testApplication {
+  fun `allocates a session when sessionId is absent`(): Unit = testApplication {
     application { module(ServerConfiguration()) }
-    val project = Files.createTempDirectory("gradum_playback_legacy_")
+    val project = Files.createTempDirectory("gradum_playback_alloc_")
     postScenario(client, project, scenarioXml = """<tls nam="ctx_legacy"><t nam="read_file" pth="x.txt" exp="error"/></tls>""")
 
     assertTrue(
-      Files.isRegularFile(project.resolve(".gradum").resolve("context.json")),
-      "legacy .gradum/context.json should still be used when no sessionId is sent"
+      Files.isDirectory(project.resolve(".gradum").resolve("sessions")),
+      "the server should allocate a session directory when no sessionId is sent"
     )
     assertTrue(
-      Files.notExists(project.resolve(".gradum").resolve("sessions")),
-      "no sessions dir should be created when no sessionId is sent"
+      Files.notExists(project.resolve(".gradum").resolve("context.json")),
+      "legacy .gradum/context.json should not be used once the server names the session"
     )
   }
 

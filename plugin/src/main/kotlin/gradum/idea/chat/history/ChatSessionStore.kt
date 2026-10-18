@@ -3,9 +3,6 @@ package gradum.idea.chat.history
 import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.chat.api.GradumApiClient
 import java.nio.file.Path
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-import kotlin.random.Random
 
 data class SessionMeta(
   val title: String,
@@ -109,26 +106,4 @@ class ChatSessionStore(
    */
   suspend fun deleteSession(sessionId: String): Boolean =
     apiClient.deleteSession(projectRoot = projectRootPath, sessionId = sessionId)
-
-  companion object {
-
-    private const val SUFFIX_CHARS: Int = 6
-    private val HEX_CHARS: CharArray = "0123456789abcdef".toCharArray()
-    private val SESSION_ID_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
-
-    /**
-     * Generates a session id: `yyyyMMdd-HHmmss-xxxxxx` (see
-     * [docs/CHAT_HISTORY_PLAN.md §1.2]). The 6-char hex suffix keeps
-     * same-second collision probability negligible (~0.03% for 100 ids in
-     * one second, birthday-paradox) while the time prefix keeps the id
-     * lexicographically sortable.
-     */
-    fun nextSessionId(): String {
-      val timeStamp: String = LocalDateTime.now().format(SESSION_ID_FORMAT)
-      val suffixChars = CharArray(size = SUFFIX_CHARS) {
-        HEX_CHARS[Random.nextInt(until = HEX_CHARS.size)]
-      }
-      return "$timeStamp-${String(suffixChars)}"
-    }
-  }
 }

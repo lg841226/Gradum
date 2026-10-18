@@ -7,6 +7,7 @@ import gradum.agent.GradumEventType
 import gradum.client.ThinkingLevel
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.server.persistence.ChatDb
+import gradum.server.persistence.SessionIds
 import gradum.server.persistence.SessionMerger
 import gradum.server.persistence.SessionStateStore
 import gradum.server.persistence.SessionTranscriptWriter
@@ -296,7 +297,9 @@ fun Application.registerAllRoutes(
         return@post
       }
 
-      val resolvedSessionId: String? = requestBody.sessionId?.trim()?.takeIf { it.isNotEmpty() }
+      // Blank means "new chat": the server names the session.
+      val resolvedSessionId: String =
+        requestBody.sessionId?.trim()?.takeIf { it.isNotEmpty() } ?: SessionIds.next()
       val eventsChannel: Channel<String> = Channel(capacity = EVENTS_CHANNEL_CAPACITY)
       val eventSequencer = EventStreamSequencer()
       val configOverrides: ConfigOverrides = fromRequestMap(requestBody.config)
