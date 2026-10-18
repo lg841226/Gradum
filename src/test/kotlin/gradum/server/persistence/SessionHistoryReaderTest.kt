@@ -6,15 +6,15 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Tests that [SessionBubbleProjection] folds the stored raw history into the
+ * Tests that [SessionHistoryReader] folds the stored raw history into the
  * bubble view the client renders: one bubble per user message and per assistant
  * turn, tool results paired to the call that issued them, a turn the transcript
  * writer would render empty skipped.
  */
-class SessionBubbleProjectionTest {
+class SessionHistoryReaderTest {
 
   private fun project(vararg rawMessages: Map<String, Any>): List<Map<String, Any?>> =
-    SessionBubbleProjection.toBubbles(rawMessages.toList())
+    SessionHistoryReader.toBubbles(rawMessages.toList())
 
   @Suppress("UNCHECKED_CAST")
   private fun List<Map<String, Any?>>.blocks(bubbleIndex: Int = 0): List<Map<String, Any?>> =
@@ -210,7 +210,7 @@ class SessionBubbleProjectionTest {
 
   @Test
   fun `an empty history maps to no bubbles`() {
-    assertTrue(SessionBubbleProjection.toBubbles(emptyList()).isEmpty())
+    assertTrue(SessionHistoryReader.toBubbles(emptyList()).isEmpty())
   }
 
   @Test

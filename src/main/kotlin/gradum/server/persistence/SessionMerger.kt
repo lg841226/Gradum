@@ -1,6 +1,5 @@
 package gradum.server.persistence
 
-import gradum.utils.JsonUtil
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import java.nio.file.Path
@@ -17,12 +16,10 @@ import java.nio.file.Path
  */
 object SessionMerger {
 
-  /** The new session's id and its numbered title. */
   data class MergeResult(val sessionId: String, val title: String)
 
-  /** One source session's history plus the header timestamps that order it. */
   private data class SourceSession(
-    val messages: List<Map<String, Any>>,
+    val messages: List<Map<String, Any?>>,
     val updatedAt: Long,
     val createdAt: Long
   )
@@ -35,7 +32,7 @@ object SessionMerger {
    */
   fun merge(projectRoot: Path, sourceIds: List<String>, baseTitle: String): MergeResult? {
     val sources: List<SourceSession> = sourceIds.map { sessionId: String ->
-      val messages: List<Map<String, Any>> = readMessages(projectRoot = projectRoot, sessionId = sessionId)
+      val messages: List<Map<String, Any?>> = readMessages(projectRoot = projectRoot, sessionId = sessionId)
         ?: return null
       val meta: SessionTranscriptWriter.TranscriptMeta? =
         SessionTranscriptWriter.readMeta(projectRoot = projectRoot, sessionId = sessionId)
@@ -45,14 +42,14 @@ object SessionMerger {
         createdAt = meta?.createdAt ?: 0L
       )
     }
-    val orderedMessages: List<Map<String, Any>> =
+    val orderedMessages: List<Map<String, Any?>> =
       sources.sortedBy { session: SourceSession -> session.updatedAt }.flatMap { it.messages }
     if (orderedMessages.isEmpty()) return null
 
     val newSessionId: String = SessionIds.next()
     val mergedTitle: String = numberedTitle(projectRoot = projectRoot, baseTitle = baseTitle)
     val modelName: String = orderedMessages.asReversed()
-      .firstNotNullOfOrNull { message: Map<String, Any> ->
+      .firstNotNullOfOrNull { message: Map<String, Any?> ->
         (message["modelName"] as? String)?.takeIf { it.isNotBlank() }
       }
       .orEmpty()
@@ -86,15 +83,10 @@ object SessionMerger {
     return "$base ${maxIndex + 1}"
   }
 
-  @Suppress("UNCHECKED_CAST")
-  private fun readMessages(projectRoot: Path, sessionId: String): List<Map<String, Any>>? {
+  private fun readMessages(projectRoot: Path, sessionId: String): List<Map<String, Any?>>? {
     val storedState: JsonObject = SessionStateStore.read(projectRoot = projectRoot, sessionId = sessionId)
       ?: return null
     val rawMessages: JsonArray = storedState["messages"] as? JsonArray ?: return emptyList()
-    return rawMessages.mapNotNull { element ->
-      val rawMessage: Map<String, Any?> = JsonUtil.fromJsonElement(element) as? Map<String, Any?>
-        ?: return@mapNotNull null
-      rawMessage.mapValues { (_, value: Any?) -> value ?: "" }
-    }
+    return SessionHistoryReader.readStoredMessages(rawMessages)
   }
 }

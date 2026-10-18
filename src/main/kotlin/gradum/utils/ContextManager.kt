@@ -10,10 +10,7 @@ import gradum.skill.ToolDisplay
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
 import java.io.File
-import java.nio.file.AtomicMoveNotSupportedException
-import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 
 private val logger: org.slf4j.Logger = LoggerFactory.getLogger("ContextManager")
 private val jsonFormatter: Json = Json { prettyPrint = true }
@@ -52,7 +49,7 @@ class ContextManager(private val outputDirectory: Path) {
    * disk on every call.
    *
    * `@Volatile` because [loadContext] and [saveContext] can race
-   * across coroutines / threads (load reads the field, save writes
+   * across coroutines or threads (load reads the field, save writes
    * `null` to invalidate it). Without the volatile, a load on
    * another thread could see a stale non-null value after a save
    * has invalidated it.
@@ -67,7 +64,6 @@ class ContextManager(private val outputDirectory: Path) {
   private val useDatabase: Boolean = System.getProperty("gradum.db.path") != null
 
   private val contextFilePath: Path = outputDirectory.resolve("context.json")
-  private val contextTempFilePath: Path = outputDirectory.resolve("context.json.tmp")
 
   fun loadContext(): List<Map<String, Any>> = if (useDatabase) {
     // Database mode: delegate to ChatDb
@@ -150,19 +146,7 @@ class ContextManager(private val outputDirectory: Path) {
       val contextJson: String = JsonUtil.encodeMap(contextMap)
 
       try {
-        val tempFile: File = contextTempFilePath.toFile()
-        tempFile.writeText(contextJson, Charsets.UTF_8)
-        try {
-          Files.move(
-            contextTempFilePath,
-            contextFilePath,
-            StandardCopyOption.REPLACE_EXISTING,
-            StandardCopyOption.ATOMIC_MOVE,
-          )
-        } catch (moveException: AtomicMoveNotSupportedException) {
-          logger.warn("ATOMIC_MOVE not supported on this filesystem; falling back: ${moveException.message}")
-          Files.move(contextTempFilePath, contextFilePath, StandardCopyOption.REPLACE_EXISTING)
-        }
+        AtomicFiles.write(contextFilePath, contextJson)
         val writtenSize: Long = contextFilePath.toFile().length()
 
         logger.info(
@@ -183,7 +167,7 @@ class ContextManager(private val outputDirectory: Path) {
    * context save.
    */
   private fun writeDerivedSessionFiles(messages: List<Map<String, Any>>, modelName: String) {
-    val projection: List<Map<String, Any>> = SessionStateStore.projectionMessages(messages)
+    val projection: List<Map<String, Any?>> = SessionStateStore.projectionMessages(messages)
     try {
       SessionStateStore.write(
         projectRoot = projectRoot,

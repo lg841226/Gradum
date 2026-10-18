@@ -1,15 +1,14 @@
 package gradum.server.persistence
 
+import gradum.utils.AtomicFiles
 import gradum.utils.JsonUtil
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 
 private val logger: Logger = LoggerFactory.getLogger("SessionStateStore")
 
@@ -24,7 +23,8 @@ private val logger: Logger = LoggerFactory.getLogger("SessionStateStore")
  * cleaned model context (`context.json` / `ChatDb`) deliberately drops.
  *
  * One writer, two renderings from the same in-memory history, so the two
- * files cannot drift.
+ * files cannot drift. Rows are read back as untyped maps by
+ * `SessionHistoryReader`.
  */
 object SessionStateStore {
 
@@ -40,17 +40,17 @@ object SessionStateStore {
     projectRoot: Path,
     sessionId: String,
     modelName: String,
-    messages: List<Map<String, Any>>
+    messages: List<Map<String, Any?>>
   ): Boolean {
     val sessionDirectory: Path = SessionTranscriptWriter.sessionDirectory(projectRoot, sessionId) ?: return false
-    val state: Map<String, Any> = mapOf(
+    val state: Map<String, Any?> = mapOf(
       "version" to FORMAT_VERSION,
       "sessionId" to sessionId.trim(),
       "modelName" to modelName,
       "messages" to projectionMessages(messages)
     )
     return try {
-      atomicWrite(sessionDirectory.resolve(STATE_FILE), JsonUtil.encodeMap(input = state))
+      AtomicFiles.write(sessionDirectory.resolve(STATE_FILE), JsonUtil.encodeMap(input = state))
       true
     } catch (writeException: Exception) {
       logger.warn("Failed to write session state for {}: {}", sessionId, writeException.message)
@@ -79,10 +79,10 @@ object SessionStateStore {
    * from this same projection, so the two files describe one conversation and
    * cannot drift.
    */
-  fun projectionMessages(messages: List<Map<String, Any>>): List<Map<String, Any>> {
+  fun projectionMessages(messages: List<Map<String, Any?>>): List<Map<String, Any?>> {
     return messages
-      .filter { message: Map<String, Any> -> message["role"] != "system" }
-      .map { message: Map<String, Any> ->
+      .filter { message: Map<String, Any?> -> message["role"] != "system" }
+      .map { message: Map<String, Any?> ->
         val content: Any? = message["content"]
         if (content !is List<*>) return@map message
         val redactedParts: List<Any?> = content.map { part: Any? ->
@@ -98,22 +98,5 @@ object SessionStateStore {
         }
         message + ("content" to redactedParts)
       }
-  }
-
-  private fun atomicWrite(targetFile: Path, content: String) {
-    Files.createDirectories(targetFile.parent)
-    val tempFile: Path = targetFile.resolveSibling("${targetFile.fileName}.tmp-${System.nanoTime()}")
-    Files.writeString(tempFile, content, Charsets.UTF_8)
-    try {
-      Files.move(
-        tempFile,
-        targetFile,
-        StandardCopyOption.REPLACE_EXISTING,
-        StandardCopyOption.ATOMIC_MOVE,
-      )
-    } catch (moveException: AtomicMoveNotSupportedException) {
-      logger.warn("ATOMIC_MOVE not supported on this filesystem; falling back: ${moveException.message}")
-      Files.move(tempFile, targetFile, StandardCopyOption.REPLACE_EXISTING)
-    }
   }
 }

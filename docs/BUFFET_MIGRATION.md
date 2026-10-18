@@ -112,7 +112,7 @@ two session identities that are currently conflated.
   also writes `session-state.json` next to `conversation.md`, from the same
   in-memory history. One writer, two renderings, so they cannot drift. Base64
   image payloads are stripped (names only), matching the transcript's fidelity.
-- **2c · the endpoint** — `GET /session/state?projectRoot=…&sessionId=…&since=<seq>`
+- **2c · the endpoint** — `GET /session/state?projectRoot=…&sessionId=…&since=<index>`
   returns the stored history as structured JSON plus `isRunning` / `runId`,
   `modelName`, `title`, `createdAt`, `updatedAt`, `lastMessageIndex`. A message's index is
   its 0-based position; `since` returns the delta after it. The endpoint is
@@ -230,7 +230,7 @@ message and never re-derive it. Two shippable sub-steps:
   The handlers append blocks directly, so the two lists can no longer drift and
   the assembly machinery in `ChatMessage.kt` loses its `events` half.
 - **5.5b — the server folds the history ✅.** The raw-history reading has one
-  home, `server/.../persistence/SessionBubbleProjection.kt`: `SessionTranscriptWriter`
+  home, `server/.../persistence/SessionHistoryReader.kt`: `SessionTranscriptWriter`
   renders `conversation.md` from it row by row, and `toBubbles` folds the same rows
   into one bubble per turn. `GET /session/state` serves those bubbles, so the
   cold view and the transcript cannot disagree, and the plugin's
@@ -294,5 +294,5 @@ wire.
 | 5d   | ✅ done    | this PR   | `GET /models` probe is reachability only; model + vision guesses deleted; 474 server + 492 plugin green  |
 | 5e   | ✅ done    | this PR   | `deleteMessage` rewinds server-first; bubble withdrawn on success; 474 server + 492 plugin green         |
 | 5.5a | ✅ done    | this PR   | `ChatEvent` + `ToolCallInfo` deleted; one block list per message; 474 server + 497 plugin green          |
-| 5.5b | ✅ done    | this PR   | server folds the raw history into bubbles (`SessionBubbleProjection`); plugin `SessionProjection` is a decoder; 484 server + 494 plugin green |
+| 5.5b | ✅ done    | this PR   | server folds the raw history into bubbles (`SessionHistoryReader`); plugin `SessionProjection` is a decoder; 484 server + 494 plugin green |
 | 5.5b | ⬜         | —         | server folds the history into blocks; plugin decodes                                                     |

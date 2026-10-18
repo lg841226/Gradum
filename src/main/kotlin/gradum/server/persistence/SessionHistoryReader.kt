@@ -25,10 +25,7 @@ data class ProjectedToolCall(
   val result: String
 )
 
-/**
- * One assistant row's content. [nextIndex] is the row to resume at, past the
- * trailing `tool` rows this row's calls consumed.
- */
+/** One assistant row's content. */
 data class AssistantRow(
   val id: String,
   val modelName: String,
@@ -36,7 +33,18 @@ data class AssistantRow(
   val response: String,
   val toolCalls: List<ProjectedToolCall>,
   /** Token usage of this row, or `null` when it carries none with a positive total. */
-  val tokenUsage: Map<String, Any>?,
+  val tokenUsage: Map<String, Any>?
+)
+
+/** A read assistant row plus the row to resume at, past the trailing `tool` rows it consumed. */
+data class AssistantSpan(
+  val row: AssistantRow,
+  val nextIndex: Int
+)
+
+/** A folded assistant turn: its bubble (absent when the turn would render empty) and the next row. */
+private data class FoldedTurn(
+  val bubble: Map<String, Any?>?,
   val nextIndex: Int
 )
 
@@ -50,7 +58,7 @@ data class AssistantRow(
  * renders. The payload's shape quirks (OpenAI vs Ollama tool arguments, an alias
  * only on the result row, unpaired results) are handled in this one place.
  */
-object SessionBubbleProjection {
+object SessionHistoryReader {
 
   private val lenientJson: Json = Json {
     ignoreUnknownKeys = true
@@ -80,9 +88,9 @@ object SessionBubbleProjection {
    * Reads the assistant row at [index] and consumes its tool results: every
    * consecutive following `tool` row is paired to a call by `tool_call_id`
    * (falling back to the first unclaimed result). A row without tool calls
-   * consumes nothing, so its [AssistantRow.nextIndex] is simply `index + 1`.
+   * consumes nothing, so the returned [AssistantSpan.nextIndex] is `index + 1`.
    */
-  fun readAssistant(messages: List<Map<String, Any?>>, index: Int): AssistantRow {
+  fun readAssistant(messages: List<Map<String, Any?>>, index: Int): AssistantSpan {
     val message: Map<String, Any?> = messages[index]
     val toolCalls: List<Map<*, *>> = readListOfMaps(message["tool_calls"])
     val results: MutableList<Map<*, *>> = mutableListOf()
@@ -94,13 +102,15 @@ object SessionBubbleProjection {
       }
     }
 
-    return AssistantRow(
-      id = message["id"] as? String ?: "",
-      modelName = message["modelName"] as? String ?: "",
-      thinking = message["thinking"] as? String ?: "",
-      response = message["content"] as? String ?: "",
-      toolCalls = toolCalls.map { call: Map<*, *> -> projectedCall(call, results) },
-      tokenUsage = positiveUsage(message),
+    return AssistantSpan(
+      row = AssistantRow(
+        id = message["id"] as? String ?: "",
+        modelName = message["modelName"] as? String ?: "",
+        thinking = message["thinking"] as? String ?: "",
+        response = message["content"] as? String ?: "",
+        toolCalls = toolCalls.map { call: Map<*, *> -> projectedCall(call, results) },
+        tokenUsage = positiveUsage(message)
+      ),
       nextIndex = nextIndex
     )
   }
@@ -121,7 +131,12 @@ object SessionBubbleProjection {
           index++
         }
 
-        "assistant" -> index = assistantTurn(messages, index, bubbles)
+        "assistant" -> {
+          val turn: FoldedTurn = foldedTurn(messages, index)
+          turn.bubble?.let { bubbles.add(it) }
+          index = turn.nextIndex
+        }
+
         // A `tool` row with no assistant row above it pairs with nothing.
         else -> index++
       }
@@ -146,12 +161,8 @@ object SessionBubbleProjection {
     }
   }
 
-  /** Folds every consecutive assistant / tool row from [startIndex] into one bubble. */
-  private fun assistantTurn(
-    messages: List<Map<String, Any?>>,
-    startIndex: Int,
-    bubbles: MutableList<Map<String, Any?>>
-  ): Int {
+  /** Folds every consecutive assistant / tool row from [startIndex] into one turn. */
+  private fun foldedTurn(messages: List<Map<String, Any?>>, startIndex: Int): FoldedTurn {
     val thinkingParts: MutableList<String> = mutableListOf()
     val responseParts: MutableList<String> = mutableListOf()
     val toolCalls: MutableList<ProjectedToolCall> = mutableListOf()
@@ -159,18 +170,19 @@ object SessionBubbleProjection {
     var id = ""
     var tokenUsage: Map<String, Any>? = null
 
-    var index: Int = startIndex
+    var index = startIndex
     while (index < messages.size) {
       when (messages[index]["role"] as? String) {
         "assistant" -> {
-          val row: AssistantRow = readAssistant(messages, index)
+          val span: AssistantSpan = readAssistant(messages, index)
+          val row: AssistantRow = span.row
           if (row.thinking.isNotBlank()) thinkingParts.add(row.thinking)
           if (row.response.isNotBlank()) responseParts.add(row.response)
           toolCalls.addAll(row.toolCalls)
           if (modelName.isBlank()) modelName = row.modelName
           if (id.isBlank()) id = row.id
-          row.tokenUsage?.let { usage -> tokenUsage = usage }
-          index = row.nextIndex
+          if (row.tokenUsage != null) tokenUsage = row.tokenUsage
+          index = span.nextIndex
         }
 
         "tool" -> index++
@@ -178,12 +190,15 @@ object SessionBubbleProjection {
       }
     }
 
-    val thinkingText: String = thinkingParts.joinToString(separator = "\n\n")
-    val responseText: String = responseParts.joinToString(separator = "\n\n")
-    if (thinkingText.isNotBlank() || responseText.isNotBlank() || toolCalls.isNotEmpty()) {
-      bubbles.add(assistantBubble(id, modelName, thinkingText, toolCalls, responseText, tokenUsage))
-    }
-    return index
+    val thinking: String = thinkingParts.joinToString(separator = "\n\n")
+    val response: String = responseParts.joinToString(separator = "\n\n")
+    val bubble: Map<String, Any?>? =
+      if (thinking.isNotBlank() || response.isNotBlank() || toolCalls.isNotEmpty()) {
+        assistantBubble(id, modelName, thinking, toolCalls, response, tokenUsage)
+      } else {
+        null
+      }
+    return FoldedTurn(bubble = bubble, nextIndex = index)
   }
 
   private fun userBubble(message: Map<String, Any?>): Map<String, Any?> {

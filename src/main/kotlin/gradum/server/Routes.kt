@@ -7,7 +7,7 @@ import gradum.agent.GradumEventType
 import gradum.client.ThinkingLevel
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.server.persistence.ChatDb
-import gradum.server.persistence.SessionBubbleProjection
+import gradum.server.persistence.SessionHistoryReader
 import gradum.server.persistence.SessionIds
 import gradum.server.persistence.SessionMerger
 import gradum.server.persistence.SessionStateStore
@@ -805,11 +805,11 @@ fun Application.registerAllRoutes(
       }
 
       val storedMessages: List<Map<String, Any?>> =
-        SessionBubbleProjection.readStoredMessages(
+        SessionHistoryReader.readStoredMessages(
           (storedState?.get("messages") as? JsonArray)?.toList() ?: emptyList()
         )
-      val bubbles: List<Map<String, Any?>> = SessionBubbleProjection.toBubbles(storedMessages)
-      val sinceSeq: Int = call.request.queryParameters["since"]?.toIntOrNull() ?: -1
+      val bubbles: List<Map<String, Any?>> = SessionHistoryReader.toBubbles(storedMessages)
+      val sinceIndex: Int = call.request.queryParameters["since"]?.toIntOrNull() ?: -1
 
       val activeEntry: Map.Entry<String, SessionEntry>? = activeSessions.entries
         .firstOrNull { entry: Map.Entry<String, SessionEntry> -> entry.value.sessionId == sessionKey }
@@ -824,7 +824,7 @@ fun Application.registerAllRoutes(
             "isRunning" to (activeRunId != null),
             "lastMessageIndex" to (bubbles.size - 1),
             "title" to (transcriptMeta?.title ?: ""),
-            "messages" to bubbles.drop(sinceSeq + 1),
+            "messages" to bubbles.drop(sinceIndex + 1),
             "modelName" to (transcriptMeta?.modelName ?: ""),
             "createdAt" to (transcriptMeta?.createdAt ?: 0L),
             "updatedAt" to (transcriptMeta?.updatedAt ?: 0L),

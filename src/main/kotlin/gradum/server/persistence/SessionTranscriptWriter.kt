@@ -1,13 +1,10 @@
 package gradum.server.persistence
 
-import gradum.server.persistence.SessionTranscriptWriter.HEADER_LINE_LIMIT
-import gradum.server.persistence.SessionTranscriptWriter.parseAttributes
+import gradum.utils.AtomicFiles
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 
 private val logger: Logger = LoggerFactory.getLogger("SessionTranscriptWriter")
 
@@ -63,7 +60,7 @@ object SessionTranscriptWriter {
     projectRoot: Path,
     sessionId: String,
     modelName: String,
-    messages: List<Map<String, Any>>,
+    messages: List<Map<String, Any?>>,
     title: String? = null,
     createdAt: Long? = null,
   ) {
@@ -80,8 +77,7 @@ object SessionTranscriptWriter {
       createdAt = sessionCreatedAt,
       updatedAt = nowMillis
     )
-    Files.createDirectories(sessionDirectory)
-    atomicWrite(
+    AtomicFiles.write(
       targetFile = sessionDirectory.resolve(TRANSCRIPT_FILE),
       content = renderTranscript(sessionMeta, messages)
     )
@@ -138,7 +134,7 @@ object SessionTranscriptWriter {
         }
       }
       if (!replacedMarker) return false
-      atomicWrite(targetFile = transcriptFile, content = updatedLines.joinToString(separator = "\n"))
+      AtomicFiles.write(targetFile = transcriptFile, content = updatedLines.joinToString(separator = "\n"))
       true
     } catch (renameException: Exception) {
       logger.warn("Failed to rename session {}: {}", sessionId, renameException.message)
@@ -159,16 +155,16 @@ object SessionTranscriptWriter {
   }
 
   /** Derives the title: first non-blank line of the first user message, truncated. */
-  private fun titleFor(messages: List<Map<String, Any>>): String {
-    val firstUserMessage: Map<String, Any> =
+  private fun titleFor(messages: List<Map<String, Any?>>): String {
+    val firstUserMessage: Map<String, Any?> =
       messages.firstOrNull { it["role"] == "user" } ?: return ""
     val firstLine: String =
-      SessionBubbleProjection.readUser(firstUserMessage).text
+      SessionHistoryReader.readUser(firstUserMessage).text
         .lineSequence().firstOrNull { it.isNotBlank() }?.trim() ?: ""
     return firstLine.take(n = MAX_TITLE_LENGTH)
   }
 
-  private fun renderTranscript(meta: TranscriptMeta, messages: List<Map<String, Any>>): String {
+  private fun renderTranscript(meta: TranscriptMeta, messages: List<Map<String, Any?>>): String {
     val contentBuilder: StringBuilder = StringBuilder()
     contentBuilder.append(HEADER_V1).append('\n')
     contentBuilder.append(
@@ -183,10 +179,9 @@ object SessionTranscriptWriter {
     val writtenAt: Long = meta.updatedAt
     var messageIndex = 0
     while (messageIndex < messages.size) {
-      val message: Map<String, Any> = messages[messageIndex]
-      when (message["role"] as? String) {
+      when (messages[messageIndex]["role"] as? String) {
         "user" -> {
-          val user: UserRow = SessionBubbleProjection.readUser(message)
+          val user: UserRow = SessionHistoryReader.readUser(messages[messageIndex])
           contentBuilder.append(USER_HEADER).append('\n')
           contentBuilder.append(
             "<!-- gradum-msg role=\"user\" timestamp=\"$writtenAt\"${idAttribute(user.id)} -->"
@@ -201,9 +196,11 @@ object SessionTranscriptWriter {
         }
 
         "assistant" -> {
-          val row: AssistantRow = SessionBubbleProjection.readAssistant(messages, messageIndex)
+          val span: AssistantSpan = SessionHistoryReader.readAssistant(messages, messageIndex)
+          val row: AssistantRow = span.row
           if (row.thinking.isBlank() && row.response.isBlank() && row.toolCalls.isEmpty()) {
-            messageIndex++; continue
+            messageIndex = span.nextIndex
+            continue
           }
 
           contentBuilder.append(ASSISTANT_HEADER).append('\n')
@@ -227,7 +224,7 @@ object SessionTranscriptWriter {
                 "success=\"true\" " +
                 "errorMessage=\"\" errorDetail=\"\" -->\n"
             )
-            contentBuilder.append(SessionBubbleProjection.argumentsJson(call.arguments)).append('\n')
+            contentBuilder.append(SessionHistoryReader.argumentsJson(call.arguments)).append('\n')
             contentBuilder.append(TOOLRESULT_MARKER).append('\n')
             contentBuilder.append(call.result).append('\n')
           }
@@ -236,7 +233,7 @@ object SessionTranscriptWriter {
             contentBuilder.append(RESPONSE_MARKER).append('\n')
             contentBuilder.append(row.response).append('\n')
           }
-          messageIndex = row.nextIndex
+          messageIndex = span.nextIndex
         }
 
         else -> messageIndex++
@@ -305,25 +302,6 @@ object SessionTranscriptWriter {
     } catch (readException: Exception) {
       logger.warn("Skipping unreadable session transcript at $transcriptFile: ${readException.message}")
       null
-    }
-  }
-
-  /** Temp file and atomic rename, matching `ContextManager`'s crash-safe write. */
-  private fun atomicWrite(targetFile: Path, content: String) {
-    val tempFile: Path = targetFile.resolveSibling("${targetFile.fileName}.tmp-${System.nanoTime()}")
-    Files.writeString(tempFile, content, Charsets.UTF_8)
-    try {
-      Files.move(
-        tempFile,
-        targetFile,
-        StandardCopyOption.REPLACE_EXISTING,
-        StandardCopyOption.ATOMIC_MOVE,
-      )
-    } catch (moveException: AtomicMoveNotSupportedException) {
-      logger.warn(
-        "ATOMIC_MOVE not supported on this filesystem; falling back: ${moveException.message}"
-      )
-      Files.move(tempFile, targetFile, StandardCopyOption.REPLACE_EXISTING)
     }
   }
 
