@@ -8,7 +8,7 @@ import gradum.idea.chat.ui.util.FaviconHostCache.Companion.MAX_ENTRIES
  *
  * ## Why
  *
- * [SearchedRenderer] resolves a thumbnail through a 3-step fallback
+ * [gradum.idea.chat.ui.chat.skill.SearchedRenderer] resolves a thumbnail through a 3-step fallback
  * chain on every render:
  *
  *  1. The favicon URL returned by Tavily (often stale or 404 for

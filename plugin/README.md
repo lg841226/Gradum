@@ -36,7 +36,7 @@ The plugin adds the following to IntelliJ IDEA:
 | Gradle        | 8.x (via wrapper)              |
 
 > The plugin is a **frontend only**: it requires the Gradum server to be running. See the
-> [main project README](../README.md#quick-start) for server setup instructions.
+> [main project README](../README.md#getting-started) for server setup instructions.
 
 ## Special Build Setup
 
@@ -128,7 +128,7 @@ the IDE's own copies. This avoids `LinkageError: loader constraint violation` on
 
 ## Install
 
-1. Ensure the Gradum server is running (see [main README](../README.md#quick-start)).
+1. Ensure the Gradum server is running (see [main README](../README.md#getting-started)).
 2. Open IntelliJ IDEA.
 3. `Settings > Plugins > Install Plugin from Disk...`.
 4. Select `plugin/build/distributions/gradum-*.zip`.
@@ -176,7 +176,7 @@ Remove the `<depends>` entry and ensure the library is in `plugin/libs/` with a 
 ### Plugin loads but the chat panel is empty
 
 The Gradum server is not running or the plugin cannot connect to it. Start the server first
-(see [main README](../README.md#quick-start)) and check the server log for connection errors.
+(see [main README](../README.md#getting-started)) and check the server log for connection errors.
 
 ## License
 

@@ -796,7 +796,7 @@ A typed `ErrorCode` enum is shared between the server and the plugin (18 codes, 
 `TIMEOUT`, etc.). The plugin maps codes to localized, user-friendly messages, never raw stack traces.
 
 Source: [`GradumApiClient.kt`](../plugin/src/main/kotlin/gradum/idea/chat/api/GradumApiClient.kt),
-[`ErrorCode.kt`](../plugin/src/main/kotlin/gradum/idea/chat/model/ErrorCode.kt),
+[`ErrorCode.kt`](../src/main/kotlin/gradum/ErrorCode.kt),
 [`ErrorMessages.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/ErrorMessages.kt).
 
 ---
@@ -1227,11 +1227,11 @@ Deleting one user message withdraws the turn instead of the whole session:
    `GradumChatSession.deleteMessage(index)`.
 2. **Server-side rewind first**: `deleteMessage` validates the index is a user message, then calls
    `POST /session/rewind {projectRoot, sessionId, messageId}` (only when an active server session and a non-blank
-   `messageId` exist; a turn the server never saw has nothing to undo). The server truncates its stored context at that
+   `messageId` exist; a turn the server never saw has anything to undo). The server truncates its stored context at that
    message (`ContextManager.rewindTo`), so `context.json` and the on-screen transcript stay aligned. Unknown ids answer
    `404 {"status":"message_not_found"}` and a failed call raises a `gradum.rewind.failed.*` notification; either way the
    bubble stays. The route carries the same strict-child path-traversal guard as `/session/delete`.
-3. **Local withdrawal on success**: only once the rewind is accepted does it remove the user message **and** the
+3. **Local withdrawal on success**: only once the rewind is accepted does it remove the user message and the
    assistant reply that follows it; if the conversation becomes empty it resets the send state and clears the
    conversation. The withdrawn text is prepended into the input field (position 0) so the user can edit and re-send it,
    without clobbering anything already typed.

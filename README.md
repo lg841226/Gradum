@@ -1,7 +1,7 @@
 <h2 align="center">Gradum</h2>
 
 <p align="center">
-  English | <a href="README.zh-CN.md">简体中文</a>
+  English | 简体中文（README.zh-CN.pdf）
 </p>
 
 <p align="center">
