@@ -268,9 +268,10 @@ sessionDir(projectRoot, sessionId) = <projectRoot>/.gradum/sessions/<sessionId>
   `/events`; the legacy `<projectRoot>/.gradum/context.json` remains only for
   callers that build an agent without a session id.
 - The server writes each session's transcript (`conversation.md`) and a rich
-  `session-state.json` sidecar from one save; the plugin restores the exact
-  bubble UI (thinking, tool calls + results, errors, token usage) from the
-  sidecar via `GET /session/state` (`ChatSessionStore` + `SessionProjection`).
+  `session-state.json` sidecar from one save. `GET /session/state` folds that
+  sidecar (`SessionBubbleProjection`) into one entry per user message and per
+  turn, with the turn's tool calls paired to their results; the plugin decodes
+  it straight into the bubble UI (`ChatSessionStore` + `SessionProjection`).
 - `POST /session/delete` removes a whole session directory on the server (path-traversal guarded); the plugin cascades
   locally first.
 
@@ -1984,11 +1985,11 @@ to third-party plugins at all, so they ship too.
   plugin's per-message delete / rewind)
 - `POST /stop {runId}` aborts the active server-side run (the `runId` the `/events` envelope carries), which the client
   uses to cancel an in-flight stream, alongside the `AbortController`-style client-side cancellation
-- `GET /session/state?projectRoot=…&sessionId=…&since=<seq>` returns the session's authoritative rich history as
-  structured JSON (role, content, thinking, tool calls, token usage), plus `isRunning` / `runId` for the live run and
-  the live extras `pendingAsks` / `subAgents`. A message's `seq` is its 0-based position and `since` asks for the delta
-  after it. The plugin rebuilds bubbles from this projection when a stream `gap` is seen or a session is reopened,
-  instead of trusting its event-stream assembly.
+- `GET /session/state?projectRoot=…&sessionId=…&since=<seq>` returns the session's authoritative cold projection,
+  folded from the stored history into render blocks one entry per user message and per turn (thinking, tool call +
+  result, response, token usage), plus `isRunning` / `runId` for the live run and the live extras `pendingAsks` /
+  `subAgents`. A message's `seq` is its 0-based position and `since` asks for the delta after it. The plugin decodes
+  this projection when a stream `gap` is seen or a session is reopened, instead of trusting its event-stream assembly.
 - `GET /models`, `GET /health`, and `GET /skills` support model polling, server liveness checks, and capability
   discovery
 - `POST /provider/probe` is the settings-page connectivity check: the plugin forwards `{kind, baseUrl, apiKey}` to the

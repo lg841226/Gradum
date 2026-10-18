@@ -2,7 +2,6 @@ package gradum.server.persistence
 
 import gradum.server.persistence.SessionTranscriptWriter.HEADER_LINE_LIMIT
 import gradum.server.persistence.SessionTranscriptWriter.parseAttributes
-import gradum.utils.JsonUtil
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.nio.file.AtomicMoveNotSupportedException
@@ -164,7 +163,8 @@ object SessionTranscriptWriter {
     val firstUserMessage: Map<String, Any> =
       messages.firstOrNull { it["role"] == "user" } ?: return ""
     val firstLine: String =
-      userText(firstUserMessage).lineSequence().firstOrNull { it.isNotBlank() }?.trim() ?: ""
+      SessionBubbleProjection.readUser(firstUserMessage).text
+        .lineSequence().firstOrNull { it.isNotBlank() }?.trim() ?: ""
     return firstLine.take(n = MAX_TITLE_LENGTH)
   }
 
@@ -186,144 +186,82 @@ object SessionTranscriptWriter {
       val message: Map<String, Any> = messages[messageIndex]
       when (message["role"] as? String) {
         "user" -> {
+          val user: UserRow = SessionBubbleProjection.readUser(message)
           contentBuilder.append(USER_HEADER).append('\n')
           contentBuilder.append(
-            "<!-- gradum-msg role=\"user\" timestamp=\"$writtenAt\"${idAttribute(message)} -->"
+            "<!-- gradum-msg role=\"user\" timestamp=\"$writtenAt\"${idAttribute(user.id)} -->"
           ).append('\n')
-          for (attachmentName: String in attachmentNames(message)) {
+          for (attachmentName: String in user.attachmentNames) {
             contentBuilder.append(
               "<!-- gradum-attachment name=\"${escapeValue(attachmentName)}\" path=\"\" -->\n"
             )
           }
-          contentBuilder.append(userText(message)).append('\n')
+          contentBuilder.append(user.text).append('\n')
+          messageIndex++
         }
 
         "assistant" -> {
-          val thinkingText: String = message["thinking"] as? String ?: ""
-          val responseText: String = message["content"] as? String ?: ""
-          val toolCalls: List<Map<*, *>> = readListOfMaps(message["tool_calls"])
-          if (thinkingText.isBlank() && responseText.isBlank() && toolCalls.isEmpty()) {
+          val row: AssistantRow = SessionBubbleProjection.readAssistant(messages, messageIndex)
+          if (row.thinking.isBlank() && row.response.isBlank() && row.toolCalls.isEmpty()) {
             messageIndex++; continue
           }
 
           contentBuilder.append(ASSISTANT_HEADER).append('\n')
           contentBuilder.append(
-            "<!-- gradum-msg role=\"assistant\" timestamp=\"$writtenAt\"${idAttribute(message)}" +
-              " model=\"${escapeValue(message["modelName"] as? String ?: "")}\"" +
-              " provider=\"\" server=\"\"${tokenAttributes(message)} -->"
+            "<!-- gradum-msg role=\"assistant\" timestamp=\"$writtenAt\"${idAttribute(row.id)}" +
+              " model=\"${escapeValue(row.modelName)}\"" +
+              " provider=\"\" server=\"\"${tokenAttributes(row.tokenUsage)} -->"
           ).append('\n')
 
-          if (thinkingText.isNotBlank()) {
+          if (row.thinking.isNotBlank()) {
             contentBuilder.append(THINKING_MARKER).append('\n')
-            contentBuilder.append(thinkingText).append('\n')
+            contentBuilder.append(row.thinking).append('\n')
           }
 
-          if (toolCalls.isNotEmpty()) {
-            val pairedResults: MutableList<Map<*, *>> = mutableListOf()
-            var lookahead: Int = messageIndex + 1
-            while (lookahead < messages.size && messages[lookahead]["role"] == "tool") {
-              pairedResults.add(messages[lookahead])
-              lookahead++
-            }
-            messageIndex = lookahead - 1
-
-            for (toolCall: Map<*, *> in toolCalls) {
-              val function: Map<*, *> = toolCall["function"] as? Map<*, *> ?: emptyMap<Any?, Any?>()
-              val callId: String = toolCall["id"] as? String ?: ""
-              val toolResult: Map<*, *>? =
-                if (callId.isNotBlank())
-                  pairedResults.firstOrNull { it["tool_call_id"] == callId }
-                    ?: pairedResults.firstOrNull()
-                else pairedResults.firstOrNull()
-              if (toolResult != null) pairedResults.remove(element = toolResult)
-              val toolAlias: String = toolResult?.get("alias") as? String ?: ""
-
-              contentBuilder.append(
-                "<!-- gradum-toolcall " +
-                  "name=\"${escapeValue(function["name"] as? String ?: "")}\" " +
-                  "alias=\"${escapeValue(toolAlias)}\" " +
-                  "id=\"${escapeValue(callId)}\" " +
-                  "success=\"true\" " +
-                  "errorMessage=\"\" errorDetail=\"\" -->\n"
-              )
-              contentBuilder.append(argumentsJson(function["arguments"])).append('\n')
-              contentBuilder.append(TOOLRESULT_MARKER).append('\n')
-              contentBuilder.append(toolResult?.get("content") as? String ?: "").append('\n')
-            }
+          for (call: ProjectedToolCall in row.toolCalls) {
+            contentBuilder.append(
+              "<!-- gradum-toolcall " +
+                "name=\"${escapeValue(call.name)}\" " +
+                "alias=\"${escapeValue(call.alias)}\" " +
+                "id=\"${escapeValue(call.callId)}\" " +
+                "success=\"true\" " +
+                "errorMessage=\"\" errorDetail=\"\" -->\n"
+            )
+            contentBuilder.append(SessionBubbleProjection.argumentsJson(call.arguments)).append('\n')
+            contentBuilder.append(TOOLRESULT_MARKER).append('\n')
+            contentBuilder.append(call.result).append('\n')
           }
 
-          if (responseText.isNotBlank()) {
+          if (row.response.isNotBlank()) {
             contentBuilder.append(RESPONSE_MARKER).append('\n')
-            contentBuilder.append(responseText).append('\n')
+            contentBuilder.append(row.response).append('\n')
           }
+          messageIndex = row.nextIndex
         }
+
+        else -> messageIndex++
       }
-      messageIndex++
     }
     return contentBuilder.toString()
   }
 
   /** ` id="..."` fragment when the message carries a non-blank id, else empty. */
-  private fun idAttribute(message: Map<String, Any>): String {
-    val messageId: String = message["id"] as? String ?: ""
+  private fun idAttribute(messageId: String): String {
     if (messageId.isBlank()) return ""
     return " id=\"${escapeValue(messageId)}\""
   }
 
-  /** Token-usage attributes when the message carries a usage map with positive totals. */
-  private fun tokenAttributes(message: Map<String, Any>): String {
-    val usageMap: Map<*, *> = message["tokenUsage"] as? Map<*, *> ?: return ""
-    fun tokenValue(key: String): Int = (usageMap[key] as? Number)?.toInt() ?: 0
-    val totalTokens: Int = tokenValue("totalTokens")
-    if (totalTokens <= 0) return ""
-    return " promptTokens=\"${tokenValue("promptTokens")}\"" +
-      " completionTokens=\"${tokenValue("completionTokens")}\"" +
+  /** Token-usage attributes for a row's usage map (never present with a zero total). */
+  private fun tokenAttributes(usage: Map<String, Any>?): String {
+    if (usage == null) return ""
+    val promptTokens: Int = (usage["promptTokens"] as? Number)?.toInt() ?: 0
+    val completionTokens: Int = (usage["completionTokens"] as? Number)?.toInt() ?: 0
+    val totalTokens: Int = (usage["totalTokens"] as? Number)?.toInt() ?: 0
+    val contextTokens: Int = (usage["contextTokens"] as? Number)?.toInt() ?: 0
+    return " promptTokens=\"$promptTokens\"" +
+      " completionTokens=\"$completionTokens\"" +
       " totalTokens=\"$totalTokens\"" +
-      " contextTokens=\"${tokenValue("contextTokens")}\""
-  }
-
-  /** Attachment display names recorded on the user message (base64 payloads excluded). */
-  private fun attachmentNames(message: Map<String, Any>): List<String> {
-    return readListOfMaps(message["attachments"]).mapNotNull { attachment: Map<*, *> ->
-      val attachmentName: String = attachment["name"] as? String ?: ""
-      attachmentName.takeIf { it.isNotEmpty() }
-    }
-  }
-
-  /** User text: the display-only view when present (prompt wrappers stripped), else the wire content. */
-  private fun userText(message: Map<String, Any>): String {
-    val displayText: Any? = message["displayText"]
-    if (displayText is String && displayText.isNotBlank()) return displayText
-    return when (val content: Any? = message["content"]) {
-      is String -> content
-      is List<*> -> content.filterIsInstance<Map<*, *>>()
-        .filter { it["type"] == "text" }
-        .mapNotNull { it["text"] as? String }
-        .joinToString(separator = "\n\n")
-
-      else -> ""
-    }
-  }
-
-  /**
-   * Tool-call arguments as a JSON object string: OpenAI-shaped histories
-   * already carry the JSON verbatim; Ollama-shaped ones carry a plain map.
-   */
-  private fun argumentsJson(rawArguments: Any?): String {
-    return when (rawArguments) {
-      is String -> rawArguments.ifBlank { "{}" }
-      is Map<*, *> -> {
-        val stringKeyed: Map<String, Any?> = rawArguments.entries
-          .associate { (key, value) -> key.toString() to value }
-        if (stringKeyed.isEmpty()) "{}" else JsonUtil.encodeMap(input = stringKeyed)
-      }
-
-      else -> "{}"
-    }
-  }
-
-  private fun readListOfMaps(rawList: Any?): List<Map<*, *>> {
-    return (rawList as? List<*>)?.filterIsInstance<Map<*, *>>() ?: emptyList()
+      " contextTokens=\"$contextTokens\""
   }
 
   /**

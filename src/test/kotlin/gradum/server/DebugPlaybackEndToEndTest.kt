@@ -174,7 +174,7 @@ class DebugPlaybackEndToEndTest {
     val body: String = response.bodyAsText()
     assertContains(body, "\"sessionId\":\"$sessionId\"")
     assertContains(body, "\"isRunning\":false")
-    assertContains(body, "\"messages\":[")
+    assertContains(body, "\"messages\":[{\"role\":\"user\"")
     assertContains(body, "\"pendingAsks\":[]")
     assertContains(body, "\"subAgents\":[]")
     assertContains(body, "\"tokenUsage\":{\"promptTokens\":0")

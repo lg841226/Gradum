@@ -275,10 +275,10 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
   /**
    * The server's authoritative session projection from `GET /session/state`.
    *
-   * [messages] are the raw agent-history maps (`session-state.json`); the
-   * caller maps them to bubbles. [pendingAsks] / [subAgents] are live extras
-   * computed per request, and [isRunning] reports whether a run is in flight
-   * for this session.
+   * [messages] are the render bubbles the server folded from the stored
+   * history (`session-state.json`); the caller decodes them straight into the
+   * UI view. [pendingAsks] / [subAgents] are live extras computed per request,
+   * and [isRunning] reports whether a run is in flight for this session.
    */
   data class ApiSessionState(
     val sessionId: String,
@@ -295,8 +295,9 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
   )
 
   /**
-   * Fetches one session's authoritative projection. [since] drops the messages
-   * at or before that 0-based index; the default (-1) returns the whole history.
+   * Fetches one session's authoritative projection. [since] drops the bubbles
+   * at or before that 0-based index; the default (-1) returns the whole
+   * history.
    *
    * @return The projection, or `null` when the session does not exist or the
    *   request failed.

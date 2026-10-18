@@ -9,25 +9,25 @@ import org.junit.Assert.*
 import org.junit.Test
 
 /**
- * Tests that [SessionProjection] rebuilds the bubble view from the server's
- * `session-state.json` shape (the raw agent history maps): tool results fold
- * into the call that issued them, user attachments survive by name, and a
- * message the transcript writer would render empty is skipped.
+ * Tests that [SessionProjection] decodes the server's folded projection
+ * (`GET /session/state` → `messages`) into the bubble view: blocks keep their
+ * order, tool-call arguments keep their plain values, and a bubble with no
+ * usable role decodes to nothing.
  */
 class SessionProjectionTest {
 
-  private fun project(vararg rawMessages: String): List<ChatMessage> =
+  private fun project(vararg bubbles: String): List<ChatMessage> =
     SessionProjection.toMessages(
-      projectedMessages = rawMessages.map { rawMessage: String ->
-        Json.parseToJsonElement(rawMessage) as JsonObject
+      projectedMessages = bubbles.map { bubble: String ->
+        Json.parseToJsonElement(bubble) as JsonObject
       },
       timestamp = SESSION_TIMESTAMP
     )
 
   @Test
-  fun `user message keeps its display text id and attachment names`() {
+  fun `user bubble keeps its content id and attachment names`() {
     val messages: List<ChatMessage> = project(
-      """{"id":"m1","role":"user","content":"wrapped prompt","displayText":"explain this","attachments":[{"name":"shot.png","mime":"image/png"}]}"""
+      """{"role":"user","id":"m1","content":"explain this","attachments":[{"name":"shot.png"}]}"""
     )
 
     assertEquals(1, messages.size)
@@ -40,142 +40,83 @@ class SessionProjectionTest {
   }
 
   @Test
-  fun `list content joins its text parts when there is no display text`() {
+  fun `assistant bubble decodes its blocks in order`() {
     val messages: List<ChatMessage> = project(
-      """{"role":"user","content":[{"type":"text","text":"first"},{"type":"image","mime":"image/png","filename":"a.png"},{"type":"text","text":"second"}]}"""
-    )
-
-    assertEquals("first\n\nsecond", messages.first().content)
-  }
-
-  @Test
-  fun `assistant message rebuilds thinking tool calls and response in order`() {
-    val messages: List<ChatMessage> = project(
-      """{"role":"assistant","content":"done","modelName":"qwen2.5","thinking":"weighing options","tokenUsage":{"promptTokens":10,"completionTokens":4,"totalTokens":14,"contextTokens":10},"tool_calls":[{"id":"call-1","type":"function","function":{"name":"read_file","arguments":"{\"path\":\"Main.kt\"}"}}]}""",
-      """{"role":"tool","alias":"Read","tool_call_id":"call-1","content":"file body"}"""
+      """{"role":"assistant","id":"m2","modelName":"qwen2.5","tokenUsage":{"promptTokens":10,"completionTokens":4,"totalTokens":14,"contextTokens":10},"blocks":[{"type":"thinking","content":"weighing options"},{"type":"toolCall","alias":"Read","success":true,"toolCallId":"call-1","result":"file body","arguments":{"path":"Main.kt"}},{"type":"response","content":"done"}]}"""
     )
 
     assertEquals(1, messages.size)
     val assistant: ChatMessage = messages.first()
     assertEquals("qwen2.5", assistant.modelName)
+    assertEquals("m2", assistant.messageId)
     assertEquals(14, assistant.tokenUsage?.totalTokens)
 
     val blocks: List<RenderBlock> = assistant.renderBlocks
     assertEquals(3, blocks.size)
-    assertTrue(blocks[0] is RenderBlock.Thinking)
+    assertEquals("weighing options", (blocks[0] as RenderBlock.Thinking).content)
     assertTrue(blocks[1] is RenderBlock.ToolCall)
-    assertTrue(blocks[2] is RenderBlock.Response)
+    assertEquals("done", (blocks[2] as RenderBlock.Response).content)
 
     val toolCall: RenderBlock.ToolCall = blocks[1] as RenderBlock.ToolCall
     assertEquals("Read", toolCall.alias)
-    assertEquals("Main.kt", toolCall.arguments["path"])
+    assertEquals(true, toolCall.success)
+    assertEquals("call-1", toolCall.toolCallId)
     assertEquals("file body", toolCall.result)
+    assertEquals("Main.kt", toolCall.arguments["path"])
   }
 
   @Test
-  fun `arguments already shaped as an object are read as-is`() {
+  fun `tool call arguments keep their plain values`() {
     val messages: List<ChatMessage> = project(
-      """{"role":"assistant","content":"","tool_calls":[{"function":{"name":"grep","arguments":{"pattern":"foo"}}}]}""",
-      """{"role":"tool","content":"hit"}"""
+      """{"role":"assistant","blocks":[{"type":"toolCall","alias":"Delegate","success":true,"arguments":{"pending":false,"depth":2,"title":"Investigate"}}]}"""
     )
 
     val toolCall: RenderBlock.ToolCall = messages.first().renderBlocks
       .filterIsInstance<RenderBlock.ToolCall>().first()
-    assertEquals("foo", toolCall.arguments["pattern"])
-    assertEquals("grep", toolCall.alias)
+    assertEquals(false, toolCall.arguments["pending"])
+    assertEquals(2, toolCall.arguments["depth"])
+    assertEquals("Investigate", toolCall.arguments["title"])
   }
 
   @Test
-  fun `an empty assistant row is skipped but its tool rows are consumed`() {
+  fun `a usage without a positive total is dropped`() {
     val messages: List<ChatMessage> = project(
-      """{"role":"assistant","content":"","tool_calls":[]}""",
-      """{"role":"tool","content":"orphan"}""",
-      """{"role":"assistant","content":"visible"}"""
+      """{"role":"assistant","content":"hi","tokenUsage":{"promptTokens":3,"totalTokens":0}}"""
     )
 
     assertEquals(1, messages.size)
-    assertEquals("visible", messages.first().responseContent)
+    assertNull(messages.first().tokenUsage)
   }
 
   @Test
-  fun `every rebuilt message carries the session timestamp`() {
+  fun `every decoded message carries the session timestamp`() {
     val messages: List<ChatMessage> = project(
       """{"role":"user","content":"hi"}""",
-      """{"role":"assistant","content":"hello"}"""
+      """{"role":"assistant","blocks":[{"type":"response","content":"hello"}]}"""
     )
 
     assertTrue(messages.all { it.timestamp == SESSION_TIMESTAMP })
   }
 
   @Test
-  fun `a turn stored as several assistant rows merges into one bubble`() {
-    val messages: List<ChatMessage> = project(
-      """{"role":"assistant","tool_calls":[{"id":"call-1","type":"function","function":{"name":"read_file","arguments":"{\"path\":\"Main.kt\"}"}}],"modelName":"qwen2.5"}""",
-      """{"role":"tool","alias":"Read","tool_call_id":"call-1","content":"file body"}""",
-      """{"role":"assistant","content":"the file is empty","modelName":"qwen2.5","tokenUsage":{"promptTokens":10,"completionTokens":4,"totalTokens":14,"contextTokens":10}}"""
-    )
-
-    assertEquals(1, messages.size)
-    val assistant: ChatMessage = messages.first()
-    assertEquals("qwen2.5", assistant.modelName)
-    assertEquals(14, assistant.tokenUsage?.totalTokens)
-
-    val blocks: List<RenderBlock> = assistant.renderBlocks
-    assertEquals(2, blocks.size)
-    assertTrue(blocks[0] is RenderBlock.ToolCall)
-    assertTrue(blocks[1] is RenderBlock.Response)
-    assertEquals("the file is empty", assistant.responseContent)
-    assertEquals("file body", (blocks[0] as RenderBlock.ToolCall).result)
-  }
-
-  @Test
-  fun `thinking across rows folds into one block before the tool calls`() {
-    val messages: List<ChatMessage> = project(
-      """{"role":"assistant","thinking":"step one","tool_calls":[{"id":"call-1","type":"function","function":{"name":"ls","arguments":"{}"}}]}""",
-      """{"role":"tool","tool_call_id":"call-1","content":"a, b"}""",
-      """{"role":"assistant","thinking":"step two","content":"done"}"""
-    )
-
-    assertEquals(1, messages.size)
-    val blocks: List<RenderBlock> = messages.first().renderBlocks
-    assertEquals(3, blocks.size)
-    assertEquals("step one\n\nstep two", (blocks[0] as RenderBlock.Thinking).content)
-    assertTrue(blocks[1] is RenderBlock.ToolCall)
-    assertEquals("done", (blocks[2] as RenderBlock.Response).content)
-  }
-
-  @Test
-  fun `missing numeric fields default to zero and the last usage row wins`() {
-    val partial: List<ChatMessage> = project(
-      """{"role":"assistant","content":"x","tokenUsage":{"totalTokens":5}}""",
-      """{"role":"assistant","content":"y"}"""
-    )
-
-    assertEquals(1, partial.size)
-    assertEquals("x\n\ny", partial[0].responseContent)
-    assertEquals(5, partial[0].tokenUsage?.totalTokens)
-    assertEquals(0, partial[0].tokenUsage?.contextTokens)
-  }
-
-  @Test
-  fun `an empty history maps to no messages`() {
+  fun `an empty projection maps to no messages`() {
     assertTrue(SessionProjection.toMessages(emptyList()).isEmpty())
   }
 
   @Test
-  fun `a rebuilt delegate call is finished and carries no sub-chat state`() {
+  fun `an unknown role decodes to nothing`() {
+    assertTrue(project("""{"role":"system","content":"secret"}""").isEmpty())
+  }
+
+  @Test
+  fun `an unknown block kind is skipped`() {
     val messages: List<ChatMessage> = project(
-      """{"role":"assistant","tool_calls":[{"id":"call-1","type":"function","function":{"name":"delegate_task","arguments":"{\"task\":\"investigate\",\"title\":\"Investigate\"}"}}]}""",
-      """{"role":"tool","alias":"Delegate","tool_call_id":"call-1","content":"sub-agent result"}"""
+      """{"role":"assistant","blocks":[{"type":"mystery"},{"type":"response","content":"kept"}]}"""
     )
 
-    val toolCall: RenderBlock.ToolCall = messages.first().renderBlocks
-      .filterIsInstance<RenderBlock.ToolCall>().first()
-    assertEquals("Delegate", toolCall.alias)
-    assertEquals("Investigate", toolCall.arguments["title"])
-    assertEquals(false, toolCall.arguments["pending"])
-    assertNull(toolCall.arguments["startTimestamp"])
-    assertNull(toolCall.arguments["subChatMessages"])
+    val blocks: List<RenderBlock> = messages.first().renderBlocks
+    assertEquals(1, blocks.size)
+    assertEquals("kept", (blocks.first() as RenderBlock.Response).content)
   }
 
   private companion object {

@@ -7,227 +7,77 @@ import gradum.idea.editor.AttachedText
 import kotlinx.serialization.json.*
 
 /**
- * Rebuilds the bubble UI's [ChatMessage] list from the server's
- * `session-state.json` projection, i.e. the raw agent-history maps.
+ * Decodes the server's cold projection (`GET /session/state`) into the bubble
+ * UI's [ChatMessage] list.
  *
- * The shapes line up with the Markdown renderer's own reading of that history
- * (`SessionTranscriptWriter`): system prompts were already dropped server-side,
- * a `tool` result is folded into the tool-call row that issued it, and a user
- * message keeps only its attachment names. A message the server would render
- * empty is skipped.
- *
- * This is the cold-state reader: on reopening a session and on adopting the
- * projection after a stream gap, the client shows exactly what the server
- * persisted instead of re-deriving it from events.
+ * The server has already folded the stored history: one entry per user message
+ * and one per assistant turn, each turn's tool results paired to the call that
+ * issued them, each entry's [RenderBlock] ordering resolved. Nothing of the
+ * agent-history payload (OpenAI vs Ollama tool arguments, `tool` rows, blank
+ * thinking) is known on this side.
  */
 object SessionProjection {
-
-  private val jsonParser: Json = Json { ignoreUnknownKeys = true }
-
-  /** Server-side tool name of the delegate skill. */
-  private const val DELEGATE_TOOL_NAME: String = "delegate_task"
 
   /**
    * Maps [projectedMessages] into renderable messages. Every reconstructed
    * message shares [timestamp] because the history carries no per-message clock
    * (the transcript writer makes the same choice).
    */
-  fun toMessages(projectedMessages: List<JsonObject>, timestamp: Long = 0L): List<ChatMessage> {
-    val rebuiltMessages: MutableList<ChatMessage> = mutableListOf()
-    var messageIndex = 0
-    while (messageIndex < projectedMessages.size) {
-      val projectedMessage: JsonObject = projectedMessages[messageIndex]
-      when (projectedMessage.text("role")) {
-        "user" -> {
-          rebuiltMessages.add(userMessage(projectedMessage, timestamp))
-          messageIndex++
-        }
+  fun toMessages(projectedMessages: List<JsonObject>, timestamp: Long = 0L): List<ChatMessage> =
+    projectedMessages.mapNotNull { bubble: JsonObject -> toMessage(bubble, timestamp) }
 
-        "assistant" -> {
-          val (assistantMessage: ChatMessage?, nextIndex: Int) =
-            mergedAssistantMessage(messageIndex, timestamp, projectedMessages)
-          if (assistantMessage != null) rebuiltMessages.add(assistantMessage)
-          messageIndex = nextIndex
-        }
-
-        else -> messageIndex++
-      }
-    }
-    return rebuiltMessages
-  }
-
-  private fun userMessage(message: JsonObject, timestamp: Long): ChatMessage {
-    val attachments: List<AttachedText> = attachmentNames(message).map { attachmentName: String ->
-      AttachedText(content = "", preview = attachmentName)
-    }
-    return ChatMessage(
-      role = "user",
-      timestamp = timestamp,
-      attachments = attachments,
-      content = userText(message),
-      messageId = message.text("id")
-    )
-  }
-
-  /**
-   * Rebuilds one assistant bubble from every consecutive `assistant` / `tool`
-   * row starting at [startIndex], reporting the index to resume at.
-   *
-   * A single turn is persisted as several assistant rows : one per model step
-   * (tool-call rows first, the final text row last) : but the live view renders
-   * the whole turn as one bubble, because the event stream keeps appending to
-   * the same message. The rebuild merges the rows the same way: all thinking
-   * folds into one block, every tool call pairs with its result row, and the
-   * response texts concatenate, so a reopened session shows one bubble instead
-   * of a split "fold group + reply" pair.
-   */
-  private fun mergedAssistantMessage(
-    startIndex: Int,
-    timestamp: Long,
-    allMessages: List<JsonObject>
-  ): Pair<ChatMessage?, Int> {
-    val thinkingParts: MutableList<String> = mutableListOf()
-    val responseParts: MutableList<String> = mutableListOf()
-    val callRows: MutableList<Pair<JsonArray, List<JsonObject>>> = mutableListOf()
-    var modelName = ""
-    var messageId = ""
-    var usage: TokenUsage? = null
-
-    var index: Int = startIndex
-    while (index < allMessages.size) {
-      val row: JsonObject = allMessages[index]
-      when (row.text("role")) {
-        "assistant" -> {
-          row.text("thinking").takeIf { it.isNotBlank() }?.let { thinkingParts.add(it) }
-          row.text("content").takeIf { it.isNotBlank() }?.let { responseParts.add(it) }
-          if (modelName.isBlank()) modelName = row.text("modelName")
-          if (messageId.isBlank()) messageId = row.text("id")
-          row["tokenUsage"]?.let { usage = tokenUsage(row) ?: usage }
-
-          val toolCalls: JsonArray = row["tool_calls"] as? JsonArray ?: JsonArray(emptyList())
-          if (toolCalls.isNotEmpty()) {
-            val results: MutableList<JsonObject> = mutableListOf()
-            var lookahead: Int = index + 1
-            while (lookahead < allMessages.size && allMessages[lookahead].text("role") == "tool") {
-              results.add(allMessages[lookahead])
-              lookahead++
-            }
-            callRows.add(toolCalls to results)
-            index = lookahead
-          } else {
-            index++
-          }
-        }
-
-        "tool" -> index++
-
-        else -> return finishedAssistantMessage(
-          timestamp, messageId, modelName, usage, thinkingParts, responseParts, callRows
-        ) to index
-      }
-    }
-    return finishedAssistantMessage(
-      timestamp, messageId, modelName, usage, thinkingParts, responseParts, callRows
-    ) to index
-  }
-
-  /** Assembles the merged rows into one bubble, or null when the turn is empty. */
-  private fun finishedAssistantMessage(
-    timestamp: Long,
-    messageId: String,
-    modelName: String,
-    usage: TokenUsage?,
-    thinkingParts: List<String>,
-    responseParts: List<String>,
-    callRows: List<Pair<JsonArray, List<JsonObject>>>
-  ): ChatMessage? {
-    val thinkingText: String = thinkingParts.joinToString(separator = "\n\n")
-    val responseText: String = responseParts.joinToString(separator = "\n\n")
-    if (thinkingText.isBlank() && responseText.isBlank() && callRows.isEmpty()) return null
-
-    var rebuiltMessage = ChatMessage(
-      role = "assistant",
-      timestamp = timestamp,
-      modelName = modelName,
-      messageId = messageId,
-      tokenUsage = usage
-    )
-    if (thinkingText.isNotBlank())
-      rebuiltMessage = rebuiltMessage.appendBlock(RenderBlock.Thinking(thinkingText))
-
-    callRows.forEach { (toolCalls: JsonArray, toolResults: List<JsonObject>) ->
-      toolCallBlocks(toolCalls, toolResults).forEach { block: RenderBlock.ToolCall ->
-        rebuiltMessage = rebuiltMessage.appendBlock(block)
-      }
-    }
-    if (responseText.isNotBlank())
-      rebuiltMessage = rebuiltMessage.appendBlock(RenderBlock.Response(responseText))
-
-    return rebuiltMessage
-  }
-
-  /**
-   * Pairs each tool call with its result row. The raw history stores the
-   * arguments the model produced and the result as an opaque string, and no
-   * success flag, so a rebuilt call is always marked successful: the same
-   * fidelity the Markdown transcript offers on reload.
-   */
-  private fun toolCallBlocks(toolCalls: JsonArray, toolResults: List<JsonObject>): List<RenderBlock.ToolCall> {
-    val unmatchedResults: MutableList<JsonObject> = toolResults.toMutableList()
-    return toolCalls.mapNotNull { callElement: JsonElement ->
-      val call: JsonObject = callElement as? JsonObject ?: return@mapNotNull null
-      val function: JsonObject = call["function"] as? JsonObject ?: JsonObject(emptyMap())
-      val toolName: String = function.text("name").ifBlank { call.text("name") }
-      val callId: String = call.text("id")
-      val toolResult: JsonObject? = takeResult(unmatchedResults, callId)
-      val arguments: Map<String, Any> = toolArguments(function["arguments"] ?: call["arguments"])
-
-      val rebuiltArguments: Map<String, Any> =
-        if (toolName == DELEGATE_TOOL_NAME) arguments + ("pending" to false) else arguments
-      RenderBlock.ToolCall(
-        alias = toolResult?.text("alias").orEmpty().ifBlank { toolName },
-        success = true,
-        toolCallId = callId,
-        result = toolResult?.text("content").orEmpty(),
-        arguments = rebuiltArguments
+  private fun toMessage(bubble: JsonObject, timestamp: Long): ChatMessage? {
+    return when (bubble.text("role")) {
+      "user" -> ChatMessage(
+        role = "user",
+        timestamp = timestamp,
+        attachments = attachments(bubble),
+        content = bubble.text("content"),
+        messageId = bubble.text("id")
       )
+
+      "assistant" -> ChatMessage(
+        role = "assistant",
+        timestamp = timestamp,
+        renderBlocks = (bubble["blocks"] as? JsonArray)
+          ?.mapNotNull { block: JsonElement -> toBlock(block) }
+          ?: emptyList(),
+        modelName = bubble.text("modelName"),
+        messageId = bubble.text("id"),
+        tokenUsage = tokenUsage(bubble)
+      )
+
+      else -> null
     }
   }
 
-  private fun takeResult(remainingResults: MutableList<JsonObject>, callId: String): JsonObject? {
-    val matched: JsonObject? = when {
-      callId.isNotBlank() -> remainingResults.firstOrNull { it.text("tool_call_id") == callId }
-        ?: remainingResults.firstOrNull()
+  private fun toBlock(element: JsonElement): RenderBlock? {
+    val block: JsonObject = element as? JsonObject ?: return null
+    return when (block.text("type")) {
+      "thinking" -> RenderBlock.Thinking(block.text("content"))
+      "response" -> RenderBlock.Response(block.text("content"))
+      "toolCall" -> RenderBlock.ToolCall(
+        alias = block.text("alias"),
+        success = block.boolean("success"),
+        result = block.text("result"),
+        toolCallId = block.text("toolCallId"),
+        arguments = toolArguments(block["arguments"])
+      )
 
-      else -> remainingResults.firstOrNull()
-    }
-    if (matched != null) remainingResults.remove(matched)
-    return matched
-  }
-
-  private fun userText(message: JsonObject): String {
-    val displayText: String = message.text("displayText")
-    if (displayText.isNotBlank()) return displayText
-    return when (val content: JsonElement? = message["content"]) {
-      is JsonPrimitive -> content.content
-      is JsonArray -> content.filterIsInstance<JsonObject>()
-        .filter { it.text("type") == "text" }
-        .mapNotNull { it["text"] as? JsonPrimitive }
-        .joinToString(separator = "\n\n") { it.content }
-
-      else -> ""
+      else -> null
     }
   }
 
-  private fun attachmentNames(message: JsonObject): List<String> {
-    val attachments: JsonArray = message["attachments"] as? JsonArray ?: return emptyList()
+  private fun attachments(bubble: JsonObject): List<AttachedText> {
+    val attachments: JsonArray = bubble["attachments"] as? JsonArray ?: return emptyList()
     return attachments.filterIsInstance<JsonObject>()
       .map { it.text("name") }
       .filter { it.isNotEmpty() }
+      .map { attachmentName: String -> AttachedText(content = "", preview = attachmentName) }
   }
 
-  private fun tokenUsage(message: JsonObject): TokenUsage? {
-    val usage: JsonObject = message["tokenUsage"] as? JsonObject ?: return null
+  private fun tokenUsage(bubble: JsonObject): TokenUsage? {
+    val usage: JsonObject = bubble["tokenUsage"] as? JsonObject ?: return null
     val totalTokens: Int = usage.number("totalTokens")
     if (totalTokens <= 0) return null
     return TokenUsage(
@@ -239,21 +89,8 @@ object SessionProjection {
   }
 
   private fun toolArguments(element: JsonElement?): Map<String, Any> {
-    return when (element) {
-      is JsonPrimitive -> parseArguments(element.content)
-      is JsonObject -> element.mapValues { (_, value: JsonElement) -> toPlainValue(value) }
-      else -> emptyMap()
-    }
-  }
-
-  private fun parseArguments(rawJson: String): Map<String, Any> {
-    if (rawJson.isBlank()) return emptyMap()
-    return try {
-      val parsed: JsonElement = jsonParser.parseToJsonElement(rawJson)
-      (parsed as? JsonObject)?.mapValues { (_, value: JsonElement) -> toPlainValue(value) } ?: emptyMap()
-    } catch (_: Exception) {
-      emptyMap()
-    }
+    val arguments: JsonObject = element as? JsonObject ?: return emptyMap()
+    return arguments.mapValues { (_, value: JsonElement) -> toPlainValue(value) }
   }
 
   private fun toPlainValue(element: JsonElement): Any {
@@ -272,6 +109,11 @@ object SessionProjection {
   private fun JsonObject.text(key: String): String {
     val value: JsonPrimitive = this[key] as? JsonPrimitive ?: return ""
     return value.contentOrNull.orEmpty()
+  }
+
+  private fun JsonObject.boolean(key: String): Boolean {
+    val value: JsonPrimitive = this[key] as? JsonPrimitive ?: return false
+    return value.booleanOrNull ?: false
   }
 
   private fun JsonObject.number(key: String): Int {

@@ -1,6 +1,6 @@
 # Gradum Buffet: Server-Authoritative State Migration
 
-> Version: **0.1** · Branch: `feature/@gradum-gwy-buffet-projection` · Opened: **2026-10-17** · Status: **Step 5.5a done**
+> Version: **0.1** · Branch: `feature/@gradum-gwy-buffet-projection` · Opened: **2026-10-17** · Status: **Complete — Step 3.5 deferred**
 
 "Buffet" is the working name for moving session-state authority from the IDE
 plugin back to the server. The plugin should *serve* state (render it, ask the
@@ -131,10 +131,9 @@ redraws an open ask card.
 
 Make the plugin stop trusting its own assembly once events may have been lost.
 
-- `GET /session/state` is the cold projection. The plugin rebuilds bubbles from
-  its `messages` (the raw agent history), folding each `tool` row into the call
-  that issued it — the same reading `SessionTranscriptWriter` performs — and
-  replays `pendingAsks` onto the last assistant message.
+- `GET /session/state` is the cold projection. Its `messages` are already the
+  bubble shape the UI renders; the plugin decodes them and replays `pendingAsks`
+  onto the last assistant message.
 - Reconcile when a `gap` was seen **after the run ends**, and when (re)opening a
   session. A clean `session_end` keeps the live view: the projection does not
   carry UI-only decorations (failed-tool styling, the delegate capsule's
@@ -180,7 +179,7 @@ gone.
 Acceptance: the transcript is a render of the sidecar, and no client code
 duplicates the title rule or the error-code vocabulary.
 
-### Step 5 — Move decisions back to the server ⬜
+### Step 5 — Move decisions back to the server ✅
 
 Split into five shippable sub-steps:
 
@@ -219,7 +218,7 @@ Split into five shippable sub-steps:
 Acceptance: creating, merging, rewind, and "model gone" flows produce no
 client-authoritative ids or decisions.
 
-### Step 5.5 — Thin the plugin ⬜
+### Step 5.5 — Thin the plugin ✅
 
 Only after Steps 2–4 land: the plugin should hold one representation of a
 message and never re-derive it. Two shippable sub-steps:
@@ -230,11 +229,15 @@ message and never re-derive it. Two shippable sub-steps:
   the UI reads, and tool renderers dispatch on the alias, never the tool name).
   The handlers append blocks directly, so the two lists can no longer drift and
   the assembly machinery in `ChatMessage.kt` loses its `events` half.
-- **5.5b — the server folds the history ⬜.** `SessionProjection` still derives
-  the cold view from the raw history rows : the same reading
-  `SessionTranscriptWriter` performs for `conversation.md`. Move that reading to
-  one server-side projection, serve block-shaped messages from
-  `GET /session/state`, and let the plugin decode instead of derive.
+- **5.5b — the server folds the history ✅.** The raw-history reading has one
+  home, `server/.../persistence/SessionBubbleProjection.kt`: `SessionTranscriptWriter`
+  renders `conversation.md` from it row by row, and `toBubbles` folds the same rows
+  into one bubble per turn. `GET /session/state` serves those bubbles, so the
+  cold view and the transcript cannot disagree, and the plugin's
+  `SessionProjection` is a ~120-line decoder with no knowledge of the payload
+  (OpenAI vs Ollama arguments, `tool` rows, blank thinking). The sidecar keeps
+  storing raw rows: it is the durable authority, and `SessionMerger` / token
+  aggregation read it as-is.
 
 The live stream stays event-shaped: making the server stream render blocks would
 only relocate the assembly into the server and freeze the UI vocabulary into the
@@ -291,4 +294,5 @@ wire.
 | 5d   | ✅ done    | this PR   | `GET /models` probe is reachability only; model + vision guesses deleted; 474 server + 492 plugin green  |
 | 5e   | ✅ done    | this PR   | `deleteMessage` rewinds server-first; bubble withdrawn on success; 474 server + 492 plugin green         |
 | 5.5a | ✅ done    | this PR   | `ChatEvent` + `ToolCallInfo` deleted; one block list per message; 474 server + 497 plugin green          |
+| 5.5b | ✅ done    | this PR   | server folds the raw history into bubbles (`SessionBubbleProjection`); plugin `SessionProjection` is a decoder; 484 server + 494 plugin green |
 | 5.5b | ⬜         | —         | server folds the history into blocks; plugin decodes                                                     |

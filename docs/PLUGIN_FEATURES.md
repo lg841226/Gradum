@@ -1061,13 +1061,14 @@ and merging sessions.
 ### 20.1 Session persistence (`ChatSessionStore`)
 
 The server owns `<projectRoot>/.gradum/sessions/`: after every turn it writes each session's machine-readable
-`session-state.json` sidecar (the projection the client cold-loads) plus a human-readable `conversation.md` render.
+`session-state.json` sidecar (the durable history the client cold-loads, folded into render blocks by
+`GET /session/state`) plus a human-readable `conversation.md` render.
 `ChatSessionStore` is a thin REST client over that store:
 
 | Operation | Method                                 | Notes                                                                  |
 |-----------|----------------------------------------|------------------------------------------------------------------------|
 | List all  | `listSessions()`                       | `GET /sessions`; returns `List<SessionMeta>` sorted by `updatedAt`.    |
-| Cold load | `loadSessionState(sessionId)`          | `GET /session/state`; returns the authoritative projection, or `null`. |
+| Cold load | `loadSessionState(sessionId)`          | `GET /session/state`; returns the folded projection, or `null`.        |
 | Merge     | `mergeSessions(sessionIds, baseTitle)` | `POST /sessions/merge`; the server weaves and numbers the title.       |
 | Rename    | `renameSession(sessionId, newTitle)`   | `POST /session/rename`; returns `false` when missing.                  |
 | Delete    | `deleteSession(sessionId)`             | `POST /session/delete`; removes the directory and the chat DB row.     |

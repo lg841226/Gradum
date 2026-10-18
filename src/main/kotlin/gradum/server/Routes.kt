@@ -7,6 +7,7 @@ import gradum.agent.GradumEventType
 import gradum.client.ThinkingLevel
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.server.persistence.ChatDb
+import gradum.server.persistence.SessionBubbleProjection
 import gradum.server.persistence.SessionIds
 import gradum.server.persistence.SessionMerger
 import gradum.server.persistence.SessionStateStore
@@ -64,19 +65,19 @@ private data class SessionEntry(
 )
 
 /** Sums per-message token usage; `contextTokens` comes from the newest message reporting it. */
-private fun aggregateTokenUsage(messages: List<JsonElement>): Map<String, Any> {
+private fun aggregateTokenUsage(messages: List<Map<String, Any?>>): Map<String, Any> {
   var totalSum = 0
   var promptSum = 0
   var completionSum = 0
   var contextTokens = 0
 
-  for (message: JsonElement in messages) {
-    val usage: JsonObject = ((message as? JsonObject)?.get("tokenUsage") as? JsonObject) ?: continue
+  for (message: Map<String, Any?> in messages) {
+    val usage: Map<*, *> = message["tokenUsage"] as? Map<*, *> ?: continue
 
-    promptSum += usage.intField("promptTokens")
-    completionSum += usage.intField("completionTokens")
-    totalSum += usage.intField("totalTokens")
-    contextTokens = usage.intField("contextTokens").takeIf { it > 0 } ?: contextTokens
+    promptSum += (usage["promptTokens"] as? Number)?.toInt() ?: 0
+    completionSum += (usage["completionTokens"] as? Number)?.toInt() ?: 0
+    totalSum += (usage["totalTokens"] as? Number)?.toInt() ?: 0
+    contextTokens = ((usage["contextTokens"] as? Number)?.toInt() ?: 0).takeIf { it > 0 } ?: contextTokens
   }
   return mapOf(
     "promptTokens" to promptSum,
@@ -85,9 +86,6 @@ private fun aggregateTokenUsage(messages: List<JsonElement>): Map<String, Any> {
     "contextTokens" to contextTokens
   )
 }
-
-private fun JsonObject.intField(key: String): Int =
-  (this[key] as? JsonPrimitive)?.content?.toIntOrNull() ?: 0
 
 @Serializable
 data class ProviderProbeRequest(
@@ -806,8 +804,11 @@ fun Application.registerAllRoutes(
         return@get
       }
 
-      val fullMessages: List<JsonElement> =
-        (storedState?.get("messages") as? JsonArray)?.toList() ?: emptyList()
+      val storedMessages: List<Map<String, Any?>> =
+        SessionBubbleProjection.readStoredMessages(
+          (storedState?.get("messages") as? JsonArray)?.toList() ?: emptyList()
+        )
+      val bubbles: List<Map<String, Any?>> = SessionBubbleProjection.toBubbles(storedMessages)
       val sinceSeq: Int = call.request.queryParameters["since"]?.toIntOrNull() ?: -1
 
       val activeEntry: Map.Entry<String, SessionEntry>? = activeSessions.entries
@@ -821,13 +822,13 @@ fun Application.registerAllRoutes(
             "runId" to activeRunId,
             "sessionId" to sessionKey,
             "isRunning" to (activeRunId != null),
-            "lastMessageIndex" to (fullMessages.size - 1),
+            "lastMessageIndex" to (bubbles.size - 1),
             "title" to (transcriptMeta?.title ?: ""),
-            "messages" to fullMessages.drop(sinceSeq + 1),
+            "messages" to bubbles.drop(sinceSeq + 1),
             "modelName" to (transcriptMeta?.modelName ?: ""),
             "createdAt" to (transcriptMeta?.createdAt ?: 0L),
             "updatedAt" to (transcriptMeta?.updatedAt ?: 0L),
-            "tokenUsage" to aggregateTokenUsage(fullMessages),
+            "tokenUsage" to aggregateTokenUsage(storedMessages),
             "pendingAsks" to pendingQuestions.pending(sessionKey),
             "subAgents" to (activeEntry?.value?.subAgents?.toList() ?: emptyList())
           )
