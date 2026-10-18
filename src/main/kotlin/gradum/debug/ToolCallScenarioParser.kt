@@ -15,7 +15,6 @@ import javax.xml.parsers.DocumentBuilderFactory
 
 private val logger: Logger = LoggerFactory.getLogger("ToolCallScenarioParser")
 
-/** A single scenario step: either an AI reply segment or a tool call. */
 sealed interface ScenarioStep {
   /**
    * AI reply narration: what the LLM says between tool calls on a real
@@ -32,16 +31,14 @@ sealed interface ScenarioStep {
  */
 data class ParsedToolCall(
   val functionName: String,
-  val functionArguments: Map<String, JsonElement>,
   val expectSuccess: Boolean,
+  val functionArguments: Map<String, JsonElement>
 ) : ScenarioStep
 
-/** Result of parsing a `.tls.xml` scenario file. */
 data class ToolCallScenario(
-  val steps: List<ScenarioStep>,
   val scenarioName: String,
+  val steps: List<ScenarioStep>
 ) {
-  /** Only the tool steps, in document order. */
   val toolCalls: List<ParsedToolCall> get() = steps.filterIsInstance<ParsedToolCall>()
 }
 
@@ -65,7 +62,7 @@ data class ToolCallScenario(
  *
  * AI reply narration is not authored by hand here: it is carried over
  * from Markdown documents as `<tt>` segments, and assistant text on real
- * agent turns comes from the LLM stream. Hand-written scenarios declare
+ * agent turns comes from the LLM stream. Handwritten scenarios declare
  * tool calls only.
  *
  * Two elements may be interleaved freely in document order, matching a
@@ -85,7 +82,6 @@ data class ToolCallScenario(
  */
 object ToolCallScenarioParser {
 
-  /** Parses a raw scenario XML string into a [ToolCallScenario]. */
   fun parse(rawXml: String): ToolCallScenario {
     val documentBuilderFactory = DocumentBuilderFactory.newInstance()
 
@@ -131,7 +127,7 @@ object ToolCallScenarioParser {
     if (stepList.isEmpty())
       throw ToolCallScenarioParseException("Scenario <tls> contains no <t> tool entries")
 
-    return ToolCallScenario(steps = stepList, scenarioName = scenarioName)
+    return ToolCallScenario(scenarioName = scenarioName, steps = stepList)
   }
 
   private fun childElements(parent: Element): List<Element> {
@@ -210,6 +206,5 @@ object ToolCallScenarioParser {
   )
 }
 
-/** Thrown when a scenario XML file cannot be parsed. */
 class ToolCallScenarioParseException(message: String, cause: Throwable? = null) :
   Exception(message, cause)

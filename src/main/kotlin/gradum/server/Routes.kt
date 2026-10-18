@@ -5,13 +5,9 @@ import gradum.Version
 import gradum.agent.Agent
 import gradum.agent.GradumEventType
 import gradum.client.ThinkingLevel
+import gradum.logging.EventStreamDump
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
-import gradum.server.persistence.ChatDb
-import gradum.server.persistence.SessionHistoryReader
-import gradum.server.persistence.SessionIds
-import gradum.server.persistence.SessionMerger
-import gradum.server.persistence.SessionStateStore
-import gradum.server.persistence.SessionTranscriptWriter
+import gradum.server.persistence.*
 import gradum.skill.PendingQuestions
 import gradum.skill.SkillRegistry
 import gradum.skill.external.DeployResult
@@ -32,7 +28,10 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ChannelResult
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -385,17 +384,17 @@ fun Application.registerAllRoutes(
                   activeSessions[runId]?.subAgents?.clear()
               }
 
-              val ndjsonLine: String = JsonUtil.encodeMap(
-                mapOf(
-                  "data" to data,
-                  "type" to eventType,
-                  "runId" to runId,
-                  "sessionId" to resolvedSessionId,
-                  "gap" to eventSequencer.pendingGap(),
-                  "seq" to eventSequencer.claimSequence(),
-                  "timestamp" to LocalDateTime.now().toString()
-                )
-              ) + "\n"
+              val eventFrame: Map<String, Any?> = mapOf(
+                "data" to data,
+                "type" to eventType,
+                "runId" to runId,
+                "sessionId" to resolvedSessionId,
+                "gap" to eventSequencer.pendingGap(),
+                "seq" to eventSequencer.claimSequence(),
+                "timestamp" to LocalDateTime.now().toString()
+              )
+              val ndjsonLine: String = JsonUtil.encodeMap(eventFrame) + "\n"
+              EventStreamDump.append(ndjsonLine)
               val sendResult: ChannelResult<Unit> = eventsChannel.trySend(ndjsonLine)
               if (sendResult.isFailure) {
                 eventSequencer.recordDrop()

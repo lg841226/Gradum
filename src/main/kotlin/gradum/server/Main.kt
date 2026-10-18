@@ -3,6 +3,7 @@ package gradum.server
 import gradum.BuildConfig
 import gradum.GradumRuntime
 import gradum.acp.AcpServer
+import gradum.logging.EventStreamDump
 import gradum.logging.routeAcpLogsToFile
 import gradum.mcp.McpConnectionManager
 import gradum.mcp.McpToolCatalog
@@ -45,6 +46,7 @@ private fun initRuntime(): GradumRuntime {
   val settings: ServerSettings = ServerSettingsStore.load()
 
   CommandFilterRuntime.config = settings.commandFilter
+  EventStreamDump.configure(enabled = settings.debugEventDump)
 
   val mcpManager = McpConnectionManager()
   if (settings.mcpServers.isNotEmpty()) {

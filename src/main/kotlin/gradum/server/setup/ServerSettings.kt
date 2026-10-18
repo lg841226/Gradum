@@ -42,6 +42,12 @@ data class ServerSettings(
   val defaultKeepAliveMinutes: Int,
   /** Resolved command filter rules; equals [CommandFilterConfig.DEFAULT] when the user configures nothing. */
   val commandFilter: CommandFilterConfig,
+  /**
+   * When true, every `/events` NDJSON line is also appended to
+   * `${java.io.tmpdir}/gradum-events.log` (see
+   * [gradum.logging.EventStreamDump]). Debug aid, off by default.
+   */
+  val debugEventDump: Boolean,
   /** Configured MCP stdio servers whose tools are exposed as skills; empty when the user configures nothing. */
   val mcpServers: List<McpServerConfig>,
   /**
@@ -135,11 +141,13 @@ object ServerSettingsStore {
 
     val serverGroup: Map<*, *> = root["server"] as? Map<*, *> ?: emptyMap<Any?, Any?>()
     val llmGroup: Map<*, *> = root["llm"] as? Map<*, *> ?: emptyMap<Any?, Any?>()
+    val debugGroup: Map<*, *> = root["debug"] as? Map<*, *> ?: emptyMap<Any?, Any?>()
 
     val issues: MutableList<ValidationIssue> = mutableListOf()
     warnUnknownKeys(root, TOP_LEVEL_KEYS, "", issues)
     warnUnknownKeys(serverGroup, SERVER_KEYS, "server", issues)
     warnUnknownKeys(llmGroup, LLM_KEYS, "llm", issues)
+    warnUnknownKeys(debugGroup, DEBUG_KEYS, "debug", issues)
 
     var host: String = ServerConfiguration.DEFAULT_HOST_ADDRESS
     val rawHost: Any? = serverGroup["host"]
@@ -251,6 +259,15 @@ object ServerSettingsStore {
       )
     }
 
+    var debugEventDump = false
+    val rawDebugEventDump: Any? = debugGroup["eventDump"]
+    if (rawDebugEventDump != null) {
+      if (rawDebugEventDump is Boolean) debugEventDump = rawDebugEventDump
+      else issues += ValidationIssue(
+        "debug.eventDump", Severity.WARN, "expected a boolean (true/false); got ${describe(rawDebugEventDump)}"
+      )
+    }
+
     val commandFilter: CommandFilterConfig = parseCommandFilter(sectionRaw = root["commandFilter"], issues = issues)
     val mcpServers: List<McpServerConfig> = parseMcpServers(sectionRaw = root["mcpServers"], issues = issues)
     val plugins: Map<String, Map<String, Any?>> = parsePlugins(sectionRaw = root["plugins"], issues = issues)
@@ -274,6 +291,7 @@ object ServerSettingsStore {
       allowRemote = allowRemote,
       isConfigured = isConfigured,
       commandFilter = commandFilter,
+      debugEventDump = debugEventDump,
       defaultBaseUrl = defaultBaseUrl,
       autoDetectPort = autoDetectPort,
       defaultModelName = defaultModelName,
@@ -313,7 +331,7 @@ object ServerSettingsStore {
 
   private val PORT_RANGE: IntRange = 1024..65535
   private val TOP_LEVEL_KEYS: Set<String> = setOf(
-    $$"$schema", CONFIGURED_KEY, "server", "llm", "commandFilter", "mcpServers", "plugins",
+    $$"$schema", CONFIGURED_KEY, "server", "llm", "debug", "commandFilter", "mcpServers", "plugins",
     "ollama.baseUrl", "ollama.apiKey", "ollama.allowRemote",
     "lmstudio.baseUrl", "lmstudio.apiKey", "lmstudio.allowRemote",
     "zhipu.baseUrl", "zhipu.apiKey", "zhipu.allowRemote",
@@ -322,6 +340,7 @@ object ServerSettingsStore {
   )
   private val SERVER_KEYS: Set<String> = setOf("host", "allowRemote", "port", "autoDetectPort", "apiKeyFile")
   private val LLM_KEYS: Set<String> = setOf("baseUrl", "model", "think")
+  private val DEBUG_KEYS: Set<String> = setOf("eventDump")
 
   private fun logIssues(issues: List<ValidationIssue>) {
     if (issues.isEmpty()) return

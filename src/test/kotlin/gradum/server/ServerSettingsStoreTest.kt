@@ -54,6 +54,7 @@ class ServerSettingsStoreTest {
     assertEquals("", settings.defaultModelName)
     assertFalse(settings.defaultThinkEnabled)
     assertEquals(5, settings.defaultKeepAliveMinutes)
+    assertFalse(settings.debugEventDump)
     assertTrue(settings.mcpServers.isEmpty())
   }
 
@@ -135,6 +136,15 @@ class ServerSettingsStoreTest {
 
     File(tempDir, "settings.json").writeText("""{"server": {"allowRemote": "yes"}}""")
     assertFalse(ServerSettingsStore.load().allowRemote)
+  }
+
+  @Test
+  fun `load parses debug eventDump and falls back when it is not a boolean`() {
+    File(tempDir, "settings.json").writeText("""{"debug": {"eventDump": true}}""")
+    assertTrue(ServerSettingsStore.load().debugEventDump)
+
+    File(tempDir, "settings.json").writeText("""{"debug": {"eventDump": "yes"}}""")
+    assertFalse(ServerSettingsStore.load().debugEventDump)
   }
 
   @Test

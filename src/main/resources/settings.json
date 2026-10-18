@@ -13,6 +13,9 @@
     "think": false,
     "keepAliveMinutes": 5
   },
+  "debug": {
+    "eventDump": false
+  },
   "commandFilter": {
     "blockedExecutables": [
       "mkfs",

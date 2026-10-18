@@ -217,6 +217,20 @@
       "additionalProperties": false,
       "required": []
     },
+    "debug": {
+      "type": "object",
+      "title": "Debug Options",
+      "description": "Diagnostics for troubleshooting the server. All off by default.",
+      "properties": {
+        "eventDump": {
+          "type": "boolean",
+          "description": "Append every /events NDJSON line to <tmpdir>/gradum-events.log, one JSON object per line, while a run is in flight. Read it with `tail -f` or the `./gradlew eventMonitor` window.",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "required": []
+    },
     "commandFilter": {
       "type": "object",
       "title": "Command Filter Rules",

@@ -86,6 +86,19 @@ tasks.named<JavaExec>("run") {
   }
 }
 
+/**
+ * Swing tail over the debug NDJSON dump (`gradum.logging.EventStreamDump`).
+ * Dev-only: it never runs as part of the server, it just reads the temp log
+ * the server writes when `debug.eventDump` is on in `~/.gradum/settings.json`.
+ */
+tasks.register<JavaExec>("eventMonitor") {
+  group = "gradum"
+  description = "Open the Swing monitor that pretty-prints the debug NDJSON event dump"
+  mainClass.set("gradum.tools.EventStreamMonitorKt")
+  classpath = sourceSets["main"].runtimeClasspath
+  jvmArgs("-Dfile.encoding=UTF-8")
+}
+
 repositories {
   mavenCentral()
 }
