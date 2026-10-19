@@ -745,7 +745,7 @@ Returns a JSON object of the shape:
 }
 ```
 
-For Ollama entries the server probes each model's `/api/show` capabilities and fills in `reasoning` (model can think), `reasoningLevels` (model accepts graded `low`/`medium`/`high` depth, currently gpt-oss only), `toolCall`, `attachment` (vision), `contextLimit`, and `parameterSizeB`. Other entries keep their discovery-time defaults. `reasoning` / `reasoningLevels` drive the plugin's thinking-level selector (hidden when the model cannot think, grayed when it thinks on a binary switch only).
+For Ollama entries the server probes each model's `/api/show` capabilities and fills in `reasoning` (model can think), `reasoningLevels` (model accepts graded `low`/`medium`/`high` depth, currently gpt-oss only), `toolCall`, `attachment` (vision), `contextLimit`, and `parameterSizeB`. LM Studio entries are enriched in the same pass from `GET /api/v1/models`: `reasoning` (non-empty `capabilities.reasoning.allowed_options`), `toolCall` (`trained_for_tool_use`), and `attachment` (`vision`); `reasoningLevels` stays false because LM Studio ignores `reasoning_effort` on the OpenAI-compatible surface. Other entries keep their discovery-time defaults. `reasoning` / `reasoningLevels` drive the plugin's thinking-level selector (hidden when the model cannot think, grayed when it thinks on a binary switch only).
 
 The response is decoded with `Json { ignoreUnknownKeys = true }`, so fields added by newer server builds decode cleanly. `unavailableReason` is server-only today (the plugin model does not read it).
 

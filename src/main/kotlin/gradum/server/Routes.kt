@@ -4,6 +4,8 @@ import gradum.*
 import gradum.Version
 import gradum.agent.Agent
 import gradum.agent.GradumEventType
+import gradum.client.LmStudioModelCapabilities
+import gradum.client.LmStudioModelCatalog
 import gradum.client.OllamaModelCapabilities
 import gradum.client.OllamaModelCatalog
 import gradum.client.ThinkingLevel
@@ -931,18 +933,24 @@ fun Application.registerAllRoutes(
     get("/models") {
       val discoveredModels: List<ModelEntry> = ModelIdentity.discoverModels()
       // One catalog per distinct base URL so a second configured host probes
-      // against its own address (the catalog cache is keyed by base URL).
+      // against its own address (both catalog caches are keyed by base URL).
       val ollamaCatalogs: Map<String, OllamaModelCatalog> = discoveredModels
         .filter { it.providerType == Provider.OLLAMA.wireType }
         .map { it.serverUrl }
         .distinct()
         .associateWith { serverUrl -> OllamaModelCatalog(baseUrl = serverUrl) }
+      val lmStudioCatalogs: Map<String, LmStudioModelCatalog> = discoveredModels
+        .filter { it.providerType == Provider.LMSTUDIO.wireType }
+        .map { it.serverUrl }
+        .distinct()
+        .associateWith { serverUrl -> LmStudioModelCatalog(baseUrl = serverUrl) }
       val enrichedModels: List<ModelEntry> =
-        if (ollamaCatalogs.isNotEmpty()) {
+        if (ollamaCatalogs.isNotEmpty() || lmStudioCatalogs.isNotEmpty()) {
           coroutineScope {
             discoveredModels.map { entry ->
               async {
                 val ollamaCatalog: OllamaModelCatalog? = ollamaCatalogs[entry.serverUrl]
+                val lmStudioCatalog: LmStudioModelCatalog? = lmStudioCatalogs[entry.serverUrl]
                 when {
                   ollamaCatalog != null -> {
                     val caps: OllamaModelCapabilities = ollamaCatalog.capabilitiesFor(modelName = entry.modelName)
@@ -953,6 +961,21 @@ fun Application.registerAllRoutes(
                       attachment = caps.supportsVision,
                       contextLimit = caps.contextLength,
                       parameterSizeB = caps.parameterSizeB ?: entry.parameterSizeB
+                    )
+                  }
+
+                  lmStudioCatalog != null -> {
+                    val caps: LmStudioModelCapabilities = lmStudioCatalog.capabilitiesFor(modelName = entry.modelName)
+                    entry.copy(
+                      // LM Studio's OpenAI-compatible surface ignores
+                      // reasoning_effort: report that the model reasons but do
+                      // not advertise graded levels (the A path sends none).
+                      reasoning = caps.reasoningOptions.isNotEmpty(),
+                      reasoningLevels = false,
+                      toolCall = caps.supportsTools,
+                      // Union with the discovery-time v0 vision flag so a
+                      // failed capability probe never downgrades it.
+                      attachment = caps.supportsVision || entry.attachment
                     )
                   }
 

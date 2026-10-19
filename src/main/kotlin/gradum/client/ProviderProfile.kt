@@ -290,10 +290,33 @@ val MiniMaxProfile: ProviderProfile = providerProfile {
   }
 }
 
+/**
+ * LM Studio (`/v1/chat/completions`). LM Studio ignores `reasoning_effort`
+ * on this surface, so no thinking parameter is sent for any level (the
+ * OFF case is therefore identical to every other level). Reasoning tokens
+ * still stream back and are picked up by the client's delta fallback
+ * chain, which reads `reasoning_content` first and `reasoning` second.
+ * The request body mirrors [OpenAiProfile] (`temperature`, `top_p`,
+ * `max_tokens`).
+ */
+val LmStudioProfile: ProviderProfile = providerProfile {
+  // No `reasoningDelta`: the client falls back across the known reasoning
+  // field names instead of trusting a single declared one.
+  thinking { _, _ ->
+    // Intentionally empty: LM Studio has no request-side thinking switch.
+  }
+  body { params ->
+    temperature = params.temperature
+    topP = params.topP
+    maxTokens = params.maxTokens
+  }
+}
+
 fun profileFor(provider: Provider): ProviderProfile =
   when (provider) {
     Provider.OLLAMA -> OllamaProfile
     Provider.OPENAI -> OpenAiProfile
     Provider.DEEPSEEK -> DeepSeekProfile
     Provider.MINIMAX -> MiniMaxProfile
+    Provider.LMSTUDIO -> LmStudioProfile
   }

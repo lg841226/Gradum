@@ -45,6 +45,27 @@ private fun JsonObject.optObject(key: String): JsonObject =
   this[key]?.jsonObject ?: JsonObject(emptyMap())
 
 /**
+ * Reasoning field names tried in order when a delta does not carry the
+ * profile-declared key. LM Studio's OpenAI-compatible surface exposes
+ * reasoning under a family-dependent key (`reasoning_content` for
+ * DeepSeek-R1, `reasoning` for gpt-oss), so the declared field is only a
+ * hint: the first non-empty of declared -> `reasoning_content` ->
+ * `reasoning` wins. For profiles that declare `reasoning_content` the
+ * behavior is unchanged (the declared field is read first).
+ */
+private val REASONING_FIELD_FALLBACKS: List<String> = listOf("reasoning_content", "reasoning")
+
+private fun readReasoningDelta(deltaFields: JsonObject, declaredField: String?): String {
+  val candidateFields: List<String> =
+    (listOfNotNull(declaredField) + REASONING_FIELD_FALLBACKS).distinct()
+  for (fieldName in candidateFields) {
+    val fieldValue: String = deltaFields.optString(key = fieldName)
+    if (fieldValue.isNotEmpty()) return fieldValue
+  }
+  return ""
+}
+
+/**
  * Resolve the wire thinking level for a request: the legacy master switch
  * still gates thinking off entirely, [AgentConfiguration.thinkingLevel]
  * only matters while [AgentConfiguration.enableThinking] is true.
@@ -126,6 +147,7 @@ private fun projectMessageForBackend(
     Provider.OPENAI -> projectToOpenAi(contentParts)
     Provider.DEEPSEEK -> projectToOpenAi(contentParts)
     Provider.MINIMAX -> projectToOpenAi(contentParts)
+    Provider.LMSTUDIO -> projectToOpenAi(contentParts)
   }
 }
 
@@ -538,18 +560,19 @@ class OpenAICompatibleClient(
         emit(value = LLMResponseChunk.TextContent(contentDelta))
 
       /**
-       * Native reasoning surface: DeepSeek and MiniMax both emit
-       * thinking in a separate `reasoning_content` delta on the same
-       * choice, spelled by the provider profile. Surface it as
-       * ReasoningContent so the UI can render it as a collapsible
-       * "thought" block, matching the Ollama backend's existing
-       * `message.thinking` path.
+       * Native reasoning surface. Providers disagree on the delta key:
+       * DeepSeek / MiniMax use `reasoning_content`, while LM Studio
+       * families split between `reasoning_content` (DeepSeek-R1) and
+       * `reasoning` (gpt-oss). Read the profile-declared field first and
+       * fall back across the known names, so a single provider request
+       * still surfaces reasoning even when the backend switches dialects.
+       * Surfaced as ReasoningContent so the UI renders it as a
+       * collapsible "thought" block, matching the Ollama backend's
+       * existing `message.thinking` path.
        */
-      wireProfile.reasoningDeltaField?.let { fieldName ->
-        val reasoningDelta: String = deltaFields.optString(key = fieldName)
-        if (reasoningDelta.isNotEmpty())
-          emit(value = LLMResponseChunk.ReasoningContent(text = reasoningDelta))
-      }
+      val reasoningDelta: String = readReasoningDelta(deltaFields, wireProfile.reasoningDeltaField)
+      if (reasoningDelta.isNotEmpty())
+        emit(value = LLMResponseChunk.ReasoningContent(text = reasoningDelta))
 
       deltaFields["tool_calls"]?.jsonArray?.let { toolCallsArray ->
         accumulateCallDeltas(toolCallsArray, accumulator = accumulatedCalls)

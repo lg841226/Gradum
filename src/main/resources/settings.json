@@ -76,7 +76,7 @@
   "plugins": {},
   "ollama.baseUrl": "http://localhost:11434",
   "ollama.apiKey": "",
-  "lmstudio.baseUrl": "http://localhost:1234",
+  "lmstudio.baseUrl": "http://localhost:1234/v1",
   "lmstudio.apiKey": "",
   "zhipu.baseUrl": "https://open.bigmodel.cn/api/paas/v4",
   "zhipu.apiKey": "",

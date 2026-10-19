@@ -186,6 +186,22 @@ class ProviderConfigStoreTest {
   }
 
   @Test
+  fun `resolveLmStudioApiEndpoint strips the v1 prefix before the root-level path`() {
+    assertEquals(
+      "http://localhost:1234/api/v1/models",
+      ModelIdentity.resolveLmStudioApiEndpoint(baseUrl = "http://localhost:1234/v1", endpoint = "/api/v1/models")
+    )
+    assertEquals(
+      "http://localhost:1234/api/v1/models",
+      ModelIdentity.resolveLmStudioApiEndpoint(baseUrl = "http://localhost:1234", endpoint = "/api/v1/models")
+    )
+    assertEquals(
+      "http://localhost:1234/api/v0/models",
+      ModelIdentity.resolveLmStudioApiEndpoint(baseUrl = "http://localhost:1234/v1/", endpoint = "/api/v0/models")
+    )
+  }
+
+  @Test
   fun `probeProvider rejects malformed url before dialing`() {
     val result = ModelIdentity.probeProvider(
       kind = "lmstudio",

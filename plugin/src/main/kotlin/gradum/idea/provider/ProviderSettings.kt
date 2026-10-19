@@ -39,7 +39,7 @@ class ProviderSettings : PersistentStateComponent<ProviderSettings.State> {
     var lmStudioApiKey: String = "",
     var deepseekApiKey: String = "",
     var ollamaBaseUrl: String = "http://localhost:11434",
-    var lmStudioBaseUrl: String = "http://localhost:1234",
+    var lmStudioBaseUrl: String = "http://localhost:1234/v1",
     var minimaxBaseUrl: String = "https://api.minimaxi.com/v1",
     var deepseekBaseUrl: String = "https://api.deepseek.com/v1",
     var zhipuBaseUrl: String = "https://open.bigmodel.cn/api/paas/v4",

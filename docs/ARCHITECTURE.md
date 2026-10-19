@@ -763,7 +763,7 @@ flowchart TD
     CACHE -- Yes --> CACHED["return cached snapshot"]
     CACHE -- No --> PROBE["Probe seven known servers<br/>(probe URL = settings.json '&lt;provider&gt;.baseUrl'<br/>if set, else the built-in default;<br/>blank URL -> skipped)"]
     PROBE --> P1[Ollama<br/>default http://localhost:11434<br/>GET /api/tags<br/>provider: ollama]
-    PROBE --> P2[LM Studio<br/>default http://localhost:1234<br/>GET /api/v0/models<br/>provider: openai]
+    PROBE --> P2[LM Studio<br/>default http://localhost:1234/v1<br/>GET /api/v0/models<br/>provider: lmstudio]
     PROBE --> P3["vLLM / LocalAI<br/>no built-in default:<br/>probed only when configured<br/>GET /v1/models"]
     PROBE --> P5["Zhipu BigModel<br/>open.bigmodel.cn/api/coding/paas/v4<br/>GET /models<br/>provider: openai"]
     PROBE --> P6["DeepSeek<br/>api.deepseek.com/v1<br/>GET /models<br/>provider: openai"]
@@ -793,8 +793,9 @@ flowchart TD
   Zhipu BigModel, DeepSeek, MiniMax as cloud) with a 5s timeout, classifies failures as `HttpError` (skipped, `debug`
   log) or `Unreachable`, and returns reachable models. Results are cached by `HealthCache` with a 60-second TTL (a
   single snapshot for concurrent `/models` requests). Local servers are probed at their configured
-  `<provider>.baseUrl` (or the built-in default for Ollama/LM Studio); cloud servers are skipped when their API key
-  resolves to blank.
+  `<provider>.baseUrl` (or, for Ollama, the built-in default); cloud servers are skipped when their API key
+  resolves to blank. LM Studio's REST endpoint is root-level, so a trailing `/v1` on its configured base URL is
+  stripped before `/api/v0/models` is appended (`resolveLmStudioApiEndpoint`).
 - **Model target resolution** (`resolveModelTarget` -> `ResolvedModelTarget`): the one precedence chain both the HTTP
   `/events` route and the ACP session handler use to decide `providerType / baseUrl / apiKey` for a request: (1)
   per-request overrides sent by the client (`config.provider/baseUrl/apiKey`), (2) the `ModelEntry` discovered for
@@ -816,6 +817,12 @@ flowchart TD
   `low`/`medium`/`high`, currently gpt-oss only), `toolCall`, `attachment` (vision), `contextLimit`, and
   `parameterSizeB`. Results are cached for the process lifetime keyed by `baseUrl|modelName`; the same cache backs
   the `think` field encoding in the Ollama chat path, so list and request stay consistent from one source.
+- **LM Studio capability probe**: the same route enriches each LM Studio entry by reading `GET /api/v1/models`
+  through `LmStudioModelCatalog`: `reasoning` (non-empty `capabilities.reasoning.allowed_options`), `toolCall`
+  (`trained_for_tool_use`), and `attachment` (`vision`). Graded `reasoningLevels` stay false because LM Studio
+  ignores `reasoning_effort` on the OpenAI-compatible surface, so the plugin shows the thinking selector disabled.
+  The root-level path is built by stripping the `/v1` OpenAI prefix from the configured base URL; results are cached
+  for the process lifetime keyed by `baseUrl`, and any probe failure leaves the discovery-time values untouched.
 - **Settings probe** (`probeProvider`, wired to `POST /provider/probe`): a real-time, uncached one-shot check the plugin
   issues on the settings page "检测" button. The server (not the plugin) dials the provider so settings checks share the
   server's network stack and auth handling; it first validates the URL shape (`isWellFormedProviderUrl` /

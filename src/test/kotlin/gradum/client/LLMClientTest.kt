@@ -24,13 +24,16 @@ class LLMClientTest {
   private fun config(
     thinking: Boolean = false,
     apiKey: String? = "test-key",
-    baseUrl: String = "https://api.example.com/v1"
+    baseUrl: String = "https://api.example.com/v1",
+    provider: Provider = Provider.OPENAI,
+    thinkingLevel: ThinkingLevel = ThinkingLevel.OFF
   ): AgentConfiguration = AgentConfiguration(
     modelName = "test-model",
-    provider = Provider.OPENAI,
+    provider = provider,
     baseUrl = baseUrl,
     apiKey = apiKey,
-    enableThinking = thinking
+    enableThinking = thinking,
+    thinkingLevel = thinkingLevel
   )
 
   private fun sseChunks(lines: List<String>): MockEngine =
@@ -496,5 +499,87 @@ class LLMClientTest {
     client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))).toList()
 
     assertTrue(actual = !requestBody.contains("keep_alive"))
+  }
+
+  @Test
+  fun `lm studio reads reasoning deltas from the gpt-oss reasoning field`() = runBlocking {
+    val engine: MockEngine = sseChunks(
+      lines = listOf(
+        """data: {"choices":[{"delta":{"reasoning":"pondering"}}]}""",
+        """data: {"choices":[{"delta":{"content":"Answer"}}]}""",
+        "data: [DONE]",
+      )
+    )
+    val client = OpenAICompatibleClient(
+      configuration = config(provider = Provider.LMSTUDIO, baseUrl = "http://localhost:1234/v1"),
+      HttpClient(engine),
+    )
+
+    val chunks = client.sendChat(
+      messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))
+    ).toList()
+
+    assertEquals(
+      expected = listOf(
+        LLMResponseChunk.ReasoningContent(text = "pondering"),
+        LLMResponseChunk.TextContent("Answer"),
+      ),
+      chunks
+    )
+  }
+
+  @Test
+  fun `lm studio reads reasoning deltas from the deepseek reasoning_content field`() = runBlocking {
+    val engine: MockEngine = sseChunks(
+      lines = listOf(
+        """data: {"choices":[{"delta":{"reasoning_content":"step by step"}}]}""",
+        """data: {"choices":[{"delta":{"content":"Answer"}}]}""",
+        "data: [DONE]",
+      )
+    )
+    val client = OpenAICompatibleClient(
+      configuration = config(provider = Provider.LMSTUDIO, baseUrl = "http://localhost:1234/v1"),
+      HttpClient(engine),
+    )
+
+    val chunks = client.sendChat(
+      messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))
+    ).toList()
+
+    assertEquals(
+      expected = listOf(
+        LLMResponseChunk.ReasoningContent(text = "step by step"),
+        LLMResponseChunk.TextContent("Answer"),
+      ),
+      chunks
+    )
+  }
+
+  @Test
+  fun `lm studio never sends a thinking parameter on the request`() = runBlocking {
+    var requestBody = ""
+    val engine = MockEngine { request ->
+      requestBody = (request.body as io.ktor.http.content.TextContent).text
+      respond(
+        content = ByteReadChannel("data: [DONE]\n"),
+        headers = headersOf(name = HttpHeaders.ContentType, value = "text/event-stream"),
+      )
+    }
+    val client = OpenAICompatibleClient(
+      configuration = config(
+        provider = Provider.LMSTUDIO,
+        baseUrl = "http://localhost:1234/v1",
+        thinking = true,
+        thinkingLevel = ThinkingLevel.HIGH,
+      ),
+      HttpClient(engine),
+    )
+
+    client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))).toList()
+
+    assertTrue(
+      actual = !requestBody.contains("reasoning_effort") && !requestBody.contains("think"),
+      "LM Studio ignores reasoning_effort: payload was $requestBody"
+    )
   }
 }

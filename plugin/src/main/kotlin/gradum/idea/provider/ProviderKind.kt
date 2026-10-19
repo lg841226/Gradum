@@ -32,7 +32,7 @@ enum class ProviderKind(
     isCloud = false,
     displayKey = "gradum.settings.provider.lmstudio",
     configKey = "lmstudio",
-    defaultBaseUrl = "http://localhost:1234",
+    defaultBaseUrl = "http://localhost:1234/v1",
   ),
   ZHIPU(
     icon = GradumIcons.ProviderZhipuai,

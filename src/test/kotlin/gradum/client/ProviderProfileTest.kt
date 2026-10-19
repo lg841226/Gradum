@@ -108,9 +108,35 @@ class ProviderProfileTest {
   }
 
   @Test
+  fun `LmStudioProfile mirrors OpenAI body and never sends a thinking param`() {
+    val requestFields: Map<String, Any> = LmStudioProfile.requestFields(sampleParams)
+
+    assertEquals(0.7, requestFields["temperature"])
+    assertEquals(0.9, requestFields["top_p"])
+    assertEquals(1024, requestFields["max_tokens"])
+    assertFalse(requestFields.containsKey("keep_alive"))
+
+    // LM Studio ignores reasoning_effort on the OpenAI-compatible surface, so
+    // no level (including OFF) may add a field to the request.
+    for (level in ThinkingLevel.entries) {
+      assertTrue(
+        LmStudioProfile.thinkingFields(level).isEmpty(),
+        "LM Studio must not send a thinking parameter for $level"
+      )
+    }
+
+    // No declared reasoning field: the client falls back across the known
+    // key names (`reasoning_content`, then `reasoning`).
+    assertEquals(null, LmStudioProfile.reasoningDeltaField)
+  }
+
+  @Test
   fun `profileFor dispatches by provider`() {
     assertEquals(OllamaProfile, profileFor(Provider.OLLAMA))
     assertEquals(OpenAiProfile, profileFor(Provider.OPENAI))
+    assertEquals(DeepSeekProfile, profileFor(Provider.DEEPSEEK))
+    assertEquals(MiniMaxProfile, profileFor(Provider.MINIMAX))
+    assertEquals(LmStudioProfile, profileFor(Provider.LMSTUDIO))
   }
 
   @Test

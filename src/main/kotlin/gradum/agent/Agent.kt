@@ -156,6 +156,9 @@ class Agent(
       Provider.OPENAI -> openAiClient
       Provider.DEEPSEEK -> openAiClient
       Provider.MINIMAX -> openAiClient
+      // LM Studio speaks the OpenAI-compatible protocol; reasoning is
+      // parsed from either `reasoning_content` or `reasoning`.
+      Provider.LMSTUDIO -> openAiClient
       Provider.OLLAMA -> ollamaClient
     }
   }
