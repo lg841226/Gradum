@@ -243,10 +243,16 @@ class Agent(
 
       val result: AgentTurnResult = processLlmTurn(buildToolSchemas())
       result.errorMessage?.let { error ->
+        val turnErrorCode: ErrorCode =
+          when (result.apiStatusCode) {
+            401, 403 -> ErrorCode.LLM_AUTH_ERROR
+            null -> ErrorCode.CLIENT_ERROR
+            else -> ErrorCode.LLM_UPSTREAM_ERROR
+          }
         emitEvent(
           GradumEventType.ERROR.wireName,
           mapOf(
-            "code" to ErrorCode.CLIENT_ERROR,
+            "code" to turnErrorCode,
             "message" to error.trim(),
             "source" to "${configuration.provider.name.lowercase()}_client",
             ERROR_SCOPE_KEY to ErrorScope.TURN.wireName
@@ -350,11 +356,9 @@ class Agent(
     val thinkingParts: MutableList<String> = mutableListOf()
     var toolCallsResult: List<ToolCallEntry>? = null
     var errorMessage: String? = null
+    var apiStatusCode: Int? = null
 
-    // Latest usage snapshot emitted with a RESPONSE event this turn; the
-    // final flush after the stream ends carries the turn's token usage.
     var turnUsage = TokenUsageSnapshot()
-
     val responseBuffer = StringBuilder()
 
     fun flushResponse() {
@@ -408,6 +412,7 @@ class Agent(
           is LLMResponseChunk.ErrorMessage -> {
             flushResponse()
             errorMessage = chunk.description
+            apiStatusCode = chunk.apiStatusCode
           }
         }
       }
@@ -420,6 +425,7 @@ class Agent(
       errorMessage = errorMessage,
       responseText = contentParts.joinToString(separator = ""),
       thinkingText = thinkingParts.joinToString(separator = ""),
+      apiStatusCode = apiStatusCode,
       toolCalls = toolCallsResult,
       tokenUsage = if (usageSnapshot.totalTokens > 0) {
         mapOf(
@@ -659,18 +665,20 @@ class Agent(
     }
   }
 
-  private fun backgroundStatusText(outcome: JobOutcome): String = when (outcome.job.status) {
-    JobStatus.COMPLETED -> if (outcome.exitCode == 0) "completed successfully" else "failed"
-    JobStatus.FAILED -> "failed"
-    JobStatus.TIMEOUT -> "timed out and was terminated (output is partial)"
-    JobStatus.CANCELLED -> "cancelled before completion"
-    JobStatus.RUNNING -> "still running"
-  }
+  private fun backgroundStatusText(outcome: JobOutcome): String =
+    when (outcome.job.status) {
+      JobStatus.COMPLETED -> if (outcome.exitCode == 0) "completed successfully" else "failed"
+      JobStatus.FAILED -> "failed"
+      JobStatus.TIMEOUT -> "timed out and was terminated (output is partial)"
+      JobStatus.CANCELLED -> "cancelled before completion"
+      JobStatus.RUNNING -> "still running"
+    }
 
   private data class AgentTurnResult(
     val errorMessage: String?,
     val responseText: String?,
     val thinkingText: String = "",
+    val apiStatusCode: Int? = null,
     val toolCalls: List<ToolCallEntry>?,
     val tokenUsage: Map<String, Int>? = null
   )

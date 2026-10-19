@@ -8,5 +8,7 @@ package gradum.idea.chat.model
  */
 object ChatErrorCode {
   const val CLIENT_ERROR: String = "CLIENT_ERROR"
+  const val LLM_UPSTREAM_ERROR: String = "LLM_UPSTREAM_ERROR"
+  const val LLM_AUTH_ERROR: String = "LLM_AUTH_ERROR"
   const val INTERRUPTED: String = "INTERRUPTED"
 }

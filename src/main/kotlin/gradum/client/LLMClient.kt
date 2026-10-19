@@ -61,7 +61,8 @@ data class ToolCallEntry(
 sealed class LLMResponseChunk {
   data class TextContent(val text: String) : LLMResponseChunk()
   data class ReasoningContent(val text: String) : LLMResponseChunk()
-  data class ErrorMessage(val description: String) : LLMResponseChunk()
+
+  data class ErrorMessage(val description: String, val apiStatusCode: Int? = null) : LLMResponseChunk()
   data class ToolCallBatch(val toolCalls: List<ToolCallEntry>) : LLMResponseChunk()
 }
 
@@ -265,8 +266,12 @@ class OllamaClient(
           setBody(JsonUtil.encodeMap(input = requestPayload))
         }.execute { httpResponse: HttpResponse ->
           if (httpResponse.status.value !in 200..299) {
+            val apiError: LlmApiError = extractApiError(httpResponse)
             flowCollector.emit(
-              value = LLMResponseChunk.ErrorMessage(description = extractApiError(httpResponse))
+              value = LLMResponseChunk.ErrorMessage(
+                description = apiError.message,
+                apiStatusCode = apiError.statusCode
+              )
             )
             lastError = null
             succeeded = true
@@ -426,7 +431,13 @@ class OpenAICompatibleClient(
         }
 
         if (httpResponse.status.value !in 200..299) {
-          emit(value = LLMResponseChunk.ErrorMessage(description = extractApiError(httpResponse)))
+          val apiError: LlmApiError = extractApiError(httpResponse)
+          emit(
+            value = LLMResponseChunk.ErrorMessage(
+              description = apiError.message,
+              apiStatusCode = apiError.statusCode
+            )
+          )
           lastError = null
           break
         }
@@ -614,6 +625,9 @@ class OpenAICompatibleClient(
 private fun isTransientError(exception: Exception): Boolean = exception is IOException
   || exception is TimeoutCancellationException
 
+/** A non-2xx answer from the upstream LLM API, with its HTTP status intact. */
+private data class LlmApiError(val statusCode: Int, val message: String)
+
 /**
  * Pulls the human-readable message out of a non-2xx API response.
  *
@@ -623,25 +637,34 @@ private fun isTransientError(exception: Exception): Boolean = exception is IOExc
  * raw HTTP status line so the user always sees *something* concrete
  * instead of the generic stream-interrupt message.
  */
-private suspend fun extractApiError(httpResponse: HttpResponse): String {
-  val statusLine = "HTTP ${httpResponse.status.value} ${httpResponse.status.description}"
+private suspend fun extractApiError(httpResponse: HttpResponse): LlmApiError {
+  val statusCode: Int = httpResponse.status.value
+  val statusLine = "HTTP $statusCode ${httpResponse.status.description}"
   val bodyText: String =
     try {
       httpResponse.bodyAsText()
     } catch (_: Exception) {
-      return statusLine
+      return LlmApiError(statusCode = statusCode, message = statusLine)
     }
-  val errorText: String? = try {
-    val parsed: JsonObject = jsonParser.parseToJsonElement(string = bodyText).jsonObject
-    parsed["error"]?.let { errorElement ->
-      errorElement.jsonObject.optString(key = "message")
-        .takeIf { it.isNotBlank() }
-        ?: errorElement.jsonPrimitive.contentOrNull
+  logger.warn("LLM API error {}: {}", statusLine, bodyText)
+  val errorText: String? =
+    try {
+      val parsed: JsonObject = jsonParser.parseToJsonElement(string = bodyText).jsonObject
+      when (val errorElement: JsonElement? = parsed["error"]) {
+        is JsonObject ->
+          errorElement.optString(key = "message").takeIf { it.isNotBlank() }
+            ?: (errorElement["message"] as? JsonPrimitive)?.contentOrNull
+
+        is JsonPrimitive -> errorElement.contentOrNull
+        else -> null
+      }
+    } catch (_: Exception) {
+      null
     }
-  } catch (_: Exception) {
-    null
-  }
-  return errorText?.takeIf { it.isNotBlank() } ?: statusLine
+  return LlmApiError(
+    statusCode = statusCode,
+    message = errorText?.takeIf { it.isNotBlank() } ?: statusLine
+  )
 }
 
 /**

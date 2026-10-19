@@ -61,7 +61,7 @@ sealed class RenderBlock {
   ) : RenderBlock()
 
   data class Response(val content: String) : RenderBlock()
-  data class Error(val message: String, val code: String = "") : RenderBlock()
+  data class Error(val message: String, val code: String = "", val detail: String = "") : RenderBlock()
 
   /**
    * Self-contained ask card payload: the server-supplied question (title/

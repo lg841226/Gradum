@@ -11,6 +11,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +32,7 @@ import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry
 import gradum.idea.chat.ui.chat.skill.spi.parseJsonResult
 import gradum.idea.chat.ui.common.formatTokenCount
+import gradum.idea.chat.ui.common.verticalEdgeFade
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.chat.ui.input.formatModelName
 import gradum.idea.chat.ui.markdown.GradumMarkdown
@@ -562,24 +565,79 @@ private fun ErrorBlock(block: RenderBlock.Error) {
 
   if (isInterrupted) return
 
-  Row(
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
-    modifier = Modifier
-      .fillMaxWidth()
-      .horizontalScroll(state = rememberScrollState())
-  ) {
-    Icon(
-      contentDescription = null,
-      key = AllIconsKeys.Status.FailedInProgress
-    )
-    Text(
-      maxLines = 1,
-      color = textErrorColor,
-      text = block.message.ifBlank { friendlyErrorMessage(block.code) },
-      style = JewelTheme.typography.editorTextStyle.copy(
-        color = textErrorColor
+  val hasDetail: Boolean = block.detail.isNotBlank()
+  var isExpanded: Boolean by remember { mutableStateOf(value = false) }
+
+  val titleRow: @Composable () -> Unit = {
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
+      modifier = Modifier
+        .fillMaxWidth()
+        .then(if (hasDetail) Modifier.clickable { isExpanded = !isExpanded } else Modifier)
+    ) {
+      Icon(
+        contentDescription = null,
+        key = AllIconsKeys.Status.FailedInProgress
       )
-    )
+      Text(
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        color = textErrorColor,
+        text =
+          if (block.code.isBlank()) block.message.ifBlank { friendlyErrorMessage(block.code) }
+          else friendlyErrorMessage(block.code),
+        style = JewelTheme.typography.editorTextStyle.copy(
+          color = textErrorColor
+        ),
+        modifier = Modifier.weight(weight = 1f, fill = false)
+      )
+      if (hasDetail) {
+        Icon(
+          contentDescription = null,
+          key =
+            if (isExpanded) AllIconsKeys.General.ChevronDown
+            else AllIconsKeys.General.ChevronRight
+        )
+      }
+    }
+  }
+
+  Column(
+    verticalArrangement = Arrangement.spacedBy(GradumSpacing.md),
+    modifier = Modifier.fillMaxWidth()
+  ) {
+    if (hasDetail) {
+      Tooltip(tooltip = { Text(text = message("gradum.error.show.raw")) }) { titleRow() }
+    } else {
+      titleRow()
+    }
+
+    AnimatedVisibility(visible = isExpanded && hasDetail) {
+      Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .heightIn(max = ERROR_DETAIL_MAX_HEIGHT)
+          .verticalEdgeFade()
+      ) {
+        val scrollState = rememberScrollState()
+        SelectionContainer {
+          Text(
+            text = block.detail,
+            color = textErrorColor,
+            style = JewelTheme.typography.editorTextStyle.copy(
+              color = textErrorColor
+            ),
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(vertical = GradumSpacing.md)
+              .verticalScroll(state = scrollState)
+          )
+        }
+      }
+    }
   }
 }
+
+/** Max height of the expanded error-detail block before it scrolls. */
+private val ERROR_DETAIL_MAX_HEIGHT = 200.dp

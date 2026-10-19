@@ -142,8 +142,8 @@ internal fun GradumChatSession.handleToolExpectMismatch(data: JsonObject?) {
   val assistantIndex: Int = messages.lastIndex
   if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
     messages[assistantIndex] = messages[assistantIndex].appendBlock(
-      RenderBlock.Error(errorMessage, code = "TOOL_EXPECT_MISMATCH")
-    )
+        RenderBlock.Error(errorMessage, code = "TOOL_EXPECT_MISMATCH", detail = errorMessage)
+      )
   }
 }
 
@@ -162,7 +162,7 @@ internal fun GradumChatSession.handleErrorEvent(data: JsonObject?) {
       messages[assistantIndex] = updatedMessage
     else
       messages[assistantIndex] = messages[assistantIndex].appendBlock(
-        RenderBlock.Error(rawMessage, errorCode)
+        RenderBlock.Error(rawMessage, errorCode, detail = rawMessage)
       )
   }
 }
