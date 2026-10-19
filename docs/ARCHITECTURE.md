@@ -9,7 +9,7 @@
 | **Version**        | Server 1.0.2 / Plugin 1.0.3                                                        |
 | **Status**         | Active Development                                                                 |
 | **Language**       | Kotlin 2.3.0 (JVM 21; plugin JVM 25)                                               |
-| **HTTP Framework** | Ktor 3.0.3 + Netty                                                                 |
+| **HTTP Framework** | Ktor 3.0.3 and Netty                                                               |
 | **Serialization**  | kotlinx-serialization-json 1.7.3                                                   |
 | **Coroutines**     | kotlinx-coroutines 1.9.0                                                           |
 | **Logging**        | Logback Classic 1.6.3                                                              |
@@ -811,6 +811,11 @@ flowchart TD
 - **Ollama cloud availability**: models whose name contains `"cloud"` (case-insensitive) get a live
   `POST /api/chat` probe (`num_predict=1`) and are marked `available=false` with an `UnavailableReason`
   (`AUTH / QUOTA_EXCEEDED / RATE_LIMIT / NETWORK / OTHER`).
+- **Per-model capability probe**: the `GET /models` route enriches each Ollama entry in parallel by reading
+  `POST /api/show` through `OllamaModelCatalog`: `reasoning` (model can think), `reasoningLevels` (accepts graded
+  `low`/`medium`/`high`, currently gpt-oss only), `toolCall`, `attachment` (vision), `contextLimit`, and
+  `parameterSizeB`. Results are cached for the process lifetime keyed by `baseUrl|modelName`; the same cache backs
+  the `think` field encoding in the Ollama chat path, so list and request stay consistent from one source.
 - **Settings probe** (`probeProvider`, wired to `POST /provider/probe`): a real-time, uncached one-shot check the plugin
   issues on the settings page "检测" button. The server (not the plugin) dials the provider so settings checks share the
   server's network stack and auth handling; it first validates the URL shape (`isWellFormedProviderUrl` /

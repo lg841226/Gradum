@@ -29,10 +29,10 @@ class ProviderProfileTest {
       mapOf(
         "temperature" to 0.7,
         "top_p" to 0.9,
-        "num_ctx" to 8192,
-        "num_predict" to 1024
+        "num_ctx" to 8192
       ),
-      requestFields["options"]
+      requestFields["options"],
+      "num_predict must stay unset so a configured max_tokens is never forwarded"
     )
     assertEquals(
       "2m",
@@ -75,6 +75,36 @@ class ProviderProfileTest {
     assertEquals("medium", OpenAiProfile.thinkingFields(ThinkingLevel.MEDIUM)["reasoning_effort"])
     assertEquals("high", OpenAiProfile.thinkingFields(ThinkingLevel.HIGH)["reasoning_effort"])
     assertEquals("reasoning_content", OpenAiProfile.reasoningDeltaField)
+  }
+
+  @Test
+  fun `OllamaProfile encodes think from probed capabilities`() {
+    val levelOnlyCapabilities = OllamaModelCapabilities(
+      supportsThinking = true,
+      supportsThinkingLevels = true,
+      supportsTools = true,
+      supportsVision = false,
+      contextLength = 128_000,
+      parameterSizeB = 20.0
+    )
+    // gpt-oss-style: graded depth -> string levels on every non-OFF level.
+    assertEquals("low", OllamaProfile.thinkingFields(ThinkingLevel.LOW, levelOnlyCapabilities)["think"])
+    assertEquals("medium", OllamaProfile.thinkingFields(ThinkingLevel.MEDIUM, levelOnlyCapabilities)["think"])
+    assertEquals("high", OllamaProfile.thinkingFields(ThinkingLevel.HIGH, levelOnlyCapabilities)["think"])
+    assertEquals(false, OllamaProfile.thinkingFields(ThinkingLevel.OFF, levelOnlyCapabilities)["think"])
+
+    val binaryCapabilities: OllamaModelCapabilities = levelOnlyCapabilities.copy(supportsThinkingLevels = false)
+    // Thinking model without graded depth -> boolean switch, level ignored.
+    assertEquals(true, OllamaProfile.thinkingFields(ThinkingLevel.LOW, binaryCapabilities)["think"])
+    assertEquals(true, OllamaProfile.thinkingFields(ThinkingLevel.HIGH, binaryCapabilities)["think"])
+
+    val noThinkingCapabilities: OllamaModelCapabilities = levelOnlyCapabilities.copy(supportsThinking = false)
+    // Model cannot think -> the field must not appear at all.
+    assertTrue(OllamaProfile.thinkingFields(ThinkingLevel.LOW, noThinkingCapabilities).isEmpty())
+    assertTrue(OllamaProfile.thinkingFields(ThinkingLevel.HIGH, noThinkingCapabilities).isEmpty())
+
+    // Null capabilities keep the legacy string-level behavior.
+    assertEquals("medium", OllamaProfile.thinkingFields(ThinkingLevel.MEDIUM, null)["think"])
   }
 
   @Test

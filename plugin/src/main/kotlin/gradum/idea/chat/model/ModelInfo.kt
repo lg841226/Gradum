@@ -10,6 +10,12 @@ data class ModelInfo(
   val server: String = "",
   val contextLimit: Int = 0,
   val reasoning: Boolean = false,
+  /**
+   * True when the model accepts a graded thinking depth. Only meaningful
+   * while [reasoning] is true: a thinking model with this `false` thinks on
+   * a binary switch, so the Low/Medium/High selector is shown but grayed.
+   */
+  val reasoningLevels: Boolean = false,
   val toolCall: Boolean = false,
   val openWeights: Boolean = false,
   val attachment: Boolean = false,

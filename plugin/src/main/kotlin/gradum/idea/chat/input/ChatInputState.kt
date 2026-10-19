@@ -32,9 +32,10 @@ data class ChatInputState(
    * for refactors and architecture questions.
    *
    * The level is sent to the server as a structured field and translated
-   * per provider (Ollama `think`, OpenAI-style `reasoning_effort`), so
-   * the dropdown is always enabled: the catalog `reasoning` flag is not
-   * a precondition.
+   * per provider (Ollama `think`, OpenAI-style `reasoning_effort`). Whether
+   * the selector is shown or enabled follows the selected model's catalog
+   * capability flags (`reasoning` / `reasoningLevels`), see
+   * [gradum.idea.chat.ui.input.ModelSelectorBar].
    */
   val thinkingLevel: ThinkingLevel = ThinkingLevel.MEDIUM,
   /**

@@ -23,11 +23,11 @@ import kotlinx.serialization.Serializable
  *              responses; worth it for refactors, multi-file edits, and
  *              architecture questions.
  *
- * No explicit "off" level: the plugin-side prompt-injection approach
- * degrades gracefully on any model (including ones without a native
- * `reasoning` field), so Low is effectively the minimum the user can
- * pick. The dropdown is always enabled, regardless of the selected
- * model's `reasoning` catalog flag.
+ * No explicit "off" level: whether thinking happens at all is resolved
+ * server-side from the master think switch. The plugin-side selector is
+ * gated by the selected model's catalog flags -- hidden when the model
+ * cannot think (`reasoning = false`) and grayed when it thinks but exposes
+ * no depth levels (`reasoningLevels = false`).
  */
 @Serializable
 enum class ThinkingLevel {

@@ -117,12 +117,12 @@ class ProfileScope internal constructor() {
   var reasoningDelta: String? = null
 
   private var requestEncoder: ((GenerationParams) -> Map<String, Any>)? = null
-  private var thinkingEncoder: ((ThinkingLevel) -> Map<String, Any>)? = null
+  private var thinkingEncoder: ((ThinkingLevel, OllamaModelCapabilities?) -> Map<String, Any>)? = null
 
-  fun thinking(block: RequestBodyScope.(ThinkingLevel) -> Unit) {
-    thinkingEncoder = { level ->
+  fun thinking(block: RequestBodyScope.(ThinkingLevel, OllamaModelCapabilities?) -> Unit) {
+    thinkingEncoder = { level, capabilities ->
       val bodyScope = RequestBodyScope()
-      bodyScope.block(level)
+      bodyScope.block(level, capabilities)
       bodyScope.fields
     }
   }
@@ -137,7 +137,7 @@ class ProfileScope internal constructor() {
 
   internal fun build(): ProviderProfile = ProviderProfile(
     requestEncoder = requestEncoder ?: { emptyMap() },
-    thinkingEncoder = thinkingEncoder ?: { emptyMap() },
+    thinkingEncoder = thinkingEncoder ?: { _, _ -> emptyMap() },
     reasoningDeltaField = reasoningDelta
   )
 }
@@ -148,12 +148,13 @@ class ProfileScope internal constructor() {
  */
 class ProviderProfile internal constructor(
   private val requestEncoder: (GenerationParams) -> Map<String, Any>,
-  private val thinkingEncoder: (ThinkingLevel) -> Map<String, Any>,
+  private val thinkingEncoder: (ThinkingLevel, OllamaModelCapabilities?) -> Map<String, Any>,
   val reasoningDeltaField: String?
 ) {
   fun requestFields(params: GenerationParams): Map<String, Any> = requestEncoder(params)
 
-  fun thinkingFields(level: ThinkingLevel): Map<String, Any> = thinkingEncoder(level)
+  fun thinkingFields(level: ThinkingLevel, capabilities: OllamaModelCapabilities? = null): Map<String, Any> =
+    thinkingEncoder(level, capabilities)
 }
 
 fun providerProfile(configure: ProfileScope.() -> Unit): ProviderProfile =
@@ -164,15 +165,47 @@ fun providerProfile(configure: ProfileScope.() -> Unit): ProviderProfile =
  * `options` object, thinking is carried by the `think` field (a boolean
  * off switch or an effort level), and reasoning streams back through
  * the `message.thinking` delta.
+ *
+ * The `think` field encoding depends on [OllamaModelCapabilities]:
+ * - OFF -> `think: false`
+ * - ON + supportsThinkingLevels -> `think: "low"/"medium"/"high"`
+ * - ON + supportsThinking only -> `think: true`
+ * - ON + !supportsThinking -> field omitted entirely
+ * - null capabilities (legacy / no probe) -> graded string levels, the
+ *   pre-capability behavior
  */
 val OllamaProfile: ProviderProfile = providerProfile {
   reasoningDelta = "thinking"
-  thinking { level ->
+  thinking { level, capabilities ->
     when (level) {
       ThinkingLevel.OFF -> think(value = false)
-      ThinkingLevel.LOW -> think(value = "low")
-      ThinkingLevel.MEDIUM -> think(value = "medium")
-      ThinkingLevel.HIGH -> think(value = "high")
+      ThinkingLevel.LOW, ThinkingLevel.MEDIUM, ThinkingLevel.HIGH -> {
+        if (capabilities == null) {
+          // No capability info (test or legacy path): use string levels
+          val levelString: String = when (level) {
+            ThinkingLevel.LOW -> "low"
+            ThinkingLevel.MEDIUM -> "medium"
+            ThinkingLevel.HIGH -> "high"
+            ThinkingLevel.OFF -> "medium"
+          }
+          think(value = levelString)
+        } else if (!capabilities.supportsThinking) {
+          // Model doesn't support thinking: omit the field entirely
+          return@thinking
+        } else if (capabilities.supportsThinkingLevels) {
+          // Model supports string levels (e.g. gpt-oss)
+          val levelString: String = when (level) {
+            ThinkingLevel.LOW -> "low"
+            ThinkingLevel.MEDIUM -> "medium"
+            ThinkingLevel.HIGH -> "high"
+            ThinkingLevel.OFF -> "medium"
+          }
+          think(value = levelString)
+        } else {
+          // Model supports thinking but not levels: boolean true
+          think(value = true)
+        }
+      }
     }
   }
   body { params ->
@@ -180,7 +213,10 @@ val OllamaProfile: ProviderProfile = providerProfile {
       temperature = params.temperature
       topP = params.topP
       numCtx = params.contextWindow
-      numPredict = params.maxTokens
+      // num_predict is deliberately left unset: Ollama defaults to -1
+      // (model-adaptive), so a configured max_tokens larger than the model's
+      // own output cap is never forwarded and cannot trigger a 400
+      // (e.g. gpt-oss:120b caps output at 131072).
     }
     params.keepAliveMinutes?.let { minutes -> keepAlive = minutes }
   }
@@ -194,7 +230,7 @@ val OllamaProfile: ProviderProfile = providerProfile {
  */
 val OpenAiProfile: ProviderProfile = providerProfile {
   reasoningDelta = "reasoning_content"
-  thinking { level ->
+  thinking { level, _ ->
     when (level) {
       ThinkingLevel.OFF -> Unit
       ThinkingLevel.LOW -> reasoningEffort = "low"
@@ -215,7 +251,7 @@ val OpenAiProfile: ProviderProfile = providerProfile {
  */
 val DeepSeekProfile: ProviderProfile = providerProfile {
   reasoningDelta = "reasoning_content"
-  thinking { level ->
+  thinking { level, _ ->
     reasoningEffort =
       when (level) {
         ThinkingLevel.OFF -> "none"
@@ -238,7 +274,7 @@ val DeepSeekProfile: ProviderProfile = providerProfile {
  */
 val MiniMaxProfile: ProviderProfile = providerProfile {
   reasoningDelta = "reasoning_content"
-  thinking { level ->
+  thinking { level, _ ->
     when (level) {
       ThinkingLevel.OFF -> thinkingSwitch(type = "disabled")
       ThinkingLevel.LOW -> thinkingSwitch(type = "adaptive")

@@ -4,6 +4,8 @@ import gradum.*
 import gradum.Version
 import gradum.agent.Agent
 import gradum.agent.GradumEventType
+import gradum.client.OllamaModelCapabilities
+import gradum.client.OllamaModelCatalog
 import gradum.client.ThinkingLevel
 import gradum.logging.EventStreamDump
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
@@ -26,8 +28,11 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ChannelResult
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -925,12 +930,47 @@ fun Application.registerAllRoutes(
 
     get("/models") {
       val discoveredModels: List<ModelEntry> = ModelIdentity.discoverModels()
+      // One catalog per distinct base URL so a second configured host probes
+      // against its own address (the catalog cache is keyed by base URL).
+      val ollamaCatalogs: Map<String, OllamaModelCatalog> = discoveredModels
+        .filter { it.providerType == Provider.OLLAMA.wireType }
+        .map { it.serverUrl }
+        .distinct()
+        .associateWith { serverUrl -> OllamaModelCatalog(baseUrl = serverUrl) }
+      val enrichedModels: List<ModelEntry> =
+        if (ollamaCatalogs.isNotEmpty()) {
+          coroutineScope {
+            discoveredModels.map { entry ->
+              async {
+                val ollamaCatalog: OllamaModelCatalog? = ollamaCatalogs[entry.serverUrl]
+                when {
+                  ollamaCatalog != null -> {
+                    val caps: OllamaModelCapabilities = ollamaCatalog.capabilitiesFor(modelName = entry.modelName)
+                    entry.copy(
+                      reasoning = caps.supportsThinking,
+                      reasoningLevels = caps.supportsThinkingLevels,
+                      toolCall = caps.supportsTools,
+                      attachment = caps.supportsVision,
+                      contextLimit = caps.contextLength,
+                      parameterSizeB = caps.parameterSizeB ?: entry.parameterSizeB
+                    )
+                  }
+
+                  else -> entry
+                }
+              }
+            }.awaitAll()
+          }
+        } else {
+          discoveredModels
+        }
       val modelToJson: (ModelEntry) -> Map<String, Any?> = { entry: ModelEntry ->
         mapOf(
           "name" to entry.modelName,
           "server" to entry.serverUrl,
           "toolCall" to entry.toolCall,
           "reasoning" to entry.reasoning,
+          "reasoningLevels" to entry.reasoningLevels,
           "available" to entry.available,
           "provider" to entry.providerType,
           "attachment" to entry.attachment,
@@ -944,7 +984,7 @@ fun Application.registerAllRoutes(
       }
       call.respondText(
         text = JsonUtil.encodeMap(
-          mapOf("models" to discoveredModels.map(modelToJson))
+          mapOf("models" to enrichedModels.map(modelToJson))
         ),
         contentType = ContentType.Application.Json
       )

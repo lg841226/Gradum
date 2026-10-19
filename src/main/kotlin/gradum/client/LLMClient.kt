@@ -227,6 +227,8 @@ class OllamaClient(
   override var tokenUsage: TokenUsageSnapshot = TokenUsageSnapshot()
     private set
 
+  private val modelCatalog: OllamaModelCatalog = OllamaModelCatalog(configuration)
+
   override fun sendChat(
     messageHistory: List<Map<String, Any>>, toolDefinitions: List<Map<String, Any>>?
   ): Flow<LLMResponseChunk> = flow {
@@ -241,6 +243,9 @@ class OllamaClient(
       keepAliveMinutes = configuration.keepAliveMinutes
     )
 
+    val modelCapabilities: OllamaModelCapabilities =
+      modelCatalog.capabilitiesFor(modelName = configuration.modelName)
+
     val projectedHistory: List<Map<String, Any>> =
       projectHistoryForBackend(messageHistory, target = Provider.OLLAMA)
 
@@ -251,7 +256,7 @@ class OllamaClient(
     )
 
     requestPayload.putAll(wireProfile.requestFields(params = generationParams))
-    requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel))
+    requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel, capabilities = modelCapabilities))
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
     var lastError: Exception? = null
@@ -412,7 +417,7 @@ class OpenAICompatibleClient(
       "stream_options" to mapOf("include_usage" to true),
     )
     requestPayload.putAll(wireProfile.requestFields(params = generationParams))
-    requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel))
+    requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel, capabilities = null))
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
 

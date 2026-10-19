@@ -26,6 +26,13 @@ data class ModelEntry(
   val toolCall: Boolean = false,
   val available: Boolean = true,
   val reasoning: Boolean = false,
+  /**
+   * True when the model accepts a graded thinking depth (Ollama string
+   * `think: "low"/"medium"/"high"`). False but [reasoning] true means the
+   * model thinks on a binary switch only. Populated by the `/models`
+   * capability probe for Ollama entries.
+   */
+  val reasoningLevels: Boolean = false,
   val attachment: Boolean = false,
   val openWeights: Boolean = false,
   /** Upstream host reported by Ollama `/api/tags` (`remote_host`); non-null means the model runs in Ollama Cloud. */
