@@ -534,7 +534,7 @@ private class RenderState(
   val inlineContent: MutableMap<String, InlineTextContent> = mutableMapOf()
   private val latexMeasureCache = mutableMapOf<String, LatexDimensions?>()
 
-  /** Snapshot + restore helper for the recursive walker. */
+  /** Snapshot and restore helper for the recursive walker. */
   fun <T> withStyle(replacementStyle: SpanStyle, block: () -> T): T {
     val savedStyle: SpanStyle = currentStyle
     currentStyle = replacementStyle
@@ -545,7 +545,7 @@ private class RenderState(
     }
   }
 
-  /** Consume a fresh image-alt placeholder + register the GradumIcons.Image icon. */
+  /** Consume a fresh image-alt placeholder + register the image file type icon. */
   fun allocateImageAlt(): String {
     val placeholder: String = IMAGE_ALT_PLACEHOLDER_BASE.toString().repeat(n = imageAltCounter + 1)
     imageAltCounter += 1

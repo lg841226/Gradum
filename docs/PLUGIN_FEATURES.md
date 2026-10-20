@@ -835,22 +835,28 @@ Source: [`GradumBundle.kt`](../plugin/src/main/kotlin/gradum/idea/utils/GradumBu
 
 ## 14. Icons
 
-The plugin ships **101 SVG icons + one TTF font** (`GoogleSans.ttf`) under
+The plugin ships **59 SVG icons + one TTF font** (`GoogleSans.ttf`) under
 `plugin/src/main/resources/icons/` and `plugin/src/main/resources/font/`, organized by purpose:
 
-- `auto/`, `build/`, `cloud/`, `local/`: model-mode indicators.
-- `cmd/`, `edit/`, `explore/`, `web/`, `file-type/`, `save/`, `send/`, `search/`, `tools/`: tool affordances.
-- `feat/chat/`, `feat/code/`, `feat/question/`, `feat/text/`: quick-start tiles.
-- `file-type/`: language-typed file glyphs (Kotlin, Python, TypeScript, JSX, PHP, …).
 - `model-provider/`: brand logos for 11 providers, each with a light/dark pair for IDE theme parity.
-- `like/`, `like-selected/`, `dislike/`, `dislike-selected/`, `scroll-up/`, `scroll-down/`,
-  `expand-all/`, `collapse-all/`, `soft-wrap/`, `numbered-list/`, `table/`, `markdown/`,
-  `image/`, `warning/`, `vison/`, `logo/`: UI affordances.
+- `feat/chat/`, `feat/code/`, `feat/question/`, `feat/text/`: quick-start tiles.
+- `badge/`, `bullet-list/`, `chat-mode/`, `cloud/`, `cmd/`, `dislike/`, `dislike-selected/`, `github/`,
+  `like/`, `like-selected/`, `logo/`, `mcp/`, `send/`, `table/`: UI affordances.
 
 Every icon has a light/dark pair (suffix `_dark`) so it tracks the IDE theme. `GradumIcons` is the single source of
 truth for icon lookups; UI code never hard-codes an icon path.
 
+An icon whose drawing is identical to one the platform already ships is an **alias, not a copy**: such an entry
+points at `AllIconsKeys.*`, which also lets the platform resolve the light/dark variant and keeps the entry working
+when `build/` is absent from a fresh clone. Genuinely custom icons stay under `/icons` as `PathIconKey`s.
+
+File-type glyphs are not shipped at all. They are resolved through the IDE's own registry (`FileTypeManager` /
+`IconUtil`), so every language a bundled plugin registers (Kotlin, Python, JS/TS, Docker, ...) shows the same icon
+in the chat as in the IDE's own views, and no extension list has to be maintained by hand. The platform hands icons
+out as Swing icons, which are bridged into the icon model Jewel renders with `toNewIcon()`.
+
 Source: [`GradumIcons.kt`](../plugin/src/main/kotlin/gradum/idea/utils/GradumIcons.kt),
+[`EditorContext.kt`](../plugin/src/main/kotlin/gradum/idea/editor/EditorContext.kt),
 [`icons/`](../plugin/src/main/resources/icons).
 
 ---

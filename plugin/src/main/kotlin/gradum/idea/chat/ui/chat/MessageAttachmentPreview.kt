@@ -103,7 +103,7 @@ private fun ImageThumbnailChip(
     Icon(
       modifier = chipModifier,
       contentDescription = null,
-      key = imageAttachment.iconKey
+      icon = imageAttachment.icon
     )
   }
 }

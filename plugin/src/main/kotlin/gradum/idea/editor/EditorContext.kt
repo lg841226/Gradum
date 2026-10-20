@@ -1,16 +1,18 @@
 package gradum.idea.editor
 
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.platform.icons.Icon
+import com.intellij.platform.icons.swing.toNewIcon
+import com.intellij.util.IconUtil
 import gradum.idea.chat.editor.GradumChatVirtualFile
-import gradum.idea.utils.GradumIcons
-import org.jetbrains.jewel.ui.icon.IconKey
-import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 data class EditorContext(
   val projectDir: VirtualFile?,
@@ -22,72 +24,45 @@ data class EditorContext(
   }
 }
 
-fun getLanguageIconKey(extension: String?): IconKey? {
-  return when (extension?.lowercase()) {
-    "js" -> AllIconsKeys.FileTypes.JavaScript
-    "jsx" -> GradumIcons.Jsx
-    "ts" -> GradumIcons.TypeScript
-    "tsx" -> GradumIcons.Tsx
-    "html" -> AllIconsKeys.FileTypes.Html
-    "css" -> AllIconsKeys.FileTypes.Css
-    "xml" -> AllIconsKeys.FileTypes.Xml
-    "json" -> AllIconsKeys.FileTypes.Json
-    "yaml", "yml" -> AllIconsKeys.FileTypes.Yaml
-    "txt" -> AllIconsKeys.FileTypes.Text
-    "md" -> AllIconsKeys.FileTypes.Markdown
-    "kt", "kts" -> GradumIcons.Kotlin
-    "py" -> GradumIcons.Python
-    "http" -> AllIconsKeys.FileTypes.Http
-    "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff" -> GradumIcons.Png
-    "kotlin" -> GradumIcons.Kotlin
-    "python" -> GradumIcons.Python
-    "javascript" -> AllIconsKeys.FileTypes.JavaScript
-    "typescript" -> GradumIcons.TypeScript
-    "markdown" -> AllIconsKeys.FileTypes.Markdown
-    "bash", "shell", "sh", "zsh" -> GradumIcons.Ran
-    // "go" -> AllIconsKeys.FileTypes.Go
-    // "rs" -> AllIconsKeys.FileTypes.Rust
-    // "rb" -> AllIconsKeys.FileTypes.Ruby
-    // "php" -> AllIconsKeys.FileTypes.Php
-    // "c" -> AllIconsKeys.FileTypes.C
-    // "cpp", "h" -> AllIconsKeys.FileTypes.Cpp
-    // "cs" -> AllIconsKeys.FileTypes.Csharp
-    // "swift" -> AllIconsKeys.FileTypes.Swift
-    // "scala" -> AllIconsKeys.FileTypes.Scala
-    // "groovy" -> AllIconsKeys.FileTypes.Groovy
-    // "r" -> GradumIcons.R
-    // "sql" -> AllIconsKeys.FileTypes.Sql
-    // "toml" -> GradumIcons.Toml
-    // "ini", "cfg", "conf" -> AllIconsKeys.FileTypes.Config
-    // "dockerfile" -> GradumIcons.Docker
-    // "makefile" -> GradumIcons.Makefile
-    // "cmake" -> GradumIcons.CMake
-    // "gradle" -> GradumIcons.Gradle
-    // "dart" -> AllIconsKeys.FileTypes.Dart
-    // "vue" -> GradumIcons.Vue
-    // "svelte" -> GradumIcons.Svelte
-    // "elm" -> GradumIcons.Elm
-    // "hs" -> AllIconsKeys.FileTypes.Haskell
-    // "ex", "exs" -> GradumIcons.Elixir
-    // "erl" -> GradumIcons.Erlang
-    // "clj" -> GradumIcons.Clojure
-    // "jl" -> GradumIcons.Julia
-    // "lua" -> GradumIcons.Lua
-    // "solidity", "sol" -> GradumIcons.Solidity
-    // "ps1" -> GradumIcons.PowerShell
-    // "bat", "cmd" -> GradumIcons.WindowsBatch
-    else -> AllIconsKeys.FileTypes.Text
-  }
+// File icons are read from the IDE's own file type registry instead of a
+// hand-written extension table: every language a bundled plugin registers
+// (Kotlin, Python, JS/TS, Docker, ...) shows the same icon in the chat as in
+// the IDE's own views, and nobody has to enumerate extensions by hand.
+//
+// The platform hands file icons out as Swing icons while Jewel renders the
+// platform's new icon model, so each lookup is bridged with [toNewIcon] and used
+// through Jewel's `Icon(icon = ...)` overload.
+
+/** Icon the IDE shows for a plain text file; also the fallback for icon-less file types. */
+val TextFileIcon: Icon by lazy { AllIcons.FileTypes.Text.toNewIcon() }
+
+/**
+ * The icon the IDE itself shows for [file]: the file type icon for regular files,
+ * the folder icon for directories, plus whatever icon a plugin contributes for
+ * that particular file. Icon providers may touch PSI, so the lookup runs under a
+ * read action like the rest of our platform reads.
+ */
+fun fileIcon(file: VirtualFile): Icon = ReadAction.compute<Icon, RuntimeException> {
+  IconUtil.getIcon(file, 0, null).toNewIcon()
 }
+
+/**
+ * Icon for a GFM fenced-code language tag. The tag is mapped to a conventional
+ * file extension (the same mapping [EditorUtils.openCodeAsNewFile] uses when it
+ * turns a block into a file) and then resolved through the file type registry, so
+ * a `kotlin` block is labelled with the icon of the `.kt` file it would create.
+ */
+fun languageIcon(language: String?): Icon =
+  extensionIcon(extension = EditorUtils.extensionForLanguage(language.orEmpty().trim().lowercase()))
+
+private fun extensionIcon(extension: String): Icon =
+  FileTypeManager.getInstance().getFileTypeByExtension(extension).icon?.toNewIcon() ?: TextFileIcon
 
 object EditorUtils {
 
   fun getEditorContext(project: Project): EditorContext {
     return ReadAction.compute<EditorContext, RuntimeException> {
       val fileEditorManager = FileEditorManager.getInstance(project)
-      // The chat's own pseudo-file is an editor tab once the chat lives in
-      // one; it must never show up as attachable context (the chat would
-      // upload itself), and a selected chat tab means no real file is focused.
       val allFiles: List<VirtualFile> =
         fileEditorManager.openFiles.filterNot { openFile -> openFile is GradumChatVirtualFile }
       val currentFile: VirtualFile? = fileEditorManager.selectedFiles
@@ -150,7 +125,7 @@ object EditorUtils {
    * Maps a GFM fenced-code language tag to a conventional file extension.
    * Unknown / blank tags fall back to `.txt`.
    */
-  private fun extensionForLanguage(language: String): String =
+  internal fun extensionForLanguage(language: String): String =
     when (language) {
       "kotlin", "kt" -> "kt"
       "java" -> "java"

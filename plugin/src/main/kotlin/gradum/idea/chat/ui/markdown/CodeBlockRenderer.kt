@@ -27,10 +27,9 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.dp
 import gradum.idea.chat.ui.chat.copyToClipboard
-import gradum.idea.editor.getLanguageIconKey
+import gradum.idea.editor.languageIcon
 import gradum.idea.settings.LocalEnableStickySections
 import gradum.idea.utils.GradumBundle.message
-import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.CoroutineScope
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
@@ -381,7 +380,7 @@ private fun CodeBlockToolbar(
   ) {
     Icon(
       contentDescription = displayLanguage,
-      key = getLanguageIconKey(extension = language) ?: GradumIcons.FeatCode
+      icon = languageIcon(language)
     )
     Text(
       modifier = Modifier.weight(1f),

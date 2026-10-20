@@ -60,7 +60,7 @@ private fun AttachmentChip(attachment: AttachedContext) {
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
   ) {
     Icon(
-      key = attachment.iconKey,
+      icon = attachment.icon,
       contentDescription = null,
       modifier = Modifier.size(14.dp)
     )

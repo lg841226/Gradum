@@ -2,6 +2,7 @@ package gradum.idea
 
 import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.editor.AttachedImage
+import gradum.idea.editor.fileIcon
 import java.util.*
 
 /**
@@ -60,6 +61,7 @@ internal fun encodeImageToAttachment(file: VirtualFile): AttachedImage? {
 
   return AttachedImage(
     file = file,
+    icon = fileIcon(file),
     mime = mime,
     originalName = file.name,
     originalSizeBytes = file.length,

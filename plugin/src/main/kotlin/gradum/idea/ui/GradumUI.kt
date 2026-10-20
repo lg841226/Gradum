@@ -50,7 +50,6 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.processing.MarkdownProcessor
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Link
-import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import java.io.File
 import java.nio.charset.StandardCharsets
@@ -335,10 +334,7 @@ private fun rememberChatSessionState(
       if (session.attachedFiles.size < MAX_ATTACHMENTS && session.attachedFiles.none {
           it is AttachedFile && it.file.path == file.path
         }) {
-        val iconKey: IconKey =
-          if (file.isDirectory) AllIconsKeys.Actions.ProjectDirectory
-          else (getLanguageIconKey(file.extension) ?: AllIconsKeys.FileTypes.Unknown)
-        session.attachedFiles.add(AttachedFile(file = file, iconKey = iconKey))
+        session.attachedFiles.add(AttachedFile(file = file, icon = fileIcon(file)))
       }
     }
   }

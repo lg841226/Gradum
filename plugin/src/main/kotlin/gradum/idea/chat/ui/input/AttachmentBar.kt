@@ -44,7 +44,7 @@ fun AttachmentBar(
         modifier = Modifier.padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.sm)
       ) {
         Icon(
-          key = attachedContext.iconKey,
+          icon = attachedContext.icon,
           contentDescription = attachedContext.displayName,
           modifier = Modifier.size(16.dp)
         )
