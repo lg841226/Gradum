@@ -11,8 +11,12 @@ import gradum.debug.*
 import gradum.mcp.McpToolCatalog
 import gradum.skill.*
 import gradum.skill.builtin.getTodoManagerInstance
+import gradum.skill.dsl.buildXml
+import gradum.task.JobOutcome
+import gradum.task.JobStatus
 import gradum.utils.ContextManager
 import gradum.utils.JsonUtil
+import gradum.utils.trimmedOutputLines
 import gradum.vcs.SessionSnapshotManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.takeWhile
@@ -21,7 +25,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.UUID
+import java.util.*
 
 private val logger: Logger = LoggerFactory.getLogger("Agent")
 
@@ -134,6 +138,8 @@ class Agent(
         emitEvent = emitEvent,
       )
     },
+    serverUrl = configuration.serverUrl,
+    serverApiKey = configuration.serverApiKey,
     plugins = plugins,
   )
 
@@ -150,6 +156,9 @@ class Agent(
       Provider.OPENAI -> openAiClient
       Provider.DEEPSEEK -> openAiClient
       Provider.MINIMAX -> openAiClient
+      // LM Studio speaks the OpenAI-compatible protocol; reasoning is
+      // parsed from either `reasoning_content` or `reasoning`.
+      Provider.LMSTUDIO -> openAiClient
       Provider.OLLAMA -> ollamaClient
     }
   }
@@ -212,6 +221,8 @@ class Agent(
       )
     )
 
+    injectPendingBackgroundResults()
+
     conversationHistory.addUserMessage(
       text = userInput,
       attachments = attachments,
@@ -231,12 +242,20 @@ class Agent(
 
       conversationHistory.truncate(maxHistoryMessages)
 
+      injectPendingBackgroundResults()
+
       val result: AgentTurnResult = processLlmTurn(buildToolSchemas())
       result.errorMessage?.let { error ->
+        val turnErrorCode: ErrorCode =
+          when (result.apiStatusCode) {
+            401, 403 -> ErrorCode.LLM_AUTH_ERROR
+            null -> ErrorCode.CLIENT_ERROR
+            else -> ErrorCode.LLM_UPSTREAM_ERROR
+          }
         emitEvent(
           GradumEventType.ERROR.wireName,
           mapOf(
-            "code" to ErrorCode.CLIENT_ERROR,
+            "code" to turnErrorCode,
             "message" to error.trim(),
             "source" to "${configuration.provider.name.lowercase()}_client",
             ERROR_SCOPE_KEY to ErrorScope.TURN.wireName
@@ -340,11 +359,9 @@ class Agent(
     val thinkingParts: MutableList<String> = mutableListOf()
     var toolCallsResult: List<ToolCallEntry>? = null
     var errorMessage: String? = null
+    var apiStatusCode: Int? = null
 
-    // Latest usage snapshot emitted with a RESPONSE event this turn; the
-    // final flush after the stream ends carries the turn's token usage.
     var turnUsage = TokenUsageSnapshot()
-
     val responseBuffer = StringBuilder()
 
     fun flushResponse() {
@@ -398,6 +415,7 @@ class Agent(
           is LLMResponseChunk.ErrorMessage -> {
             flushResponse()
             errorMessage = chunk.description
+            apiStatusCode = chunk.apiStatusCode
           }
         }
       }
@@ -409,8 +427,9 @@ class Agent(
     return AgentTurnResult(
       errorMessage = errorMessage,
       responseText = contentParts.joinToString(separator = ""),
-      toolCalls = toolCallsResult,
       thinkingText = thinkingParts.joinToString(separator = ""),
+      apiStatusCode = apiStatusCode,
+      toolCalls = toolCallsResult,
       tokenUsage = if (usageSnapshot.totalTokens > 0) {
         mapOf(
           "promptTokens" to usageSnapshot.promptTokens,
@@ -599,13 +618,71 @@ class Agent(
     }
   }
 
+  /**
+   * Drains completed background task outcomes and injects them into the
+   * conversation history as tool messages. Called before each model turn to
+   * ensure background results are included in the next LLM request.
+   */
+  private fun injectPendingBackgroundResults() {
+    val manager = gradum.task.BackgroundTaskManager.getInstance() ?: return
+    val sessionId = configuration.sessionId ?: return
+    val allOutcomes = manager.drainCompletedOutcomes()
+
+    for ((job) in allOutcomes.filter { it.job.sessionId != sessionId })
+      logger.warn("Dropped background task outcome {} for foreign session {}", job.taskId, job.sessionId)
+
+    val completedOutcomes = allOutcomes.filter { it.job.sessionId == sessionId }
+
+    for (outcome in completedOutcomes) {
+      val content: String = buildXml {
+        element("BackgroundTaskResult") {
+          element("TaskId") { text(outcome.job.taskId) }
+          element("Command") { text(outcome.job.command) }
+          element("Status") { text(backgroundStatusText(outcome)) }
+          element("ExitCode") { text(outcome.exitCode.toString()) }
+          element("DurationMs") { text(outcome.durationMs.toString()) }
+          element("Output") {
+            val cleanedLines: List<String> = trimmedOutputLines(outcome.output)
+            if (cleanedLines.isEmpty()) {
+              text("(no output)")
+            } else {
+              cleanedLines.forEach { line -> element("Line") { text(line) } }
+            }
+          }
+        }
+      }
+
+      conversationHistory.appendSystemMessage(content)
+
+      logger.info("Injected background task {} into session {}", outcome.job.taskId, sessionId)
+      emitEvent(
+        GradumEventType.BACKGROUND_RESULT.wireName,
+        mapOf<String, Any>(
+          "sessionId" to sessionId,
+          "taskId" to outcome.job.taskId,
+          "exitCode" to outcome.exitCode,
+          "durationMs" to outcome.durationMs,
+          "status" to outcome.job.status.name.lowercase()
+        )
+      )
+    }
+  }
+
+  private fun backgroundStatusText(outcome: JobOutcome): String =
+    when (outcome.job.status) {
+      JobStatus.COMPLETED -> if (outcome.exitCode == 0) "completed successfully" else "failed"
+      JobStatus.FAILED -> "failed"
+      JobStatus.TIMEOUT -> "timed out and was terminated (output is partial)"
+      JobStatus.CANCELLED -> "cancelled before completion"
+      JobStatus.RUNNING -> "still running"
+    }
+
   private data class AgentTurnResult(
     val errorMessage: String?,
     val responseText: String?,
-    val toolCalls: List<ToolCallEntry>?,
-    /** Reasoning text streamed during the turn, persisted on the assistant message. */
     val thinkingText: String = "",
-    /** Token usage carried by this turn's final RESPONSE event; null when nothing was used. */
+    val apiStatusCode: Int? = null,
+    val toolCalls: List<ToolCallEntry>?,
     val tokenUsage: Map<String, Int>? = null
   )
 }

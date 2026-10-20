@@ -26,6 +26,13 @@ data class ModelEntry(
   val toolCall: Boolean = false,
   val available: Boolean = true,
   val reasoning: Boolean = false,
+  /**
+   * True when the model accepts a graded thinking depth (Ollama string
+   * `think: "low"/"medium"/"high"`). False but [reasoning] true means the
+   * model thinks on a binary switch only. Populated by the `/models`
+   * capability probe for Ollama entries.
+   */
+  val reasoningLevels: Boolean = false,
   val attachment: Boolean = false,
   val openWeights: Boolean = false,
   /** Upstream host reported by Ollama `/api/tags` (`remote_host`); non-null means the model runs in Ollama Cloud. */
@@ -114,6 +121,19 @@ object ModelIdentity {
     } else {
       "$base/$suffix"
     }
+  }
+
+  /**
+   * Builds a **root-level** LM Studio REST endpoint (e.g. `/api/v0/models`,
+   * `/api/v1/models`) from the provider base URL. Unlike the OpenAI-compatible
+   * surface, LM Studio's REST API is mounted at the server root, so a trailing
+   * `/v1` on [baseUrl] (`http://localhost:1234/v1`) must be stripped before the
+   * path is appended: otherwise the request would hit
+   * `/v1/api/v0/models` and 404.
+   */
+  fun resolveLmStudioApiEndpoint(baseUrl: String, endpoint: String): String {
+    val rootUrl: String = baseUrl.trimEnd('/').removeSuffix(suffix = "/v1")
+    return "$rootUrl/${endpoint.trimStart('/')}"
   }
 
   /**
@@ -456,7 +476,7 @@ object ModelIdentity {
         name = "LM Studio",
         baseUrl = "",
         endpoint = "/api/v0/models",
-        providerType = Provider.OPENAI.wireType,
+        providerType = Provider.LMSTUDIO.wireType,
         configKey = "lmstudio"
       ),
       ServerDef(
@@ -660,7 +680,14 @@ object ModelIdentity {
 
     private fun probeServer(server: ServerDef): ProbeResult {
       return try {
-        val probe: HttpProbe = httpProbe(url = resolveModelsEndpoint(server.baseUrl, server.endpoint), server.apiKey)
+        val modelsUrl: String =
+          if (server.providerType == Provider.LMSTUDIO.wireType) {
+            // LM Studio's REST API is root-level, not under the /v1 prefix.
+            resolveLmStudioApiEndpoint(server.baseUrl, server.endpoint)
+          } else {
+            resolveModelsEndpoint(server.baseUrl, server.endpoint)
+          }
+        val probe: HttpProbe = httpProbe(url = modelsUrl, server.apiKey)
         if (probe.status != HttpStatusCode.OK) {
           return ProbeResult.HttpError(probe.status)
         }
@@ -762,6 +789,7 @@ object ModelIdentity {
       return when (server.providerType) {
         Provider.OLLAMA.wireType -> detectOllamaVision(server.baseUrl, modelNames)
         Provider.OPENAI.wireType -> detectLmStudioVision(probeBody, modelNames)
+        Provider.LMSTUDIO.wireType -> detectLmStudioVision(probeBody, modelNames)
         else -> emptySet()
       }
     }

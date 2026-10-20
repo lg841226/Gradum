@@ -45,7 +45,7 @@ class ProviderSettingsPersistenceTest {
       state.ollamaBaseUrl
     )
     assertEquals(
-      "http://localhost:1234",
+      "http://localhost:1234/v1",
       state.lmStudioBaseUrl
     )
     assertEquals(

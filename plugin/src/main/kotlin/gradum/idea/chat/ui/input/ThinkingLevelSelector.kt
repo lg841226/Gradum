@@ -38,18 +38,18 @@ import org.jetbrains.jewel.ui.component.Text
  * deeply") so a curious user can hover the closed button to learn
  * what each level does in plain English without opening the menu.
  *
- * **Always enabled.** The hint is a plain prompt suffix and works on
- * any model, so the dropdown is never grayed out. The previous
- * capability-gated design (disable when `reasoning = false`) was
- * removed because the gating contradicts the prompt-injection
- * approach: a non-reasoning model still benefits from the hint,
- * it just yields less.
+ * **Capability-gated.** The caller hides this selector for models that
+ * cannot think at all and passes `enabled = false` (plus a
+ * [disabledTooltip]) for thinking models that expose no depth levels:
+ * such a model still thinks, so the button stays visible but grayed and
+ * its tooltip explains why the level cannot be tuned.
  */
 @Composable
 fun ThinkingLevelSelector(
   enabled: Boolean = true,
   selectedLevel: ThinkingLevel,
   modifier: Modifier = Modifier,
+  disabledTooltip: String? = null,
   onSelect: (ThinkingLevel) -> Unit
 ) {
   var showMenu by remember { mutableStateOf(false) }
@@ -60,7 +60,7 @@ fun ThinkingLevelSelector(
       isButtonEnabled = enabled,
       text = thinkingButtonLabel(selectedLevel),
       onClick = { if (enabled) showMenu = true },
-      contentDescription = thinkingTooltip(selectedLevel)
+      contentDescription = if (!enabled && disabledTooltip != null) disabledTooltip else thinkingTooltip(selectedLevel)
     )
     if (showMenu) {
       PopupMenu(

@@ -49,14 +49,16 @@ private fun buildModelOptionValues(): List<JsonObject> {
 
 /**
  * Model option description, e.g. `The local model from Ollama`. A model is
- * "local" only when its provider is OLLAMA and its name is not cloud-tagged
- * (Ollama also serves `-cloud` models); every other provider is "cloud".
- * The description carries the server name so multiple OpenAI-compatible
- * endpoints (DeepSeek, Zhipu BigModel, ...) stay distinguishable.
+ * "local" when its provider runs on this machine (Ollama, LM Studio) and its
+ * name is not cloud-tagged (Ollama also serves `-cloud` models); every other
+ * provider is "cloud". The description carries the server name so multiple
+ * OpenAI-compatible endpoints (DeepSeek, Zhipu BigModel, ...) stay
+ * distinguishable.
  */
 private fun buildOptionValue(modelName: String, serverName: String, providerType: String): JsonObject {
   val provider: Provider = Provider.fromStringOrDefault(providerType)
-  val isLocalModel: Boolean = provider == Provider.OLLAMA && !ModelIdentity.isCloudTagged(modelName)
+  val isLocalRuntime: Boolean = provider == Provider.OLLAMA || provider == Provider.LMSTUDIO
+  val isLocalModel: Boolean = isLocalRuntime && !ModelIdentity.isCloudTagged(modelName)
   val location: String =
     if (isLocalModel) "local"
     else "cloud"

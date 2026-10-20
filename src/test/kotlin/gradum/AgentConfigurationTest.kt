@@ -95,4 +95,25 @@ class AgentConfigurationTest {
       ToolMode.fromStringOrDefault(rawValue = "   ")
     )
   }
+
+  @Test
+  fun `lmstudio is a first-class provider on the OpenAI-compatible path`() {
+    assertEquals(
+      Provider.LMSTUDIO,
+      Provider.fromStringOrDefault(rawValue = "lmstudio")
+    )
+    assertEquals(
+      Provider.LMSTUDIO,
+      Provider.fromStringOrDefault(rawValue = "LMSTUDIO")
+    )
+    assertEquals(
+      "lmstudio",
+      Provider.LMSTUDIO.wireType
+    )
+    assertEquals(
+      PromptVariant.LOCAL,
+      PromptVariant.resolveAuto(provider = Provider.LMSTUDIO),
+      "LM Studio runs locally: it must use the LOCAL prompt variant"
+    )
+  }
 }

@@ -59,6 +59,16 @@ fun ModelSelectorBar(
   var showModelMenu by remember { mutableStateOf(false) }
   val dismiss: () -> Unit = { showModelMenu = false }
 
+  val supportsThinking: Boolean = selectedModel?.reasoning == true
+  val supportsThinkingLevels: Boolean = selectedModel?.reasoningLevels == true
+  // A model that cannot think at all gets no thinking control; one that thinks
+  // on a binary switch keeps the selector but grayed, with a tooltip saying so.
+  // While no model is selected yet (pre-load) the selector stays visible but
+  // disabled, so the toolbar does not jump once the roster arrives.
+  val showThinkingSelector: Boolean = selectedModel == null || supportsThinking
+  val thinkingDisabledTooltip: String? =
+    if (supportsThinking && !supportsThinkingLevels) message("gradum.thinking.tooltip.unsupported") else null
+
   Row(
     modifier = modifier.fillMaxWidth(),
     verticalAlignment = Alignment.CenterVertically
@@ -89,12 +99,15 @@ fun ModelSelectorBar(
         }
       }
     }
-    Spacer(modifier = Modifier.width(GradumSpacing.xs))
-    ThinkingLevelSelector(
-      enabled = selectedModel != null,
-      selectedLevel = thinkingLevel,
-      onSelect = onSelectThinkingLevel,
-    )
+    if (showThinkingSelector) {
+      Spacer(modifier = Modifier.width(GradumSpacing.xs))
+      ThinkingLevelSelector(
+        enabled = supportsThinkingLevels,
+        selectedLevel = thinkingLevel,
+        disabledTooltip = thinkingDisabledTooltip,
+        onSelect = onSelectThinkingLevel,
+      )
+    }
     Spacer(modifier = Modifier.weight(1f))
     ExternalLink(
       text = message("gradum.feedback"),

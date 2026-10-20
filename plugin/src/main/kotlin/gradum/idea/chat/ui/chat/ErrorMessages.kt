@@ -15,6 +15,8 @@ import gradum.idea.utils.GradumBundle.message
  */
 fun friendlyErrorMessage(code: String): String = when (code) {
   ChatErrorCode.CLIENT_ERROR -> message("gradum.error.client")
+  ChatErrorCode.LLM_UPSTREAM_ERROR -> message("gradum.error.llm.upstream")
+  ChatErrorCode.LLM_AUTH_ERROR -> message("gradum.error.llm.auth")
   "FILE_NOT_FOUND" -> message("gradum.error.file.not.found")
   "CODE_NOT_FOUND" -> message("gradum.error.code.not.found")
   "MULTIPLE_MATCHES" -> message("gradum.error.multiple.matches")

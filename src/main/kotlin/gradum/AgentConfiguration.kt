@@ -9,7 +9,16 @@ enum class Provider {
   OLLAMA,
   OPENAI,
   DEEPSEEK,
-  MINIMAX;
+  MINIMAX,
+
+  /**
+   * LM Studio's OpenAI-compatible surface (`/v1/chat/completions`). Kept
+   * as its own provider (rather than folded into [OPENAI]) because its
+   * request encoding and reasoning parsing differ: the endpoint ignores
+   * `reasoning_effort`, and reasoning streams back under either
+   * `reasoning_content` or `reasoning`.
+   */
+  LMSTUDIO;
 
   /**
    * Wire-level identifier used in model discovery payloads and the
@@ -91,6 +100,7 @@ enum class PromptVariant {
       Provider.DEEPSEEK -> CLOUD
       Provider.MINIMAX -> CLOUD
       Provider.OLLAMA -> LOCAL
+      Provider.LMSTUDIO -> LOCAL
     }
   }
 }
@@ -174,6 +184,22 @@ data class AgentConfiguration(
   val sessionId: String? = null,
 
   /**
+   * Base URL of the Gradum server (e.g. `http://localhost:8765`). Skills
+   * that need to call server HTTP APIs (e.g. background task submission)
+   * use this to reach the correct endpoint. Null when the server address
+   * is unknown (tests or embedded callers).
+   */
+  val serverUrl: String? = null,
+
+  /**
+   * Bearer token for calling this server's own HTTP APIs (e.g. background
+   * task submission). Carries [gradum.server.ServerConfiguration.authToken]
+   * so skill-side HTTP clients can authenticate; null when auth is disabled
+   * (tests and embedded callers).
+   */
+  val serverApiKey: String? = null,
+
+  /**
    * When non-null, the agent runs as a focused sub-agent dedicated to
    * this task. The task description is injected into the system prompt,
    * and the agent's conversation history is NOT persisted to disk.
@@ -188,6 +214,7 @@ data class AgentConfiguration(
     const val DEFAULT_KEEP_ALIVE_MINUTES: Int = 5
     const val DEFAULT_ENABLE_THINKING: Boolean = false
     const val DEFAULT_OLLAMA_BASE_URL: String = GradumConfig.DEFAULT_OLLAMA_BASE_URL
+    const val DEFAULT_LMSTUDIO_BASE_URL: String = GradumConfig.DEFAULT_LMSTUDIO_BASE_URL
     const val DEFAULT_CHAT_COMPLETIONS_PATH: String = GradumConfig.DEFAULT_CHAT_COMPLETIONS_PATH
     const val DEFAULT_CONTEXT_WINDOW_SIZE: Int = GradumConfig.DEFAULT_CONTEXT_WINDOW_SIZE
   }

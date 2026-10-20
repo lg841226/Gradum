@@ -7,7 +7,11 @@ import gradum.idea.chat.ui.chat.skill.internal.ToolCallErrorInfo
 import gradum.idea.chat.ui.chat.skill.spi.*
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
+import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.ui.component.Badge
+import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icon.IconKey
+import org.jetbrains.jewel.ui.theme.badgeStyle
 
 /**
  * Default renderer for the server-side `run_cmd` skill (alias "Ran").
@@ -32,6 +36,7 @@ class RanRenderer : ToolCallRenderer {
   ): ToolCallContent {
     val shellCommand: String = arguments.string(key = "command")
     val reasonText: String = arguments.string(key = "reason")
+    val isBackground: Boolean = arguments["background"] as? Boolean ?: false
     val actionList: MutableList<ToolCallAction> = mutableListOf()
     if (shellCommand.isNotBlank()) actionList.add(ToolCallAction.CopyToClipboard(payload = shellCommand))
 
@@ -39,7 +44,8 @@ class RanRenderer : ToolCallRenderer {
       aliasName = ALIAS,
       fieldMap = mapOf(
         "command" to shellCommand,
-        "reason" to reasonText
+        "reason" to reasonText,
+        "background" to isBackground
       ),
       actionList = actionList
     )
@@ -49,12 +55,18 @@ class RanRenderer : ToolCallRenderer {
   override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
     val shellCommand: String = (content.fieldMap["command"] as? String).orEmpty()
     val reasonText: String = (content.fieldMap["reason"] as? String).orEmpty()
+    val isBackground: Boolean = content.fieldMap["background"] as? Boolean ?: false
     ToolCallCapsule(
       label = message(LABEL_KEY),
       iconKey = GradumIcons.Ran,
       success = !ctx.isError,
       trailingText = reasonText,
       trailingIcon = {
+        if (isBackground) {
+          Badge(style = JewelTheme.badgeStyle.blueSecondary) {
+            Text(text = message("gradum.tool.background"))
+          }
+        }
         OpenInEditorButton(
           filePath = shellCommand,
           onClick = {

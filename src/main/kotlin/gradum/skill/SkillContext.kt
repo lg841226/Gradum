@@ -82,6 +82,23 @@ data class SkillContext(
    * a skill must fall back when this is absent instead of assuming it exists.
    */
   val scope: AskScope? = null,
+
+  /**
+   * Base URL of the Gradum server for this session. Skills that need to
+   * call server HTTP APIs (e.g. background task submission) use this to
+   * reach the correct endpoint. Null when the server address is unknown
+   * (tests or embedded callers).
+   */
+  val serverUrl: String? = null,
+
+  /**
+   * Bearer token for authenticating against this server's own HTTP APIs.
+   * Skills and their HTTP clients (e.g. [BackgroundScope]) attach it as
+   * `Authorization: Bearer <token>`. Null when auth is disabled (tests or
+   * embedded callers).
+   */
+  val serverApiKey: String? = null,
+
   /**
    * The user's per-skill plugin config sections (`plugins.<skillName>`),
    * resolved from `settings.json` by the server. A skill reads its own slice

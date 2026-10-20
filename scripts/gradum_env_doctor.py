@@ -29,7 +29,7 @@ GRADLE_PROPERTIES_BANNED = "org.gradle.configuration-cache=true"
 
 PROVIDER_DOTTED_KEYS = {
     "ollama": ("http://localhost:11434", "http://localhost:11434"),
-    "lmstudio": ("http://localhost:1234", "http://localhost:1234"),
+    "lmstudio": ("http://localhost:1234/v1", "http://localhost:1234/v1"),
     "zhipu": ("https://open.bigmodel.cn/api/paas/v4", "https://open.bigmodel.cn/api/paas/v4"),
     "deepseek": ("https://api.deepseek.com/v1", "https://api.deepseek.com/v1"),
     "minimax": ("https://api.minimaxi.com/v1", "https://api.minimaxi.com/v1"),

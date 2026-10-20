@@ -45,6 +45,27 @@ private fun JsonObject.optObject(key: String): JsonObject =
   this[key]?.jsonObject ?: JsonObject(emptyMap())
 
 /**
+ * Reasoning field names tried in order when a delta does not carry the
+ * profile-declared key. LM Studio's OpenAI-compatible surface exposes
+ * reasoning under a family-dependent key (`reasoning_content` for
+ * DeepSeek-R1, `reasoning` for gpt-oss), so the declared field is only a
+ * hint: the first non-empty of declared -> `reasoning_content` ->
+ * `reasoning` wins. For profiles that declare `reasoning_content` the
+ * behavior is unchanged (the declared field is read first).
+ */
+private val REASONING_FIELD_FALLBACKS: List<String> = listOf("reasoning_content", "reasoning")
+
+private fun readReasoningDelta(deltaFields: JsonObject, declaredField: String?): String {
+  val candidateFields: List<String> =
+    (listOfNotNull(declaredField) + REASONING_FIELD_FALLBACKS).distinct()
+  for (fieldName in candidateFields) {
+    val fieldValue: String = deltaFields.optString(key = fieldName)
+    if (fieldValue.isNotEmpty()) return fieldValue
+  }
+  return ""
+}
+
+/**
  * Resolve the wire thinking level for a request: the legacy master switch
  * still gates thinking off entirely, [AgentConfiguration.thinkingLevel]
  * only matters while [AgentConfiguration.enableThinking] is true.
@@ -61,7 +82,8 @@ data class ToolCallEntry(
 sealed class LLMResponseChunk {
   data class TextContent(val text: String) : LLMResponseChunk()
   data class ReasoningContent(val text: String) : LLMResponseChunk()
-  data class ErrorMessage(val description: String) : LLMResponseChunk()
+
+  data class ErrorMessage(val description: String, val apiStatusCode: Int? = null) : LLMResponseChunk()
   data class ToolCallBatch(val toolCalls: List<ToolCallEntry>) : LLMResponseChunk()
 }
 
@@ -125,6 +147,7 @@ private fun projectMessageForBackend(
     Provider.OPENAI -> projectToOpenAi(contentParts)
     Provider.DEEPSEEK -> projectToOpenAi(contentParts)
     Provider.MINIMAX -> projectToOpenAi(contentParts)
+    Provider.LMSTUDIO -> projectToOpenAi(contentParts)
   }
 }
 
@@ -226,6 +249,8 @@ class OllamaClient(
   override var tokenUsage: TokenUsageSnapshot = TokenUsageSnapshot()
     private set
 
+  private val modelCatalog: OllamaModelCatalog = OllamaModelCatalog(configuration)
+
   override fun sendChat(
     messageHistory: List<Map<String, Any>>, toolDefinitions: List<Map<String, Any>>?
   ): Flow<LLMResponseChunk> = flow {
@@ -240,6 +265,9 @@ class OllamaClient(
       keepAliveMinutes = configuration.keepAliveMinutes
     )
 
+    val modelCapabilities: OllamaModelCapabilities =
+      modelCatalog.capabilitiesFor(modelName = configuration.modelName)
+
     val projectedHistory: List<Map<String, Any>> =
       projectHistoryForBackend(messageHistory, target = Provider.OLLAMA)
 
@@ -250,7 +278,7 @@ class OllamaClient(
     )
 
     requestPayload.putAll(wireProfile.requestFields(params = generationParams))
-    requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel))
+    requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel, capabilities = modelCapabilities))
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
     var lastError: Exception? = null
@@ -265,8 +293,12 @@ class OllamaClient(
           setBody(JsonUtil.encodeMap(input = requestPayload))
         }.execute { httpResponse: HttpResponse ->
           if (httpResponse.status.value !in 200..299) {
+            val apiError: LlmApiError = extractApiError(httpResponse)
             flowCollector.emit(
-              value = LLMResponseChunk.ErrorMessage(description = extractApiError(httpResponse))
+              value = LLMResponseChunk.ErrorMessage(
+                description = apiError.message,
+                apiStatusCode = apiError.statusCode
+              )
             )
             lastError = null
             succeeded = true
@@ -407,7 +439,7 @@ class OpenAICompatibleClient(
       "stream_options" to mapOf("include_usage" to true),
     )
     requestPayload.putAll(wireProfile.requestFields(params = generationParams))
-    requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel))
+    requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel, capabilities = null))
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
 
@@ -426,7 +458,13 @@ class OpenAICompatibleClient(
         }
 
         if (httpResponse.status.value !in 200..299) {
-          emit(value = LLMResponseChunk.ErrorMessage(description = extractApiError(httpResponse)))
+          val apiError: LlmApiError = extractApiError(httpResponse)
+          emit(
+            value = LLMResponseChunk.ErrorMessage(
+              description = apiError.message,
+              apiStatusCode = apiError.statusCode
+            )
+          )
           lastError = null
           break
         }
@@ -522,18 +560,19 @@ class OpenAICompatibleClient(
         emit(value = LLMResponseChunk.TextContent(contentDelta))
 
       /**
-       * Native reasoning surface: DeepSeek and MiniMax both emit
-       * thinking in a separate `reasoning_content` delta on the same
-       * choice, spelled by the provider profile. Surface it as
-       * ReasoningContent so the UI can render it as a collapsible
-       * "thought" block, matching the Ollama backend's existing
-       * `message.thinking` path.
+       * Native reasoning surface. Providers disagree on the delta key:
+       * DeepSeek / MiniMax use `reasoning_content`, while LM Studio
+       * families split between `reasoning_content` (DeepSeek-R1) and
+       * `reasoning` (gpt-oss). Read the profile-declared field first and
+       * fall back across the known names, so a single provider request
+       * still surfaces reasoning even when the backend switches dialects.
+       * Surfaced as ReasoningContent so the UI renders it as a
+       * collapsible "thought" block, matching the Ollama backend's
+       * existing `message.thinking` path.
        */
-      wireProfile.reasoningDeltaField?.let { fieldName ->
-        val reasoningDelta: String = deltaFields.optString(key = fieldName)
-        if (reasoningDelta.isNotEmpty())
-          emit(value = LLMResponseChunk.ReasoningContent(text = reasoningDelta))
-      }
+      val reasoningDelta: String = readReasoningDelta(deltaFields, wireProfile.reasoningDeltaField)
+      if (reasoningDelta.isNotEmpty())
+        emit(value = LLMResponseChunk.ReasoningContent(text = reasoningDelta))
 
       deltaFields["tool_calls"]?.jsonArray?.let { toolCallsArray ->
         accumulateCallDeltas(toolCallsArray, accumulator = accumulatedCalls)
@@ -614,6 +653,9 @@ class OpenAICompatibleClient(
 private fun isTransientError(exception: Exception): Boolean = exception is IOException
   || exception is TimeoutCancellationException
 
+/** A non-2xx answer from the upstream LLM API, with its HTTP status intact. */
+private data class LlmApiError(val statusCode: Int, val message: String)
+
 /**
  * Pulls the human-readable message out of a non-2xx API response.
  *
@@ -623,25 +665,34 @@ private fun isTransientError(exception: Exception): Boolean = exception is IOExc
  * raw HTTP status line so the user always sees *something* concrete
  * instead of the generic stream-interrupt message.
  */
-private suspend fun extractApiError(httpResponse: HttpResponse): String {
-  val statusLine = "HTTP ${httpResponse.status.value} ${httpResponse.status.description}"
+private suspend fun extractApiError(httpResponse: HttpResponse): LlmApiError {
+  val statusCode: Int = httpResponse.status.value
+  val statusLine = "HTTP $statusCode ${httpResponse.status.description}"
   val bodyText: String =
     try {
       httpResponse.bodyAsText()
     } catch (_: Exception) {
-      return statusLine
+      return LlmApiError(statusCode = statusCode, message = statusLine)
     }
-  val errorText: String? = try {
-    val parsed: JsonObject = jsonParser.parseToJsonElement(string = bodyText).jsonObject
-    parsed["error"]?.let { errorElement ->
-      errorElement.jsonObject.optString(key = "message")
-        .takeIf { it.isNotBlank() }
-        ?: errorElement.jsonPrimitive.contentOrNull
+  logger.warn("LLM API error {}: {}", statusLine, bodyText)
+  val errorText: String? =
+    try {
+      val parsed: JsonObject = jsonParser.parseToJsonElement(string = bodyText).jsonObject
+      when (val errorElement: JsonElement? = parsed["error"]) {
+        is JsonObject ->
+          errorElement.optString(key = "message").takeIf { it.isNotBlank() }
+            ?: (errorElement["message"] as? JsonPrimitive)?.contentOrNull
+
+        is JsonPrimitive -> errorElement.contentOrNull
+        else -> null
+      }
+    } catch (_: Exception) {
+      null
     }
-  } catch (_: Exception) {
-    null
-  }
-  return errorText?.takeIf { it.isNotBlank() } ?: statusLine
+  return LlmApiError(
+    statusCode = statusCode,
+    message = errorText?.takeIf { it.isNotBlank() } ?: statusLine
+  )
 }
 
 /**

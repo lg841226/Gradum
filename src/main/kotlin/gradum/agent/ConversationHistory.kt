@@ -52,6 +52,10 @@ class ConversationHistory {
     )
   }
 
+  fun appendSystemMessage(content: String) {
+    messages.add(mapOf("role" to "system", "content" to content))
+  }
+
   fun addUserMessage(
     text: String,
     attachments: List<AttachmentPayload>,
