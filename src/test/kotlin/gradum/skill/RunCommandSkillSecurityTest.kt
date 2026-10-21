@@ -53,6 +53,20 @@ class RunCommandSkillSecurityTest {
     return Triple(ctx, pending, emitted)
   }
 
+  /** Context in [ToolMode.YOLO]: same ask wiring, but every gate is bypassed. */
+  private fun yoloContext(): Triple<SkillContext, PendingQuestions, MutableList<Pair<String, Map<String, Any>>>> {
+    val pending = PendingQuestions()
+    val emitted = mutableListOf<Pair<String, Map<String, Any>>>()
+    val scope = AskScope("s", pending) { type, data -> emitted.add(type to data) }
+    val ctx = SkillContext(
+      toolMode = ToolMode.YOLO,
+      projectRoot = projectRoot.absolutePath,
+      modelName = "qwen2.5:7b",
+      scope = scope
+    )
+    return Triple(ctx, pending, emitted)
+  }
+
   /** Answers the single outstanding ask question and returns the executed result. */
   private fun runAskWith(
     ctx: SkillContext,
@@ -145,6 +159,31 @@ class RunCommandSkillSecurityTest {
     assertTrue(result is SkillResult.Failure)
     assertEquals(ErrorCode.COMMAND_BLOCKED.code, (result as SkillResult.Failure).code)
     assertEquals(0, emitted.size, "hard-blocked command must not emit an ask card")
+  }
+
+  @Test
+  fun `YOLO runs a hard-blocked command without asking`() {
+    // YOLO bypasses the Blocked branch entirely: the command reaches the
+    // process launcher and fails on its own terms (non-zero exit), never
+    // through a permission denial.
+    val (ctx, pending, emitted) = yoloContext()
+    val result = skill.execute(mapOf("command" to "rm -rf /nonexistent-gradum-yolo-target"), ctx)
+    assertEquals(0, emitted.size, "YOLO must not emit an ask card")
+    assertEquals(0, pending.size(), "YOLO must not register a pending question")
+    val denied: Boolean = result is SkillResult.Failure && result.code == ErrorCode.COMMAND_BLOCKED.code
+    assertTrue("YOLO must not return COMMAND_BLOCKED: $result", !denied)
+  }
+
+  @Test
+  fun `YOLO runs an out-of-project command without asking`() {
+    val fileName = "gradum-run-cmd-yolo-${System.nanoTime()}.txt"
+    val outside = File(projectRoot.parentFile, fileName)
+    outside.writeText("to be removed\n")
+    val (ctx, pending, emitted) = yoloContext()
+    val result = skill.execute(mapOf("command" to "rm ../$fileName"), ctx)
+    assertTrue("YOLO command should succeed: $result", result is SkillResult.Success)
+    assertEquals(0, emitted.size, "YOLO must not emit an ask card")
+    assertTrue("target file should have been removed", !outside.exists())
   }
 
   private fun waitUntil(condition: () -> Boolean) {

@@ -54,9 +54,16 @@ abstract class Skill {
    *
    * The single authority for the tool-mode gate: both the schema filter
    * in [gradum.skill.SkillRegistry] and the runtime gate in
-   * [gradum.agent.Agent] call this so the two checks can never disagree.
+   * [gradum.agent.ToolExecutor] call this so the two checks can never
+   * disagree.
+   *
+   * [ToolMode.YOLO] short-circuits the per-skill whitelist: the user opted
+   * out of every gate, so every skill is available in that mode. Keeping
+   * the bypass here (rather than adding YOLO to each [allowedToolModes]
+   * set) leaves the per-skill declarations describing only the gated modes.
    */
-  fun allows(toolMode: ToolMode): Boolean = toolMode in allowedToolModes
+  fun allows(toolMode: ToolMode): Boolean =
+    toolMode == ToolMode.YOLO || toolMode in allowedToolModes
 
   /**
    * Execute the skill with the LLM's tool-call arguments and the

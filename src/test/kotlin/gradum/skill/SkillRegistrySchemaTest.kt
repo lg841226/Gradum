@@ -58,6 +58,19 @@ class SkillRegistrySchemaTest {
   }
 
   @Test
+  fun `YOLO mode exposes every registered skill`() {
+    // The YOLO bypass in Skill.allows ignores each skill's whitelist, so the
+    // schema surface in YOLO equals the full registry (same set as AGENT,
+    // which is the only other mode that allows every skill).
+    val names: Set<String> = SkillRegistry.getSchemas(toolMode = ToolMode.YOLO).map { nameOf(it) }.toSet()
+    assertEquals(
+      EXPECTED_ALL,
+      names,
+      "YOLO must expose every registered skill, got: $names"
+    )
+  }
+
+  @Test
   fun `each schema has a name field that matches its registered skill`() {
     for (mode in ToolMode.entries) {
       for (schema in SkillRegistry.getSchemas(toolMode = mode)) {
@@ -73,13 +86,16 @@ class SkillRegistrySchemaTest {
     for (mode in ToolMode.entries) {
       val schemaNames: Set<String> =
         SkillRegistry.getSchemas(toolMode = mode).map { nameOf(it) }.toSet()
+      // Compares via allows(), not a raw `mode in allowedToolModes` check:
+      // allows() is the single gate both the schema filter and the runtime
+      // check call, and it short-circuits YOLO past the per-skill whitelist.
       val allowedNames: Set<String> = SkillRegistry.getAllSkills()
-        .filter { mode in it.allowedToolModes }
+        .filter { skill -> skill.allows(mode) }
         .map { it.skillName }
         .toSet()
       assertEquals(
         allowedNames, schemaNames,
-        "getSchemas($mode) and allowedToolModes disagree: " +
+        "getSchemas($mode) and allows($mode) disagree: " +
           "schemas=$schemaNames, allowed=$allowedNames",
       )
     }

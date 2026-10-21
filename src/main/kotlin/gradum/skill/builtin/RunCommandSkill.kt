@@ -35,6 +35,7 @@ private const val MAX_OUTPUT_CHARS: Int = GradumConfig.COMMAND_MAX_OUTPUT_CHARS
  * rejected/canceled.
  */
 private fun authorizeCommand(commandText: String, verdict: CommandVerdict.NeedsApproval, context: SkillContext): Boolean {
+  if (context.isYolo) return true
   if (verdict.category in context.authorizedCommandCategories) return true
   val askScope: AskScope = context.scope ?: return false
   val decision: AskResult = askScope.askInteraction {
@@ -157,7 +158,7 @@ class RunCommandSkill : Skill() {
       )
 
     val commandVerdict: CommandVerdict = classifyCommand(commandText, projectRoot)
-    if (commandVerdict is CommandVerdict.Blocked) {
+    if (commandVerdict is CommandVerdict.Blocked && !context.isYolo) {
       return makeFailure(
         code = ErrorCode.COMMAND_BLOCKED,
         message = buildXmlError(

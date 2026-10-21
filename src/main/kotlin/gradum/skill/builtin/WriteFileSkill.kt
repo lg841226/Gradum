@@ -26,9 +26,13 @@ private val logger: Logger = LoggerFactory.getLogger("WriteFileSkill")
 
 private const val MAXIMUM_CONTENT_SIZE: Int = GradumConfig.WRITE_MAX_FILE_SIZE
 
-/** True when path resolves inside a protected system directory (blocked for writes). */
-private fun isBlockedPaths(targetPath: Path): Boolean =
-  ProtectedPaths.isProtected(targetPath.toString())
+/**
+ * True when [targetPath] resolves inside a protected system directory, so the
+ * write must be blocked. [ToolMode.YOLO] opts out of this guard entirely: the
+ * user asked for no brakes, protected system directories included.
+ */
+private fun isBlockedPaths(targetPath: Path, context: SkillContext): Boolean =
+  !context.isYolo && ProtectedPaths.isProtected(targetPath.toString())
 
 /**
  * Resolves authorization for writing to a path outside the project root.
@@ -37,10 +41,12 @@ private fun isBlockedPaths(targetPath: Path): Boolean =
  * An "always" answer remembers the path for the rest of the session so it is
  * not asked again. The resulting external path still passes through
  * [isBlockedPaths] before any write, so protected system directories are
- * never bypassed by an authorization.
+ * never bypassed by an authorization, except in [ToolMode.YOLO] where both
+ * the authorization prompt and the protected-path guard are disabled.
  */
 private fun authorizeWrite(filePath: String, projectRoot: String, context: SkillContext): Path? {
   val externalPath: Path = resolveProjectPath(filePath, projectRoot, requireWithinProject = false).resolved
+  if (context.isYolo) return externalPath
   if (externalPath.toString() in context.authorizedWritePaths) return externalPath
   val askScope: AskScope = context.scope ?: return null
   val decision: AskResult = askScope.askInteraction {
@@ -194,7 +200,7 @@ class WriteFileSkill : Skill() {
             fixHint = "Provide oldString + newString to replace text, or newString alone as the full content to create/overwrite a file."
           )
         )
-      return createOrOverwriteFile(resolvedPath, newString)
+      return createOrOverwriteFile(resolvedPath, newString, context)
     }
 
     return try {
@@ -325,7 +331,7 @@ class WriteFileSkill : Skill() {
           ),
           context = mapOf("path" to resolvedPath.toString())
         )
-      return createOrOverwriteFile(resolvedPath, createEdits.last().replaceText)
+      return createOrOverwriteFile(resolvedPath, createEdits.last().replaceText, context)
     }
 
     return try {
@@ -372,8 +378,10 @@ class WriteFileSkill : Skill() {
    * Writes UTF-8, creates parent directories, and applies the same size and
    * protected-path guards as partial edits.
    */
-  private fun createOrOverwriteFile(resolvedPath: Path, fileContent: String): SkillResult {
-    if (isBlockedPaths(resolvedPath)) {
+  private fun createOrOverwriteFile(
+    resolvedPath: Path, fileContent: String, context: SkillContext
+  ): SkillResult {
+    if (isBlockedPaths(resolvedPath, context)) {
       return makeFailure(
         code = ErrorCode.PERMISSION_DENIED,
         message = buildXmlError(

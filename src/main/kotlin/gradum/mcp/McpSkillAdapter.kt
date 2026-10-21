@@ -109,9 +109,11 @@ internal class McpSkillAdapter(
    * already approved "always" this session, the user allowed a single run,
    * or the user chose "always" (remembered by name). Returns true without a
    * prompt when no ask capability is wired (tests / sub-agents that must not
-   * block), and false when the user rejected or canceled.
+   * block) and in [gradum.ToolMode.YOLO], where the user opted out of every
+   * gate. Returns false when the user rejected or canceled.
    */
   private fun isAuthorized(argumentsText: String, context: SkillContext): Boolean {
+    if (context.isYolo) return true
     if (tool.name in context.authorizedMcpTools) return true
     val askScope: AskScope = context.scope ?: return true
     val decision: AskResult = askScope.askInteraction {

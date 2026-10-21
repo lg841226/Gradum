@@ -5,7 +5,7 @@ import kotlin.test.assertEquals
 
 /**
  * Locks the wire format that the plugin sends for [ToolMode]. The plugin
- * emits `"read_only"` / `"edit"` / `"agent"` (lowercase),
+ * emits `"read_only"` / `"edit"` / `"agent"` / `"yolo"` (lowercase),
  * see [gradum.idea.chat.ui.input.PermissionMode], and the server's
  * [ToolMode.fromStringOrDefault] must translate those to the actual
  * enum constants. If this translation ever regresses to be case-sensitive
@@ -37,6 +37,21 @@ class AgentConfigurationTest {
     assertEquals(
       ToolMode.AGENT,
       ToolMode.fromStringOrDefault(rawValue = "agent")
+    )
+  }
+
+  @Test
+  fun `yolo wire value resolves to YOLO`() {
+    // Parsed by enum name, same as the other three: the plugin sends
+    // PermissionMode.YOLO = "yolo" and it must round-trip unchanged. A
+    // fallback to AGENT here would silently re-enable the permission gates.
+    assertEquals(
+      ToolMode.YOLO,
+      ToolMode.fromStringOrDefault(rawValue = "yolo")
+    )
+    assertEquals(
+      ToolMode.YOLO,
+      ToolMode.fromStringOrDefault(rawValue = "YOLO")
     )
   }
 

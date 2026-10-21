@@ -53,6 +53,7 @@ class SystemPromptLoader(private val configuration: AgentConfiguration) {
         ToolMode.READ_ONLY -> "/prompts/modes/read_only.xml"
         ToolMode.EDIT -> "/prompts/modes/edit.xml"
         ToolMode.AGENT -> "/prompts/modes/agent.xml"
+        ToolMode.YOLO -> "/prompts/modes/yolo.xml"
       }
 
     val modeSection: String =

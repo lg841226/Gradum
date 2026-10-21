@@ -24,6 +24,7 @@ object PermissionMode {
   const val READONLY = "read_only"
   const val EDIT = "edit"
   const val AGENT = "agent"
+  const val YOLO = "yolo"
   const val DEBUG = "debug"
 
   /** True when [permission] is the debug wire value, e.g. for scanState gating. */
@@ -43,6 +44,7 @@ fun permissionLabel(wire: String): String = when (wire) {
   PermissionMode.READONLY -> message("gradum.read")
   PermissionMode.EDIT -> message("gradum.edit")
   PermissionMode.AGENT -> message("gradum.agent")
+  PermissionMode.YOLO -> message("gradum.yolo")
   PermissionMode.DEBUG -> message("gradum.debug.mode")
   else -> wire
 }
@@ -155,6 +157,34 @@ fun PermissionSelector(
             Text(text = message("gradum.agent"))
             Text(
               text = message("gradum.agent.info"),
+              color = JewelTheme.globalColors.text.info
+            )
+          }
+        }
+      }
+
+      selectableItem(
+        selected = selectedPermission == PermissionMode.YOLO,
+        onClick = { onSelect(PermissionMode.YOLO) }
+      ) {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+              vertical = GradumSpacing.xs,
+              horizontal = GradumSpacing.md
+            ),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Icon(
+            key = AllIconsKeys.General.ShowWarning,
+            contentDescription = message("gradum.yolo.mode")
+          )
+          Spacer(modifier = Modifier.width(GradumSpacing.md))
+          Column {
+            Text(text = message("gradum.yolo"))
+            Text(
+              text = message("gradum.yolo.info"),
               color = JewelTheme.globalColors.text.info
             )
           }

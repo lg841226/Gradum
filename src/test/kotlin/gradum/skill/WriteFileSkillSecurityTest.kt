@@ -50,6 +50,12 @@ class WriteFileSkillSecurityTest {
     modelName = "qwen2.5:7b"
   )
 
+  private fun yoloContext(): SkillContext = SkillContext(
+    toolMode = ToolMode.YOLO,
+    projectRoot = projectRoot.absolutePath,
+    modelName = "qwen2.5:7b"
+  )
+
   private fun askContext(): Triple<SkillContext, PendingQuestions, MutableList<Pair<String, Map<String, Any>>>> {
     val pending = PendingQuestions()
     val emitted = mutableListOf<Pair<String, Map<String, Any>>>()
@@ -341,5 +347,47 @@ class WriteFileSkillSecurityTest {
       ErrorCode.INVALID_PARAMETER.code,
       result.code
     )
+  }
+
+  @Test
+  fun `YOLO writes outside the project root without asking`() {
+    // The out-of-project write that normally needs an ask card just runs.
+    val fileName = "gradum-write-yolo-${System.nanoTime()}.txt"
+    val outside = File(projectRoot.parentFile, fileName)
+    val result = skill.execute(
+      mapOf("path" to "../$fileName", "newString" to "yolo\n"),
+      yoloContext()
+    )
+    assertTrue("YOLO external write should succeed: $result", result is SkillResult.Success)
+    assertEquals("yolo\n", outside.readText())
+    outside.delete()
+  }
+
+  @Test
+  fun `YOLO writes to a protected system path without asking`() {
+    // A protected path (under a systemPrefix) that non-YOLO modes reject with
+    // PERMISSION_DENIED before touching the disk. YOLO skips the guard, so its
+    // outcome is whatever the filesystem says: never PERMISSION_DENIED.
+    val protectedPath = "/System/gradum-yolo-probe-${System.nanoTime()}/probe.txt"
+
+    val guarded = skill.execute(
+      mapOf("path" to protectedPath, "newString" to "probe\n"),
+      context()
+    )
+    assertTrue(guarded is SkillResult.Failure)
+    assertEquals(
+      ErrorCode.PERMISSION_DENIED.code, (guarded as SkillResult.Failure).code,
+      "non-YOLO must keep denying the protected path"
+    )
+
+    val yoloResult = skill.execute(
+      mapOf("path" to protectedPath, "newString" to "probe\n"),
+      yoloContext()
+    )
+    if (yoloResult is SkillResult.Failure)
+      assertTrue(
+        "YOLO must not deny via PERMISSION_DENIED: ${yoloResult.code}",
+        yoloResult.code != ErrorCode.PERMISSION_DENIED.code
+      )
   }
 }

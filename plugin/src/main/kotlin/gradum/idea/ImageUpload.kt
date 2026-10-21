@@ -39,8 +39,7 @@ private fun getImageMimeType(file: VirtualFile): String? {
  * Read [file] verbatim and return an [AttachedImage] carrying the
  * original bytes on the wire. Returns `null` if the file extension
  * is not a recognized image format: the 5 MB cap is enforced by
- * the caller in
- * [gradum.idea.GradumToolWindowFactory.attachImages] before we get
+ * the caller in `attachImages` before we get
  * here, so this function does no size check of its own.
  *
  * The bytes are base64-encoded for the wire because the plugin

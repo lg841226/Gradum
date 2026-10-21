@@ -80,9 +80,10 @@ private fun modeId(mode: ToolMode): String = mode.name.lowercase()
  */
 private fun modeLabel(mode: ToolMode): String =
   when (mode) {
-    ToolMode.AGENT -> "Agent"
-    ToolMode.EDIT -> "Edit"
-    ToolMode.READ_ONLY -> "Read"
+    ToolMode.AGENT -> "Full Agent Mode"
+    ToolMode.EDIT -> "Edit Permissions"
+    ToolMode.READ_ONLY -> "Read Permissions"
+    ToolMode.YOLO -> "Full Access"
   }
 
 private fun modeDescription(mode: ToolMode): String =
@@ -90,6 +91,7 @@ private fun modeDescription(mode: ToolMode): String =
     ToolMode.AGENT -> "Reads, writes, executes complex tasks"
     ToolMode.EDIT -> "Edit files and code by hand"
     ToolMode.READ_ONLY -> "Read, explore and run diagnostics"
+    ToolMode.YOLO -> "Skips all approvals, runs edits and commands directly"
   }
 
 internal fun AcpServer.handleSetConfigOption(requestId: Long, params: JsonObject?): RpcResponse {

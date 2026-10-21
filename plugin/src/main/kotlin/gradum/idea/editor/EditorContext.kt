@@ -24,14 +24,6 @@ data class EditorContext(
   }
 }
 
-// File icons are read from the IDE's own file type registry instead of a
-// hand-written extension table: every language a bundled plugin registers
-// (Kotlin, Python, JS/TS, Docker, ...) shows the same icon in the chat as in
-// the IDE's own views, and nobody has to enumerate extensions by hand.
-//
-// The platform hands file icons out as Swing icons while Jewel renders the
-// platform's new icon model, so each lookup is bridged with [toNewIcon] and used
-// through Jewel's `Icon(icon = ...)` overload.
 
 /** Icon the IDE shows for a plain text file; also the fallback for icon-less file types. */
 val TextFileIcon: Icon by lazy { AllIcons.FileTypes.Text.toNewIcon() }
@@ -50,7 +42,7 @@ fun fileIcon(file: VirtualFile): Icon = ReadAction.compute<Icon, RuntimeExceptio
  * Icon for a GFM fenced-code language tag. The tag is mapped to a conventional
  * file extension (the same mapping [EditorUtils.openCodeAsNewFile] uses when it
  * turns a block into a file) and then resolved through the file type registry, so
- * a `kotlin` block is labelled with the icon of the `.kt` file it would create.
+ * a `kotlin` block is labeled with the icon of the `.kt` file it would create.
  */
 fun languageIcon(language: String?): Icon =
   extensionIcon(extension = EditorUtils.extensionForLanguage(language.orEmpty().trim().lowercase()))

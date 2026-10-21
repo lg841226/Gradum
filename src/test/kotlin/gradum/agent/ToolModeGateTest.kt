@@ -232,6 +232,34 @@ class ToolModeGateTest {
     )
   }
 
+  @Test
+  fun `YOLO mode bypasses the tool-mode gate entirely`() {
+    // YOLO is the fourth gear: no per-skill whitelist applies. to_do is
+    // rejected in both READ_ONLY and EDIT, so it is the sharpest probe:
+    // if the YOLO bypass in Skill.allows regresses, this fails.
+    val toolCall = ToolCallEntry(
+      functionName = "to_do",
+      callIdentifier = "call_1",
+      functionArguments = mapOf(
+        "tasks" to JsonArray(
+          content = listOf(JsonPrimitive(value = "step 1")),
+        ),
+      ),
+    )
+    val events = runAgentWithToolCall(toolCall, ToolMode.YOLO)
+
+    val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
+      ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
+
+    @Suppress("UNCHECKED_CAST")
+    val result = toolCallEvent.second["result"] as Map<String, Any>
+    assertNotEquals(
+      (result["error"] as? Map<*, *>)?.get("code"),
+      ErrorCode.TOOL_NOT_PERMITTED.name,
+      "YOLO must NOT reject to_do: the mode gate must be bypassed, result was: $result"
+    )
+  }
+
   /**
    * Shared driver: build an Agent with a mocked LLM that emits exactly
    * one tool call followed by a no-op text chunk (so the agent loop

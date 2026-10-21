@@ -163,4 +163,13 @@ data class SkillContext(
    * `SchemaVariant.resolve(modelName) == SIMPLE` checks.
    */
   val isSimpleModel: Boolean get() = SchemaVariant.resolve(modelName) == SchemaVariant.SIMPLE
+
+  /**
+   * True in [ToolMode.YOLO], where the user opted out of every permission
+   * gate. Skills that would otherwise ask the user (dangerous commands,
+   * out-of-project reads/writes, MCP tools) check this first and proceed
+   * without a prompt. Single source of truth for that bypass: the skills
+   * must not re-derive it from [toolMode] themselves.
+   */
+  val isYolo: Boolean get() = toolMode == ToolMode.YOLO
 }

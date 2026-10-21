@@ -178,4 +178,35 @@ class ReadFileSkillSecurityTest {
       Files.deleteIfExists(tmpFile)
     }
   }
+
+  @Test
+  fun `YOLO reads an out-of-project file without asking`() {
+    // Non-YOLO (no ask capability wired) denies; YOLO treats the path as
+    // already authorized and reads it directly, with no ask card.
+    val outside = File(projectRoot.parentFile, "gradum-read-yolo-${System.nanoTime()}.txt")
+    outside.writeText("outside content\n")
+    try {
+      val guarded = skill.execute(mapOf("path" to outside.absolutePath), context())
+      assertTrue(guarded is SkillResult.Failure)
+      assertEquals(
+        ErrorCode.PERMISSION_DENIED.code, (guarded as SkillResult.Failure).code,
+        "non-YOLO must keep asking (and deny without an ask capability)"
+      )
+
+      val pending = PendingQuestions()
+      val emitted = mutableListOf<Pair<String, Map<String, Any>>>()
+      val scope = AskScope("s", pending) { type, data -> emitted.add(type to data) }
+      val yoloContext = SkillContext(
+        toolMode = ToolMode.YOLO,
+        projectRoot = projectRoot.absolutePath,
+        modelName = "qwen2.5:7b",
+        scope = scope
+      )
+      val yoloResult = skill.execute(mapOf("path" to outside.absolutePath), yoloContext)
+      assertTrue("YOLO should read the external file: $yoloResult", yoloResult is SkillResult.Success)
+      assertEquals(0, emitted.size, "YOLO must not emit an ask card")
+    } finally {
+      outside.delete()
+    }
+  }
 }

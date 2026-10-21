@@ -3,6 +3,8 @@ package gradum.mcp
 import gradum.SkillResult
 import gradum.ToolMode
 import gradum.mcp.transport.StdioMcpClient
+import gradum.skill.AskScope
+import gradum.skill.PendingQuestions
 import gradum.skill.SkillContext
 import kotlinx.coroutines.runBlocking
 import java.io.File
@@ -48,6 +50,27 @@ class McpSkillAdapterTest {
         val result: SkillResult = adapter.execute(mapOf("text" to "hi"), context)
         assertTrue(result is SkillResult.Success)
         assertEquals("hi", result.data["content"])
+
+        // YOLO short-circuits the consent gate: with an ask scope wired, the
+        // call must still complete immediately without emitting a card or
+        // registering a pending question.
+        val pending = PendingQuestions()
+        val emitted = mutableListOf<Pair<String, Map<String, Any>>>()
+        val yoloScope = AskScope("s", pending) { type, data -> emitted.add(type to data) }
+        val yoloContext = SkillContext(
+          toolMode = ToolMode.YOLO,
+          projectRoot = "",
+          scope = yoloScope
+        )
+        val yoloHolder = arrayOfNulls<SkillResult>(1)
+        val runner = Thread { yoloHolder[0] = adapter.execute(mapOf("text" to "yolo"), yoloContext) }
+        runner.start()
+        runner.join(2000)
+        assertTrue(!runner.isAlive, "YOLO MCP call must not block on a prompt")
+        assertTrue(yoloHolder[0] is SkillResult.Success, "YOLO MCP call should succeed: ${yoloHolder[0]}")
+        assertEquals("yolo", (yoloHolder[0] as SkillResult.Success).data["content"])
+        assertEquals(0, emitted.size, "YOLO must not emit an ask card")
+        assertEquals(0, pending.size(), "YOLO must not register a pending question")
       } finally {
         client.close()
       }

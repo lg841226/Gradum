@@ -52,11 +52,15 @@ enum class Provider {
  * - [EDIT] All skills except to_do / finish_to_do_item.
  * For local models that can't plan reliably.
  *   Task tracking wastes tokens; step-by-step works better.
+ * - [YOLO] Every skill, and no permission gate at all: no approval
+ * cards, no dangerous-command blocklist, no protected-path guard.
+ * The user has explicitly opted out of every prompt.
  */
 enum class ToolMode {
   AGENT,
   READ_ONLY,
-  EDIT;
+  EDIT,
+  YOLO;
 
   companion object {
     private val ALIASES: Map<String, ToolMode> = mapOf(

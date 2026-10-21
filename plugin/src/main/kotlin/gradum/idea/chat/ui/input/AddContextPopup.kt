@@ -109,17 +109,23 @@ fun AddContextPopup(
               )
           ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+              // The platform's image file-type icon is drawn in the action blue;
+              // this menu uses it as an action, so the neutral grey "view as
+              // image" icon in the same visual family is used instead.
               Icon(
-                key = AllIconsKeys.FileTypes.Image,
+                key = AllIconsKeys.Actions.ViewAsImage,
                 contentDescription = message("gradum.add.popup.upload.image"),
                 modifier = Modifier.size(GradumSpacing.lrl)
               )
               Spacer(modifier = Modifier.width(GradumSpacing.md))
               Text(text = message("gradum.add.popup.upload.image"), color = uploadTint)
             }
+            Spacer(modifier = Modifier.height(GradumSpacing.sm))
             Text(
               color = JewelTheme.globalColors.text.info,
-              text = message("gradum.add.popup.upload.image.hint", MAX_ATTACHMENTS)
+              text = message("gradum.add.popup.upload.image.hint", MAX_ATTACHMENTS),
+              // Indented past the icon so the hint lines up with the label above.
+              modifier = Modifier.padding(start = GradumSpacing.lrl + GradumSpacing.md)
             )
           }
         }
