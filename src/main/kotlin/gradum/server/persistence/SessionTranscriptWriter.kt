@@ -13,17 +13,17 @@ private val logger: Logger = LoggerFactory.getLogger("SessionTranscriptWriter")
  * (`conversation.md`) for a session. The sidecar `session-state.json` is the
  * machine-readable authority (`SessionStateStore`); this file is its
  * human-readable render, kept so `GET /sessions` can read the header cheaply.
- * The format is a `gradum-transcript v1` header with a session metadata line,
- * then `## user` / `## assistant` sections whose content blocks are framed by
- * `gradum-msg` / `gradum-thinking` / `gradum-toolcall` / `gradum-toolresult`
- * / `gradum-response` / `gradum-attachment` markers. The client no longer
- * parses it back; the sidecar is what it cold-loads.
  *
- * Messages arrive as the raw agent history maps (role / content plus the
- * bookkeeping keys `id`, `modelName`, `thinking`, `tokenUsage`,
- * `attachments`, `alias`, `tool_calls`, `tool_call_id`); tool result
- * messages are folded into the toolcall blocks of the assistant message
- * that issued the call.
+ * Format: `gradum-transcript v1` header with session metadata line, then
+ * `## user` / `## assistant` sections whose content blocks are framed by
+ * `gradum-msg` / `gradum-thinking` / `gradum-toolcall` / `gradum-toolresult`
+ * / `gradum-response` / `gradum-attachment` markers. Client no longer parses
+ * it back; the sidecar is what it cold-loads.
+ *
+ * Messages arrive as raw agent history maps (role/content plus bookkeeping
+ * keys `id`, `modelName`, `thinking`, `tokenUsage`, `attachments`, `alias`,
+ * `tool_calls`, `tool_call_id`); tool result messages folded into the
+ * toolcall blocks of the assistant message that issued the call.
  */
 object SessionTranscriptWriter {
 
@@ -49,12 +49,11 @@ object SessionTranscriptWriter {
 
   /**
    * Renders [messages] into `<projectRoot>/.gradum/sessions/<sessionId>/conversation.md`
-   * (temp file + atomic rename, like `ContextManager`). The header's
-   * `createdAt` is [createdAt] when given (merge passes its earliest origin),
-   * else the ChatDb session row when one exists, else the write time; the
-   * per-message timestamps fall back to the write time: the in-memory
-   * history carries no per-message clock, and the stored rows share one
-   * `created_at` per save anyway.
+   * (temp file + atomic rename, like `ContextManager`). Header's `createdAt`
+   * is [createdAt] when given (merge passes earliest origin), else ChatDb session
+   * row when exists, else write time; per-message timestamps fall back to write
+   * time (in-memory history carries no per-message clock, stored rows share one
+   * `created_at` per save).
    */
   fun writeTranscript(
     projectRoot: Path,
@@ -112,9 +111,9 @@ object SessionTranscriptWriter {
   }
 
   /**
-   * Rewrites the session marker's `title` in the transcript header, leaving
-   * the conversation body byte-identical. Returns `false` when the session
-   * does not exist or [newTitle] is blank.
+   * Rewrites session marker's `title` in transcript header, leaving
+   * conversation body byte-identical. Returns `false` when session doesn't
+   * exist or [newTitle] is blank.
    */
   fun renameSession(projectRoot: Path, sessionId: String, newTitle: String): Boolean {
     val trimmedTitle: String = newTitle.trim()
@@ -142,7 +141,7 @@ object SessionTranscriptWriter {
     }
   }
 
-  /** Resolves the session directory, rejecting blank/legacy/path-traversing ids. */
+  // Resolves session directory, rejecting blank/legacy/path-traversing ids
   internal fun sessionDirectory(projectRoot: Path, sessionId: String): Path? {
     val trimmedId: String = sessionId.trim()
     val isUnsafeId: Boolean = trimmedId.isEmpty() || trimmedId == "." || trimmedId == ".." ||
@@ -154,7 +153,7 @@ object SessionTranscriptWriter {
     return resolvedDirectory
   }
 
-  /** Derives the title: first non-blank line of the first user message, truncated. */
+  // Derives title: first non-blank line of first user message, truncated
   private fun titleFor(messages: List<Map<String, Any?>>): String {
     val firstUserMessage: Map<String, Any?> =
       messages.firstOrNull { it["role"] == "user" } ?: return ""
@@ -242,13 +241,13 @@ object SessionTranscriptWriter {
     return contentBuilder.toString()
   }
 
-  /** ` id="..."` fragment when the message carries a non-blank id, else empty. */
+  // ` id="..."` fragment when message carries non-blank id, else empty
   private fun idAttribute(messageId: String): String {
     if (messageId.isBlank()) return ""
     return " id=\"${escapeValue(messageId)}\""
   }
 
-  /** Token-usage attributes for a row's usage map (never present with a zero total). */
+  // Token-usage attributes for a row's usage map (never present with zero total)
   private fun tokenAttributes(usage: Map<String, Any>?): String {
     if (usage == null) return ""
     val promptTokens: Int = (usage["promptTokens"] as? Number)?.toInt() ?: 0
@@ -261,11 +260,9 @@ object SessionTranscriptWriter {
       " contextTokens=\"$contextTokens\""
   }
 
-  /**
-   * Rebuilds the session marker line with [newTitle], preserving every other
-   * attribute verbatim (values were unescaped by [parseAttributes] and carry
-   * no quotes, so re-escaping only applies to id/title/model).
-   */
+  // Rebuilds session marker line with [newTitle], preserving other attributes
+  // verbatim (values unescaped by parseAttributes carry no quotes, re-escaping
+  // only applies to id/title/model).
   private fun sessionMarkerLine(markerLine: String, newTitle: String): String {
     val attributeMap: Map<String, String> = parseAttributes(markerLine)
     return "<!-- gradum-session " +
@@ -276,7 +273,7 @@ object SessionTranscriptWriter {
       "model=\"${escapeValue(attributeMap["model"].orEmpty())}\" -->"
   }
 
-  /** Reads the session metadata from a transcript's leading lines; null when absent. */
+  // Reads session metadata from transcript's leading lines; null when absent
   private fun readSessionMeta(transcriptFile: Path): TranscriptMeta? {
     if (!Files.isRegularFile(transcriptFile)) return null
     return try {
@@ -313,7 +310,7 @@ object SessionTranscriptWriter {
     return attributeMap
   }
 
-  /** Escaping rules for marker attribute values (`\` and `"`, newlines folded to spaces). */
+  // Escaping rules for marker attribute values (`\` and `"`, newlines folded to spaces)
   private fun escapeValue(value: String): String {
     return value
       .replace("\\", "\\\\")

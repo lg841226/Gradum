@@ -16,7 +16,6 @@ import org.slf4j.LoggerFactory
 import java.net.URI
 import java.util.*
 
-
 data class ModelEntry(
   val modelName: String,
   val serverUrl: String,
@@ -26,18 +25,14 @@ data class ModelEntry(
   val toolCall: Boolean = false,
   val available: Boolean = true,
   val reasoning: Boolean = false,
-  /**
-   * True when the model accepts a graded thinking depth (Ollama string
-   * `think: "low"/"medium"/"high"`). False but [reasoning] true means the
-   * model thinks on a binary switch only. Populated by the `/models`
-   * capability probe for Ollama entries.
-   */
+  // True when model accepts graded thinking depth (Ollama `think: "low"/"medium"/"high"`).
+  // False but [reasoning] true = binary switch only. Populated by `/models` capability probe for Ollama.
   val reasoningLevels: Boolean = false,
   val attachment: Boolean = false,
   val openWeights: Boolean = false,
-  /** Upstream host reported by Ollama `/api/tags` (`remote_host`); non-null means the model runs in Ollama Cloud. */
+  // Upstream host reported by Ollama `/api/tags` (`remote_host`); non-null = model runs in Ollama Cloud
   val remoteHost: String? = null,
-  /** Official parameter count from Ollama `/api/tags` (`details.parameter_size`), e.g. 8.0 for `8.0B`. */
+  // Official parameter count from Ollama `/api/tags` (`details.parameter_size`), e.g. 8.0 for `8.0B`
   val parameterSizeB: Double? = null,
   val unavailableReason: UnavailableReason? = null
 )
@@ -49,20 +44,17 @@ enum class UnavailableReason {
 /**
  * Description of a server to probe for model discovery.
  *
- * [apiKey] is the bearer token to send on the GET against
- * [endpoint]; pass null/blank for unauthenticated servers (local
- * Ollama / LM Studio / vLLM / LocalAI). The chat request itself
- * reads its key from [gradum.AgentConfiguration]: this field is
- * only for the discovery probe.
+ * [apiKey] is the bearer token to send on the GET against [endpoint]; pass
+ * null/blank for unauthenticated servers (local Ollama / LM Studio / vLLM / LocalAI).
+ * The chat request itself reads its key from [gradum.AgentConfiguration]: this
+ * field is only for the discovery probe.
  *
- * [apiKeyEnvVar] is the **per-provider** environment variable
- * holding the bearer token for this server. When non-null,
- * [gradum.ModelIdentity.Discovery] resolves the key from this env
- * var first and only falls back to the shared
- * [gradum.ModelIdentity.Discovery.cloudApiKeyEnvCandidates] list
- * if it is unset / blank. This lets DeepSeek, MiniMax and Zhipu
- * each keep their own key (different vendors, different accounts)
- * without forcing the user to multiplex a single env var.
+ * [apiKeyEnvVar] is the **per-provider** environment variable holding the bearer
+ * token for this server. When non-null, [Discovery] resolves the key from this
+ * env var first and only falls back to the shared [cloudApiKeyEnvCandidates]
+ * list if it is unset/blank. This lets DeepSeek, MiniMax and Zhipu each keep
+ * their own key (different vendors, different accounts) without forcing the
+ * user to multiplex a single env var.
  */
 data class ServerDef(
   val name: String,
@@ -78,9 +70,8 @@ data class ServerDef(
  * Single authority for the full model lifecycle: discovery, capability
  * inference, and schema variant resolution.
  *
- * Internal concerns are isolated behind private inner classes
- * (Discovery) so the public API stays thin
- * while the implementation can evolve independently.
+ * Internal concerns isolated behind private inner classes (Discovery) so the
+ * public API stays thin while implementation can evolve independently.
  */
 object ModelIdentity {
 
@@ -89,11 +80,10 @@ object ModelIdentity {
   private const val MAX_SMALL_MODEL_PARAMETERS_B: Double = 32.0
 
   /**
-   * Whether [url] points at a loopback address (`localhost`,
-   * `127.x.x.x`, `::1`). Used to enforce the per-provider
-   * "allow remote" flag: non-loopback base URLs are refused unless
-   * the flag is enabled. Returns `false` for unparseable URLs so a
-   * malformed override never slips past the guard.
+   * Whether [url] points at a loopback address (`localhost`, `127.x.x.x`,
+   * `::1`). Used to enforce the per-provider "allow remote" flag: non-loopback
+   * base URLs are refused unless the flag is enabled. Returns `false` for
+   * unparseable URLs so a malformed override never slips past the guard.
    */
   fun isLocalHostUrl(url: String): Boolean {
     val host: String = runCatching { URI(url).host }.getOrNull() ?: return false
@@ -127,9 +117,9 @@ object ModelIdentity {
    * Builds a **root-level** LM Studio REST endpoint (e.g. `/api/v0/models`,
    * `/api/v1/models`) from the provider base URL. Unlike the OpenAI-compatible
    * surface, LM Studio's REST API is mounted at the server root, so a trailing
-   * `/v1` on [baseUrl] (`http://localhost:1234/v1`) must be stripped before the
-   * path is appended: otherwise the request would hit
-   * `/v1/api/v0/models` and 404.
+   * `/v1` on [baseUrl] (`http://localhost:1234/v1`) must be stripped before
+   * the path is appended: otherwise the request would hit `/v1/api/v0/models`
+   * and 404.
    */
   fun resolveLmStudioApiEndpoint(baseUrl: String, endpoint: String): String {
     val rootUrl: String = baseUrl.trimEnd('/').removeSuffix(suffix = "/v1")
@@ -164,14 +154,11 @@ object ModelIdentity {
     return modelNames.filter { it.isNotBlank() }
   }
 
-  /**
-   * Defensive URL-structure check applied by [probeProvider]. Local
-   * providers (Ollama, LM Studio, vLLM, LocalAI) only accept a bare
-   * `http(s)://host[:port]` or a `/v1` OpenAI prefix: arbitrary junk
-   * paths like `/v1832483294239482394` are rejected before any dial.
-   * Cloud providers keep their built-in multi-segment base URLs
-   * (e.g. `.../api/coding/paas/v4`), so only their host is validated.
-   */
+  // Defensive URL-structure check applied by [probeProvider]. Local providers
+  // (Ollama, LM Studio, vLLM, LocalAI) only accept bare `http(s)://host[:port]`
+  // or a `/v1` OpenAI prefix; arbitrary junk paths rejected before any dial.
+  // Cloud providers keep built-in multi-segment base URLs (e.g. `.../api/coding/paas/v4`),
+  // so only their host is validated.
   private fun isWellFormedProviderUrl(kind: String, baseUrl: String): Boolean {
     val parsedUri = runCatching { URI(baseUrl) }.getOrNull() ?: return false
 
@@ -204,9 +191,7 @@ object ModelIdentity {
     return ipv4 || host.matches(regex = HOSTNAME_PATTERN)
   }
 
-  private val IPV4_PATTERN: Regex = Regex(
-    pattern = """\d{1,3}(\.\d{1,3}){3}"""
-  )
+  private val IPV4_PATTERN: Regex = Regex(pattern = """\d{1,3}(\.\d{1,3}){3}""")
   private val HOSTNAME_PATTERN: Regex = Regex(
     pattern = """[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*"""
   )
@@ -214,7 +199,7 @@ object ModelIdentity {
     pattern = """(\d+\.?\d*)b(?:\s|$|:|[-_])""", option = RegexOption.IGNORE_CASE
   )
 
-  /** Fallback for servers that predate the `remote_host` field on `/api/tags`: Ollama's official cloud naming convention. */
+  // Fallback for servers predating `remote_host` field on `/api/tags`: Ollama's official cloud naming convention
   fun isCloudTagged(modelName: String): Boolean {
     val lowerName: String = modelName.lowercase()
     if (lowerName.endsWith(suffix = "-cloud")) return true
@@ -249,14 +234,13 @@ object ModelIdentity {
    * function so the two paths can never disagree on which key to send.
    *
    * Precedence, highest first:
-   *  1. the per-request overrides ([overrideProvider] / [overrideBaseUrl] /
+   *  1. per-request overrides ([overrideProvider] / [overrideBaseUrl] /
    *     [overrideApiKey]) sent by the plugin;
-   *  2. the [ModelEntry] discovered for [modelName]: its server URL plus the
-   *     server's key read from the provider config file / env var;
-   *  3. the server-wide [fallbackProvider] / [fallbackBaseUrl] /
-   *     [fallbackApiKey].
+   *  2. [ModelEntry] discovered for [modelName]: its server URL plus the
+   *     server's key read from provider config file / env var;
+   *  3. server-wide [fallbackProvider] / [fallbackBaseUrl] / [fallbackApiKey].
    *
-   * The model lookup goes through [discoverModels], which is TTL-cached, so
+   * Model lookup goes through [discoverModels], which is TTL-cached, so
    * resolving on every message does not re-probe the provider.
    */
   fun resolveModelTarget(
@@ -287,8 +271,8 @@ object ModelIdentity {
 
   /**
    * Result of [resolveModelTarget]: the provider wire type, base URL and
-   * bearer token (null for local / unauthenticated servers, whose request
-   * must go out header-less).
+   * bearer token (null for local/unauthenticated servers, whose request must
+   * go out header-less).
    */
   data class ResolvedModelTarget(
     val providerType: String,
@@ -299,8 +283,8 @@ object ModelIdentity {
   /**
    * Result of a single one-shot provider probe, driven from the plugin
    * settings page. Mirrors the plugin's `ProviderStatus` so the UI can
-   * render a latency badge and a localized error reason without the
-   * plugin ever dialing the provider directly.
+   * render a latency badge and a localized error reason without the plugin
+   * ever dialing the provider directly.
    */
   data class ProviderProbeResult(
     // "ok" | "unreachable" | "auth" | "failed"
@@ -309,13 +293,11 @@ object ModelIdentity {
     val error: String? = null
   )
 
-  /**
-   * Shared HTTP dial used by both the settings probe (`/provider/probe`)
-   * and model discovery. Performs a GET against [url] with an optional
-   * bearer token, a bounded timeout, and latency measurement. Returns the
-   * raw status + body; throws on connect/timeout so callers can classify
-   * the failure as unreachable.
-   */
+  // Shared HTTP dial used by both the settings probe (`/provider/probe`)
+  // and model discovery. Performs a GET against [url] with an optional
+  // bearer token, a bounded timeout, and latency measurement. Returns the
+  // raw status + body; throws on connect/timeout so callers can classify
+  // the failure as unreachable.
   private data class HttpProbe(val status: HttpStatusCode, val body: String, val latencyMs: Long)
 
   private fun httpProbe(url: String, apiKey: String?, method: String = "GET", body: String? = null): HttpProbe {
@@ -351,11 +333,10 @@ object ModelIdentity {
 
   /**
    * One-shot connectivity probe for an arbitrary provider, used by
-   * `POST /provider/probe`. The server (not the plugin) dials the
-   * provider so settings-page checks share the server's network stack,
-   * timeout rules, and auth handling. Local (Ollama) providers are
-   * probed without a token; cloud endpoints are sent a bearer token when
-   * [apiKey] is present.
+   * `POST /provider/probe`. The server (not the plugin) dials the provider
+   * so settings-page checks share the server's network stack, timeout rules,
+   * and auth handling. Local (Ollama) providers are probed without a token;
+   * cloud endpoints are sent a bearer token when [apiKey] is present.
    */
   fun probeProvider(kind: String, baseUrl: String, apiKey: String?): ProviderProbeResult {
     val trimmedBaseUrl: String = baseUrl.trim().trimEnd('/')
@@ -378,7 +359,7 @@ object ModelIdentity {
       return ProviderProbeResult(
         latencyMs = 0,
         status = "failed",
-        error = "Remote provider connections are disabled; enable \"Allow connection to a local network or remote server\"",
+        error = "Remote provider connections are disabled; enable \"Allow connection to a local network or remote server\""
       )
 
     }
@@ -428,12 +409,12 @@ object ModelIdentity {
   }
 
   /**
-   * Built-in hosted (non-local) [ServerDef]s, exposed at `internal`
-   * scope so ModelIdentityTest can assert that each new provider
-   * we onboard (Zhipu, DeepSeek, MiniMax, …) is wired up with the
-   * expected URL, env var, and OpenAI-compatible protocol: a
-   * hand-edit deleting one of them will fail the build rather than
-   * silently dropping the provider from the model selector.
+   * Built-in hosted (non-local) [ServerDef]s, exposed at `internal` scope
+   * so ModelIdentityTest can assert that each new provider we onboard
+   * (Zhipu, DeepSeek, MiniMax, …) is wired up with the expected URL, env
+   * var, and OpenAI-compatible protocol: a hand-edit deleting one of them
+   * will fail the build rather than silently dropping the provider from the
+   * model selector.
    */
   internal val knownCloudServers: List<ServerDef>
     get() = Discovery.publicCloudServers()
@@ -445,17 +426,17 @@ object ModelIdentity {
     private val logger: Logger = LoggerFactory.getLogger("ModelIdentity.Discovery")
 
     /**
-     * Built-in servers always probed at startup. Local services first
-     * (no auth, fastest to fail when offline), then hosted providers
-     * that need a bearer token resolved at probe time
-     * (see resolveCloudApiKey). Adding a new cloud provider here is
-     * the supported way to "promote" it to first-class: no plugin
-     * restart, no env-var JSON config, no extra injection method.
+     * Built-in servers always probed at startup. Local services first (no
+     * auth, fastest to fail when offline), then hosted providers that need a
+     * bearer token resolved at probe time (see resolveCloudApiKey). Adding a
+     * new cloud provider here is the supported way to "promote" it to
+     * first-class: no plugin restart, no env-var JSON config, no extra
+     * injection method.
      *
-     * Each hosted provider declares its own apiKeyEnvVar
-     * so users with multiple cloud accounts (DeepSeek + MiniMax +
-     * Zhipu) can keep keys separate. When that env var is unset the
-     * shared [cloudApiKeyEnvCandidates] list is tried as a fallback.
+     * Each hosted provider declares its own apiKeyEnvVar so users with
+     * multiple cloud accounts (DeepSeek + MiniMax + Zhipu) can keep keys
+     * separate. When that env var is unset the shared [cloudApiKeyEnvCandidates]
+     * list is tried as a fallback.
      */
     private val baseKnownServers = listOf(
       ServerDef(
@@ -513,17 +494,15 @@ object ModelIdentity {
     )
 
     /**
-     * Env-var lookup order for the bearer token shared by every
-     * built-in hosted provider. Mirrors
-     * [gradum.server.ServerConfiguration.resolveDefaultApiKeyFromEnv]
-     * so the probe key and the chat fallback key always agree,
-     * including the exact spelling of `MiniMax_API_KEY` (mixed
-     * case), which must match the `apiKeyEnvVar` declared on the
-     * MiniMax [ServerDef]. A mismatch here means a user who sets
-     * `MiniMax_API_KEY` gets working chat fallback on the server
-     * while discovery silently probes with no key (or vice versa).
-     * Adding a new provider to [baseKnownServers] needs no change
-     * here: the same key is reused.
+     * Env-var lookup order for the bearer token shared by every built-in
+     * hosted provider. Mirrors [ServerConfiguration.resolveDefaultApiKeyFromEnv]
+     * so the probe key and the chat fallback key always agree, including the
+     * exact spelling of `MiniMax_API_KEY` (mixed case), which must match the
+     * `apiKeyEnvVar` declared on the MiniMax [ServerDef]. A mismatch here
+     * means a user who sets `MiniMax_API_KEY` gets working chat fallback on
+     * the server while discovery silently probes with no key (or vice versa).
+     * Adding a new provider to [baseKnownServers] needs no change here: the
+     * same key is reused.
      */
     private val cloudApiKeyEnvCandidates: List<String> = listOf(
       "GRADUM_OPENAI_API_KEY",
@@ -540,7 +519,7 @@ object ModelIdentity {
       data object Unreachable : ProbeResult()
     }
 
-    /** Per-server snapshot used to detect state changes across probes. */
+    // Per-server snapshot used to detect state changes across probes
     private data class ServerSnapshot(val name: String, val status: String, val modelCount: Int)
 
     @Volatile
@@ -549,15 +528,14 @@ object ModelIdentity {
     fun probe(): List<ModelEntry> = HealthCache.getOrCompute { doProbe() }
 
     /**
-     * Cloud-only [ServerDef]s (i.e. every non-local server from
-     * [baseKnownServers]). Surfaced through
-     * [gradum.ModelIdentity.knownCloudServers] for unit tests so
-     * they can assert the URL / env-var wiring without poking at
-     * private internals via reflection.
+     * Cloud-only [ServerDef]s (i.e. every non-local server from [baseKnownServers]).
+     * Surfaced through [ModelIdentity.knownCloudServers] for unit tests so they
+     * can assert the URL / env-var wiring without poking at private internals
+     * via reflection.
      *
-     * Hosted providers (every server declaring an `apiKeyEnvVar`) so
-     * local unauthenticated servers (LM Studio, vLLM, LocalAI,
-     * Ollama) stay out of the cloud list.
+     * Hosted providers (every server declaring an `apiKeyEnvVar`) so local
+     * unauthenticated servers (LM Studio, vLLM, LocalAI, Ollama) stay out of
+     * the cloud list.
      */
     fun publicCloudServers(): List<ServerDef> = baseKnownServers.filter {
       it.apiKeyEnvVar != null
@@ -729,7 +707,7 @@ object ModelIdentity {
       }
     }
 
-    /** One model row from an Ollama `/api/tags` payload. */
+    // One model row from an Ollama `/api/tags` payload
     private data class OllamaModelInfo(
       val modelName: String,
       val remoteHost: String?,
@@ -739,7 +717,7 @@ object ModelIdentity {
     /**
      * Parses the full Ollama `/api/tags` response so discovery can read the
      * official identity fields instead of guessing from the model name:
-     * `remote_host` (non-null means the model runs in Ollama Cloud) and
+     * `remote_host` (non-null = model runs in Ollama Cloud) and
      * `details.parameter_size` (official parameter count, e.g. `"8.0B"`).
      */
     private fun parseOllamaModelsFromBody(body: String): List<OllamaModelInfo> {
@@ -764,18 +742,18 @@ object ModelIdentity {
       } ?: emptyList()
     }
 
-    /** Extracts the numeric part of an official `parameter_size` value (`"8.0B"` -> 8.0, `"7B"` -> 7.0). */
+    // Extracts the numeric part of an official `parameter_size` value (`"8.0B"` -> 8.0, `"7B"` -> 7.0)
     private fun parseParameterSize(raw: String): Double? =
       Regex(pattern = """\d+\.?\d*""").find(input = raw)?.value?.toDoubleOrNull()
 
     /**
-     * Detects which models in [modelNames] support image inputs by
-     * querying the provider's own capability API. Returns the subset of
-     * model names that have vision capability.
+     * Detects which models in [modelNames] support image inputs by querying
+     * the provider's own capability API. Returns the subset of model names
+     * that have vision capability.
      *
      * Detection strategy per provider:
-     * - **Ollama**: calls `/api/show` for each model in parallel and
-     *   checks the `capabilities` array for `"vision"`.
+     * - **Ollama**: calls `/api/show` for each model in parallel and checks
+     *   the `capabilities` array for `"vision"`.
      * - **LM Studio**: parses the already-fetched [probeBody] from the
      *   `/api/v0/models` endpoint, looking for `type: "vlm"`.
      * - **Other OpenAI-compatible**: returns empty set (no reliable
@@ -794,10 +772,7 @@ object ModelIdentity {
       }
     }
 
-    /**
-     * Probes Ollama's `/api/show` for each model in parallel and returns
-     * the subset whose `capabilities` array includes `"vision"`.
-     */
+    // Probes Ollama's `/api/show` for each model in parallel and returns the subset whose `capabilities` array includes `"vision"`
     private fun detectOllamaVision(baseUrl: String, modelNames: List<String>): Set<String> = runBlocking {
       coroutineScope {
         modelNames.map { name ->
@@ -824,10 +799,7 @@ object ModelIdentity {
       }
     }
 
-    /**
-     * Parses the LM Studio `/api/v0/models` response body and returns
-     * model names whose `type` field equals `"vlm"` (Vision Language Model).
-     */
+    // Parses the LM Studio `/api/v0/models` response body and returns model names whose `type` field equals `"vlm"` (Vision Language Model)
     private fun detectLmStudioVision(probeBody: String, modelNames: List<String>): Set<String> {
       if (probeBody.isBlank()) return emptySet()
       return try {
@@ -852,9 +824,9 @@ object ModelIdentity {
     /**
      * Bearer token for [serverName], resolved with the same precedence
      * [doProbe] uses so chat and discovery never disagree: per-server
-     * config value, then the server's own `apiKeyEnvVar`, then the
-     * shared [cloudApiKeyEnvCandidates] fallback. Returns null for
-     * local / unauthenticated servers, which must stay header-less.
+     * config value, then the server's own `apiKeyEnvVar`, then the shared
+     * [cloudApiKeyEnvCandidates] fallback. Returns null for local /
+     * unauthenticated servers, which must stay header-less.
      */
     fun resolveApiKeyForServer(serverName: String): String? {
       val server: ServerDef = baseKnownServers.firstOrNull { it.name == serverName } ?: return null

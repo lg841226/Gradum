@@ -90,12 +90,5 @@ object GradumConfig {
 
   const val DEFAULT_OLLAMA_BASE_URL: String = "http://localhost:11434"
 
-  /**
-   * Default LM Studio base URL. Includes the `/v1` OpenAI-compatible
-   * prefix; the root-level REST API used for capability probing is
-   * resolved by stripping that suffix (see `ModelIdentity`).
-   */
-  const val DEFAULT_LMSTUDIO_BASE_URL: String = "http://localhost:1234/v1"
-
   const val DEFAULT_CHAT_COMPLETIONS_PATH: String = "/v1/chat/completions"
 }

@@ -4,25 +4,22 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.*
 
 /**
- * Builder DSL for the session-scoped ACP payloads the server answers with:
+ * Builder DSL for session-scoped ACP payloads:
  * `session/new`, `session/set_config_option`, `session/prompt`,
- * `session/cancel`, and the `session/update` notification: following the
- * style of [acpInitialize] (AcpCapabilityDsl.kt): AcpServer call sites are
- * declarative and never touch `put(...)` or `JsonPrimitive(...)` directly;
- * every `put` lives here, in one `toJsonObject()` (or builder function) per
- * payload shape.
+ * `session/cancel`, `session/update` notifications.
  *
- * Shapes with named or optional fields are scope blocks (`acpConfigOption
- * { ... }`); fixed-arity shapes are plain builder functions
- * (`acpPromptResult("end_turn")`).
+ * Following [AcpCapabilityDsl] style: call sites are declarative, never touch
+ * `put(...)` or `JsonPrimitive(...)` directly; every `put` lives here in one
+ * `toJsonObject()` or builder function per payload shape.
+ *
+ * Shapes with named/optional fields are scope blocks (`acpConfigOption { ... }`);
+ * fixed-arity shapes are plain builder functions (`acpPromptResult("end_turn")`).
  *
  * Usage:
- *
  *     result = acpSessionNew {
  *       sessionId = id
  *       configOptions = listOf(buildModelConfigOption(model))
  *     }
- *
  *     acpToolCallStart {
  *       toolCallId = callId
  *       name = toolName
@@ -47,13 +44,13 @@ internal fun acpConfigOptions(options: List<JsonObject>): JsonObject = buildJson
   put("configOptions", buildJsonArray { options.forEach { add(it) } })
 }
 
-/** A `config_option_update` session update: the full option set with fresh values. */
+// config_option_update session update: full option set with fresh values
 internal fun acpConfigOptionUpdate(options: List<JsonObject>): JsonObject = buildJsonObject {
   put("sessionUpdate", JsonPrimitive("config_option_update"))
   put("configOptions", buildJsonArray { options.forEach { add(it) } })
 }
 
-/** A `select` config option (model, mode, ...): every field maps straight to its wire key. */
+// Select config option (model, mode, ...): every field maps to its wire key
 internal fun acpConfigOption(block: AcpConfigOptionScope.() -> Unit): JsonObject =
   AcpConfigOptionScope().apply(block).toJsonObject()
 
@@ -75,7 +72,7 @@ internal class AcpConfigOptionScope {
   }
 }
 
-/** One entry of a select config option: wire `value`, display `name`, optional `description`. */
+// One entry of a select config option: wire `value`, display `name`, optional `description`
 internal fun acpOptionValue(value: String, name: String, description: String?): JsonObject = buildJsonObject {
   put("value", JsonPrimitive(value))
   put("name", JsonPrimitive(name))
@@ -138,12 +135,8 @@ internal class AcpToolCallUpdateScope {
   }
 }
 
-/**
- * One `session/request_permission` option. `optionId` is the stable semantic
- * code echoed back by the client (and the token the ask card resolves on);
- * `kind` is the ACP permission kind (`allow_once` / `allow_always` /
- * `reject_once` / `reject_always`).
- */
+// One session/request_permission option. optionId = stable semantic code echoed by client.
+// kind = ACP permission kind (allow_once / allow_always / reject_once / reject_always)
 internal fun acpPermissionOption(optionId: String, name: String, kind: String): JsonObject =
   buildJsonObject {
     put("optionId", JsonPrimitive(optionId))
@@ -151,12 +144,8 @@ internal fun acpPermissionOption(optionId: String, name: String, kind: String): 
     put("kind", JsonPrimitive(kind))
   }
 
-/**
- * Params for the agent->client `session/request_permission` request. The
- * `toolCall` field is a partial ToolCallUpdate: `toolCallId` is required, and
- * `title` echoes the same display text used when the tool call was announced,
- * so clients that bind permission buttons to a known tool call can resolve it.
- */
+// Params for agent->client session/request_permission request. toolCall is partial ToolCallUpdate:
+// toolCallId required, title echoes display text from tool call announcement.
 internal fun acpRequestPermissionParams(
   title: String?,
   sessionId: String,
@@ -171,7 +160,8 @@ internal fun acpRequestPermissionParams(
   put("options", buildJsonArray { options.forEach { add(it) } })
 }
 
-/** Converts event-map payloads (arguments / result) into arbitrary JsonElement trees. */
+// Converts event-map payloads (arguments/result) into arbitrary JsonElement trees.
+// Number/Boolean stay unquoted (wire-identical to JsonPrimitive); String/scalars use toString.
 @OptIn(ExperimentalSerializationApi::class)
 private fun jsonAnyToJson(value: Any?): JsonElement =
   when (value) {
@@ -181,11 +171,7 @@ private fun jsonAnyToJson(value: Any?): JsonElement =
         if (rawKey is String) put(rawKey, jsonAnyToJson(rawValue))
       }
     }
-    is List<*> -> buildJsonArray {
-      value.forEach { add(jsonAnyToJson(it)) }
-    }
-    // Number/Boolean stay unquoted (wire-identical to JsonPrimitive(Number/Boolean));
-    // String and other scalars go through toString, a no-op for String itself.
+    is List<*> -> buildJsonArray { value.forEach { add(jsonAnyToJson(it)) } }
     is Number, is Boolean -> JsonUnquotedLiteral(value.toString())
     else -> JsonPrimitive(value.toString())
   }

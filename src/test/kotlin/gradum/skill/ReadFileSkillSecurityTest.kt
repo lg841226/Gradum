@@ -163,7 +163,7 @@ class ReadFileSkillSecurityTest {
 
   @Test
   fun `read_file allows tmp scratch files via safe prefix`() {
-    val tmpFile: java.nio.file.Path = java.nio.file.Paths.get("/tmp/gradum-scratch-test.txt")
+    val tmpFile: Path = java.nio.file.Paths.get("/tmp/gradum-scratch-test.txt")
     try {
       Files.writeString(tmpFile, "scratch content")
       val result = skill.execute(

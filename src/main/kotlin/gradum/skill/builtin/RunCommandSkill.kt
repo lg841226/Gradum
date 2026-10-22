@@ -59,51 +59,6 @@ private fun authorizeCommand(commandText: String, verdict: CommandVerdict.NeedsA
   }
 }
 
-/**
- * Enumerates all descendants of [process] and returns them. This must be
- * called BEFORE sending any signal to the parent, because once the parent
- * dies the children become orphans (adopted by init) and are no longer
- * findable via [ProcessHandle.descendants].
- */
-private fun captureDescendants(process: Process): List<ProcessHandle> {
-  return try {
-    process.toHandle().descendants().toList()
-  } catch (_: Exception) {
-    emptyList()
-  }
-}
-
-/**
- * Kills the entire process tree rooted at [process], not just the immediate
- * child. Without this, `destroyForcibly()` on a `sh -c "command"` parent
- * only kills the shell: the actual command becomes an orphan and continues
- * running.
- *
- * This mirrors opencode's `killGroup` pattern which sends signals to the
- * entire process group via `process.kill(-pid, signal)`. Since Java's
- * ProcessBuilder does not expose `detached: true` (new process group), we
- * enumerate descendants via [ProcessHandle] and kill them individually.
- *
- * Note:️ The caller must pass pre-enumerated [descendants] (captured before
- * any signal was sent) to avoid the orphan race. Example:
- * ```
- * val descendants = captureDescendants(process)  // enumerate first
- * process.destroy()                               // then signal
- * process.waitFor(FORCE_KILL_DELAY_MS, ...)
- * killProcessTree(process, descendants)           // kill everything
- * ```
- */
-private fun killProcessTree(process: Process, descendants: List<ProcessHandle>) {
-  for (descendant in descendants) {
-    try {
-      descendant.destroyForcibly()
-    } catch (_: Exception) {
-    }
-  }
-  process.destroyForcibly()
-}
-
-
 class RunCommandSkill : Skill() {
 
   override val skillName: String = "run_cmd"

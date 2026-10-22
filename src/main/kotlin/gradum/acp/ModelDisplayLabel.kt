@@ -1,15 +1,16 @@
 package gradum.acp
 
 /**
- * Human-readable label for the ACP model picker. ACP option labels are a single
- * string (no badge slot like the plugin's own selector), so a recognized tag
- * parameter size is appended as a trailing token and noise tags (`latest`,
- * quantization) are dropped. Only the label is cosmetic: the caller keeps the
- * raw id as the option's `value` so `session/set_config_option` still round-trips.
+ * Human-readable label for the ACP model picker.
+ *
+ * ACP option labels are a single string (no badge slot like the plugin's own
+ * selector), so a recognized tag parameter size is appended as a trailing token
+ * and noise tags (`latest`, quantization) are dropped. The caller keeps the
+ * raw id as the option's `value` so `session/set_config_option` round-trips.
  *
  * Deliberately a small local approximation of the plugin's `ModelNameFormatter`
- * (the plugin is a separate module): well-known family casing comes from
- * [MODEL_FAMILY_LABELS], everything else falls back to title case.
+ * (separate module): well-known family casing from [MODEL_FAMILY_LABELS],
+ * everything else falls back to title case.
  *
  * Examples:
  *   qwen3.5:9b                  -> Qwen 3.5 9B
@@ -37,7 +38,7 @@ internal fun modelDisplayLabel(modelName: String): String {
   return labelParts.joinToString(separator = " ").ifBlank { modelName }
 }
 
-/** Family token split into its letters and version: `qwen3.5` -> `Qwen 3.5`. */
+// Family token split into letters + version: `qwen3.5` -> `Qwen 3.5`
 private fun familyLabel(part: String): String {
   val familyRoot: String = part.takeWhile { it.isLetter() }.lowercase()
   if (familyRoot.isEmpty()) return wordLabel(part)
@@ -48,7 +49,7 @@ private fun familyLabel(part: String): String {
   return if (versionText.isEmpty()) familyText else "$familyText $versionText"
 }
 
-/** Non-leading token: `coder` -> `Coder`, `r1` -> `R1`, `qwen3` -> `Qwen 3`. */
+// Non-leading token: `coder` -> `Coder`, `r1` -> `R1`, `qwen3` -> `Qwen 3`
 private fun wordLabel(part: String): String {
   parameterSize(part)?.let { sizeLabel -> return sizeLabel }
   val lowerPart: String = part.lowercase()
@@ -64,12 +65,12 @@ private fun wordLabel(part: String): String {
   }
 }
 
-/** Canonical size token for `9b` / `8x7b`; null when the token is not a size. */
+// Canonical size token for `9b` / `8x7b`; null when not a size
 private fun parameterSize(part: String): String? =
   part.takeIf { PARAMETER_SIZE_PATTERN.matches(it) }
     ?.let { sizeText -> sizeText.dropLast(n = 1) + sizeText.last().uppercaseChar() }
 
-/** Family root -> display casing; the plugin's own selector keeps the full table. */
+// Family root -> display casing; plugin's selector keeps the full table
 private val MODEL_FAMILY_LABELS: Map<String, String> = mapOf(
   "qwen" to "Qwen",
   "qwq" to "QwQ",
@@ -104,10 +105,10 @@ private val MODEL_FAMILY_LABELS: Map<String, String> = mapOf(
   "solar" to "Solar"
 )
 
-/** Tag tokens worth keeping next to the family name; everything else is noise. */
+// Tag tokens worth keeping next to family name; everything else is noise
 private val MODEL_VARIANT_WORDS: Set<String> = setOf("instruct", "chat", "base", "thinking", "vision")
 
-/** Short codes that read better fully upper-cased (`vl`, `it`, `oss`). */
+// Short codes that read better fully upper-cased (`vl`, `it`, `oss`)
 private val MODEL_ACRONYMS: Set<String> = setOf("vl", "it", "hf", "moe", "oss")
 
 private val PARAMETER_SIZE_PATTERN: Regex = Regex(

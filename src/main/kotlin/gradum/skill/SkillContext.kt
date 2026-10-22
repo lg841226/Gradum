@@ -9,19 +9,14 @@ import gradum.agent.Agent
 /**
  * Per-session context handed to every [Skill.execute] call.
  *
- * Centralizes the session state a skill needs that is not part of the
- * LLM's tool-call arguments: the active [toolMode], the validated
- * [projectRoot], and the provider/model identity used by provider-aware
- * skills to pick schema variants.
+ * Centralizes session state a skill needs that is not part of the LLM's
+ * tool-call arguments: the active [toolMode], validated [projectRoot], and
+ * provider/model identity used by provider-aware skills to pick schema variants.
  *
- * [agentConfiguration] and [emitEvent] are added for skills that need
- * to create sub-agents (e.g. [gradum.skill.builtin.DelegateSkill]).
- *
- * [registerChildSession] and [unregisterChildSession] enable skills
- * that spawn sub-agents to register them in the server's session
- * hierarchy ([gradum.server]), so that stopping
- * the parent session via `POST /stop` cascades to all child sessions
- * and terminates them on the server side: not just in the plugin UI.
+ * [agentConfiguration] and [emitEvent] are added for skills that spawn sub-agents
+ * (e.g. [DelegateSkill]). [registerChildSession]/[unregisterChildSession] enable
+ * skills that spawn sub-agents to register them in the server's session hierarchy,
+ * so `POST /stop` on the parent cascades to all child sessions.
  */
 data class SkillContext(
   val toolMode: ToolMode,
@@ -29,147 +24,60 @@ data class SkillContext(
   val modelName: String = "",
   val provider: Provider = Provider.OLLAMA,
 
-  /**
-   * The full [AgentConfiguration] for the current session. Skills
-   * that spawn sub-agents (e.g. [gradum.skill.builtin.DelegateSkill])
-   * use this to derive the sub-agent's configuration.
-   */
+  // Full AgentConfiguration for current session; used by sub-agent spawning skills.
   val agentConfiguration: AgentConfiguration? = null,
 
-  /**
-   * The main conversation history for the current session. Skills that
-   * spawn sub-agents use this to provide the sub-agent with
-   * the main conversation context.
-   *
-   * This is a lazy-access lambda (not a snapshot) so that reading it
-   * during a tool-call execution returns the current message list,
-   * which may have been populated after the [SkillContext] was created.
-   */
+  // Main conversation history (lazy lambda, not a snapshot).
+  // Reading during tool execution returns current message list.
   val conversationHistory: () -> List<Map<String, Any>> = { emptyList() },
 
-  /**
-   * Event emitter for the current session. Skills that need to
-   * forward events (e.g. sub-agent tool calls) use this to emit
-   * prefixed events into the same NDJSON stream.
-   */
+  // Event emitter for current session; skills forward events into same NDJSON stream.
   val emitEvent: ((eventType: String, eventData: Map<String, Any>) -> Unit)? = null,
 
-  /**
-   * Callback to register a sub-agent in the server's session
-   * hierarchy. When non-null, skills that spawn sub-agents
-   * (e.g. [gradum.skill.builtin.DelegateSkill]) call this with a unique child session
-   * ID and the [Agent] instance so that [POST /stop] on the parent
-   * session cascades to terminate the sub-agent.
-   *
-   * Implementation is provided by Routes and
-   * scoped to the parent session's SessionEntry.
-   */
+  // Register sub-agent in server session hierarchy (provided by Routes).
   val registerChildSession: ((childSessionId: String, agent: Agent) -> Unit)? = null,
 
-  /**
-   * Callback to unregister a sub-agent from the server's session
-   * hierarchy after it completes or errors. Paired with
-   * [registerChildSession]; the [gradum.skill.builtin.DelegateSkill] calls this in
-   * a `finally` block to guarantee cleanup.
-   */
+  // Unregister sub-agent after completion/error (paired with registerChildSession).
   val unregisterChildSession: ((childSessionId: String) -> Unit)? = null,
 
-  /**
-   * Ask capability for this session. When non-null, skills may call
-   * `scope.askInteraction { ... }` to pause for a user decision and
-   * resume with their answer. Null when the agent was not wired with a
-   * [PendingQuestions] (e.g. tests or sub-agents that must not block),
-   * a skill must fall back when this is absent instead of assuming it exists.
-   */
+  // Ask capability for this session; non-null allows scope.askInteraction { ... }.
+  // Null in tests/sub-agents that must not block; skill must fall back.
   val scope: AskScope? = null,
 
-  /**
-   * Base URL of the Gradum server for this session. Skills that need to
-   * call server HTTP APIs (e.g. background task submission) use this to
-   * reach the correct endpoint. Null when the server address is unknown
-   * (tests or embedded callers).
-   */
+  // Base URL of Gradum server for this session (for skill HTTP calls).
   val serverUrl: String? = null,
 
-  /**
-   * Bearer token for authenticating against this server's own HTTP APIs.
-   * Skills and their HTTP clients (e.g. [BackgroundScope]) attach it as
-   * `Authorization: Bearer <token>`. Null when auth is disabled (tests or
-   * embedded callers).
-   */
+  // Bearer token for authenticating against this server's HTTP APIs.
   val serverApiKey: String? = null,
 
-  /**
-   * The user's per-skill plugin config sections (`plugins.<skillName>`),
-   * resolved from `settings.json` by the server. A skill reads its own slice
-   * through the `gradum.skill.dsl` settings DSL; keys are isolated per skill
-   * and never expose server-internal settings. Empty when nothing is configured.
-   */
+  // Per-skill plugin config sections (plugins.<skillName>), from settings.json.
   val plugins: Map<String, Map<String, Any?>> = emptyMap(),
 ) {
-  /**
-   * Session-scoped cache of externally-authorized read paths (e.g. a
-   * `read_file` target outside the project root that the user approved
-   * "always"). In-memory only, never persisted; a session restart asks
-   * again. Not part of the constructor/equality: it lives for the
-   * lifetime of the per-session [SkillContext] instance.
-   */
+  // Session-scoped cache of externally-authorized read paths (out-of-project).
+  // In-memory only, never persisted; session restart asks again.
   val authorizedReadPaths: MutableSet<String> = mutableSetOf()
 
-  /**
-   * Session-scoped cache of externally-authorized write paths (e.g. a
-   * `write_file` target outside the project root that the user approved
-   * "always"). In-memory only, never persisted; a session restart asks
-   * again. Not part of the constructor/equality: it lives for the
-   * lifetime of the per-session [SkillContext] instance.
-   */
+  // Session-scoped cache of externally-authorized write paths (out-of-project).
+  // In-memory only, never persisted; session restart asks again.
   val authorizedWritePaths: MutableSet<String> = mutableSetOf()
 
-  /**
-   * Session-scoped cache of dangerous command *categories* the user approved
-   * "always" (e.g. `rm:delete`, `chmod:recursive`, `dd:device-write`) after a
-   * [gradum.utils.CommandVerdict] verdict on `run_cmd`. In-memory only, never
-   * persisted; a session restart asks again. Not part of the
-   * constructor/equality: it lives for the lifetime of the per-session
-   * [SkillContext] instance.
-   */
+  // Session-scoped cache of dangerous command categories approved "always".
+  // In-memory only, never persisted; session restart asks again.
   val authorizedCommandCategories: MutableSet<String> = mutableSetOf()
 
-  /**
-   * Session-scoped cache of MCP tools the user approved "always" (e.g. a
-   * `browser_navigate` call the user allowed every time). In-memory only,
-   * never persisted; a session restart asks again. Not part of the
-   * constructor/equality: it lives for the lifetime of the per-session
-   * [SkillContext] instance.
-   */
+  // Session-scoped cache of MCP tools approved "always".
+  // In-memory only, never persisted; session restart asks again.
   val authorizedMcpTools: MutableSet<String> = mutableSetOf()
 
-  /**
-   * Session-scoped registry of MCP tools materialized this session via the
-   * `mcp_tools` directory skill: once a tool is found by search, its full
-   * schema is injected into the model's tool list, and it becomes directly
-   * callable while it stays within the retention window (the last
-   * [MaterializedMcpTools.DEFAULT_MAX_ROUNDS] materialization rounds; older
-   * tools are trimmed automatically). In-memory only; a fresh session starts
-   * with only the directory skill exposed again. Not part of the
-   * constructor/equality: it lives for the lifetime of the per-session
-   * [SkillContext] instance.
-   */
+  // Session-scoped registry of MCP tools materialized via mcp_tools directory skill.
+  // Retained for last MaterializedMcpTools.DEFAULT_MAX_ROUNDS rounds; older trimmed.
+  // In-memory only; fresh session starts with only directory skill exposed.
   val materializedMcpTools: MaterializedMcpTools = MaterializedMcpTools()
 
-  /**
-   * True when the active model wants the SIMPLE schema variant (small /
-   * local models). Single source of truth for the per-skill
-   * `SchemaVariant.resolve(modelName) == SIMPLE` checks.
-   */
+  // True when active model wants SIMPLE schema variant (small/local models).
   val isSimpleModel: Boolean get() = SchemaVariant.resolve(modelName) == SchemaVariant.SIMPLE
 
-  /**
-   * True in [ToolMode.YOLO], where the user opted out of every permission
-   * gate. Skills that would otherwise ask the user (dangerous commands,
-   * out-of-project reads/writes, MCP tools) check this first and proceed
-   * without a prompt. Single source of truth for that bypass: the skills
-   * must not re-derive it from [toolMode] themselves.
-   */
+  // True in ToolMode.YOLO (user opted out of every permission gate).
+  // Single source of truth for that bypass; skills must not re-derive from toolMode.
   val isYolo: Boolean get() = toolMode == ToolMode.YOLO
 }

@@ -154,7 +154,7 @@ class RunCommandSkillSecurityTest {
 
   @Test
   fun `hard-blocked command is blocked without asking`() {
-    val (ctx, pending, emitted) = askContext()
+    val (ctx, _, emitted) = askContext()
     val result = skill.execute(mapOf("command" to "rm -rf /etc"), ctx)
     assertTrue(result is SkillResult.Failure)
     assertEquals(ErrorCode.COMMAND_BLOCKED.code, (result as SkillResult.Failure).code)
@@ -179,7 +179,7 @@ class RunCommandSkillSecurityTest {
     val fileName = "gradum-run-cmd-yolo-${System.nanoTime()}.txt"
     val outside = File(projectRoot.parentFile, fileName)
     outside.writeText("to be removed\n")
-    val (ctx, pending, emitted) = yoloContext()
+    val (ctx, _, emitted) = yoloContext()
     val result = skill.execute(mapOf("command" to "rm ../$fileName"), ctx)
     assertTrue("YOLO command should succeed: $result", result is SkillResult.Success)
     assertEquals(0, emitted.size, "YOLO must not emit an ask card")

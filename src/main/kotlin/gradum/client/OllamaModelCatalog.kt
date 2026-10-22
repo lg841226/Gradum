@@ -14,10 +14,10 @@ import java.util.concurrent.ConcurrentHashMap
 
 private val logger: Logger = LoggerFactory.getLogger("OllamaModelCatalog")
 
-/** JSON parser with lenient key handling. */
+// JSON parser with lenient key handling
 private val jsonParser: Json = Json { ignoreUnknownKeys = true }
 
-/** Conservative fallback when probing fails: keeps existing behavior working. */
+// Conservative fallback when probing fails: keeps existing behavior working
 private val FALLBACK_CAPABILITIES = OllamaModelCapabilities(
   supportsThinking = true,
   supportsThinkingLevels = false,
@@ -27,10 +27,10 @@ private val FALLBACK_CAPABILITIES = OllamaModelCapabilities(
   parameterSizeB = null
 )
 
-/** Probe timeout in milliseconds. */
+// Probe timeout in milliseconds
 private const val PROBE_TIMEOUT_MS: Long = 2_000L
 
-/** Shared HTTP client with a short timeout for capability probing. */
+// Shared HTTP client with a short timeout for capability probing
 private val probeHttpClient: HttpClient = HttpClient {
   install(HttpTimeout) {
     connectTimeoutMillis = PROBE_TIMEOUT_MS
@@ -43,8 +43,7 @@ private val probeHttpClient: HttpClient = HttpClient {
  * Capability profile of a single Ollama model, discovered via `POST /api/show`.
  *
  * Returned by [OllamaModelCatalog.capabilitiesFor] to let callers encode
- * request parameters based on what the model actually supports instead of
- * guessing from a static profile.
+ * request parameters based on what the model actually supports.
  *
  * [contextLength] is 0 when unknown; [parameterSizeB] is null when unknown.
  */
@@ -65,16 +64,16 @@ data class OllamaModelCapabilities(
  * single successful probe is sufficient.
  *
  * Failure mode: any exception (connection refused, timeout, parse error)
- * returns [FALLBACK_CAPABILITIES] and logs the reason at debug level. The
- * probe never blocks or breaks normal chat flow.
+ * returns [FALLBACK_CAPABILITIES] and logs at debug level. The probe never
+ * blocks or breaks normal chat flow.
  */
 class OllamaModelCatalog(private val baseUrl: String) {
 
-  /** Convenience constructor for callers that hold an [AgentConfiguration]. */
+  // Convenience constructor for callers that hold an AgentConfiguration
   constructor(configuration: AgentConfiguration) : this(baseUrl = configuration.baseUrl)
 
   companion object {
-    /** Process-lifetime cache: `"baseUrl|modelName"` -> capabilities. */
+    // Process-lifetime cache: "baseUrl|modelName" -> capabilities
     private val capabilityCache: ConcurrentHashMap<String, OllamaModelCapabilities> = ConcurrentHashMap()
   }
 
@@ -96,7 +95,7 @@ class OllamaModelCatalog(private val baseUrl: String) {
     return probedCapabilities
   }
 
-  /** Performs the actual probe: version check followed by model capability query. */
+  // Performs the actual probe: version check followed by model capability query
   private suspend fun probeCapabilities(modelName: String): OllamaModelCapabilities {
     return try {
       probeVersion()
@@ -144,7 +143,7 @@ class OllamaModelCatalog(private val baseUrl: String) {
     }
   }
 
-  /** Logs the Ollama server version (best-effort, non-blocking). */
+  // Logs the Ollama server version (best-effort, non-blocking)
   private suspend fun probeVersion() {
     try {
       val versionResponse: HttpResponse = withTimeoutOrNull(timeMillis = PROBE_TIMEOUT_MS) {
@@ -161,7 +160,7 @@ class OllamaModelCatalog(private val baseUrl: String) {
     }
   }
 
-  /** Parses the /api/show response into an [OllamaModelCapabilities]. */
+  // Parses the /api/show response into an OllamaModelCapabilities
   private fun parseCapabilities(modelName: String, responseText: String): OllamaModelCapabilities {
     val responseJson: JsonObject = jsonParser.parseToJsonElement(responseText).jsonObject
 

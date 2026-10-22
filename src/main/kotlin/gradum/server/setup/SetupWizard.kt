@@ -211,7 +211,7 @@ private fun handleNavigation(state: WizardState, pressedKey: Key): NavResult {
   return NavResult.CONTINUE
 }
 
-/** Returns true when Review confirmed the save. */
+// Returns true when Review confirmed the save
 private fun handleEnter(state: WizardState): Boolean {
   return when (state.step) {
     STEP_PROVIDER -> {

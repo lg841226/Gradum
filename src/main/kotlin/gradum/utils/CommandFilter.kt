@@ -9,12 +9,8 @@ import java.nio.file.Paths
 
 private val logger: Logger = LoggerFactory.getLogger("CommandFilter")
 
-/**
- * Security-decision audit trail: every non-[CommandVerdict.Safe] verdict is
- * recorded here so operators can route command-filter decisions to a
- * dedicated log sink without also catching unrelated `CommandFilter` debug
- * output.
- */
+// Security-decision audit trail: every non-Safe verdict recorded here so
+// operators can route command-filter decisions to a dedicated log sink
 private val auditLogger: Logger = LoggerFactory.getLogger("CommandFilter.Audit")
 
 sealed class CommandVerdict {
@@ -23,24 +19,21 @@ sealed class CommandVerdict {
 
   data class Blocked(val ruleName: String, val description: String) : CommandVerdict()
 
-  /**
-   * The command is potentially destructive but only touches paths outside
-   * the project root and outside the always-protected set. It may run only
-   * after the user approves: granted for one execution or remembered for
-   * the session by [category] (e.g. `rm:delete`, `chmod:recursive`,
-   * `dd:device-write`).
-   */
+  // Potentially destructive but only touches paths outside project root and
+  // outside always-protected set. Runs only after user approval: granted for
+  // one execution or remembered for session by [category] (e.g. `rm:delete`,
+  // `chmod:recursive`, `dd:device-write`).
   data class NeedsApproval(val category: String, val description: String) : CommandVerdict()
 }
 
 data class ProtectedPathsConfig(
-  /** System roots that destructive operations must never touch. */
+  // System roots that destructive operations must never touch
   val systemPrefixes: List<String>,
-  /** Home subdirectories that destructive operations must never touch. */
+  // Home subdirectories that destructive operations must never touch
   val protectedHomeSubdirectories: List<String>,
-  /** Directories LLM-driven file ops are always allowed to touch. */
+  // Directories LLM-driven file ops are always allowed to touch
   val safePathPrefixes: List<String>,
-  /** Bare paths that are always protected (e.g. `/dev`). */
+  // Bare paths that are always protected (e.g. `/dev`)
   val exactProtectedPaths: List<String>
 )
 
@@ -96,18 +89,16 @@ object CommandFilterRuntime {
   var config: CommandFilterConfig = CommandFilterConfig.DEFAULT
 }
 
-/** Commands that only wrap another command: the filter looks through them to the real executable. */
+// Commands that only wrap another command: filter looks through them to the real executable
 private val COMMAND_WRAPPERS: Set<String> = setOf(
   "sudo", "su", "doas", "pkexec",
   "env", "nohup", "command", "builtin", "exec",
   "nice", "ionice", "setsid", "time", "timeout", "stdbuf", "xargs", "busybox",
 )
 
-/**
- * Options that consume a following value, per wrapper. Without this list the
- * unwrapper would mistake an option's value (`-u root`) for the wrapped
- * command and stop one token too early.
- */
+// Options that consume a following value, per wrapper. Without this list the
+// unwrapper would mistake an option's value (`-u root`) for the wrapped
+// command and stop one token too early.
 private val WRAPPER_VALUE_OPTIONS: Map<String, Set<String>> = mapOf(
   "env" to setOf("-u", "--unset", "-C", "--chdir", "-S", "--split-string"),
   "nice" to setOf("-n", "--adjustment"),
@@ -125,27 +116,27 @@ private val PRIVILEGE_ESCALATORS: Set<String> = setOf("sudo", "su", "doas", "pke
 
 private val SHELL_INTERPRETERS: Set<String> = setOf("sh", "bash", "zsh", "dash", "ksh", "fish")
 
-/** Executables whose non-flag operands are all write targets (source and destination alike). */
+// Executables whose non-flag operands are all write targets (source and destination alike)
 private val OPERAND_WRITE_EXECUTABLES: Set<String> = setOf(
   "rm", "shred", "truncate", "chmod", "chown", "chgrp", "ln", "touch", "mkdir", "rmdir", "mv", "tee",
 )
 
-/** Executables that write only to their final non-flag operand (the destination). */
+// Executables that write only to their final non-flag operand (the destination)
 private val DESTINATION_WRITE_EXECUTABLES: Set<String> = setOf("cp", "install")
 
 private val FIND_EXEC_PREDICATES: Set<String> = setOf("-exec", "-execdir", "-ok", "-okdir")
 
-/** Redirection sinks that are safe to write even though they sit under a protected root. */
+// Redirection sinks safe to write even though they sit under a protected root
 private val SAFE_REDIRECTION_TARGETS: Set<String> = setOf("/dev/null", "/dev/stdout", "/dev/stderr", "/dev/tty")
 
 /**
- * Feature weights for the command risk score. The total risk maps to 0-100:
+ * Feature weights for the command risk score. Total risk maps to 0-100:
  *
  * `Risk = min(100, (target + action) * (1 + (privilege + composite + injection) / 100))`
  *
  * The multiplier makes privilege escalation and command composition amplify
- * the base destructiveness (`sudo rm` is worse than `rm` plus `sudo`), and
- * the thresholds split the score into silent-pass / log / approval / block.
+ * base destructiveness (`sudo rm` worse than `rm` plus `sudo`), and
+ * thresholds split score into silent-pass / log / approval / block.
  */
 private const val LOG_THRESHOLD: Int = 20
 private const val MUTATING_WEIGHT: Int = 15
@@ -158,7 +149,7 @@ private const val DESTRUCTIVE_WEIGHT: Int = 25
 private const val OUTSIDE_TARGET_WEIGHT: Int = 30
 private const val PROTECTED_TARGET_WEIGHT: Int = 50
 
-/** Guard against a `sh -c "sh -c …"` payload chain driving deep recursion. */
+// Guard against `sh -c "sh -c …"` payload chain driving deep recursion
 private const val MAX_SHELL_DEPTH: Int = 4
 
 private val COMPOSITE_PATTERN: Regex = Regex("""&&|\|\||[;|]""")
@@ -166,7 +157,7 @@ private val SHELL_C_PATTERN: Regex = Regex("""\b(?:ba|z|da|k)?sh\s+-c\b""")
 private val ASSIGNMENT_PATTERN: Regex = Regex("""[A-Za-z_][A-Za-z0-9_]*=.*""")
 private val RECURSIVE_FLAG_PATTERN: Regex = Regex("""^(?:-[A-Za-z]*R[A-Za-z]*|--recursive)$""")
 
-/** Destructive executables are matched anywhere in the text, so a payload hidden inside a quote still counts. */
+// Destructive executables matched anywhere in text, so payload hidden inside quote still counts
 private val DESTRUCTIVE_EXECUTABLE_PATTERN: Regex =
   Regex("""\b(?:rm|shred|truncate|mkfs(?:\.\w+)?|mkswap|fdisk|sfdisk|parted|gdisk|dd)\b""")
 
@@ -175,7 +166,7 @@ private val MUTATING_EXECUTABLE_PATTERN: Regex =
 
 private val REDIRECTION_OPERATORS: List<String> = listOf("<<<", "&>>", ">>", ">|", "<>", "<<", "&>", ">", "<")
 
-/** A shell operand after quote/escape removal. */
+// A shell operand after quote/escape removal
 private data class ShellWord(val value: String)
 
 private sealed interface ShellToken
@@ -184,10 +175,10 @@ private data class ShellWordToken(val value: String) : ShellToken
 
 private data class ShellOperatorToken(val value: String) : ShellToken
 
-/** A file redirection: [operator] is the raw token (`>`, `2>>`, `&>`), [target] the file operand (null for fd duplication / heredoc). */
+// A file redirection: [operator] is raw token (`>`, `2>>`, `&>`), [target] the file operand (null for fd duplication / heredoc)
 private data class Redirection(val operator: String, val target: String?)
 
-/** One simple command: its words and the redirections attached to them, split from neighbors by control operators. */
+// One simple command: its words and the redirections attached to them, split from neighbors by control operators
 private data class SimpleCommand(val words: List<ShellWord>, val redirections: List<Redirection>)
 
 private data class RiskAssessment(val riskScore: Int, val approvalCategory: String)
@@ -195,8 +186,8 @@ private data class RiskAssessment(val riskScore: Int, val approvalCategory: Stri
 /**
  * System and home paths that destructive operations must never touch.
  *
- * Single source of truth for the protected-path check, shared by
- * [classifyCommand] and the file-writing skills (e.g. WriteFileSkill).
+ * Single source of truth for protected-path check, shared by
+ * [classifyCommand] and file-writing skills (e.g. WriteFileSkill).
  * If a path needs protecting, add it here: not in a per-skill copy.
  */
 object ProtectedPaths {
@@ -215,7 +206,7 @@ object ProtectedPaths {
    *
    * `java.io.tmpdir` is deliberately NOT in this list: on macOS
    * that resolves to `/var/folders/.../T/`, and a project that
-   * happens to live there (a common test-fixture pattern via
+   * happens to live there (common test-fixture pattern via
    * `Files.createTempDirectory`) would then have its sibling
    * directories inside the safe prefix, letting `../escape`-style
    * paths pass the boundary check. Limiting the carve-out to
@@ -233,10 +224,9 @@ object ProtectedPaths {
    * subdirectory, or an exact protected path. Paths under [safePathPrefixes]
    * (e.g. `/tmp`) are always considered safe.
    *
-   * The comparison runs on canonicalized real paths, so quoting,
-   * `..` traversal, a symlink that escapes a safe prefix, and (on a
-   * case-insensitive volume) a differently-cased prefix can no longer
-   * smuggle a protected path past the check.
+   * Comparison runs on canonicalized real paths, so quoting, `..` traversal,
+   * a symlink escaping a safe prefix, and (on case-insensitive volume) a
+   * differently-cased prefix can no longer smuggle a protected path past the check.
    */
   fun isProtected(targetPath: String): Boolean {
     val expandedPath: String = expandHomeTokens(targetPath)
@@ -443,11 +433,9 @@ private fun analyzeNestedShell(
   }
 }
 
-/**
- * Target paths the head executable operates on: `of=` values for `dd`, the
- * operands of any write executable, `find` roots when a destructive predicate
- * is present, and the payload of a `find -exec <cmd>`.
- */
+// Target paths the head executable operates on: `of=` values for `dd`, the
+// operands of any write executable, `find` roots when a destructive predicate
+// is present, and the payload of a `find -exec <cmd>`.
 private fun writeTargetsFor(unwrapped: List<ShellWord>): List<String> {
   val head: String = unwrapped.firstOrNull()?.let { executableName(it.value) } ?: return emptyList()
   val args: List<ShellWord> = unwrapped.drop(1)
@@ -473,7 +461,7 @@ private fun findWriteTargets(args: List<ShellWord>): List<String> {
   return roots + embeddedTargets
 }
 
-/** Write targets of a `find -exec <cmd> …` predicate; empty when the embedded command is read-only. */
+// Write targets of a `find -exec <cmd> …` predicate; empty when embedded command is read-only
 private fun extractFindExecTargets(args: List<ShellWord>): List<String> {
   val predicateIndex: Int = args.indexOfFirst { it.value in FIND_EXEC_PREDICATES }
   if (predicateIndex < 0) return emptyList()
@@ -484,7 +472,7 @@ private fun extractFindExecTargets(args: List<ShellWord>): List<String> {
   return writeTargetsFor(embeddedWords)
 }
 
-/** Heads of the commands embedded in `find -exec`, so blacklisted executables are caught there too. */
+// Heads of the commands embedded in `find -exec`, so blacklisted executables are caught there too
 private fun embeddedFindHeads(unwrapped: List<ShellWord>): List<String> {
   if (unwrapped.firstOrNull()?.let { executableName(it.value) } != "find") return emptyList()
   return extractEmbeddedFindCommands(unwrapped.drop(1))
@@ -621,7 +609,7 @@ private fun isOutsideProjectRoot(targetPath: String, projectRoot: String): Boole
   return targetString != rootString && !targetString.startsWith(prefix = "$rootString/")
 }
 
-/** True when the path as written is absolute and lands under a safe scratch prefix after canonicalization. */
+// True when the path as written is absolute and lands under a safe scratch prefix after canonicalization
 private fun isAbsoluteUnderSafePrefix(targetPath: String): Boolean {
   val expandedPath: String = expandHomeTokens(targetPath)
   val path: Path = try {
@@ -635,7 +623,7 @@ private fun isAbsoluteUnderSafePrefix(targetPath: String): Boolean {
   return ProtectedPaths.safePathPrefixes.any { isWithin(canonicalTarget, canonicalize(it)) }
 }
 
-/** Resolve a target against [projectRoot] when relative, so a protected check never depends on the process CWD. */
+// Resolve a target against [projectRoot] when relative, so a protected check never depends on the process CWD
 private fun resolveTargetForCheck(targetPath: String, projectRoot: String): String {
   val expandedPath: String = expandHomeTokens(targetPath)
   if (projectRoot.isBlank()) return expandedPath
@@ -648,7 +636,7 @@ private fun resolveTargetForCheck(targetPath: String, projectRoot: String): Stri
   }
 }
 
-/** Expands `~` and `$HOME` / `${HOME}`; other variables are left for [isUnresolvablePath] to flag. */
+// Expands `~` and `$HOME` / `${HOME}`; other variables left for [isUnresolvablePath] to flag
 private fun expandHomeTokens(targetPath: String): String {
   val homeDirectory: String = System.getProperty("user.home") ?: return targetPath
   var expanded: String = targetPath
@@ -658,7 +646,7 @@ private fun expandHomeTokens(targetPath: String): String {
   return expanded
 }
 
-/** True when [targetPath] still holds a variable, command substitution, or brace expression after home expansion. */
+// True when [targetPath] still holds a variable, command substitution, or brace expression after home expansion
 private fun isUnresolvablePath(targetPath: String): Boolean {
   val expandedPath: String = expandHomeTokens(targetPath)
   return expandedPath.contains(other = "$") ||
@@ -681,7 +669,7 @@ private fun stripWrapping(rawToken: String): String {
     .trimEnd(')', '}', '`', '"', '\'')
 }
 
-/** The trailing path component of a token, with the wrapper characters removed, for executable matching. */
+// The trailing path component of a token, with wrapper characters removed, for executable matching
 private fun executableName(rawToken: String): String =
   rawToken.substringAfterLast('/')
     .trimStart('$', '(', '`', '"', '\'')
@@ -758,7 +746,7 @@ private fun buildSimpleCommands(tokens: List<ShellToken>): List<SimpleCommand> {
 private fun isRedirectionToken(operator: String): Boolean =
   operator.contains(other = ">") || operator.contains(other = "<")
 
-/** A redirection that writes to a file (not fd duplication like `2>&1`, not a heredoc). */
+// A redirection that writes to a file (not fd duplication like `2>&1`, not a heredoc)
 private fun isFileWriteRedirection(operator: String): Boolean {
   if (operator.contains(other = ">&")) return false
   if (operator.startsWith(prefix = "&>")) return true

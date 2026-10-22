@@ -4,45 +4,45 @@ import gradum.utils.JsonUtil
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 
-/** Raw-history tool name of the delegate skill. */
+// Raw-history tool name of the delegate skill
 private const val DELEGATE_TOOL_NAME: String = "delegate_task"
 
-/** A user row, as both the transcript and the bubble view read it. */
+// A user row, as both the transcript and the bubble view read it
 data class UserRow(
   val id: String,
   val text: String,
   val attachmentNames: List<String>
 )
 
-/** One tool call of an assistant row, with its result row already paired. */
+// One tool call of an assistant row, with its result row already paired
 data class ProjectedToolCall(
   val name: String,
-  /** Alias recorded on the result row; blank when the history carries none. */
+  // Alias recorded on the result row; blank when history carries none
   val alias: String,
   val callId: String,
-  /** Raw arguments: the JSON string of the OpenAI shape, or a map of the Ollama shape. */
+  // Raw arguments: JSON string (OpenAI shape) or map (Ollama shape)
   val arguments: Any?,
   val result: String
 )
 
-/** One assistant row's content. */
+// One assistant row's content
 data class AssistantRow(
   val id: String,
   val modelName: String,
   val thinking: String,
   val response: String,
   val toolCalls: List<ProjectedToolCall>,
-  /** Token usage of this row, or `null` when it carries none with a positive total. */
+  // Token usage of this row, or null when none with positive total
   val tokenUsage: Map<String, Any>?
 )
 
-/** A read assistant row plus the row to resume at, past the trailing `tool` rows it consumed. */
+// A read assistant row plus the row to resume at, past trailing `tool` rows consumed
 data class AssistantSpan(
   val row: AssistantRow,
   val nextIndex: Int
 )
 
-/** A folded assistant turn: its bubble (absent when the turn would render empty) and the next row. */
+// A folded assistant turn: its bubble (absent when turn would render empty) and next row
 private data class FoldedTurn(
   val bubble: Map<String, Any?>?,
   val nextIndex: Int
@@ -51,12 +51,11 @@ private data class FoldedTurn(
 /**
  * The one reader of a session's raw agent history.
  *
- * `ContextManager` persists the history as raw rows (one per model step, plus a
- * `tool` row per result) and the two renderings both start here:
- * `SessionTranscriptWriter` emits its Markdown markers row by row, while
- * [toBubbles] folds consecutive rows into the single bubble per turn the client
- * renders. The payload's shape quirks (OpenAI vs Ollama tool arguments, an alias
- * only on the result row, unpaired results) are handled in this one place.
+ * `ContextManager` persists history as raw rows (one per model step, plus a
+ * `tool` row per result). Both renderings start here: `SessionTranscriptWriter`
+ * emits Markdown markers row by row, while [toBubbles] folds consecutive rows
+ * into the single bubble per turn the client renders. Payload quirks (OpenAI vs
+ * Ollama tool arguments, alias only on result row, unpaired results) handled here.
  */
 object SessionHistoryReader {
 
@@ -66,8 +65,8 @@ object SessionHistoryReader {
   }
 
   /**
-   * Reads the stored sidecar's `messages` array into the map form the readers
-   * take. Numbers arrive as `Long`/`Double` here but as `Int` on the save path,
+   * Reads stored sidecar's `messages` array into map form the readers take.
+   * Numbers arrive as `Long`/`Double` here but as `Int` on save path,
    * so every reader goes through `Number`.
    */
   fun readStoredMessages(rawMessages: List<JsonElement>): List<Map<String, Any?>> =
@@ -75,7 +74,7 @@ object SessionHistoryReader {
       stringKeyedOrNull(JsonUtil.fromJsonElement(element))
     }
 
-  /** Reads a user row: its id, display text and attachment names. */
+  // Reads a user row: its id, display text and attachment names
   fun readUser(message: Map<String, Any?>): UserRow {
     return UserRow(
       id = message["id"] as? String ?: "",
@@ -85,10 +84,10 @@ object SessionHistoryReader {
   }
 
   /**
-   * Reads the assistant row at [index] and consumes its tool results: every
+   * Reads assistant row at [index] and consumes its tool results: every
    * consecutive following `tool` row is paired to a call by `tool_call_id`
-   * (falling back to the first unclaimed result). A row without tool calls
-   * consumes nothing, so the returned [AssistantSpan.nextIndex] is `index + 1`.
+   * (falling back to first unclaimed result). Row without tool calls consumes
+   * nothing, so returned [AssistantSpan.nextIndex] is `index + 1`.
    */
   fun readAssistant(messages: List<Map<String, Any?>>, index: Int): AssistantSpan {
     val message: Map<String, Any?> = messages[index]
@@ -116,10 +115,10 @@ object SessionHistoryReader {
   }
 
   /**
-   * Folds the raw rows into the client's bubble view: one bubble per user
-   * message, one per turn (consecutive assistant rows merged, each row's
-   * thinking / tool calls / response concatenated in order). A turn that would
-   * render empty is dropped. The shape mirrors the plugin's `RenderBlock`.
+   * Folds raw rows into client's bubble view: one bubble per user message,
+   * one per turn (consecutive assistant rows merged, each row's thinking /
+   * tool calls / response concatenated). Empty turns dropped. Shape mirrors
+   * plugin's `RenderBlock`.
    */
   fun toBubbles(messages: List<Map<String, Any?>>): List<Map<String, Any?>> {
     val bubbles: MutableList<Map<String, Any?>> = mutableListOf()
@@ -137,17 +136,15 @@ object SessionHistoryReader {
           index = turn.nextIndex
         }
 
-        // A `tool` row with no assistant row above it pairs with nothing.
+        // `tool` row with no assistant row above it pairs with nothing
         else -> index++
       }
     }
     return bubbles
   }
 
-  /**
-   * Arguments of one tool call as a JSON object string: the OpenAI-shaped
-   * history already carries the JSON verbatim, the Ollama-shaped one a map.
-   */
+  // Arguments of one tool call as JSON object string: OpenAI history carries
+  // JSON verbatim, Ollama-shaped carries a map
   fun argumentsJson(rawArguments: Any?): String {
     return when (rawArguments) {
       is String -> rawArguments.ifBlank { "{}" }
@@ -156,12 +153,11 @@ object SessionHistoryReader {
           .associate { (key, value) -> key.toString() to value }
         if (stringKeyed.isEmpty()) "{}" else JsonUtil.encodeMap(input = stringKeyed)
       }
-
       else -> "{}"
     }
   }
 
-  /** Folds every consecutive assistant / tool row from [startIndex] into one turn. */
+  // Folds every consecutive assistant / tool row from [startIndex] into one turn
   private fun foldedTurn(messages: List<Map<String, Any?>>, startIndex: Int): FoldedTurn {
     val thinkingParts: MutableList<String> = mutableListOf()
     val responseParts: MutableList<String> = mutableListOf()
@@ -253,11 +249,8 @@ object SessionHistoryReader {
     return bubble
   }
 
-  /**
-   * Pairs one tool call with its result row. The raw history records no success
-   * flag, so a rebuilt call is always successful: the same fidelity the
-   * transcript offers.
-   */
+  // Pairs one tool call with its result row. Raw history records no success
+  // flag, so rebuilt call is always successful (same fidelity as transcript).
   private fun projectedCall(
     call: Map<*, *>,
     remainingResults: MutableList<Map<*, *>>
@@ -281,7 +274,7 @@ object SessionHistoryReader {
     )
   }
 
-  /** Token usage when the row carries a positive total, else `null`. */
+  // Token usage when row carries positive total, else null
   private fun positiveUsage(message: Map<String, Any?>): Map<String, Any>? {
     val usage: Map<*, *> = message["tokenUsage"] as? Map<*, *> ?: return null
     val totalTokens: Int = (usage["totalTokens"] as? Number)?.toInt() ?: 0
@@ -294,7 +287,7 @@ object SessionHistoryReader {
     )
   }
 
-  /** Tool-call arguments as a JSON object: a JSON string is parsed, a map is copied. */
+  // Tool-call arguments as JSON object: JSON string parsed, map copied
   private fun argumentsObject(rawArguments: Any?): Map<String, Any?> {
     val decoded: Any? = when (rawArguments) {
       is String -> rawArguments.takeIf { it.isNotBlank() }
@@ -307,13 +300,13 @@ object SessionHistoryReader {
     return stringKeyedOrNull(decoded) ?: emptyMap()
   }
 
-  /** A map with `toString`-ed keys, so a decoded JSON object and a Kotlin map share one shape. */
+  // Map with toString-ed keys, so decoded JSON object and Kotlin map share one shape
   private fun stringKeyedOrNull(value: Any?): Map<String, Any?>? =
     (value as? Map<*, *>)
       ?.entries
       ?.associate { (key, entryValue) -> key.toString() to entryValue }
 
-  /** User text: the display-only view when present (prompt wrappers stripped), else the wire content. */
+  // User text: display-only view when present (prompt wrappers stripped), else wire content
   private fun userText(message: Map<String, Any?>): String {
     val displayText: Any? = message["displayText"]
     if (displayText is String && displayText.isNotBlank()) return displayText
@@ -323,12 +316,11 @@ object SessionHistoryReader {
         .filter { it["type"] == "text" }
         .mapNotNull { it["text"] as? String }
         .joinToString(separator = "\n\n")
-
       else -> ""
     }
   }
 
-  /** Attachment display names recorded on the user message (base64 payloads excluded). */
+  // Attachment display names recorded on user message (base64 payloads excluded)
   private fun attachmentNames(message: Map<String, Any?>): List<String> {
     return readListOfMaps(message["attachments"]).mapNotNull { attachment: Map<*, *> ->
       val attachmentName: String = attachment["name"] as? String ?: ""
@@ -336,7 +328,6 @@ object SessionHistoryReader {
     }
   }
 
-  private fun readListOfMaps(rawList: Any?): List<Map<*, *>> {
-    return (rawList as? List<*>)?.filterIsInstance<Map<*, *>>() ?: emptyList()
-  }
+  private fun readListOfMaps(rawList: Any?): List<Map<*, *>> =
+    (rawList as? List<*>)?.filterIsInstance<Map<*, *>>() ?: emptyList()
 }

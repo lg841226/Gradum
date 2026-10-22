@@ -13,21 +13,16 @@ import java.util.concurrent.ConcurrentHashMap
 
 private val logger: Logger = LoggerFactory.getLogger("LmStudioModelCatalog")
 
-/** JSON parser with lenient key handling. */
+// JSON parser with lenient key handling
 private val jsonParser: Json = Json { ignoreUnknownKeys = true }
 
-/** Probe timeout in milliseconds. */
+// Probe timeout in milliseconds
 private const val PROBE_TIMEOUT_MS: Long = 2_000L
 
-/**
- * Path of LM Studio's root-level REST model listing. It is *not* mounted
- * under the `/v1` OpenAI-compatible prefix, so the base URL must have that
- * suffix stripped before this path is appended (otherwise the request hits
- * `/v1/api/v1/models` and 404s).
- */
+// Path of LM Studio's root-level REST model listing (not under /v1 prefix)
 private const val LM_STUDIO_MODELS_PATH: String = "api/v1/models"
 
-/** Shared HTTP client with a short timeout for capability probing. */
+// Shared HTTP client with a short timeout for capability probing
 private val probeHttpClient: HttpClient = HttpClient {
   install(HttpTimeout) {
     connectTimeoutMillis = PROBE_TIMEOUT_MS
@@ -36,12 +31,9 @@ private val probeHttpClient: HttpClient = HttpClient {
   }
 }
 
-/**
- * Process-lifetime cache for `/v1/responses` endpoint availability.
- * Keyed by baseUrl (stripped of `/v1` suffix). Value is true when the
- * endpoint responds with 2xx, false on 404/405/timeout/exception.
- * Conservative default: assume unavailable until proven otherwise.
- */
+// Process-lifetime cache for /v1/responses endpoint availability.
+// Keyed by baseUrl (stripped of /v1). Value: true=2xx, false=404/405/timeout/exception.
+// Conservative default: assume unavailable until proven otherwise.
 private val responsesAvailabilityCache: ConcurrentHashMap<String, Boolean> = ConcurrentHashMap()
 
 /**
@@ -100,9 +92,8 @@ internal suspend fun probeResponsesAvailability(baseUrl: String): Boolean {
  * `GET /api/v1/models`.
  *
  * [reasoningOptions] mirrors `capabilities.reasoning.allowed_options`
- * (e.g. `["off", "on", "low", "medium", "high"]`); an empty list means the
- * model does not expose a reasoning dial. [isLoaded] mirrors `state`
- * (`"loaded"` / `"not-loaded"`).
+ * (e.g. `["off", "on", "low", "medium", "high"]`); empty = no reasoning dial.
+ * [isLoaded] mirrors `state` (`"loaded"` / `"not-loaded"`).
  */
 data class LmStudioModelCapabilities(
   val modelName: String,
@@ -112,12 +103,8 @@ data class LmStudioModelCapabilities(
   val reasoningOptions: List<String>
 )
 
-/**
- * Conservative fallback for [LmStudioModelCatalog.capabilitiesFor] when the
- * server is unreachable or reports nothing for [modelName]: claim no
- * capability that was not observed, so an unprobed model is never promoted
- * to "supports thinking / tools / vision".
- */
+// Conservative fallback when server unreachable or model absent: claim no
+// unobserved capability so unprobed model is never promoted.
 private fun fallbackCapabilities(modelName: String): LmStudioModelCapabilities =
   LmStudioModelCapabilities(
     modelName = modelName,
@@ -130,32 +117,26 @@ private fun fallbackCapabilities(modelName: String): LmStudioModelCapabilities =
 /**
  * Discovers LM Studio model capabilities by probing `GET /api/v1/models`.
  *
- * Results are cached for the process lifetime keyed by `baseUrl`: the
- * capability set is a property of the server (one request returns every
- * model), so a single probe answers for all of them.
- *
- * Failure mode: any exception (connection refused, timeout, parse error)
- * yields an empty map, so callers keep the capabilities they already have
- * instead of applying guessed ones. The probe never blocks or breaks the
- * normal chat flow.
+ * Results cached for process lifetime keyed by `baseUrl` (one request returns
+ * all models). Failure yields empty map; callers keep existing capabilities.
+ * Probe never blocks or breaks normal chat flow.
  */
 class LmStudioModelCatalog(
   private val baseUrl: String,
-  /** Overridable for tests; production uses the shared short-timeout client. */
+  // Overridable for tests; production uses shared short-timeout client
   private val httpClient: HttpClient = probeHttpClient
 ) {
 
   companion object {
-    /** Process-lifetime cache: `baseUrl` -> capabilities keyed by model name. */
+    // Process-lifetime cache: baseUrl -> capabilities keyed by model name
     private val capabilityCache: ConcurrentHashMap<String, Map<String, LmStudioModelCapabilities>> =
       ConcurrentHashMap()
   }
 
   /**
-   * Returns capabilities for [modelName], probing the LM Studio server on
-   * first access and caching the per-server result for the process
-   * lifetime. Returns [fallbackCapabilities] when the server is unreachable
-   * or the model is absent from the response.
+   * Returns capabilities for [modelName], probing on first access and caching
+   * per-server result for process lifetime. Returns [fallbackCapabilities] when
+   * server unreachable or model absent.
    */
   suspend fun capabilitiesFor(modelName: String): LmStudioModelCapabilities {
     val capabilitiesByModelName: Map<String, LmStudioModelCapabilities> = capabilitiesByModel()
@@ -176,7 +157,7 @@ class LmStudioModelCatalog(
     return probedCapabilities
   }
 
-  /** Performs the actual probe against the root-level `/api/v1/models`. */
+  // Performs the actual probe against root-level /api/v1/models
   private suspend fun probeCapabilities(): Map<String, LmStudioModelCapabilities> {
     return try {
       val requestUrl: String = resolveModelsUrl()
@@ -212,17 +193,13 @@ class LmStudioModelCatalog(
     }
   }
 
-  /**
-   * Builds `{root}/api/v1/models`, stripping a trailing `/v1` from the
-   * configured base URL so the root-level REST path is not nested under the
-   * OpenAI-compatible prefix.
-   */
+  // Builds {root}/api/v1/models, stripping trailing /v1 from baseUrl
   private fun resolveModelsUrl(): String {
     val rootUrl: String = baseUrl.trimEnd('/').removeSuffix(suffix = "/v1")
     return "$rootUrl/$LM_STUDIO_MODELS_PATH"
   }
 
-  /** Parses the `/api/v1/models` payload into per-model capabilities. */
+  // Parses the /api/v1/models payload into per-model capabilities
   private fun parseCapabilities(responseText: String): Map<String, LmStudioModelCapabilities> {
     val responseJson: JsonObject = jsonParser.parseToJsonElement(responseText).jsonObject
     val dataArray: JsonArray = responseJson["data"]?.jsonArray ?: JsonArray(emptyList())

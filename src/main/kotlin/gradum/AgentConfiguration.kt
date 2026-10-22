@@ -218,7 +218,6 @@ data class AgentConfiguration(
     const val DEFAULT_KEEP_ALIVE_MINUTES: Int = 5
     const val DEFAULT_ENABLE_THINKING: Boolean = false
     const val DEFAULT_OLLAMA_BASE_URL: String = GradumConfig.DEFAULT_OLLAMA_BASE_URL
-    const val DEFAULT_LMSTUDIO_BASE_URL: String = GradumConfig.DEFAULT_LMSTUDIO_BASE_URL
     const val DEFAULT_CHAT_COMPLETIONS_PATH: String = GradumConfig.DEFAULT_CHAT_COMPLETIONS_PATH
     const val DEFAULT_CONTEXT_WINDOW_SIZE: Int = GradumConfig.DEFAULT_CONTEXT_WINDOW_SIZE
   }

@@ -12,7 +12,6 @@ import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
 internal const val SKILLS_DIRECTORY_NAME: String = "skills"
-
 internal const val BUILD_DIRECTORY_NAME: String = ".build"
 
 /**
@@ -31,18 +30,18 @@ internal const val BUILD_DIRECTORY_NAME: String = ".build"
  *   collisions with already-registered skills are skipped with a warning.
  *
  * Incremental compilation:
- * - State is keyed by source file name:
+ * - State keyed by source file name:
  *   - compiledSourceHashes: SHA-256 of each file at last compile attempt
  *   - outputsBySource: .class files a successful compile produced
  *   - diagnosticsBySource: latest reported diagnostics
- * - Unchanged hash to keep .class output and diagnostics.
- * - New, edited, or missing-output source to recompile.
- * - Deleted source to remove output and force one pass over remaining sources,
+ * - Unchanged hash keeps .class output and diagnostics.
+ * - New, edited, or missing-output source recompiles.
+ * - Deleted source removes output and forces one pass over remaining sources,
  *   so dangling references surface instead of silently keeping a broken class.
- * - Nothing changed to compiler skipped entirely.
- * - State persists in .build-manifest.json beside .build, so the first pass of
- *   a process restores the previous process's state and unchanged skills load
- *   without recompiling. Only an unreadable manifest falls back to a clean pass.
+ * - Nothing changed: compiler skipped entirely.
+ * - State persists in .build-manifest.json beside .build, so first pass of a
+ *   process restores previous state and unchanged skills load without recompiling.
+ *   Only an unreadable manifest falls back to a clean pass.
  *
  * Two-stage compilation:
  * 1. Each changed source compiles alone into .build-staging (outside .build so
@@ -59,12 +58,11 @@ internal const val BUILD_DIRECTORY_NAME: String = ".build"
  *   stored diagnostics. Recording only successes would let an edit back to
  *   previously-compiling text match the old hash, skip compilation, and report
  *   diagnostics left by the broken text.
- * - lastCompiledSourceNames records what the most recent pass compiled, for
- *   tests and logs.
+ * - lastCompiledSourceNames records what the most recent pass compiled.
  *
  * currentFingerprint() is the mtime-based fingerprint the watcher polls to skip
- * redundant reloads. It only looks at skill sources, never at .build output, so
- * compiled artifacts cannot re-trigger a reload.
+ * redundant reloads. It only looks at skill sources, never at .build output,
+ * so compiled artifacts cannot re-trigger a reload.
  */
 class ExternalSkillDirectoryScanner(
   homeDirectory: File = File(System.getProperty("user.home")),
@@ -96,9 +94,9 @@ class ExternalSkillDirectoryScanner(
   /**
    * Writes [sourceText] to ~/.gradum/skills/<fileName> and reconciles
    * immediately, then returns the compiler diagnostics for that file. This is
-   * the deployment path behind the editor's Run button: it runs the same reconcile
-   * loop the directory watcher uses, but synchronously, so the caller gets
-   * feedback in one request instead of waiting for a watcher tick.
+   * the deployment path behind the editor's Run button: it runs the same
+   * reconcile loop the directory watcher uses, but synchronously, so the caller
+   * gets feedback in one request instead of waiting for a watcher tick.
    *
    * [fileName] is normalized to a bare `*.kt` name and rejected when it is not
    * a plain identifier, so a caller can never escape the skills' directory.
@@ -152,10 +150,10 @@ class ExternalSkillDirectoryScanner(
     }
   }
 
-  /** Names of the `.kt` sources currently in ~/.gradum/skills/, sorted. */
+  // Names of the `.kt` sources currently in ~/.gradum/skills/, sorted
   fun listSourceNames(): List<String> = listKtSources().map { sourceFile -> sourceFile.name }
 
-  /** Reads the text of a skill source, or null when it does not exist. */
+  // Reads the text of a skill source, or null when it does not exist
   fun readSource(fileName: String): String? {
     val safeName = try {
       normalizeSourceName(fileName)
@@ -304,7 +302,7 @@ class ExternalSkillDirectoryScanner(
     return true
   }
 
-  /** Persists the incremental state so the next process start can skip recompiles. */
+  // Persists the incremental state so the next process start can skip recompiles
   private fun saveBuildManifest() {
     if (compiledSourceHashes.isEmpty()) {
       manifestFile.delete()
@@ -595,7 +593,7 @@ data class DeployResult(
 
 /**
  * Process-wide handle to the scanner built at startup, so the HTTP routes can
- * deploy sources and read the skills directory. Mirrors the [gradum.skill.SkillRegistry]
+ * deploy sources and read the skills directory. Mirrors the [SkillRegistry]
  * singleton pattern; it stays null in unit tests that construct their own
  * scanner, and routes treat that as "skills directory not initialized".
  */

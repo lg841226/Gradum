@@ -14,16 +14,16 @@ import java.util.concurrent.TimeUnit
 
 private val logger: Logger = LoggerFactory.getLogger("BackgroundTaskManager")
 
-/** Default timeout for background tasks: independent of [GradumConfig.COMMAND_DEFAULT_TIMEOUT_SECONDS]. */
+// Default timeout for background tasks (independent of COMMAND_DEFAULT_TIMEOUT_SECONDS)
 private const val BACKGROUND_TASK_DEFAULT_TIMEOUT_SECONDS: Long = 600L
 
-/** Cap on combined stdout+stderr kept in the truncated output field. */
+// Cap on combined stdout+stderr kept in truncated output field
 private const val MAX_OUTPUT_CHARS: Int = GradumConfig.COMMAND_MAX_OUTPUT_CHARS
 
-/** Grace period after SIGTERM before SIGKILL: shared with RunCommandSkill. */
+// Grace period after SIGTERM before SIGKILL (shared with RunCommandSkill)
 private const val FORCE_KILL_DELAY_MS: Long = GradumConfig.COMMAND_FORCE_KILL_DELAY_MS
 
-/** Retention window for completed jobs per session before they are pruned. */
+// Retention window for completed jobs per session before pruning
 private const val COMPLETED_JOB_RETENTION_COUNT: Int = 20
 
 /** Status of a [BackgroundJob]. State machine is one-way: RUNNING -> terminal. */
@@ -76,10 +76,10 @@ class BackgroundTaskManager(
     @Volatile
     private var instance: BackgroundTaskManager? = null
 
-    /** Returns the global singleton instance, or null if not initialized. */
+    // Returns the global singleton instance, or null if not initialized
     fun getInstance(): BackgroundTaskManager? = instance
 
-    /** Initializes the global singleton. Called once during server startup. */
+    // Initializes the global singleton. Called once during server startup.
     fun initialize(workers: ExecutorService, outcomes: Channel<JobOutcome>): BackgroundTaskManager {
       val manager = BackgroundTaskManager(workers, outcomes)
       instance = manager
@@ -87,13 +87,13 @@ class BackgroundTaskManager(
     }
   }
 
-  /** Live handle to a running process, used for cancellation. */
+  // Live handle to a running process, used for cancellation
   private class JobHandle(
     val process: Process,
     val descendants: List<ProcessHandle>,
   )
 
-  /** Mutable job state guarded by the entry's lock. */
+  // Mutable job state guarded by the entry's lock
   private class JobEntry(
     val job: BackgroundJob,
     val handle: JobHandle?,
@@ -160,6 +160,7 @@ class BackgroundTaskManager(
     return initialJob
   }
 
+  // Executes the job in a worker thread: drains streams, waits, handles timeout/kill
   private fun executeJob(entry: JobEntry, projectRoot: String, timeoutSeconds: Long) {
     val taskId: String = entry.job.taskId
     val commandText: String = entry.job.command
@@ -284,7 +285,7 @@ class BackgroundTaskManager(
     )
   }
 
-  /** Cancels a running job by [taskId]. Returns false if the task is already terminal or unknown. */
+  /** Cancels a running job by [taskId]. Returns false if already terminal or unknown. */
   fun cancel(taskId: String): Boolean {
     val entry: JobEntry = jobsByTaskId[taskId] ?: return false
 
@@ -345,7 +346,7 @@ class BackgroundTaskManager(
     )
   }
 
-  /** Returns all non-cancelled jobs for [sessionId]: running + recent terminal. */
+  // Returns all non-cancelled jobs for [sessionId]: running + recent terminal
   fun listForSession(sessionId: String): List<BackgroundJob> {
     val taskIds: List<String> = taskIdsBySession[sessionId]?.toList() ?: return emptyList()
     return taskIds.mapNotNull { jobsByTaskId[it]?.toSnapshot() }
@@ -353,7 +354,7 @@ class BackgroundTaskManager(
       .sortedByDescending { it.startedAt }
   }
 
-  /** Returns lightweight summaries of running jobs for [sessionId]: used by GET /session/state. */
+  // Returns lightweight summaries of running jobs for [sessionId]: used by GET /session/state
   fun pendingForSession(sessionId: String): List<Map<String, Any>> {
     val taskIds: List<String> = taskIdsBySession[sessionId]?.toList() ?: return emptyList()
     return taskIds.mapNotNull { jobsByTaskId[it] }
@@ -381,7 +382,7 @@ class BackgroundTaskManager(
     return drainedOutcomes
   }
 
-  /** Removes terminal jobs beyond [COMPLETED_JOB_RETENTION_COUNT] for [sessionId]. */
+  // Removes terminal jobs beyond COMPLETED_JOB_RETENTION_COUNT for [sessionId]
   fun pruneSession(sessionId: String) {
     val taskIds: MutableList<String> = taskIdsBySession[sessionId] ?: return
     val terminalTaskIds: List<String> = taskIds.filter { taskId ->
