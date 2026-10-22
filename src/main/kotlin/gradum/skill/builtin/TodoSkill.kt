@@ -178,9 +178,7 @@ class TodoManager {
     }
   }
 
-  /**
-   * Skips the current task without marking it as completed and advances the cursor.
-   */
+  /** Skips the current task without marking it as completed and advances the cursor. */
   fun skipTask(count: Int = 1): SkillResult {
     val taskItems: List<String> =
       taskList ?: return makeFailure(

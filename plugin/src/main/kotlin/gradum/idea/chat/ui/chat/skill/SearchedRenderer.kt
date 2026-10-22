@@ -41,7 +41,7 @@ import java.util.concurrent.CompletableFuture
 /**
  * Default renderer for the server-side `search_web` skill (alias
  * "Searched"). Renders a single-line capsule header (web icon +
- * "Searched" + query + "N results" counter + chevron) that
+ * "Searched" and query + "N results" counter and chevron) that
  * expands/collapses to reveal the full result list below, each
  * result showing its favicon thumbnail and an external link.
  */
@@ -159,47 +159,45 @@ class SearchedRenderer : ToolCallRenderer {
     }
   }
 
-  /**
-   * Renders the leading icon for a single search result.
-   *
-   * Three states, same outer footprint (size + corner radius) so the
-   * result row never reflows while a thumbnail is in flight:
-   *  1. No URL in the fallback chain -> no upstream favicon available.
-   *     Renders a neutral gray placeholder box. Returning a real Web
-   *     icon here would make rows with images wider than rows without,
-   *     which looks like a layout bug.
-   *  2. URL present, fetch still in progress -> same gray placeholder
-   *     so the row height stays stable and the user sees a "loading"
-   *     affordance that matches the final shape.
-   *  3. URL present, fetch resolved (success or failure) -> success
-   *     shows the bitmap, failure (null) falls through to the next
-   *     URL in the chain. If every URL fails, we land back on the
-   *     gray placeholder.
-   *
-   * **Fallback chain** (in order):
-   *  1. The favicon URL returned by Tavily (best signal: usually
-   *     matches the actual page's icon).
-   *  2. `https://{host}/favicon.ico`: most sites still serve their
-   *     favicon at the root, no third-party dependency.
-   *  3. `https://www.favicon.vip/get.php?url={host}`: China-friendly
-   *     aggregator (Google's `s2/favicons` is GFW-blocked).
-   *
-   * **Host-level short-circuit ([faviconCache]).** Without caching,
-   * the chain is walked top-to-bottom on every render: a host whose
-   * Tavily favicon 404s will pay a 3-second timeout for that URL
-   * every time the row re-composes. The cache remembers the *single*
-   * URL that worked for each host, so a host that's been seen before
-   * jumps straight to the known winner. Hosts where every chain
-   * member failed are also remembered, so we skip the chain entirely
-   * and go straight to the gray placeholder. See [FaviconHostCache]
-   * for the cache invariants.
-   *
-   * **Threading:** the loader exposes a `CompletableFuture`. Calling
-   * `future.get()` on the main thread would block the UI for the
-   * entire HTTP round-trip: instead we bridge the future into a
-   * suspending coroutine via [suspendCancellableCoroutine], so the
-   * main thread is free to keep painting frames while bytes flow in.
-   */
+  // Renders the leading icon for a single search result.
+  //
+  // Three states, same outer footprint (size and corner radius) so the
+  // result row never reflows while a thumbnail is in flight:
+  //  1. No URL in the fallback chain -> no upstream favicon available.
+  //     Renders a neutral gray placeholder box. Returning a real Web
+  //     icon here would make rows with images wider than rows without,
+  //     which looks like a layout bug.
+  //  2. URL present, fetch still in progress -> same gray placeholder
+  //     so the row height stays stable and the user sees a "loading"
+  //     affordance that matches the final shape.
+  //  3. URL present, fetch resolved (success or failure) -> success
+  //     shows the bitmap, failure (null) falls through to the next
+  //     URL in the chain. If every URL fails, we land back on the
+  //     gray placeholder.
+  //
+  // Fallback chain (in order):
+  //  1. The favicon URL returned by Tavily (best signal: usually
+  //     matches the actual page's icon).
+  //  2. `https://{host}/favicon.ico`: most sites still serve their
+  //     favicon at the root, no third-party dependency.
+  //  3. `https://www.favicon.vip/get.php?url={host}`: China-friendly
+  //     aggregator (Google's `s2/favicons` is GFW-blocked).
+  //
+  // Host-level short-circuit ([faviconCache]). Without caching,
+  // the chain is walked top-to-bottom on every render: a host whose
+  // Tavily favicon 404s will pay a 3-second timeout for that URL
+  // every time the row re-composes. The cache remembers the *single*
+  // URL that worked for each host, so a host that's been seen before
+  // jumps straight to the known winner. Hosts where every chain
+  // member failed are also remembered, so we skip the chain entirely
+  // and go straight to the gray placeholder. See [FaviconHostCache]
+  // for the cache invariants.
+  //
+  // Threading: the loader exposes a `CompletableFuture`. Calling
+  // `future.get()` on the main thread would block the UI for the
+  // entire HTTP round-trip: instead we bridge the future into a
+  // suspending coroutine via [suspendCancellableCoroutine], so the
+  // main thread is free to keep painting frames while bytes flow in.
   @Composable
   private fun ResultThumbnail(pageUrl: String, faviconUrl: String, size: Dp) {
     val cornerRadius = RoundedCornerShape(THUMBNAIL_CORNER_DP.dp)
@@ -247,12 +245,10 @@ class SearchedRenderer : ToolCallRenderer {
     }
   }
 
-  /**
-   * Bridge [ThumbnailImageLoader]'s [CompletableFuture] into the
-   * Compose coroutine scope without blocking the UI thread. The 3-arg
-   * `resume` keeps the result alive if cancellation lands in the gap
-   * between `whenComplete` firing and the continuation being resumed.
-   */
+  // Bridge [ThumbnailImageLoader]'s [CompletableFuture] into the
+  // Compose coroutine scope without blocking the UI thread. The 3-arg
+  // `resume` keeps the result alive if cancellation lands in the gap
+  // between `whenComplete` firing and the continuation being resumed.
   private suspend fun awaitBitmap(
     imageFuture: CompletableFuture<ImageBitmap?>
   ): ImageBitmap? = suspendCancellableCoroutine { continuation ->
@@ -260,13 +256,11 @@ class SearchedRenderer : ToolCallRenderer {
     continuation.invokeOnCancellation { imageFuture.cancel(true) }
   }
 
-  /**
-   * Build the favicon URL fallback chain for [host]. Returns an
-   * empty list when [host] is blank so the caller renders the gray
-   * placeholder instead of trying a blank URL. [tavilyFaviconUrl] is
-   * prepended verbatim when non-blank: it's the highest-signal
-   * member of the chain when Tavily has a real one.
-   */
+  // Build the favicon URL fallback chain for [host]. Returns an
+  // empty list when [host] is blank so the caller renders the gray
+  // placeholder instead of trying a blank URL. [tavilyFaviconUrl] is
+  // prepended verbatim when non-blank: it's the highest-signal
+  // member of the chain when Tavily has a real one.
   private fun buildFaviconFallbackChain(host: String, tavilyFaviconUrl: String): List<String> {
     if (host.isBlank()) return emptyList()
     return buildList {
@@ -284,11 +278,9 @@ class SearchedRenderer : ToolCallRenderer {
     private const val THUMBNAIL_SIZE_DP: Int = 16
     private const val THUMBNAIL_CORNER_DP: Int = 4
 
-    /**
-     * Process-wide favicon short-circuit. Lives in the companion so
-     * it survives every renderer instance and every recomposition.
-     * See [FaviconHostCache] for the rationale.
-     */
+    // Process-wide favicon short-circuit. Lives in the companion so
+    // it survives every renderer instance and every recomposition.
+    // See [FaviconHostCache] for the rationale.
     private val faviconCache: FaviconHostCache = FaviconHostCache()
   }
 }

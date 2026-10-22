@@ -24,9 +24,12 @@ class SystemPromptLoader(private val configuration: AgentConfiguration) {
   /**
    * Loads and assembles the system prompt for the current session.
    *
-   * @param taskDescription When non-null, appended as a "Sub-Agent Task"
    *   section at the end of the prompt.
-   * @return The fully assembled system prompt string.
+   *
+   * Parameters:
+   * - taskDescription: When non-null, appended as a "Sub-Agent Task"
+   *
+   * Returns The fully assembled system prompt string..
    */
   fun load(taskDescription: String?): String {
     val resolvedVariant: PromptVariant = when (configuration.promptVariant) {

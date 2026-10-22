@@ -29,7 +29,7 @@ class FootnoteRegistry(
   /** A jump target: the [label] to flash plus a [nonce] so re-clicking the same label re-triggers. */
   data class FlashTarget(val label: String, val nonce: Long)
 
-  /** Each definition chip owns a slot (keyed by its stable chipId) so positions stay fresh. */
+  // Each definition chip owns a slot (keyed by its stable chipId) so positions stay fresh.
   private val definitionPositionsByLabel = mutableMapOf<String, MutableMap<Any, Float>>()
 
   fun updateDefinitionPosition(label: String, chipId: Any, positionInWindow: Offset) {

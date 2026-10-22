@@ -513,14 +513,12 @@ class GradumChatSession : Disposable {
     }
   }
 
-  /**
-   * Long-lived scope for model polling. Owned by this project service rather
-   * than by any UI host: the tool window tab and the chat editor tab are
-   * created and disposed independently, and cancelling one host's scope must
-   * not stop model polling for the hosts that are still open. Created lazily
-   * so unit tests never touch Dispatchers.Main, and canceled in [dispose]
-   * when the project closes.
-   */
+  // Long-lived scope for model polling. Owned by this project service rather
+  // than by any UI host: the tool window tab and the chat editor tab are
+  // created and disposed independently, and cancelling one host's scope must
+  // not stop model polling for the hosts that are still open. Created lazily
+  // so unit tests never touch Dispatchers.Main, and canceled in [dispose]
+  // when the project closes.
   private val modelPollingScope: CoroutineScope by lazy {
     CoroutineScope(context = SupervisorJob() + Dispatchers.Main.immediate)
   }

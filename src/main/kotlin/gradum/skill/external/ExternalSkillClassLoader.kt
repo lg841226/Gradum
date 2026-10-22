@@ -8,20 +8,18 @@ import java.lang.reflect.Modifier
 import java.net.URLClassLoader
 import java.nio.file.Files
 
-/**
- * Loads compiled external skill .class files from the output directory
- * produced by [ExternalSkillCompiler].
- *
- * The parent is the classloader that loaded [Skill], so parent-delegation
- * gives external classes access to the in-process gradum.* API while the
- * external skill classes themselves stay in this loader's own namespace. That
- * seam is what later enables hot-reloading: swapping this loader replaces a
- * skill without restarting the server.
- *
- * loadSkills() loads and instantiates every concrete [Skill] subclass
- * reachable in this loader. A class that fails to load or initialize is
- * logged and skipped, so one broken skill never blocks its siblings.
- */
+// Loads compiled external skill .class files from the output directory
+// produced by [ExternalSkillCompiler].
+//
+// The parent is the classloader that loaded [Skill], so parent-delegation
+// gives external classes access to the in-process gradum.* API while the
+// external skill classes themselves stay in this loader's own namespace. That
+// seam is what later enables hot-reloading: swapping this loader replaces a
+// skill without restarting the server.
+//
+// loadSkills() loads and instantiates every concrete [Skill] subclass
+// reachable in this loader. A class that fails to load or initialize is
+// logged and skipped, so one broken skill never blocks its siblings.
 internal class ExternalSkillClassLoader(
   parentClassLoader: ClassLoader, private val outputDirectory: File
 ) : URLClassLoader(arrayOf(outputDirectory.toURI().toURL()), parentClassLoader) {

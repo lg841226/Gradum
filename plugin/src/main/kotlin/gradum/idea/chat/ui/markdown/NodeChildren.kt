@@ -2,15 +2,13 @@ package gradum.idea.chat.ui.markdown
 
 import org.commonmark.node.Node
 
-/**
- * Direct children of a CommonMark [Node] in source order, exposed as a small
- * wrapper so callers don't have to manually walk `firstChild` / `next`. The
- * split between [first] and [rest] is intentional: list-item rendering
- * differentiates "first child is a `Paragraph` (rendered on the marker row)"
- * from "later children (rendered below with extra indent)", and exposing
- * those two groups via named properties reads better than
- * `.firstOrNull()` / `.drop(1)` and is impossible to misuse as raw indices.
- */
+// Direct children of a CommonMark [Node] in source order, exposed as a small
+// wrapper so callers don't have to manually walk `firstChild` / `next`. The
+// split between [first] and [rest] is intentional: list-item rendering
+// differentiates "first child is a `Paragraph` (rendered on the marker row)"
+// from "later children (rendered below with extra indent)", and exposing
+// those two groups via named properties reads better than
+// `.firstOrNull()` / `.drop(1)` and is impossible to misuse as raw indices.
 internal class NodeChildren private constructor(
   val first: Node?, val rest: List<Node>
 ) {

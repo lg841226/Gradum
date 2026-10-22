@@ -74,19 +74,17 @@ private sealed interface Key {
 
 private enum class NavResult { CONTINUE, SAVED, QUIT }
 
-/**
- * Full-screen, four-step provider wizard reached via `gradum setup` from a real
- * terminal. Drawn with JLine in raw mode on the alternate screen so the user's
- * scrollback is untouched; the terminal is always restored, including on crash
- * through a shutdown hook.
- *
- * The model is intentionally not configured here: the server auto-discovers it
- * at runtime (see `ModelIdentity.discoverModels`). Only the provider, its API
- * key, and the base URL are written, and only once at the end.
- *
- * Returns false when there is no attached console (piped output, ACP terminal
- * auth without a pty) so the caller can fall back to the line-based wizard.
- */
+// Full-screen, four-step provider wizard reached via `gradum setup` from a real
+// terminal. Drawn with JLine in raw mode on the alternate screen so the user's
+// scrollback is untouched; the terminal is always restored, including on crash
+// through a shutdown hook.
+//
+// The model is intentionally not configured here: the server auto-discovers it
+// at runtime (see `ModelIdentity.discoverModels`). Only the provider, its API
+// key, and the base URL are written, and only once at the end.
+//
+// Returns false when there is no attached console (piped output, ACP terminal
+// auth without a pty) so the caller can fall back to the line-based wizard.
 internal fun runTuiSetup(): Boolean {
   if (System.console() == null) return false
 
@@ -263,7 +261,7 @@ private fun readEscape(reader: NonBlockingReader): Key {
   }
 }
 
-/** Mutable wizard state: chosen provider plus one focus index per step. */
+// Mutable wizard state: chosen provider plus one focus index per step.
 private class WizardState(private val root: Map<String, Any?>) {
 
   val configuredProviderKey: String = PROVIDER_CHOICES

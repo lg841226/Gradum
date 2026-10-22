@@ -26,24 +26,20 @@ private val logger: Logger = LoggerFactory.getLogger("WriteFileSkill")
 
 private const val MAXIMUM_CONTENT_SIZE: Int = GradumConfig.WRITE_MAX_FILE_SIZE
 
-/**
- * True when [targetPath] resolves inside a protected system directory, so the
- * write must be blocked. [ToolMode.YOLO] opts out of this guard entirely: the
- * user asked for no brakes, protected system directories included.
- */
+// True when [targetPath] resolves inside a protected system directory, so the
+// write must be blocked. [ToolMode.YOLO] opts out of this guard entirely: the
+// user asked for no brakes, protected system directories included.
 private fun isBlockedPaths(targetPath: Path, context: SkillContext): Boolean =
   !context.isYolo && ProtectedPaths.isProtected(targetPath.toString())
 
-/**
- * Resolves authorization for writing to a path outside the project root.
- * Returns the authorized external [Path] on success, or null when to write
- * must be denied (no ask capability wired, or the user rejected/canceled).
- * An "always" answer remembers the path for the rest of the session so it is
- * not asked again. The resulting external path still passes through
- * [isBlockedPaths] before any write, so protected system directories are
- * never bypassed by an authorization, except in [ToolMode.YOLO] where both
- * the authorization prompt and the protected-path guard are disabled.
- */
+// Resolves authorization for writing to a path outside the project root.
+// Returns the authorized external [Path] on success, or null when to write
+// must be denied (no ask capability wired, or the user rejected/canceled).
+// An "always" answer remembers the path for the rest of the session so it is
+// not asked again. The resulting external path still passes through
+// [isBlockedPaths] before any write, so protected system directories are
+// never bypassed by an authorization, except in [ToolMode.YOLO] where both
+// the authorization prompt and the protected-path guard are disabled.
 private fun authorizeWrite(filePath: String, projectRoot: String, context: SkillContext): Path? {
   val externalPath: Path = resolveProjectPath(filePath, projectRoot, requireWithinProject = false).resolved
   if (context.isYolo) return externalPath
@@ -370,14 +366,12 @@ class WriteFileSkill : Skill() {
     }
   }
 
-  /**
-   * Create a new file or fully overwrite an existing one with [fileContent].
-   *
-   * Triggered by an edit whose `oldString` is blank: the absence of search
-   * text means "write the whole file" (write_file's create/overwrite mode).
-   * Writes UTF-8, creates parent directories, and applies the same size and
-   * protected-path guards as partial edits.
-   */
+  // Create a new file or fully overwrite an existing one with [fileContent].
+  //
+  // Triggered by an edit whose `oldString` is blank: the absence of search
+  // text means "write the whole file" (write_file's create/overwrite mode).
+  // Writes UTF-8, creates parent directories, and applies the same size and
+  // protected-path guards as partial edits.
   private fun createOrOverwriteFile(
     resolvedPath: Path, fileContent: String, context: SkillContext
   ): SkillResult {
@@ -657,12 +651,10 @@ private fun findMatchesWithFallback(
   )
 }
 
-/**
- * Find matches using a custom comparison function.
- *
- * Skips blank lines during matching so that different blank-line counts
- * between the file and search text do not cause false negatives.
- */
+// Find matches using a custom comparison function.
+//
+// Skips blank lines during matching so that different blank-line counts
+// between the file and search text do not cause false negatives.
 private fun findMatchesByStrategy(
   fileLines: List<String>, searchLines: List<String>, comparator: (String, String) -> Boolean
 ): List<MatchResult> {
@@ -694,13 +686,11 @@ private fun findMatchesByStrategy(
 /** Exception thrown when a file has been modified externally during an edit operation. */
 class StaleContentError(val path: String) : Exception("File changed externally:$path")
 
-/**
- * Returns an error message when [bytes] are NOT valid UTF-8, or `null`
- * when they are. Editing a non-UTF-8 file (GBK, UTF-16, Latin-1…) with
- * `readText(Charsets.UTF_8)` + `writeText` silently corrupts every
- * non-ASCII byte (malformed input decodes to U+FFFD, then gets written
- * back verbatim). Reject those files up front instead of mangling them.
- */
+// Returns an error message when [bytes] are NOT valid UTF-8, or `null`
+// when they are. Editing a non-UTF-8 file (GBK, UTF-16, Latin-1…) with
+// `readText(Charsets.UTF_8)` + `writeText` silently corrupts every
+// non-ASCII byte (malformed input decodes to U+FFFD, then gets written
+// back verbatim). Reject those files up front instead of mangling them.
 private fun validateUtf8(bytes: ByteArray): String? {
   return try {
     Charsets.UTF_8.newDecoder()

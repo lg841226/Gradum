@@ -20,25 +20,25 @@ import org.jetbrains.jewel.ui.component.Text
  * Dropdown for picking a [ThinkingLevel] (Low / Medium / High),
  * rendered next to the model selector in [ModelSelectorBar].
  *
- * **Visual contract.** Same chevron / `SelectorButton` shape as the
+ * Visual contract. Same chevron / `SelectorButton` shape as the
  * model selector and the permission selector, so the three buttons
  * read as a single row at a glance.
  *
- * **Selected emphasis.** The currently-picked row in the popup is
+ * Selected emphasis. The currently-picked row in the popup is
  * rendered in [FontWeight.Bold]; the other rows are regular weight.
  * Keeps the user's choice scannable when the menu is open.
  *
- * **Centered rows.** All popup rows are horizontally centered. The
+ * Centered rows. All popup rows are horizontally centered. The
  * three level names are short and equal-width-ish, so a centered
  * layout reads as a tidy compact group rather than a left-aligned
  * stack hugging the gutter.
  *
- * **Tooltip.** The selector button surfaces a one-liner per level
+ * Tooltip. The selector button surfaces a one-liner per level
  * ("the model will think lightly / with enhanced reasoning /
  * deeply") so a curious user can hover the closed button to learn
  * what each level does in plain English without opening the menu.
  *
- * **Capability-gated.** The caller hides this selector for models that
+ * Capability-gated. The caller hides this selector for models that
  * cannot think at all and passes `enabled = false` (plus a
  * [disabledTooltip]) for thinking models that expose no depth levels:
  * such a model still thinks, so the button stays visible but grayed and
@@ -111,12 +111,10 @@ private fun ThinkingLevelRow(level: ThinkingLevel, isSelected: Boolean) {
 
 private fun thinkingButtonLabel(level: ThinkingLevel): String = thinkingLabel(level)
 
-/**
- * One-liner shown in the closed-button tooltip. Tells the user what
- * the model will *do* with this level, not what the level is named,
- * the level name is already on the button face, the tooltip is the
- * place for the "so what".
- */
+// One-liner shown in the closed-button tooltip. Tells the user what
+// the model will *do* with this level, not what the level is named,
+// the level name is already on the button face, the tooltip is the
+// place for the "so what".
 private fun thinkingTooltip(level: ThinkingLevel): String = message(
   when (level) {
     ThinkingLevel.LOW -> "gradum.thinking.tooltip.low"

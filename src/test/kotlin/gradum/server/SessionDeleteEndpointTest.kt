@@ -13,7 +13,7 @@ import kotlin.test.assertEquals
 
 /**
  * Tests for `POST /session/delete`: it must remove the whole session
- * directory (transcript + server `context.json`) and reject any sessionId
+ * directory (transcript and server `context.json`) and reject any sessionId
  * that resolves outside `.gradum/sessions/` (path-traversal guard).
  */
 class SessionDeleteEndpointTest {

@@ -27,7 +27,7 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 /**
  * Renderer for the server-side `to_do` skill (alias "Planned").
  *
- * Renders a collapsible header row (icon + "Planned" + task count +
+ * Renders a collapsible header row (icon + "Planned" and task count +
  * chevron), matching the web-search row pattern: the task list
  * expands/collapses under the header.
  *

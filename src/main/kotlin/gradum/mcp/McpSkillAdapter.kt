@@ -11,22 +11,20 @@ import gradum.utils.JsonUtil
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 
-/**
- * Exposes a single MCP server [McpTool] to Gradum's skill system as a [Skill],
- * so the model can call it directly in one step (e.g. `browser_navigate(url=...)`).
- *
- * Unlike an ordinary [gradum.skill.Skill], the schema is NOT trimmed: [getSchema]
- * emits the tool's full native JSON Schema (every property plus `required`), so
- * the model sees the complete parameter surface instead of only required fields.
- * This adapter is used for tools materialized on demand via [McpToolCatalog],
- * it is never registered for all tools at startup. [execute] forwards the
- * caller's arguments to the server via [McpClient.callTool].
- *
- * Because [Skill.execute] is synchronous while the transport is coroutine-based,
- * [execute] bridges with [runBlocking]; the response is handled on the
- * transport's own IO scope, so blocking the calling thread only waits on the
- * deferred: it never deadlocks.
- */
+// Exposes a single MCP server [McpTool] to Gradum's skill system as a [Skill],
+// so the model can call it directly in one step (e.g. `browser_navigate(url=...)`).
+//
+// Unlike an ordinary [gradum.skill.Skill], the schema is NOT trimmed: [getSchema]
+// emits the tool's full native JSON Schema (every property plus `required`), so
+// the model sees the complete parameter surface instead of only required fields.
+// This adapter is used for tools materialized on demand via [McpToolCatalog],
+// it is never registered for all tools at startup. [execute] forwards the
+// caller's arguments to the server via [McpClient.callTool].
+//
+// Because [Skill.execute] is synchronous while the transport is coroutine-based,
+// [execute] bridges with [runBlocking]; the response is handled on the
+// transport's own IO scope, so blocking the calling thread only waits on the
+// deferred: it never deadlocks.
 internal class McpSkillAdapter(
   private val tool: McpTool,
   private val client: McpClient,
@@ -36,22 +34,20 @@ internal class McpSkillAdapter(
   override val description: String get() = tool.description ?: "MCP tool ${tool.name}"
   override val alias: String get() = tool.name
 
-  /**
-   * The description shown to the LLM inside the tool schema. Enriched over the
-   * server-provided text so the model recognizes this as a dedicated MCP tool
-   * and prefers it over reaching for the generic shell command (`run_cmd`) when
-   * the task matches. The raw [description] is kept for the directory/search
-   * listing so grouping and keyword search stay clean.
-   */
+  // The description shown to the LLM inside the tool schema. Enriched over the
+  // server-provided text so the model recognizes this as a dedicated MCP tool
+  // and prefers it over reaching for the generic shell command (`run_cmd`) when
+  // the task matches. The raw [description] is kept for the directory/search
+  // listing so grouping and keyword search stay clean.
   private fun schemaDescription(): String =
     "Dedicated MCP tool. " +
       (tool.description ?: tool.name) +
       " Prefer this tool over running the equivalent shell command when the task matches."
 
-  /** External MCP tools may mutate arbitrary state; exclude READ_ONLY. */
+  // External MCP tools may mutate arbitrary state; exclude READ_ONLY.
   override val allowedToolModes: Set<ToolMode> = setOf(ToolMode.AGENT, ToolMode.EDIT)
 
-  /** Full native schema; the [SchemaBuilder] DSL cannot faithfully express arbitrary JSON Schema. */
+  // Full native schema; the [SchemaBuilder] DSL cannot faithfully express arbitrary JSON Schema.
   override fun getSchema(context: SkillContext?): Map<String, Any> {
     val requiredNames: List<String> = tool.inputSchema["required"]
       ?.jsonArray
@@ -76,7 +72,7 @@ internal class McpSkillAdapter(
     )
   }
 
-  /** Unused because [getSchema] is overridden; kept to satisfy the abstract [Skill.schemaProperties]. */
+  // Unused because [getSchema] is overridden; kept to satisfy the abstract [Skill.schemaProperties].
   override val schemaProperties: SchemaBuilder.() -> Unit = {}
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
@@ -104,14 +100,12 @@ internal class McpSkillAdapter(
     }
   }
 
-  /**
-   * Resolves user consent to run this tool. Returns true when the tool was
-   * already approved "always" this session, the user allowed a single run,
-   * or the user chose "always" (remembered by name). Returns true without a
-   * prompt when no ask capability is wired (tests / sub-agents that must not
-   * block) and in [gradum.ToolMode.YOLO], where the user opted out of every
-   * gate. Returns false when the user rejected or canceled.
-   */
+  // Resolves user consent to run this tool. Returns true when the tool was
+  // already approved "always" this session, the user allowed a single run,
+  // or the user chose "always" (remembered by name). Returns true without a
+  // prompt when no ask capability is wired (tests / sub-agents that must not
+  // block) and in [gradum.ToolMode.YOLO], where the user opted out of every
+  // gate. Returns false when the user rejected or canceled.
   private fun isAuthorized(argumentsText: String, context: SkillContext): Boolean {
     if (context.isYolo) return true
     if (tool.name in context.authorizedMcpTools) return true
@@ -141,12 +135,10 @@ internal class McpSkillAdapter(
     }
   }
 
-  /**
-   * Renders a `tools/call` result element to the plain text the LLM should
-   * see. Joins every `text` field found in the `content` array (MCP's
-   * standard text blocks); falls back to the compact JSON when the result
-   * carries no such blocks.
-   */
+  // Renders a `tools/call` result element to the plain text the LLM should
+  // see. Joins every `text` field found in the `content` array (MCP's
+  // standard text blocks); falls back to the compact JSON when the result
+  // carries no such blocks.
   private fun renderContent(resultElement: JsonElement): String {
     val contentArray = resultElement.jsonObject["content"]?.jsonArray
     if (contentArray != null) {

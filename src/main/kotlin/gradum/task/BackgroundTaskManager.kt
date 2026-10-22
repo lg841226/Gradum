@@ -76,10 +76,10 @@ class BackgroundTaskManager(
     @Volatile
     private var instance: BackgroundTaskManager? = null
 
-    // Returns the global singleton instance, or null if not initialized
+    /** Returns the global singleton instance, or null if not initialized */
     fun getInstance(): BackgroundTaskManager? = instance
 
-    // Initializes the global singleton. Called once during server startup.
+    /** Initializes the global singleton. Called once during server startup. */
     fun initialize(workers: ExecutorService, outcomes: Channel<JobOutcome>): BackgroundTaskManager {
       val manager = BackgroundTaskManager(workers, outcomes)
       instance = manager
@@ -346,7 +346,7 @@ class BackgroundTaskManager(
     )
   }
 
-  // Returns all non-cancelled jobs for [sessionId]: running + recent terminal
+  /** Returns all non-cancelled jobs for [sessionId]: running and recent terminal */
   fun listForSession(sessionId: String): List<BackgroundJob> {
     val taskIds: List<String> = taskIdsBySession[sessionId]?.toList() ?: return emptyList()
     return taskIds.mapNotNull { jobsByTaskId[it]?.toSnapshot() }
@@ -354,7 +354,7 @@ class BackgroundTaskManager(
       .sortedByDescending { it.startedAt }
   }
 
-  // Returns lightweight summaries of running jobs for [sessionId]: used by GET /session/state
+  /** Returns lightweight summaries of running jobs for [sessionId]: used by GET /session/state */
   fun pendingForSession(sessionId: String): List<Map<String, Any>> {
     val taskIds: List<String> = taskIdsBySession[sessionId]?.toList() ?: return emptyList()
     return taskIds.mapNotNull { jobsByTaskId[it] }
@@ -382,7 +382,7 @@ class BackgroundTaskManager(
     return drainedOutcomes
   }
 
-  // Removes terminal jobs beyond COMPLETED_JOB_RETENTION_COUNT for [sessionId]
+  /** Removes terminal jobs beyond COMPLETED_JOB_RETENTION_COUNT for [sessionId] */
   fun pruneSession(sessionId: String) {
     val taskIds: MutableList<String> = taskIdsBySession[sessionId] ?: return
     val terminalTaskIds: List<String> = taskIds.filter { taskId ->

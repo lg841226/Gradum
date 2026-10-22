@@ -56,7 +56,7 @@ import org.jetbrains.jewel.ui.typography
  * GFM table syntax is *not* registered here: the chat UI strips GFM tables out
  * at the call site in AssistantChatBubble and renders them with [ScrollableTable].
  *
- * [LatexBlockExtension] is intentionally **not** registered here: this
+ * [LatexBlockExtension] is intentionally not registered here: this
  * processor is used by the fenced / indented code block reparse path
  * (`BlockRenderer.parseFencedCodeBlock`), and a `$$…$$` inside a code
  * block must stay as literal text, not become a rendered formula. The
@@ -202,10 +202,8 @@ fun splitMarkdown(markdown: String): List<MarkdownSegment> =
     }
   }
 
-/**
- * Parses a single pipe-delimited row into cells. Leading and trailing `|`
- * are optional; escaped `\|` becomes a literal `|` inside the cell.
- */
+// Parses a single pipe-delimited row into cells. Leading and trailing `|`
+// are optional; escaped `\|` becomes a literal `|` inside the cell.
 private fun parseTableRow(line: String): List<String> {
   val trimmed: String = line.trim()
   val withoutLeading: String =
@@ -242,7 +240,7 @@ private fun parseTableRow(line: String): List<String> {
   return cells
 }
 
-/** A separator row is a pipe row whose every cell is `---` / `:---` / `---:` / `:---:`. */
+// A separator row is a pipe row whose every cell is `---` / `:---` / `---:` / `:---:`.
 private fun isTableSeparator(tableRow: String): Boolean {
   if (!tableRow.contains(char = '|')) return false
 
@@ -255,7 +253,7 @@ private fun isTableSeparator(tableRow: String): Boolean {
   }
 }
 
-/** Reads the alignment markers from a separator row. Returns `null` if invalid. */
+// Reads the alignment markers from a separator row. Returns `null` if invalid.
 private fun parseAlignments(line: String?, expectedCount: Int): List<TextAlign>? {
   if (line == null || expectedCount <= 0) return null
   val cells: List<String> = parseTableRow(line)
@@ -278,7 +276,7 @@ private fun parseAlignments(line: String?, expectedCount: Int): List<TextAlign>?
  * scrollable [Box] so a wide table shows a horizontal scrollbar instead of
  * being squeezed.
  *
- * **Caller contract**: the caller is expected to have already checked
+ * Caller contract: the caller is expected to have already checked
  * [isRenderable] and substituted a placeholder for any non-renderable
  * `Table`. This function does not bail out for empty / degenerate input.
  *
@@ -500,11 +498,9 @@ fun ScrollableTable(
   }
 }
 
-/**
- * Renders the table's header row. Shared between the in-flow table and the
- * sticky header overlay (registered via [StickySectionRegistry]) so both
- * render identically: same per-column widths, padding and typography.
- */
+// Renders the table's header row. Shared between the in-flow table and the
+// sticky header overlay (registered via [StickySectionRegistry]) so both
+// render identically: same per-column widths, padding and typography.
 @Composable
 private fun TableHeaderRow(
   density: Density,
@@ -543,7 +539,7 @@ private fun TableHeaderRow(
   }
 }
 
-/** Top-row toolbar: "Table" label + copy button. Mirrors the code block toolbar. */
+// Top-row toolbar: "Table" label and copy button. Mirrors the code block toolbar.
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TableToolbar(table: MarkdownSegment.Table) {
@@ -604,11 +600,9 @@ private fun TableToolbar(table: MarkdownSegment.Table) {
   }
 }
 
-/**
- * Serializes a [MarkdownSegment.Table] back to a GFM-flavored Markdown string.
- * Pipes inside cell content are re-escaped to `\|` so the output round-trips
- * through [parseTableRow]. Alignment markers are dropped.
- */
+// Serializes a [MarkdownSegment.Table] back to a GFM-flavored Markdown string.
+// Pipes inside cell content are re-escaped to `\|` so the output round-trips
+// through [parseTableRow]. Alignment markers are dropped.
 private fun tableToMarkdownString(table: MarkdownSegment.Table): String {
   val escapeCell: (String) -> String = { it.replace("|", "\\|") }
   val joinRow: (List<String>) -> String =
@@ -631,16 +625,14 @@ private fun tableToMarkdownString(table: MarkdownSegment.Table): String {
   }
 }
 
-/**
- * Picks the final column widths for a table. Clamps every column into
- * `[minCellWidthPx, maxCellWidthPx]`, then if the clamped total is wider
- * than the container, returns the clamped widths and lets `horizontalScroll`
- * take over. Otherwise, scales every column up by the same factor so the
- * new total exactly matches the container width; no column may exceed
- * [maxCellWidthPx] after scaling. The leftover residue is given first to
- * the last column (until it saturates), then spread backward to the
- * other non-saturated columns.
- */
+// Picks the final column widths for a table. Clamps every column into
+// `[minCellWidthPx, maxCellWidthPx]`, then if the clamped total is wider
+// than the container, returns the clamped widths and lets `horizontalScroll`
+// take over. Otherwise, scales every column up by the same factor so the
+// new total exactly matches the container width; no column may exceed
+// [maxCellWidthPx] after scaling. The leftover residue is given first to
+// the last column (until it saturates), then spread backward to the
+// other non-saturated columns.
 internal fun distributeTableWidth(
   naturalColumnWidthsPx: IntArray, containerWidthPx: Int,
   minCellWidthPx: Int, maxCellWidthPx: Int, horizontalPaddingPx: Int
@@ -771,12 +763,10 @@ fun TableParseFailurePlaceholder(modifier: Modifier = Modifier) {
   }
 }
 
-/**
- * Converts a CommonMark [TableBlock] (from the GFM tables extension) into
- * a [MarkdownSegment.Table] that [ScrollableTable] can render. Walks the
- * AST: [TableBlock] -> [TableHead]/[TableBody] -> [TableRow] -> [TableCell],
- * serializing each cell's inline children to plain text.
- */
+// Converts a CommonMark [TableBlock] (from the GFM tables extension) into
+// a [MarkdownSegment.Table] that [ScrollableTable] can render. Walks the
+// AST: [TableBlock] -> [TableHead]/[TableBody] -> [TableRow] -> [TableCell],
+// serializing each cell's inline children to plain text.
 internal fun TableBlock.toMarkdownSegmentTable(): MarkdownSegment.Table {
   fun Node.childNodes(): List<Node> = buildList {
     val nodeChildren = NodeChildren.of(parent = this@childNodes)

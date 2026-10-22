@@ -88,9 +88,11 @@ object ProviderConfigFile {
     }
   }
 
-  /** Remove every provider dotted key and the `mcpServers` array from
+  /**
+   * Remove every provider dotted key and the `mcpServers` array from
    *  settings.json, keeping all other keys (server/llm/commandFilter/
-   *  $schema/plugins) intact. */
+   *  $schema/plugins) intact.
+   */
   fun clearAll() {
     editConfigFile { root ->
       providerDottedKeys.forEach { root.remove(it) }
@@ -110,16 +112,14 @@ object ProviderConfigFile {
     }
   }
 
-  /**
-   * Loads the current settings file as raw [JsonElement]s, applies
-   * [transform] to the mutable key to element map, and stores the result
-   * back. Values keep their original JSON types byte-exact: no
-   * round trip through untyped Kotlin objects: so string arrays and
-   * string-valued objects such as `mcpServers` can never drift to
-   * numbers. Keys the [transform] does not touch are written back as
-   * the original elements. Failures are swallowed by design: see KDoc
-   * on the public callers.
-   */
+  // Loads the current settings file as raw [JsonElement]s, applies
+  // [transform] to the mutable key to element map, and stores the result
+  // back. Values keep their original JSON types byte-exact: no
+  // round trip through untyped Kotlin objects: so string arrays and
+  // string-valued objects such as `mcpServers` can never drift to
+  // numbers. Keys the [transform] does not touch are written back as
+  // the original elements. Failures are swallowed by design: see KDoc
+  // on the public callers.
   private fun editConfigFile(transform: (MutableMap<String, JsonElement>) -> Unit) {
     editRootJson { root ->
       val mutable: MutableMap<String, JsonElement> = LinkedHashMap<String, JsonElement>().apply {
@@ -130,10 +130,8 @@ object ProviderConfigFile {
     }
   }
 
-  /**
-   * Create-dirs to read to [transform] to write dance shared by every
-   * mutator. Failures are swallowed, same contract as [editConfigFile].
-   */
+  // Create-dirs to read to [transform] to write dance shared by every
+  // mutator. Failures are swallowed, same contract as [editConfigFile].
   private fun editRootJson(transform: (JsonObject) -> JsonObject) {
     try {
       configDir.mkdirs()
@@ -196,12 +194,10 @@ object ProviderConfigFile {
     }
   }
 
-  /**
-   * Leniently reads one `command` field: the canonical array of strings,
-   * or a single string (hand-edited, tokenized best-effort; unparseable
-   * input degrades to a single token so the user can still see and fix
-   * it). Anything else becomes an empty list.
-   */
+  // Leniently reads one `command` field: the canonical array of strings,
+  // or a single string (hand-edited, tokenized best-effort; unparseable
+  // input degrades to a single token so the user can still see and fix
+  // it). Anything else becomes an empty list.
   private fun readMcpCommand(raw: JsonElement?): List<String> = when (raw) {
     is JsonArray -> raw.filterIsInstance<JsonPrimitive>().filterNot { it == JsonNull }.map { it.content }
     is JsonPrimitive ->
@@ -254,14 +250,12 @@ object ProviderConfigFile {
     }
   }
 
-  /**
-   * Parses a single-line command into its argv tokens: tokens are split
-   * on whitespace, and a double quote starts a quoted span that may
-   * contain whitespace (`"a b" c` -> `["a b", "c"]`); `\"` inside a
-   * quoted span is a literal quote. Returns an empty list when a quote
-   * is left unterminated, so callers can flag the input as invalid
-   * instead of silently guessing.
-   */
+  // Parses a single-line command into its argv tokens: tokens are split
+  // on whitespace, and a double quote starts a quoted span that may
+  // contain whitespace (`"a b" c` -> `["a b", "c"]`); `\"` inside a
+  // quoted span is a literal quote. Returns an empty list when a quote
+  // is left unterminated, so callers can flag the input as invalid
+  // instead of silently guessing.
   internal fun parseCommandText(raw: String): List<String> {
     val tokens = mutableListOf<String>()
     val current = StringBuilder()
@@ -305,11 +299,9 @@ object ProviderConfigFile {
     return tokens
   }
 
-  /**
-   * Renders argv tokens back into single-line command text, quoting any
-   * token that contains whitespace, quotes, or is empty, mirroring the
-   * grammar accepted by [parseCommandText].
-   */
+  // Renders argv tokens back into single-line command text, quoting any
+  // token that contains whitespace, quotes, or is empty, mirroring the
+  // grammar accepted by [parseCommandText].
   internal fun formatCommandText(command: List<String>): String =
     command.joinToString(separator = " ") { token ->
       if (token.isEmpty() || token.any { it.isWhitespace() || it == '"' })

@@ -33,14 +33,10 @@ import org.jetbrains.jewel.ui.component.styling.LocalMenuStyle
 import org.jetbrains.jewel.ui.typography
 import kotlin.time.Duration.Companion.milliseconds
 
-/**
- * Pill shape constant.
- */
+// Pill shape constant.
 private val PillShape = RoundedCornerShape(percent = 50)
 
-/**
- * Animation timing (in milliseconds unless noted).
- */
+// Animation timing (in milliseconds unless noted).
 private const val EXIT_DURATION_MS = 80
 private const val ENTER_FADE_DURATION_MS = 80
 private const val TEXT_REVEAL_DELAY_MS = 80L
@@ -53,26 +49,26 @@ private const val WIDTH_ANIMATION_DURATION_MS = 180
  * Floating "Jump to latest" / "Jump to top" pill.
  *
  * Two-mode button toggled by the Option (Alt) key:
- *  - **Default**: down arrow + "Jump to latest"; click -> [onClick]
- *  - **Alternative**: up arrow + "Jump to top"; click -> [onJumpToTop]
+ *  - Default: down arrow + "Jump to latest"; click -> [onClick]
+ *  - Alternative: up arrow + "Jump to top"; click -> [onJumpToTop]
  *
  * Mode is a sticky [mutableStateOf] flipped via [LocalWindowInfo] modifier stream on rising edge.
  *
- * ## Visibility
+ * Visibility
  *  - Default mode: visible when [isAtBottom] is `false` (user scrolled up).
  *  - Alternative mode: visible when [isAtTop] is `false` (user scrolled down).
  *
- * ## Animation
- *  - Enter: fade-in 80ms + slide-up with bounce (MediumBouncy / StiffnessMediumLow).
+ * Animation
+ *  - Enter: fade-in 80ms and slide-up with bounce (MediumBouncy / StiffnessMediumLow).
  *    Icon first, text fades in after [TEXT_REVEAL_DELAY_MS] (build-up effect).
- *  - Exit: fade-out + slide-down, 80ms linear.
+ *  - Exit: fade-out and slide-down, 80ms linear.
  *  - Mode swap: label crossfades (140ms in / 80ms out), width animates via [animateContentSize].
  *
- * ## Visual stack
+ * Visual stack
  *  1. Solid `panelBackground` fill (former frosted-blur was a self-blur, not a true backdrop blur,
  *     reverted because it only softened the fill silhouette without actually blurring chat content).
  *  2. 1 dp `borders.normal` outline at 40% alpha.
- *  3. Sharp foreground Row (icon + label, not blurred).
+ *  3. Sharp foreground Row (icon and label, not blurred).
  */
 @Composable
 fun JumpToBottomButton(
@@ -98,12 +94,10 @@ fun JumpToBottomButton(
   )
 }
 
-/**
- * Subscribes to the global [LocalWindowInfo] modifier stream and
- * fires [onToggle] on every Option-key rising edge. The effect is
- * keyed by [isVisible] so a stale "Option held" doesn't silently
- * toggle the pill while it's hidden.
- */
+// Subscribes to the global [LocalWindowInfo] modifier stream and
+// fires [onToggle] on every Option-key rising edge. The effect is
+// keyed by [isVisible] so a stale "Option held" doesn't silently
+// toggle the pill while it's hidden.
 @Composable
 private fun AltKeyModeEffect(isVisible: Boolean, onToggle: () -> Unit) {
   val windowInfo: WindowInfo = LocalWindowInfo.current
@@ -119,12 +113,10 @@ private fun AltKeyModeEffect(isVisible: Boolean, onToggle: () -> Unit) {
   }
 }
 
-/**
- * Icon-first text reveal: holds the label at alpha 0 for
- * [TEXT_REVEAL_DELAY_MS] when the pill becomes visible, then
- * animates to 1 over [TEXT_REVEAL_DURATION_MS]: the icon lands
- * and rises alone, then the text joins in.
- */
+// Icon-first text reveal: holds the label at alpha 0 for
+// [TEXT_REVEAL_DELAY_MS] when the pill becomes visible, then
+// animates to 1 over [TEXT_REVEAL_DURATION_MS]: the icon lands
+// and rises alone, then the text joins in.
 @Composable
 private fun rememberTextRevealAlpha(isVisible: Boolean): Float {
   var textVisible: Boolean by remember { mutableStateOf(value = false) }
@@ -146,11 +138,9 @@ private fun rememberTextRevealAlpha(isVisible: Boolean): Float {
   ).value
 }
 
-/**
- * The actual pill: translucent background, sharp foreground
- * icon + crossfading label. Width animates between modes via
- * [Modifier.animateContentSize].
- */
+// The actual pill: translucent background, sharp foreground
+// icon and crossfading label. Width animates between modes via
+// [Modifier.animateContentSize].
 @Composable
 private fun JumpToBottomPill(
   textAlpha: Float,
@@ -189,14 +179,12 @@ private fun JumpToBottomPill(
   }
 }
 
-/**
- * Solid `panelBackground` fill with a 1 dp `borders.normal`
- * outline. The solid fill makes the pill stand out from busy
- * chat content; the outline provides a clean pill-shaped edge
- * without competing with the message bubbles. [modifier] should
- * carry the size (typically `Modifier.matchParentSize()` from
- * the outer [Box]).
- */
+// Solid `panelBackground` fill with a 1 dp `borders.normal`
+// outline. The solid fill makes the pill stand out from busy
+// chat content; the outline provides a clean pill-shaped edge
+// without competing with the message bubbles. [modifier] should
+// carry the size (typically `Modifier.matchParentSize()` from
+// the outer [Box]).
 @Composable
 private fun PillBackground(modifier: Modifier = Modifier) {
   val menuColors = LocalMenuStyle.current.colors
@@ -213,11 +201,9 @@ private fun PillBackground(modifier: Modifier = Modifier) {
   )
 }
 
-/**
- * Icon + label, **not blurred**, so the icon and text stay
- * sharp. The width animates between "Jump to latest" and
- * "Jump to top" via [Modifier.animateContentSize].
- */
+// Icon and label, not blurred, so the icon and text stay
+// sharp. The width animates between "Jump to latest" and
+// "Jump to top" via [Modifier.animateContentSize].
 @Composable
 private fun PillForeground(
   textAlpha: Float,

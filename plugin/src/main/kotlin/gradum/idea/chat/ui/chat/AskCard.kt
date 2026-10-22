@@ -68,7 +68,7 @@ private const val askBeamFrontDecay: Float = 0.30f
 
 /**
  * Renders the agent-initiated question card. Shows title/details, then the
- * interaction body (discrete choice buttons, or a free-text field + send
+ * interaction body (discrete choice buttons, or a free-text field and send
  * button). A response POSTs the answer back to the server, locks the card
  * against double submission, and invokes [onResponded] so the parent can drop
  * the card from the layout entirely. Fades in quickly when first shown; while
@@ -285,11 +285,9 @@ fun AskCard(
   }
 }
 
-/**
- * Maps a choice to its localized button label. A server-supplied `labelKey`
- * wins (lets the server pin write/read-specific copy); otherwise the choice
- * falls back to the semantic-code mapping shared by all ask cards.
- */
+// Maps a choice to its localized button label. A server-supplied `labelKey`
+// wins (lets the server pin write/read-specific copy); otherwise the choice
+// falls back to the semantic-code mapping shared by all ask cards.
 private fun askChoiceLabel(option: AskChoice): String {
   val labelKey: String? = option.labelKey
   if (!labelKey.isNullOrBlank()) return message(labelKey)
@@ -301,16 +299,14 @@ private fun askChoiceLabel(option: AskChoice): String {
   }
 }
 
-/**
- * Draws the animated blue beam that travels around the card's rounded
- * border. A sweep gradient - a compact arc of light anchored at the
- * card center - is painted onto the border path while the canvas is
- * rotated by the current phase; the path itself is counter-rotated
- * point by point so the rounded rectangle stays axis-aligned while the
- * gradient's bright arc circles the frame. The gradient's color wheel
- * carries a fading tail behind the head, producing a comet that loops
- * the border while the card awaits a response.
- */
+// Draws the animated blue beam that travels around the card's rounded
+// border. A sweep gradient - a compact arc of light anchored at the
+// card center - is painted onto the border path while the canvas is
+// rotated by the current phase; the path itself is counter-rotated
+// point by point so the rounded rectangle stays axis-aligned while the
+// gradient's bright arc circles the frame. The gradient's color wheel
+// carries a fading tail behind the head, producing a comet that loops
+// the border while the card awaits a response.
 private fun DrawScope.drawAskBorderBeam(
   phase: Float, cornerRadiusPx: Float, beamColor: Color
 ) {

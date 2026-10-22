@@ -28,33 +28,27 @@ private val logger: Logger = LoggerFactory.getLogger("LLMClient")
 
 private val jsonParser: Json = Json { ignoreUnknownKeys = true }
 
-/** Shared across clients to reuse connections instead of building a client per turn. */
+// Shared across clients to reuse connections instead of building a client per turn.
 private val sharedHttpClient: HttpClient = HttpClient {
   install(HttpTimeout) {
     requestTimeoutMillis = GradumConfig.LLM_REQUEST_TIMEOUT_MS
   }
 }
 
-/**
- * Cache for LM Studio /v1/responses availability per baseUrl.
- * Populated by Agent on startup; read by OpenAICompatibleClient to decide
- * wire format at request time. Conservative default: assume unavailable.
- */
+// Cache for LM Studio /v1/responses availability per baseUrl.
+// Populated by Agent on startup; read by OpenAICompatibleClient to decide
+// wire format at request time. Conservative default: assume unavailable.
 private val lmStudioResponsesCache: MutableMap<String, Boolean> = mutableMapOf()
 
-/**
- * Records the LM Studio responses probe result for a given baseUrl.
- * Called by Agent during initialization.
- */
+// Records the LM Studio responses probe result for a given baseUrl.
+// Called by Agent during initialization.
 internal fun recordLmStudioResponsesAvailability(baseUrl: String, available: Boolean) {
   val cacheKey = baseUrl.trimEnd('/').removeSuffix(suffix = "/v1")
   lmStudioResponsesCache[cacheKey] = available
 }
 
-/**
- * Checks if LM Studio /v1/responses is available for a given baseUrl.
- * Returns false if unknown (conservative default).
- */
+// Checks if LM Studio /v1/responses is available for a given baseUrl.
+// Returns false if unknown (conservative default).
 private fun isLmStudioResponsesAvailable(baseUrl: String): Boolean {
   val cacheKey = baseUrl.trimEnd('/').removeSuffix(suffix = "/v1")
   return lmStudioResponsesCache[cacheKey] ?: false
@@ -69,15 +63,13 @@ private fun JsonObject.optInt(key: String): Int =
 private fun JsonObject.optObject(key: String): JsonObject =
   this[key]?.jsonObject ?: JsonObject(emptyMap())
 
-/**
- * Reasoning field names tried in order when a delta does not carry the
- * profile-declared key. LM Studio's OpenAI-compatible surface exposes
- * reasoning under a family-dependent key (`reasoning_content` for
- * DeepSeek-R1, `reasoning` for gpt-oss), so the declared field is only a
- * hint: the first non-empty of declared -> `reasoning_content` ->
- * `reasoning` wins. For profiles that declare `reasoning_content` the
- * behavior is unchanged (the declared field is read first).
- */
+// Reasoning field names tried in order when a delta does not carry the
+// profile-declared key. LM Studio's OpenAI-compatible surface exposes
+// reasoning under a family-dependent key (`reasoning_content` for
+// DeepSeek-R1, `reasoning` for gpt-oss), so the declared field is only a
+// hint: the first non-empty of declared -> `reasoning_content` ->
+// `reasoning` wins. For profiles that declare `reasoning_content` the
+// behavior is unchanged (the declared field is read first).
 private val REASONING_FIELD_FALLBACKS: List<String> = listOf("reasoning_content", "reasoning")
 
 private fun readReasoningDelta(deltaFields: JsonObject, declaredField: String?): String {
@@ -90,11 +82,9 @@ private fun readReasoningDelta(deltaFields: JsonObject, declaredField: String?):
   return ""
 }
 
-/**
- * Resolve the wire thinking level for a request: the legacy master switch
- * still gates thinking off entirely, [AgentConfiguration.thinkingLevel]
- * only matters while [AgentConfiguration.enableThinking] is true.
- */
+// Resolve the wire thinking level for a request: the legacy master switch
+// still gates thinking off entirely, [AgentConfiguration.thinkingLevel]
+// only matters while [AgentConfiguration.enableThinking] is true.
 private fun effectiveThinkingLevel(configuration: AgentConfiguration): ThinkingLevel =
   if (configuration.enableThinking) configuration.thinkingLevel else ThinkingLevel.OFF
 
@@ -145,20 +135,18 @@ interface LlmClient : TokenUsageProvider {
   ): Flow<LLMResponseChunk>
 }
 
-/**
- * Project a single `Map<String, Any>` message into the wire shape the
- * target LLM backend expects.
- *
- * The conversation history uses an OpenAI-style content-array shape for
- * user messages carrying image attachments. The two backends disagree on
- * the wire format: Ollama collapses text parts into a single `content`
- * string and lifts images into a top-level `images` array; OpenAI keeps
- * the array but re-shapes each image part into `image_url`. Text-only
- * messages pass through untouched.
- *
- * The target is expressed via the canonical [gradum.Provider] enum, not a
- * parallel multimodal vocabulary.
- */
+// Project a single `Map<String, Any>` message into the wire shape the
+// target LLM backend expects.
+//
+// The conversation history uses an OpenAI-style content-array shape for
+// user messages carrying image attachments. The two backends disagree on
+// the wire format: Ollama collapses text parts into a single `content`
+// string and lifts images into a top-level `images` array; OpenAI keeps
+// the array but re-shapes each image part into `image_url`. Text-only
+// messages pass through untouched.
+//
+// The target is expressed via the canonical [gradum.Provider] enum, not a
+// parallel multimodal vocabulary.
 private fun projectMessageForBackend(
   message: Map<String, Any>, target: Provider
 ): Map<String, Any> {
@@ -176,19 +164,17 @@ private fun projectMessageForBackend(
   }
 }
 
-/**
- * Projects the internal chat history (chat/completions shape) into the
- * OpenAI Responses API `input` array.
- *
- * Mapping rules:
- * - system/user/assistant messages -> {type: "message", role, content}
- * - assistant.tool_calls -> {type: "function_call", call_id, name, arguments}
- * - tool messages -> {type: "function_call_output", call_id, output}
- *
- * Content arrays (multimodal) are preserved as-is for the Responses API.
- * Bookkeeping fields (modelName, thinking, tokenUsage, attachments, alias)
- * are stripped by [sanitizeMessageForWire] before projection.
- */
+// Projects the internal chat history (chat/completions shape) into the
+// OpenAI Responses API `input` array.
+//
+// Mapping rules:
+// - system/user/assistant messages -> {type: "message", role, content}
+// - assistant.tool_calls -> {type: "function_call", call_id, name, arguments}
+// - tool messages -> {type: "function_call_output", call_id, output}
+//
+// Content arrays (multimodal) are preserved as-is for the Responses API.
+// Bookkeeping fields (modelName, thinking, tokenUsage, attachments, alias)
+// are stripped by [sanitizeMessageForWire] before projection.
 private fun projectHistoryToResponsesInput(
   messageHistory: List<Map<String, Any>>
 ): List<Map<String, Any>> {
@@ -332,13 +318,11 @@ private fun projectHistoryForBackend(
   sanitizeMessageForWire(projectMessageForBackend(message, target))
 }
 
-/**
- * Wire-format keys each message role may carry. The in-memory history maps
- * hold extra bookkeeping fields (`modelName`, `thinking`, `tokenUsage`,
- * `attachments`, `alias`) used by persistence and the session transcript;
- * they are stripped here so the request payload stays inside the
- * providers' documented message schema.
- */
+// Wire-format keys each message role may carry. The in-memory history maps
+// hold extra bookkeeping fields (`modelName`, `thinking`, `tokenUsage`,
+// `attachments`, `alias`) used by persistence and the session transcript;
+// they are stripped here so the request payload stays inside the
+// providers' documented message schema.
 private val WIRE_MESSAGE_KEYS: Map<String, Set<String>> = mapOf(
   "system" to setOf("role", "content"),
   "user" to setOf("role", "content", "images"),
@@ -552,9 +536,7 @@ class OpenAICompatibleClient(
     }
   }
 
-  /**
-   * Legacy `/v1/chat/completions` path (OpenAI, DeepSeek, MiniMax, LM Studio A-route).
-   */
+  // Legacy `/v1/chat/completions` path (OpenAI, DeepSeek, MiniMax, LM Studio A-route).
   private fun sendChatCompletions(
     messageHistory: List<Map<String, Any>>,
     toolDefinitions: List<Map<String, Any>>?,
@@ -653,10 +635,8 @@ class OpenAICompatibleClient(
     }
   }
 
-  /**
-   * OpenAI Responses API `/v1/responses` path (LM Studio B-route).
-   * Stateless: each turn sends full `input`, `store=false`, no `previous_response_id`.
-   */
+  // OpenAI Responses API `/v1/responses` path (LM Studio B-route).
+  // Stateless: each turn sends full `input`, `store=false`, no `previous_response_id`.
   private fun sendResponses(
     messageHistory: List<Map<String, Any>>,
     toolDefinitions: List<Map<String, Any>>?,
@@ -806,17 +786,15 @@ class OpenAICompatibleClient(
       if (contentDelta.isNotEmpty())
         emit(value = LLMResponseChunk.TextContent(contentDelta))
 
-      /**
-       * Native reasoning surface. Providers disagree on the delta key:
-       * DeepSeek / MiniMax use `reasoning_content`, while LM Studio
-       * families split between `reasoning_content` (DeepSeek-R1) and
-       * `reasoning` (gpt-oss). Read the profile-declared field first and
-       * fall back across the known names, so a single provider request
-       * still surfaces reasoning even when the backend switches dialects.
-       * Surfaced as ReasoningContent so the UI renders it as a
-       * collapsible "thought" block, matching the Ollama backend's
-       * existing `message.thinking` path.
-       */
+      // Native reasoning surface. Providers disagree on the delta key:
+      // DeepSeek / MiniMax use `reasoning_content`, while LM Studio
+      // families split between `reasoning_content` (DeepSeek-R1) and
+      // `reasoning` (gpt-oss). Read the profile-declared field first and
+      // fall back across the known names, so a single provider request
+      // still surfaces reasoning even when the backend switches dialects.
+      // Surfaced as ReasoningContent so the UI renders it as a
+      // collapsible "thought" block, matching the Ollama backend's
+      // existing `message.thinking` path.
       val reasoningDelta: String = readReasoningDelta(deltaFields, wireProfile.reasoningDeltaField)
       if (reasoningDelta.isNotEmpty())
         emit(value = LLMResponseChunk.ReasoningContent(text = reasoningDelta))
@@ -840,23 +818,21 @@ class OpenAICompatibleClient(
     }
   }
 
-  /**
-   * Parses SSE events from the OpenAI Responses API `/v1/responses` endpoint.
-   *
-   * Event types handled (per OpenAI Responses API spec):
-   * - response.created: initial event, can be ignored
-   * - response.output_text.delta: text content delta
-   * - response.output_text.done: final text (we use deltas only)
-   * - response.reasoning.delta: reasoning content delta
-   * - response.reasoning.done: final reasoning (we use deltas only)
-   * - response.function_call_arguments.delta: function call arguments delta
-   * - response.function_call_arguments.done: final arguments (we accumulate deltas)
-   * - response.completed: final event, can be ignored
-   * - response.failed: error event
-   *
-   * Tool calls are assembled from function_call_arguments.delta events,
-   * keyed by call_id which appears in the first delta event.
-   */
+  // Parses SSE events from the OpenAI Responses API `/v1/responses` endpoint.
+  //
+  // Event types handled (per OpenAI Responses API spec):
+  // - response.created: initial event, can be ignored
+  // - response.output_text.delta: text content delta
+  // - response.output_text.done: final text (we use deltas only)
+  // - response.reasoning.delta: reasoning content delta
+  // - response.reasoning.done: final reasoning (we use deltas only)
+  // - response.function_call_arguments.delta: function call arguments delta
+  // - response.function_call_arguments.done: final arguments (we accumulate deltas)
+  // - response.completed: final event, can be ignored
+  // - response.failed: error event
+  //
+  // Tool calls are assembled from function_call_arguments.delta events,
+  // keyed by call_id which appears in the first delta event.
   private fun parseResponsesServerSentEvents(
     httpResponse: HttpResponse
   ): Flow<LLMResponseChunk> = flow {
@@ -1032,18 +1008,16 @@ class OpenAICompatibleClient(
 private fun isTransientError(exception: Exception): Boolean = exception is IOException
   || exception is TimeoutCancellationException
 
-/** A non-2xx answer from the upstream LLM API, with its HTTP status intact. */
+// A non-2xx answer from the upstream LLM API, with its HTTP status intact.
 private data class LlmApiError(val statusCode: Int, val message: String)
 
-/**
- * Pulls the human-readable message out of a non-2xx API response.
- *
- * OpenAI-compatible providers answer errors as
- * `{"error": {"message": "..."}}` (or occasionally `{"error": "..."}`),
- * Zhipu / DeepSeek / MiniMax all follow that shape. Falls back to the
- * raw HTTP status line so the user always sees *something* concrete
- * instead of the generic stream-interrupt message.
- */
+// Pulls the human-readable message out of a non-2xx API response.
+//
+// OpenAI-compatible providers answer errors as
+// `{"error": {"message": "..."}}` (or occasionally `{"error": "..."}`),
+// Zhipu / DeepSeek / MiniMax all follow that shape. Falls back to the
+// raw HTTP status line so the user always sees *something* concrete
+// instead of the generic stream-interrupt message.
 private suspend fun extractApiError(httpResponse: HttpResponse): LlmApiError {
   val statusCode: Int = httpResponse.status.value
   val statusLine = "HTTP $statusCode ${httpResponse.status.description}"
@@ -1074,11 +1048,9 @@ private suspend fun extractApiError(httpResponse: HttpResponse): LlmApiError {
   )
 }
 
-/**
- * Common error formatter shared by every [LlmClient] implementation.
- * The only per-provider differences are the server label and the
- * "is it running?" hint.
- */
+// Common error formatter shared by every [LlmClient] implementation.
+// The only per-provider differences are the server label and the
+// "is it running?" hint.
 private fun formatLlmError(
   baseUrl: String,
   serverName: String,
@@ -1096,15 +1068,13 @@ private fun formatLlmError(
     else -> "Unexpected error - ${exception.message}"
   }
 
-/**
- * Common token-usage accumulator shared by every [LlmClient] implementation.
- *
- * Each provider reports usage under different field names (Ollama:
- * `prompt_eval_count`/`eval_count`; OpenAI: `prompt_tokens`/`completion_tokens`).
- * The `last*` fields keep the raw values of the latest request only, so callers
- * can read the current context window size instead of the cumulative sum.
- * Returns [currentUsage] unchanged when neither field is positive.
- */
+// Common token-usage accumulator shared by every [LlmClient] implementation.
+//
+// Each provider reports usage under different field names (Ollama:
+// `prompt_eval_count`/`eval_count`; OpenAI: `prompt_tokens`/`completion_tokens`).
+// The `last*` fields keep the raw values of the latest request only, so callers
+// can read the current context window size instead of the cumulative sum.
+// Returns [currentUsage] unchanged when neither field is positive.
 private fun recordTokenUsage(
   usageStats: JsonObject, promptField: String, completionField: String, currentUsage: TokenUsageSnapshot
 ): TokenUsageSnapshot {

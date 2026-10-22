@@ -36,28 +36,26 @@ object ProviderConfigStore {
   private val LEGACY_KEY_PATTERN: Regex =
     Regex("GRADUM_(.+)_(BASE_URL|API_KEY|ALLOW_REMOTE)")
 
-  /** Directory holding the shared config file, overridable via the
-   *  `gradum.provider.configDir` system property (useful for tests).
-   *  Re-evaluated on every call so the property can change at runtime. */
+  // Directory holding the shared config file, overridable via the
+  //  `gradum.provider.configDir` system property (useful for tests).
+  //  Re-evaluated on every call so the property can change at runtime.
   private val configDir: File
     get() = System.getProperty("gradum.provider.configDir")?.let { File(it) }
       ?: File(System.getProperty("user.home"), ".gradum")
 
-  /** The shared provider config file, e.g. `~/.gradum/settings.json`. */
+  // The shared provider config file, e.g. `~/.gradum/settings.json`.
   private val configFile: File
     get() = File(configDir, "settings.json")
 
-  /**
-   * One-time migration from the legacy `provider.env` into settings.json.
-   *
-   * Runs only when settings.json contains no known provider dotted key
-   * AND a legacy `provider.env` still exists: every
-   * `GRADUM_<X>_BASE_URL` / `_API_KEY` / `_ALLOW_REMOTE` property is
-   * mapped to `<lowercase(x)>.baseUrl` / `.apiKey` / `.allowRemote` and
-   * merged into settings.json (read-modify-write, preserving
-   * `server`/`llm`/`commandFilter`/`$schema` and all other keys). The
-   * legacy file is deleted only after a successful write.
-   */
+  // One-time migration from the legacy `provider.env` into settings.json.
+  //
+  // Runs only when settings.json contains no known provider dotted key
+  // AND a legacy `provider.env` still exists: every
+  // `GRADUM_<X>_BASE_URL` / `_API_KEY` / `_ALLOW_REMOTE` property is
+  // mapped to `<lowercase(x)>.baseUrl` / `.apiKey` / `.allowRemote` and
+  // merged into settings.json (read-modify-write, preserving
+  // `server`/`llm`/`commandFilter`/`$schema` and all other keys). The
+  // legacy file is deleted only after a successful write.
   private fun migrateLegacyProviderEnv() {
     val legacyEnv = File(configDir, "provider.env")
     if (!legacyEnv.isFile) return
@@ -144,23 +142,31 @@ object ProviderConfigStore {
     return props
   }
 
-  /** Dotted settings.json key holding the base URL override for a
-   *  provider, or null if the provider has no configKey. */
+  /**
+   * Dotted settings.json key holding the base URL override for a
+   *  provider, or null if the provider has no configKey.
+   */
   fun baseUrlKey(configKey: String?): String? =
     configKey?.let { "$it.baseUrl" }
 
-  /** Dotted settings.json key holding the API key override for a
-   *  provider, or null if the provider has no configKey. */
+  /**
+   * Dotted settings.json key holding the API key override for a
+   *  provider, or null if the provider has no configKey.
+   */
   fun apiKeyKey(configKey: String?): String? =
     configKey?.let { "$it.apiKey" }
 
-  /** Dotted settings.json key holding the "allow remote" flag for a
-   *  provider, or null if the provider has no configKey. */
+  /**
+   * Dotted settings.json key holding the "allow remote" flag for a
+   *  provider, or null if the provider has no configKey.
+   */
   fun allowRemoteKey(configKey: String?): String? =
     configKey?.let { "$it.allowRemote" }
 
-  /** Reads the provider's "allow remote" flag. Absent/unparseable -> `false`,
-   *  i.e. only localhost connections are permitted by default. */
+  /**
+   * Reads the provider's "allow remote" flag. Absent/unparseable -> `false`,
+   *  i.e. only localhost connections are permitted by default.
+   */
   fun isAllowRemote(configKey: String?): Boolean {
     migrateLegacyProviderEnv()
     val key: String = allowRemoteKey(configKey) ?: return false

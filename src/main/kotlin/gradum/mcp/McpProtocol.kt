@@ -14,21 +14,19 @@ data class McpTool(
   val inputSchema: JsonObject
 )
 
-/**
- * High-level client for the Model Context Protocol over a stdio transport.
- * Owns the initialize handshake and the three calls that matter to an agent
- * tool integration: [initialize], [listTools], and [callTool].
- *
- * start() spawns the underlying stdio child process. Safe to call once.
- * initialize(protocolVersion) performs the MCP initialize handshake: sends
- * `initialize`, waits for the `InitializeResult`, then emits the
- * `notifications/initialized` notification so the server will start serving
- * tool requests. listTools() lists the tools the server advertises via
- * `tools/list`, and callTool(name, arguments) invokes a tool and returns the
- * raw `tools/call` result element. The companion's TOOLS_CALL_TIMEOUT_MILLIS
- * is a longer budget for a `tools/call`: an MCP command may take a while to
- * finish.
- */
+// High-level client for the Model Context Protocol over a stdio transport.
+// Owns the initialize handshake and the three calls that matter to an agent
+// tool integration: [initialize], [listTools], and [callTool].
+//
+// start() spawns the underlying stdio child process. Safe to call once.
+// initialize(protocolVersion) performs the MCP initialize handshake: sends
+// `initialize`, waits for the `InitializeResult`, then emits the
+// `notifications/initialized` notification so the server will start serving
+// tool requests. listTools() lists the tools the server advertises via
+// `tools/list`, and callTool(name, arguments) invokes a tool and returns the
+// raw `tools/call` result element. The companion's TOOLS_CALL_TIMEOUT_MILLIS
+// is a longer budget for a `tools/call`: an MCP command may take a while to
+// finish.
 internal class McpClient(private val transport: StdioMcpClient) : AutoCloseable {
 
   fun start() = transport.start()

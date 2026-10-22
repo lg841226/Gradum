@@ -8,7 +8,7 @@ import java.io.File
 import java.nio.file.Files
 
 /**
- * Persistence tests for [ProviderSettings.State] (defaults + per-kind
+ * Persistence tests for [ProviderSettings.State] (defaults and per-kind
  * accessors) and [ProviderConfigFile] (the shared `~/.gradum/settings.json`
  * the embedded server reads). Provider overrides live at the top level of
  * the JSON object as VS Code style dotted keys (`ollama.baseUrl`,

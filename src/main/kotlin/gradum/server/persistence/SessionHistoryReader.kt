@@ -7,36 +7,36 @@ import kotlinx.serialization.json.JsonElement
 // Raw-history tool name of the delegate skill
 private const val DELEGATE_TOOL_NAME: String = "delegate_task"
 
-// A user row, as both the transcript and the bubble view read it
+/** A user row, as both the transcript and the bubble view read it */
 data class UserRow(
   val id: String,
   val text: String,
   val attachmentNames: List<String>
 )
 
-// One tool call of an assistant row, with its result row already paired
+/** One tool call of an assistant row, with its result row already paired */
 data class ProjectedToolCall(
   val name: String,
-  // Alias recorded on the result row; blank when history carries none
+  /** Alias recorded on the result row; blank when history carries none */
   val alias: String,
   val callId: String,
-  // Raw arguments: JSON string (OpenAI shape) or map (Ollama shape)
+  /** Raw arguments: JSON string (OpenAI shape) or map (Ollama shape) */
   val arguments: Any?,
   val result: String
 )
 
-// One assistant row's content
+/** One assistant row's content */
 data class AssistantRow(
   val id: String,
   val modelName: String,
   val thinking: String,
   val response: String,
   val toolCalls: List<ProjectedToolCall>,
-  // Token usage of this row, or null when none with positive total
+  /** Token usage of this row, or null when none with positive total */
   val tokenUsage: Map<String, Any>?
 )
 
-// A read assistant row plus the row to resume at, past trailing `tool` rows consumed
+/** A read assistant row plus the row to resume at, past trailing `tool` rows consumed */
 data class AssistantSpan(
   val row: AssistantRow,
   val nextIndex: Int
@@ -74,7 +74,7 @@ object SessionHistoryReader {
       stringKeyedOrNull(JsonUtil.fromJsonElement(element))
     }
 
-  // Reads a user row: its id, display text and attachment names
+  /** Reads a user row: its id, display text and attachment names */
   fun readUser(message: Map<String, Any?>): UserRow {
     return UserRow(
       id = message["id"] as? String ?: "",
@@ -143,8 +143,10 @@ object SessionHistoryReader {
     return bubbles
   }
 
-  // Arguments of one tool call as JSON object string: OpenAI history carries
-  // JSON verbatim, Ollama-shaped carries a map
+  /**
+   * Arguments of one tool call as JSON object string: OpenAI history carries
+   * JSON verbatim, Ollama-shaped carries a map
+   */
   fun argumentsJson(rawArguments: Any?): String {
     return when (rawArguments) {
       is String -> rawArguments.ifBlank { "{}" }

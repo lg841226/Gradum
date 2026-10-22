@@ -7,18 +7,16 @@ import kotlinx.coroutines.flow.flow
 import java.io.File
 import java.util.concurrent.TimeUnit
 
-/**
- * Spawns an MCP server as a child process and bridges its stdin/stdout to a
- * [JsonRpcSession]. This is the stdio transport: the reader coroutine drains
- * the child's stdout bytes, frames them, and feeds each decoded message to
- * the session; [session] writes request frames back to the child's stdin.
- *
- * The child's stderr is deliberately kept separate (never merged into
- * stdout) so it cannot corrupt the newline-delimited frame stream.
- *
- * start() spawns the child process and the background reader. Safe to call
- * once.
- */
+// Spawns an MCP server as a child process and bridges its stdin/stdout to a
+// [JsonRpcSession]. This is the stdio transport: the reader coroutine drains
+// the child's stdout bytes, frames them, and feeds each decoded message to
+// the session; [session] writes request frames back to the child's stdin.
+//
+// The child's stderr is deliberately kept separate (never merged into
+// stdout) so it cannot corrupt the newline-delimited frame stream.
+//
+// start() spawns the child process and the background reader. Safe to call
+// once.
 internal class StdioMcpClient(
   private val command: List<String>,
   private val workingDir: File? = null,

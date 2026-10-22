@@ -29,15 +29,13 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.theme.badgeStyle
 import org.jetbrains.jewel.ui.typography
 
-/**
- * One registry hit: icon and name and version chip and ecosystem badge and status
- * mark (the verified badge when the server is importable, the provider
- * row's failed-connection icon when it is not) and a two-line description.
- * Below them a meta line shows the installable package in the editor font
- * with the repository's blue ExternalLink right after it, then the
- * official publish month. The add icon stays in the trailing group;
- * remote-only servers get neither badge nor icon.
- */
+// One registry hit: icon and name and version chip and ecosystem badge and status
+// mark (the verified badge when the server is importable, the provider
+// row's failed-connection icon when it is not) and a two-line description.
+// Below them a meta line shows the installable package in the editor font
+// with the repository's blue ExternalLink right after it, then the
+// official publish month. The add icon stays in the trailing group;
+// remote-only servers get neither badge nor icon.
 @Composable
 internal fun McpRegistryResultRow(
   result: McpRegistryResult, onAdd: (McpRegistryResult) -> Unit

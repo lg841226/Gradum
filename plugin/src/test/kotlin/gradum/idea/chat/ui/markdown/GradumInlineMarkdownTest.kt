@@ -20,7 +20,7 @@ class GradumInlineMarkdownTest {
   private val testImageAltColor: Color = Color(0xFF888888)
   private val testFontSizeSp: Float = 14f
 
-  /** Build a render for [text] with the standard test theme values. */
+  // Build a render for [text] with the standard test theme values.
   private fun render(text: String): InlineMarkdownRenderResult =
     parseInlineMarkdown(
       linkColor = testLinkColor,
@@ -30,16 +30,14 @@ class GradumInlineMarkdownTest {
       codeColor = testTint,
     )
 
-  /**
-   * Unwrap the [InlineMarkdownRender] from the result of [render]. Fails
-   * the test if the parser bailed: callers are tests that need a
-   * non-null render. The bail path is exercised separately via [render]
-   * + null checks on `.render`.
-   */
+  // Unwrap the [InlineMarkdownRender] from the result of [render]. Fails
+  // the test if the parser bailed: callers are tests that need a
+  // non-null render. The bail path is exercised separately via [render]
+  // + null checks on `.render`.
   private fun inlineRender(text: String): InlineMarkdownRender =
     requireNotNull(render(text).render)
 
-  /** Drop PUA placeholders so assertions can read the visible text. */
+  // Drop PUA placeholders so assertions can read the visible text.
   private fun visibleText(annotated: AnnotatedString): String {
     val out: StringBuilder = StringBuilder()
     for (element in annotated) {
@@ -49,7 +47,7 @@ class GradumInlineMarkdownTest {
     return out.toString()
   }
 
-  /** Count PUA placeholders: the chip is rendered as one PUA char in the annotated text. */
+  // Count PUA placeholders: the chip is rendered as one PUA char in the annotated text.
   private fun countPua(annotated: AnnotatedString): Int =
     annotated.count { ch -> ch == '\uE000' }
 
@@ -199,7 +197,7 @@ class GradumInlineMarkdownTest {
   @Test
   fun `inline code renders as real text without a PUA placeholder`() {
     // renderCodeInline writes the literal code text directly (with a
-    // SpanStyle + INLINE_CODE_SPAN_TAG annotation) instead of allocating
+    // SpanStyle and INLINE_CODE_SPAN_TAG annotation) instead of allocating
     // a PUA chip: so the annotated string carries the text and there is
     // no PUA placeholder to strip.
     val render: InlineMarkdownRender = inlineRender("use `foo()` here")
@@ -298,8 +296,8 @@ class GradumInlineMarkdownTest {
 
   @Test
   fun `link renders with link color and permanent underline span`() {
-    // The chat's link rule is "blue text + permanent underline",
-    // not "blue text + underline on hover": see `linkStateStyles`
+    // The chat's link rule is "blue text and permanent underline",
+    // not "blue text and underline on hover": see `linkStateStyles`
     // KDoc for why. The walker emits a `SpanStyle` with
     // `TextDecoration.Underline` for the link's text range so
     // the `Markdown(...)` fallback path (and the legacy
@@ -308,7 +306,7 @@ class GradumInlineMarkdownTest {
     // hover scanState is unreliable. The hover-affordance is added
     // by the `ExternalLink` path via `LinkUnderlineBehavior`,
     // not by the inline span. The walker's contribution here is
-    // color + underline.
+    // color and underline.
     val render: InlineMarkdownRender = inlineRender("see [the docs](https://example.com)")
     val linkUnderlineSpans: List<AnnotatedString.Range<SpanStyle>> =
       render.annotated.spanStyles.filter { span -> span.item.textDecoration == TextDecoration.Underline }
@@ -331,7 +329,7 @@ class GradumInlineMarkdownTest {
     // that has BOTH `LineThrough` (from the strike) and
     // `Underline` (from the new color-only / always-underline
     // link rule). `combineDecoration` composes the two so the
-    // decoration is `Underline + LineThrough` rather than
+    // decoration is `Underline and LineThrough` rather than
     // dropping the strike or sneaking the underline back in.
     val render: InlineMarkdownRender = inlineRender("~~[old docs](https://example.com)~~")
     val composedSpans: List<AnnotatedString.Range<SpanStyle>> =

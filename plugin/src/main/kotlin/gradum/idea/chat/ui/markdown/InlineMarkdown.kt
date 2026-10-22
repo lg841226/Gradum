@@ -65,7 +65,7 @@ private const val BAIL_REASON_LOG_PREVIEW_CHARS: Int = PluginConfig.BAIL_REASON_
 private const val PARSE_FAILURE_LOG_PREVIEW_CHARS: Int = PluginConfig.PARSE_FAILURE_LOG_PREVIEW_CHARS
 private const val WALK_FAILURE_LOG_PREVIEW_CHARS: Int = PluginConfig.WALK_FAILURE_LOG_PREVIEW_CHARS
 
-/** Returns `true` for CJK ideographs / full-width punctuation (~1.0 font size vs ~0.6 Latin). */
+// Returns `true` for CJK ideographs / full-width punctuation (~1.0 font size vs ~0.6 Latin).
 @Suppress("MagicNumber")
 private fun isCjkChar(char: Char): Boolean = when (char.code) {
   in 0x4E00..0x9FFF,
@@ -77,22 +77,20 @@ private fun isCjkChar(char: Char): Boolean = when (char.code) {
   else -> false
 }
 
-/** Stateless CommonMark parser with the GFM Strikethrough extension enabled. */
+// Stateless CommonMark parser with the GFM Strikethrough extension enabled.
 private val commonmarkParser: Parser = Parser.builder()
   .extensions(listOf(StrikethroughExtension.create()))
   .build()
 
-/**
- * Matches bare http/https/ftp URLs in plain text. The last character
- * excludes common trailing punctuation so `https://example.com.` captures
- * only the URL without the period.
- */
+// Matches bare http/https/ftp URLs in plain text. The last character
+// excludes common trailing punctuation so `https://example.com.` captures
+// only the URL without the period.
 private val bareUrlRegex: Regex = Regex(
   pattern = """https?://[^\s<>"'()\[\]]+[^\s<>"'().,;:!?\]]""",
   option = RegexOption.IGNORE_CASE
 )
 
-/** One renderable inline representation: PUA-placeholder AnnotatedString + chip InlineTextContent map. */
+/** One renderable inline representation: PUA-placeholder AnnotatedString and chip InlineTextContent map. */
 data class InlineMarkdownRender(
   val paragraphCount: Int,
   val annotated: AnnotatedString,
@@ -177,33 +175,27 @@ fun rememberInlineMarkdownRenderFromNode(parentNode: Node): InlineMarkdownRender
   }
 }
 
-/** Regex for inline footnotes: `^[text]`, `[^ref]`, or `[1]`. */
+// Regex for inline footnotes: `^[text]`, `[^ref]`, or `[1]`.
 internal val INLINE_FOOTNOTE_REGEX: Regex = Regex(pattern = """(\^\[([^]]*)]|\[\^([^]]*)]|\[(\d+)])""")
 
-/**
- * Regex for inline LaTeX: $$…$$ (must come first to avoid matching inner $ of $$x^2$$) and $…$.
- * Non-greedy, no newlines. Block-level $$…$$ on its own line is handled by LatexBlockExtension.
- */
+// Regex for inline LaTeX: $$…$$ (must come first to avoid matching inner $ of $$x^2$$) and $…$.
+// Non-greedy, no newlines. Block-level $$…$$ on its own line is handled by LatexBlockExtension.
 internal val INLINE_LATEX_REGEX: Regex = Regex(pattern = """\$\$([^$\n]+?)\$\$|\$([^$\n]+?)\$""")
 
-/** Regex for \(…\)-form LaTeX. Applied BEFORE CommonMark to preserve formulas (CommonMark strips backslashes). */
+// Regex for \(…\)-form LaTeX. Applied BEFORE CommonMark to preserve formulas (CommonMark strips backslashes).
 internal val INLINE_LATEX_PAREN_REGEX: Regex = Regex(pattern = """\\\(([^()\n]+?)\\\)""")
 
-/**
- * Matches "currency-like" dollar-span content: digits with comma/dot
- * thousand/ decimal separators, optional spaces and a +/- sign. `$5.99`,
- * `$1,000`, `$ 50` are prices, not LaTeX: a real formula always carries
- * a letter, symbol, or operator. A pure-digit span is never math.
- */
+// Matches "currency-like" dollar-span content: digits with comma/dot
+// thousand/ decimal separators, optional spaces and a +/- sign. `$5.99`,
+// `$1,000`, `$ 50` are prices, not LaTeX: a real formula always carries
+// a letter, symbol, or operator. A pure-digit span is never math.
 internal val CURRENCY_LIKE_CONTENT_REGEX: Regex = Regex(pattern = """[\d,.\s+-]*""")
 
-/**
- * Ranges of backtick-delimited code spans in [rawText], used to stop
- * dollar-Latex pre-processing from replacing `$x^2$` inside `` `$x^2$` ``.
- * Without this, the PUA marker lands in the code chip's literal text and
- * renders as a tofu box / broken chip. Tracks an odd/even backtick
- * toggle; CommonMark treats a span as code when the backticks pair up.
- */
+// Ranges of backtick-delimited code spans in [rawText], used to stop
+// dollar-Latex pre-processing from replacing `$x^2$` inside `` `$x^2$` ``.
+// Without this, the PUA marker lands in the code chip's literal text and
+// renders as a tofu box / broken chip. Tracks an odd/even backtick
+// toggle; CommonMark treats a span as code when the backticks pair up.
 internal fun dollarLatexCodeSpanRanges(rawText: String): List<IntRange> {
   val codeSpanRanges: MutableList<IntRange> = mutableListOf()
   var rangeStart: Int? = null
@@ -219,10 +211,10 @@ internal fun dollarLatexCodeSpanRanges(rawText: String): List<IntRange> {
   return codeSpanRanges
 }
 
-/** Regex matching PUA chars in the pre-processed LaTeX marker range (U+E100–U+E2FF). */
+// Regex matching PUA chars in the pre-processed LaTeX marker range (U+E100–U+E2FF).
 internal val INLINE_LATEX_PAREN_MARKER_REGEX: Regex = Regex(pattern = """[\uE100-\uE2FF]""")
 
-/** Pure CommonMark -> `AnnotatedString` walk. Theme values passed in by the caller. */
+// Pure CommonMark -> `AnnotatedString` walk. Theme values passed in by the caller.
 internal fun parseInlineMarkdown(
   linkColor: Color,
   plainText: String,
@@ -278,21 +270,17 @@ internal fun parseInlineMarkdown(
 }
 
 
-/**
- * Result of preprocessParenLatexFormulas:
- *   text: the input with each \(…\) span replaced by a single PUA marker char.
- *          Safe to feed to the CommonMark parser.
- *   formulaByMarker: map from marker char (the literal PUA string) to the original formula text.
- *                     The walker uses this to recover the formula when it encounters a marker.
- */
+// Result of preprocessParenLatexFormulas:
+//   text: the input with each \(…\) span replaced by a single PUA marker char.
+//          Safe to feed to the CommonMark parser.
+//   formulaByMarker: map from marker char (the literal PUA string) to the original formula text.
+//                     The walker uses this to recover the formula when it encounters a marker.
 internal data class PreprocessedParenLatex(
   val text: String, val formulaByMarker: Map<String, String>
 )
 
-/**
- * Replace \(…\)-form LaTeX with PUA markers before CommonMark parsing.
- * CommonMark treats \( as backslash-escape, destroying the formula boundary.
- */
+// Replace \(…\)-form LaTeX with PUA markers before CommonMark parsing.
+// CommonMark treats \( as backslash-escape, destroying the formula boundary.
 internal fun preprocessParenLatexFormulas(rawText: String): PreprocessedParenLatex {
   val matches: List<MatchResult> = INLINE_LATEX_PAREN_REGEX.findAll(rawText).toList()
   if (matches.isEmpty()) {
@@ -317,10 +305,8 @@ internal fun preprocessParenLatexFormulas(rawText: String): PreprocessedParenLat
 }
 
 
-/**
- * Replace $…$/$$…$$-form LaTeX with PUA markers before CommonMark parsing.
- * CommonMark treats _ as emphasis delimiter, splitting formulas like $(AB)_{ij}$.
- */
+// Replace $…$/$$…$$-form LaTeX with PUA markers before CommonMark parsing.
+// CommonMark treats _ as emphasis delimiter, splitting formulas like $(AB)_{ij}$.
 internal fun preprocessDollarLatexFormulas(rawText: String): PreprocessedParenLatex {
   val codeSpanRanges: List<IntRange> = dollarLatexCodeSpanRanges(rawText)
   val matches: List<MatchResult> = INLINE_LATEX_REGEX.findAll(rawText).toList()
@@ -354,18 +340,16 @@ internal fun preprocessDollarLatexFormulas(rawText: String): PreprocessedParenLa
   return PreprocessedParenLatex(text = rewritten.toString(), formulaByMarker = formulaByMarker)
 }
 
-/**
- * True when a `$…$` [match] in [text] looks like inline LaTeX rather than
- * a currency amount or prose with stray dollar signs. Shared by
- * [preprocessDollarLatexFormulas] and the inline walker (which re-runs
- * [INLINE_LATEX_REGEX] on each text node) so both stay in agreement.
- *
- * Rejects:
- *  - whitespace immediately after the opening `$` or before the closing
- *    `$` (markdown-it rule: inline math never has a space there);
- *  - purely numeric content (`$5.99`, `$1,000`, `$ 50`) which is
- *    currency, not math.
- */
+// True when a `$…$` [match] in [text] looks like inline LaTeX rather than
+// a currency amount or prose with stray dollar signs. Shared by
+// [preprocessDollarLatexFormulas] and the inline walker (which re-runs
+// [INLINE_LATEX_REGEX] on each text node) so both stay in agreement.
+//
+// Rejects:
+//  - whitespace immediately after the opening `$` or before the closing
+//    `$` (markdown-it rule: inline math never has a space there);
+//  - purely numeric content (`$5.99`, `$1,000`, `$ 50`) which is
+//    currency, not math.
 internal fun isInlineLatexCandidate(match: MatchResult, text: String): Boolean {
   val formula: String = match.groupValues[1].ifEmpty { match.groupValues[2] }
   val contentStart: Int = match.range.first + 1
@@ -389,7 +373,7 @@ private fun parseCommonmarkDocument(plainText: String): Document? {
   }
 }
 
-/** Walk a parent node's inline children directly into InlineMarkdownRenderResult. */
+// Walk a parent node's inline children directly into InlineMarkdownRenderResult.
 @Suppress("LongParameterList", "TooGenericExceptionCaught")
 internal fun parseInlineNodes(
   parentNode: Node,
@@ -432,7 +416,7 @@ internal fun parseInlineNodes(
 }
 
 
-/** Sorted, distinct, "+"-joined simple class names of every non-`Paragraph` block, or `null`. */
+// Sorted, distinct, "+"-joined simple class names of every non-`Paragraph` block, or `null`.
 private fun collectNonParagraphTypes(topBlocks: List<Node>): String? {
   val blockTypeNames: List<String> = topBlocks.asSequence()
     .filter { it !is Paragraph }
@@ -451,7 +435,7 @@ private fun bailWithReason(reason: String, plainText: String): InlineMarkdownRen
 }
 
 
-/** Encapsulated rendering configuration for [buildInlineRender]. */
+// Encapsulated rendering configuration for [buildInlineRender].
 internal data class InlineRenderConfig(
   val linkColor: Color,
   val codeColor: Color,
@@ -464,7 +448,7 @@ internal data class InlineRenderConfig(
   val parenLatexFormulas: Map<String, String> = emptyMap()
 )
 
-/** Walk a paragraph-only AST and build the [InlineMarkdownRender]. Catches walker exceptions as bail. */
+// Walk a paragraph-only AST and build the [InlineMarkdownRender]. Catches walker exceptions as bail.
 @Suppress("TooGenericExceptionCaught")
 private fun buildInlineRender(
   plainText: String,
@@ -512,7 +496,7 @@ private fun buildInlineRender(
 }
 
 
-/** Mutable scanState threaded through the recursive walker. UI-thread-only by design (Compose `remember`). */
+// Mutable scanState threaded through the recursive walker. UI-thread-only by design (Compose `remember`).
 @Suppress("LongParameterList")
 private class RenderState(
   val linkColor: Color,
@@ -534,7 +518,7 @@ private class RenderState(
   val inlineContent: MutableMap<String, InlineTextContent> = mutableMapOf()
   private val latexMeasureCache = mutableMapOf<String, LatexDimensions?>()
 
-  /** Snapshot and restore helper for the recursive walker. */
+  // Snapshot and restore helper for the recursive walker.
   fun <T> withStyle(replacementStyle: SpanStyle, block: () -> T): T {
     val savedStyle: SpanStyle = currentStyle
     currentStyle = replacementStyle
@@ -545,7 +529,7 @@ private class RenderState(
     }
   }
 
-  /** Consume a fresh image-alt placeholder + register the image file type icon. */
+  // Consume a fresh image-alt placeholder and register the image file type icon.
   fun allocateImageAlt(): String {
     val placeholder: String = IMAGE_ALT_PLACEHOLDER_BASE.toString().repeat(n = imageAltCounter + 1)
     imageAltCounter += 1
@@ -565,7 +549,7 @@ private class RenderState(
     return placeholder
   }
 
-  /** Consume a fresh footnote placeholder + register [FootnoteMark]. */
+  // Consume a fresh footnote placeholder and register [FootnoteMark].
   fun allocateFootnote(footnoteText: String, isDefinition: Boolean = false): String {
     val placeholderKey: String = FOOTNOTE_PLACEHOLDER_BASE.toString().repeat(n = footnoteCounter + 1)
     footnoteCounter += 1
@@ -585,7 +569,7 @@ private class RenderState(
     return placeholderKey
   }
 
-  /** Consume a fresh inline LaTeX placeholder. Uses real measurement via LatexMeasurerState, fallback to estimation. */
+  // Consume a fresh inline LaTeX placeholder. Uses real measurement via LatexMeasurerState, fallback to estimation.
   fun allocateLatex(formulaText: String): String {
     val placeholderKey: String = LATEX_PLACEHOLDER_BASE.toString().repeat(n = latexCounter + 1)
     latexCounter += 1
@@ -624,7 +608,7 @@ private class RenderState(
   }
 }
 
-/** Per-character width sum: [MarkdownStyle.Latex.MONOSPACE_CJK_RATIO] for CJK, [MarkdownStyle.Latex.MONOSPACE_LATIN_RATIO] for everything else. */
+// Per-character width sum: [MarkdownStyle.Latex.MONOSPACE_CJK_RATIO] for CJK, [MarkdownStyle.Latex.MONOSPACE_LATIN_RATIO] for everything else.
 internal fun cjkAwareWidthRatio(codeText: String): Float {
   return codeText.fold(initial = 0f) { acc, char ->
     acc + if (isCjkChar(char)) MarkdownStyle.Latex.MONOSPACE_CJK_RATIO
@@ -632,7 +616,7 @@ internal fun cjkAwareWidthRatio(codeText: String): Float {
   }
 }
 
-/** Fallback width estimation for LaTeX formulas (used when LatexMeasurerState unavailable). */
+// Fallback width estimation for LaTeX formulas (used when LatexMeasurerState unavailable).
 internal fun estimateLatexWidth(formula: String): Float {
   if (formula.isEmpty()) return 0f
   var totalWidth = 0f
@@ -660,7 +644,7 @@ private fun renderInlineChildren(
 }
 
 
-/** Dispatch a single inline node. Unknown / extension nodes recurse into children. */
+// Dispatch a single inline node. Unknown / extension nodes recurse into children.
 private fun renderInlineNode(
   inlineNode: Node,
   renderState: RenderState,
@@ -901,7 +885,7 @@ private fun renderStrikethroughInline(
   }
 }
 
-/** Compose two [TextDecoration] values: underline + line-through can both paint. Other: new wins. */
+// Compose two [TextDecoration] values: underline and line-through can both paint. Other: new wins.
 private fun combineDecoration(
   added: TextDecoration, existing: TextDecoration
 ): TextDecoration {
@@ -915,10 +899,8 @@ private fun combineDecoration(
   }
 }
 
-/**
- * Split walker output at link boundaries: prose stays on Text(annotated, inlineContent),
- * links use ExternalLink (standalone Composable with icon).
- */
+// Split walker output at link boundaries: prose stays on Text(annotated, inlineContent),
+// links use ExternalLink (standalone Composable with icon).
 internal fun splitIntoInlineSegments(
   annotated: AnnotatedString,
   urlAnnotations: List<UrlAnnotation>, inlineContent: Map<String, InlineTextContent>
@@ -950,7 +932,7 @@ internal fun splitIntoInlineSegments(
   return segments
 }
 
-/** Drop PUA placeholders from a link's text range: chips/icons/formulas render through their own inlineContent. */
+// Drop PUA placeholders from a link's text range: chips/icons/formulas render through their own inlineContent.
 private fun stripInlineLinkText(range: CharSequence): String {
   if (range.none { it.isInlinePlaceholderPua() })
     return range.toString()
@@ -962,7 +944,7 @@ private fun stripInlineLinkText(range: CharSequence): String {
   return output.toString()
 }
 
-/** One of the PUA placeholders reserved for an inline-only chip / icon / formula. */
+// One of the PUA placeholders reserved for an inline-only chip / icon / formula.
 private fun Char.isInlinePlaceholderPua(): Boolean =
   when (this) {
     IMAGE_ALT_PLACEHOLDER_BASE,
@@ -972,13 +954,11 @@ private fun Char.isInlinePlaceholderPua(): Boolean =
     else -> this.code in PAREN_LATEX_MARKER_RANGE_START..DOLLAR_LATEX_MARKER_RANGE_END
   }
 
-/**
- * Footnote marker composable.
- *
- * A *definition* chip (`[^2]: ...`) registers its on-screen position with
- * [LocalFootnoteRegistry] so references can jump to it. A *reference* chip
- * (`[^2]` in prose) is clickable and smooth-scrolls to its matching definition.
- */
+// Footnote marker composable.
+//
+// A *definition* chip (`[^2]: ...`) registers its on-screen position with
+// [LocalFootnoteRegistry] so references can jump to it. A *reference* chip
+// (`[^2]` in prose) is clickable and smooth-scrolls to its matching definition.
 @Composable
 private fun FootnoteMark(text: String, fontSizeSp: Float, isDefinition: Boolean = false) {
   val infoColor: Color = JewelTheme.globalColors.text.info
@@ -1080,25 +1060,23 @@ private fun FootnoteMark(text: String, fontSizeSp: Float, isDefinition: Boolean 
   }
 }
 
-/** Flash timing for a definition chip that has just been jumped to. */
-/**
- * Color for the alt text of an inline `![alt](url)` image. The chat
- * doesn't render the binary, so the alt text is a placeholder /
- * description, not a link. Using the body text's color at 60% alpha
- * reads as "secondary / decorative": visually subordinate to the
- * link blue and the body black, but still readable in both light
- * and dark themes. (The previous v1.5 path made the alt text use
- * the link color, which confused the user when the message mixed
- * images and links: see the feedback case
- * `![alt](imageUrl) <https://example.com> <email@example.com>`.)
- */
+// Flash timing for a definition chip that has just been jumped to.
+// Color for the alt text of an inline `![alt](url)` image. The chat
+// doesn't render the binary, so the alt text is a placeholder /
+// description, not a link. Using the body text's color at 60% alpha
+// reads as "secondary / decorative": visually subordinate to the
+// link blue and the body black, but still readable in both light
+// and dark themes. (The previous v1.5 path made the alt text use
+// the link color, which confused the user when the message mixed
+// images and links: see the feedback case
+// `![alt](imageUrl) <https://example.com> <email@example.com>`.)
 @Composable
 private fun resolveImageAltColor(): Color {
   val base: Color = JewelTheme.contentColor
   return base.copy(alpha = MarkdownStyle.Image.ALT_COLOR_ALPHA)
 }
 
-/** Editor font size in sp; falls back when the theme's `fontSize` is unspecified. */
+// Editor font size in sp; falls back when the theme's `fontSize` is unspecified.
 @Composable
 private fun resolveEditorFontSizeSp(): Float {
   val paragraphFontSizeValue: Float = LocalParagraphFontSize.current.value

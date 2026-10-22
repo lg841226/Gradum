@@ -30,9 +30,7 @@ import org.jetbrains.jewel.ui.icon.PathIconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
-/**
- * Displays a quick-start section with suggestion cards for common chat prompts.
- */
+/** Displays a quick-start section with suggestion cards for common chat prompts. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun QuickStartSection(

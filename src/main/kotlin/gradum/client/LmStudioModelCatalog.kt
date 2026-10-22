@@ -36,14 +36,12 @@ private val probeHttpClient: HttpClient = HttpClient {
 // Conservative default: assume unavailable until proven otherwise.
 private val responsesAvailabilityCache: ConcurrentHashMap<String, Boolean> = ConcurrentHashMap()
 
-/**
- * Probes whether the `/v1/responses` endpoint is available on the given
- * LM Studio server. Result is cached for the process lifetime.
- *
- * A minimal POST is sent; 404 or 405 means the server is too old and
- * the Responses wire must not be used. Any other error (timeout, connection
- * refused, etc.) is treated as unavailable to avoid blocking the chat flow.
- */
+// Probes whether the `/v1/responses` endpoint is available on the given
+// LM Studio server. Result is cached for the process lifetime.
+//
+// A minimal POST is sent; 404 or 405 means the server is too old and
+// the Responses wire must not be used. Any other error (timeout, connection
+// refused, etc.) is treated as unavailable to avoid blocking the chat flow.
 internal suspend fun probeResponsesAvailability(baseUrl: String): Boolean {
   val cacheKey = baseUrl.trimEnd('/').removeSuffix(suffix = "/v1")
   val cached = responsesAvailabilityCache[cacheKey]

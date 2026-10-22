@@ -34,7 +34,7 @@ private const val SCHEMA_VERSION: Int = 1
  */
 object ChatDb {
 
-  /** One open connection per project database; several sessions of the same project share theirs. */
+  // One open connection per project database; several sessions of the same project share theirs.
   private val connections: ConcurrentHashMap<String, Connection> = ConcurrentHashMap()
 
   fun saveContext(
@@ -216,11 +216,9 @@ object ChatDb {
     }
   }
 
-  /**
-   * Opens (or reuses) the project's own connection, creating the database
-   * file and its schema on first touch. Sessions of one project share the
-   * connection; another project gets its own file and connection.
-   */
+  // Opens (or reuses) the project's own connection, creating the database
+  // file and its schema on first touch. Sessions of one project share the
+  // connection; another project gets its own file and connection.
   private fun connectionFor(projectRoot: Path): Connection {
     val databaseFile: Path = projectRoot.resolve(".gradum").resolve("db").resolve("gradum.db")
     val cacheKey: String = databaseFile.toAbsolutePath().normalize().toString()

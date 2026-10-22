@@ -465,14 +465,12 @@ private fun truncateAnnotatedString(annotated: AnnotatedString): AnnotatedString
   else annotated
 }
 
-/**
- * Returns a copy of [annotated] with every [SpanStyle.color] replaced by
- * [overrideColor]. All other span properties (fontSize, fontWeight,
- * fontFamily, background, etc.) are preserved verbatim.
- *
- * Used in thinking mode to override syntax-highlighting colors so the
- * entire code block renders in a uniform muted gray.
- */
+// Returns a copy of [annotated] with every [SpanStyle.color] replaced by
+// [overrideColor]. All other span properties (fontSize, fontWeight,
+// fontFamily, background, etc.) are preserved verbatim.
+//
+// Used in thinking mode to override syntax-highlighting colors so the
+// entire code block renders in a uniform muted gray.
 private fun overrideAnnotatedStringColors(annotated: AnnotatedString, overrideColor: Color): AnnotatedString {
   if (annotated.spanStyles.isEmpty()) {
     return AnnotatedString(annotated.text, SpanStyle(color = overrideColor))

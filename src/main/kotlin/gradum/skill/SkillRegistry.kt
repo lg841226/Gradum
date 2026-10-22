@@ -84,13 +84,11 @@ object SkillRegistry : SkillStore {
       .map { skill: Skill -> annotateToolAvailability(skill.getSchema(schemaContext), skill) }
   }
 
-  /**
-   * Appends an explicit [Skill.allowedToolModes] note to a skill's
-   * function description so readers never mistake a skill for being
-   * globally available. Display-only: the runtime gate stays in
-   * [Skill.allows] and the [filter] above; this only annotates what the
-   * LLM and humans see.
-   */
+  // Appends an explicit [Skill.allowedToolModes] note to a skill's
+  // function description so readers never mistake a skill for being
+  // globally available. Display-only: the runtime gate stays in
+  // [Skill.allows] and the [filter] above; this only annotates what the
+  // LLM and humans see.
   private fun annotateToolAvailability(schema: Map<String, Any>, skillInstance: Skill): Map<String, Any> {
     @Suppress("UNCHECKED_CAST")
     val functionBlock: Map<String, Any> = schema["function"] as? Map<String, Any> ?: return schema
@@ -191,11 +189,9 @@ object SkillRegistry : SkillStore {
     return discoveredClasses
   }
 
-  /**
-   * Loads [className] and returns it only when it is a concrete (non-interface,
-   * non-abstract) class, or null when unloadable. Shared by the directory and
-   * JAR scanners so both apply the identical filter.
-   */
+  // Loads [className] and returns it only when it is a concrete (non-interface,
+  // non-abstract) class, or null when unloadable. Shared by the directory and
+  // JAR scanners so both apply the identical filter.
   private fun loadConcreteClass(className: String?): Class<*>? {
     if (className == null) return null
     return try {

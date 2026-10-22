@@ -47,7 +47,7 @@ internal val blockReparseParser: Parser = Parser.builder()
   .build()
 
 
-/** Default language label for code blocks without an explicit language tag. */
+// Default language label for code blocks without an explicit language tag.
 internal const val DEFAULT_CODE_LANGUAGE: String = "plain text"
 
 
@@ -57,8 +57,9 @@ internal const val DEFAULT_CODE_LANGUAGE: String = "plain text"
  * segment was originally produced by [splitPlainAtBlocks] which serialized
  * each block to text).
  *
- * @param isSimplified When `true`, code blocks render without toolbars/copy buttons.
- * @param thinkingMode When `true`, code blocks use muted gray colors.
+ * Parameters:
+ * - isSimplified: When `true`, code blocks render without toolbars/copy buttons.
+ * - thinkingMode: When `true`, code blocks use muted gray colors.
  */
 @Composable
 fun RenderNonProseBlock(
@@ -133,7 +134,7 @@ fun RenderBlockNode(
 }
 
 
-/** Render a heading with the full [MarkdownStyling.Heading.HN] style + chat-friendly padding. */
+// Render a heading with the full [MarkdownStyling.Heading.HN] style and chat-friendly padding.
 @Suppress("MagicNumber")
 @OptIn(ExperimentalJewelApi::class)
 @Composable
@@ -163,13 +164,11 @@ private fun RenderHeading(heading: Heading, onUrlClick: (String) -> Unit) {
 }
 
 
-/**
- * Render an unordered list. Each item is its own [RenderListItem] row; the
- * marker column reserves [MarkdownStyle.Block.UNORDERED_MARKER_MIN_WIDTH]. Nested bullet
- * lists recurse with `indentDepth + 1`. The visible start-padding is
- * "one step if nested, zero otherwise", not `indentDepth x step`, so
- * deeply-nested lists stay aligned instead of stair-stepping off-screen.
- */
+// Render an unordered list. Each item is its own [RenderListItem] row; the
+// marker column reserves [MarkdownStyle.Block.UNORDERED_MARKER_MIN_WIDTH]. Nested bullet
+// lists recurse with `indentDepth + 1`. The visible start-padding is
+// "one step if nested, zero otherwise", not `indentDepth x step`, so
+// deeply-nested lists stay aligned instead of stair-stepping off-screen.
 @OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun RenderBulletList(
@@ -222,11 +221,9 @@ private fun RenderBulletList(
 }
 
 
-/**
- * Render an ordered list. `prefixColumnMinWidth` is pinned to
- * [MarkdownStyle.Block.ORDERED_MARKER_MIN_WIDTH] (24 dp) so single-digit "1." / "2."
- * aren't clipped. Visible indent is a single step if nested.
- */
+// Render an ordered list. `prefixColumnMinWidth` is pinned to
+// [MarkdownStyle.Block.ORDERED_MARKER_MIN_WIDTH] (24 dp) so single-digit "1." / "2."
+// aren't clipped. Visible indent is a single step if nested.
 @OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun RenderOrderedList(
@@ -288,17 +285,15 @@ internal fun collectListItems(listNode: Node): List<ListItem> =
   generateSequence(seed = listNode.firstChild) { it.next }
     .filterIsInstance<ListItem>().toList()
 
-/** A `ListItem` that starts with a GFM task-list marker. */
+// A `ListItem` that starts with a GFM task-list marker.
 internal data class TaskListMarker(val checked: Boolean)
 
-/**
- * Returns the task-list marker if [paragraph] starts with `[ ] ` /
- * `[x] ` / `[x] ` (the only forms GFM recognizes), or `null` if it's
- * a normal paragraph. The check looks at the first `Text` child only:
- * commonmark emits the marker as a single Text literal, so a split
- * (e.g. an `Emphasis` node before the marker) would already be a
- * non-task-list paragraph.
- */
+// Returns the task-list marker if [paragraph] starts with `[ ] ` /
+// `[x] ` / `[x] ` (the only forms GFM recognizes), or `null` if it's
+// a normal paragraph. The check looks at the first `Text` child only:
+// commonmark emits the marker as a single Text literal, so a split
+// (e.g. an `Emphasis` node before the marker) would already be a
+// non-task-list paragraph.
 internal fun extractTaskListMarker(paragraph: Paragraph): TaskListMarker? {
   val firstText: Text = paragraph.firstChild as? Text ?: return null
   val literal: String = firstText.literal ?: return null
@@ -311,12 +306,10 @@ internal fun extractTaskListMarker(paragraph: Paragraph): TaskListMarker? {
   }
 }
 
-/**
- * Returns a copy of [paragraph] with the `[ ] ` / `[x] ` / `[X] `
- * prefix removed from the first `Text` child. Other children are
- * appended to the copy unchanged. Returns `null` if [paragraph] is
- * not a task-list paragraph.
- */
+// Returns a copy of [paragraph] with the `[ ] ` / `[x] ` / `[X] `
+// prefix removed from the first `Text` child. Other children are
+// appended to the copy unchanged. Returns `null` if [paragraph] is
+// not a task-list paragraph.
 internal fun stripTaskListMarker(paragraph: Paragraph): Paragraph? {
   val firstText: Text = paragraph.firstChild as? Text ?: return null
   val literal: String = firstText.literal ?: return null
@@ -343,18 +336,16 @@ internal fun stripTaskListMarker(paragraph: Paragraph): Paragraph? {
 }
 
 
-/**
- * Render a single GFM task-list item as `Row { CheckboxRow(text) }`. The
- * checkbox is `enabled = false`: task lists in chat messages are
- * informational, not interactive (the user copies the list out to a
- * todo app if they want to track it). The `[ ]` / `[x]` marker is
- * stripped from a synthetic copy of the first `Paragraph` before
- * the inline walker runs, so the rest of the paragraph (bold, code,
- * links, …) renders through the same path as a normal list item.
- * Subsequent children (nested list, second paragraph, …) recurse
- * through [RenderBlockNode] at `indentDepth + 1`, same as
- * [RenderListItem].
- */
+// Render a single GFM task-list item as `Row { CheckboxRow(text) }`. The
+// checkbox is `enabled = false`: task lists in chat messages are
+// informational, not interactive (the user copies the list out to a
+// todo app if they want to track it). The `[ ]` / `[x]` marker is
+// stripped from a synthetic copy of the first `Paragraph` before
+// the inline walker runs, so the rest of the paragraph (bold, code,
+// links, …) renders through the same path as a normal list item.
+// Subsequent children (nested list, second paragraph, …) recurse
+// through [RenderBlockNode] at `indentDepth + 1`, same as
+// [RenderListItem].
 @Composable
 private fun RenderTaskListItem(
   item: ListItem,
@@ -405,14 +396,12 @@ private fun RenderTaskListItem(
   }
 }
 
-/**
- * Stripped-paragraph -> CheckboxRow helper. The marker is removed
- * from a synthetic `Paragraph` (so the original AST is untouched and
- * the serializer's round-trip is preserved) and the inline children
- * walk through [rememberInlineMarkdownRenderFromNode]: same path
- * the non-task-list `RenderInlineTextInListRow` uses, minus the
- * marker prefix.
- */
+// Stripped-paragraph -> CheckboxRow helper. The marker is removed
+// from a synthetic `Paragraph` (so the original AST is untouched and
+// the serializer's round-trip is preserved) and the inline children
+// walk through [rememberInlineMarkdownRenderFromNode]: same path
+// the non-task-list `RenderInlineTextInListRow` uses, minus the
+// marker prefix.
 @Composable
 private fun RenderTaskListItemRow(
   isChecked: Boolean,
@@ -444,7 +433,7 @@ private fun RenderTaskListItemRow(
 }
 
 
-/** Style parameters for a list item row. */
+// Style parameters for a list item row.
 private data class ListItemStyle(
   val prefixContentGap: Dp,
   val prefixStyle: TextStyle,
@@ -452,15 +441,13 @@ private data class ListItemStyle(
   val prefixColumnMinWidth: Dp
 )
 
-/**
- * Render a single list item as a `Row { marker column; content }`. The marker
- * column is a fixed-width `Box(contentAlignment = CenterEnd)` so multi-digit
- * numbers right-align against single-digit numbers. For multi-block items the
- * FIRST `Paragraph` child shares a row with the marker; subsequent children
- * (nested list, second paragraph, fenced code) recurse through [RenderBlockNode]
- * with `indentDepth + 1`. When the first child isn't a `Paragraph` the marker
- * is drawn on its own line above the children.
- */
+// Render a single list item as a `Row { marker column; content }`. The marker
+// column is a fixed-width `Box(contentAlignment = CenterEnd)` so multi-digit
+// numbers right-align against single-digit numbers. For multi-block items the
+// FIRST `Paragraph` child shares a row with the marker; subsequent children
+// (nested list, second paragraph, fenced code) recurse through [RenderBlockNode]
+// with `indentDepth + 1`. When the first child isn't a `Paragraph` the marker
+// is drawn on its own line above the children.
 @Composable
 private fun RenderListItem(
   item: ListItem,
@@ -508,14 +495,12 @@ private fun RenderListItem(
   }
 }
 
-/**
- * Shared list-item row layout: marker column on the left, paragraph
- * inline children on the right. The paragraph is walked via
- * [rememberInlineMarkdownRenderFromNode] so list-marker-shaped content
- * (e.g. `- 1. **bold**`) keeps its formatting: the previous
- * serialize-then-re-parse flow would re-interpret the leading `1. `
- * as an `OrderedList` and bail.
- */
+// Shared list-item row layout: marker column on the left, paragraph
+// inline children on the right. The paragraph is walked via
+// [rememberInlineMarkdownRenderFromNode] so list-marker-shaped content
+// (e.g. `- 1. **bold**`) keeps its formatting: the previous
+// serialize-then-re-parse flow would re-interpret the leading `1. `
+// as an `OrderedList` and bail.
 @Composable
 private fun RenderInlineTextInListRow(
   prefixText: String,
@@ -544,7 +529,7 @@ private fun RenderInlineTextInListRow(
   }
 }
 
-/** Marker column slot: fixed-width right-aligned Box that always reserves space for the marker. */
+// Marker column slot: fixed-width right-aligned Box that always reserves space for the marker.
 @Composable
 private fun MarkerColumn(
   prefixText: String,
@@ -569,19 +554,17 @@ private fun MarkerColumn(
 }
 
 
-/**
- * Render a block quote as a `Row { pill-shaped rule; padded Column { children } }`.
- *
- * The left rule is a 4-dp-wide `Box` filled with the quote's gray line
- * color and clipped to a `RoundedCornerShape(percent = 50)`. Compose
- * resolves the percent to `min(width, height) / 2` at layout time, so a
- * 4-dp-wide rule becomes a perfect capsule (radius = 2 dp) regardless
- * of how tall the quote runs: no hand-rolled `drawLine` / `StrokeCap`
- * math, no inset coordinates. Same width as
- * `styling.blockQuote.lineWidth` (4 dp / `GradumSpacing.sm`) and same
- * gray as `styling.blockQuote.lineColor` (`globalColors.text.disabled`),
- * so the rule matches the chat's muted-text tone in every theme.
- */
+// Render a block quote as a `Row { pill-shaped rule; padded Column { children } }`.
+//
+// The left rule is a 4-dp-wide `Box` filled with the quote's gray line
+// color and clipped to a `RoundedCornerShape(percent = 50)`. Compose
+// resolves the percent to `min(width, height) / 2` at layout time, so a
+// 4-dp-wide rule becomes a perfect capsule (radius = 2 dp) regardless
+// of how tall the quote runs: no hand-rolled `drawLine` / `StrokeCap`
+// math, no inset coordinates. Same width as
+// `styling.blockQuote.lineWidth` (4 dp / `GradumSpacing.sm`) and same
+// gray as `styling.blockQuote.lineColor` (`globalColors.text.disabled`),
+// so the rule matches the chat's muted-text tone in every theme.
 @OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun RenderBlockQuote(
@@ -633,7 +616,7 @@ private fun RenderBlockQuote(
   }
 }
 
-/** Render one block-quote child with the blockquote text color applied to inline text. */
+// Render one block-quote child with the blockquote text color applied to inline text.
 @Composable
 private fun RenderBlockQuoteChild(
   node: Node,
@@ -665,12 +648,10 @@ private fun RenderBlockQuoteChild(
 }
 
 
-/**
- * Render a fenced code block via the project's [GradumCodeBlockRenderer]. Fetches
- * the renderer through [LocalMarkdownBlockRenderer] and calls its
- * `RenderFencedCodeBlock` method directly: no `Markdown(...)` wrapper, no
- * double-parse, no loss of toolbar / language tag / copy / insert-as-file.
- */
+// Render a fenced code block via the project's [GradumCodeBlockRenderer]. Fetches
+// the renderer through [LocalMarkdownBlockRenderer] and calls its
+// `RenderFencedCodeBlock` method directly: no `Markdown(...)` wrapper, no
+// double-parse, no loss of toolbar / language tag / copy / insert-as-file.
 @OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun RenderFencedCodeBlock(block: FencedCodeBlock) {
@@ -688,7 +669,7 @@ private fun RenderFencedCodeBlock(block: FencedCodeBlock) {
   )
 }
 
-/** Render an indented code block: same strategy as [RenderFencedCodeBlock] but no language tag. */
+// Render an indented code block: same strategy as [RenderFencedCodeBlock] but no language tag.
 @OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun RenderIndentedCodeBlock(block: IndentedCodeBlock) {
@@ -825,12 +806,10 @@ fun RenderInlineTextWithChips(
   )
 }
 
-/**
- * Shared render path for both [RenderInlineTextWithChips] (text-source)
- * and [RenderHeading] (node-source). The `parseOutcome.render == null`
- * branch paints [fallbackText] in the same style so callers don't
- * drop formatting on a bail.
- */
+// Shared render path for both [RenderInlineTextWithChips] (text-source)
+// and [RenderHeading] (node-source). The `parseOutcome.render == null`
+// branch paints [fallbackText] in the same style so callers don't
+// drop formatting on a bail.
 @Composable
 private fun RenderInlineRender(
   style: TextStyle,
@@ -906,14 +885,12 @@ private fun RenderInlineRender(
   }
 }
 
-/**
- * Draws the rounded background chip behind each inline-code span.
- *
- * Works at line granularity so a multi-line code span gets one chip per line.
- * [layoutResult] is the Text layout used to resolve offsets to geometry; [style]
- * drives the chip height via its line-height so all chips in the paragraph
- * render at a uniform height regardless of the glyphs they contain.
- */
+// Draws the rounded background chip behind each inline-code span.
+//
+// Works at line granularity so a multi-line code span gets one chip per line.
+// [layoutResult] is the Text layout used to resolve offsets to geometry; [style]
+// drives the chip height via its line-height so all chips in the paragraph
+// render at a uniform height regardless of the glyphs they contain.
 private fun DrawScope.drawInlineCodeChips(
   density: Density,
   style: TextStyle,

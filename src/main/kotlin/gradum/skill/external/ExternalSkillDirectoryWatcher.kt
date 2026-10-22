@@ -17,9 +17,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  * skillScanner.reconcile(), which is state-based, so a reload always reflects
  * the full current set of .kt sources:
  *
- * - **Event-driven**: a [WatchService] on the directory fires on create or
+ * - Event-driven: a [WatchService] on the directory fires on create or
  *   modify or delete of a top-level .kt file, debounced to coalesce bursts.
- * - **Periodic fallback**: a daemon scheduler rechecks the currentFingerprint()
+ * - Periodic fallback: a daemon scheduler rechecks the currentFingerprint()
  *   fingerprint every fallbackIntervalMillis to catch events the platform's
  *   watch service may have missed (a known macOS quirk).
  *

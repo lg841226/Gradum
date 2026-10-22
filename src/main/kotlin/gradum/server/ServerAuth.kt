@@ -56,7 +56,7 @@ object ServerAuth {
   /** Prefix of the `Authorization` header value. */
   const val BEARER_PREFIX: String = "Bearer "
 
-  /** Hosts the `Host` header may name; anything else is a rebinding attempt. */
+  // Hosts the `Host` header may name; anything else is a rebinding attempt.
   private val ALLOWED_HOST_NAMES: Set<String> =
     setOf("localhost", "127.0.0.1", "::1", "::ffff:127.0.0.1")
 
@@ -107,7 +107,7 @@ object ServerAuth {
     return generatedToken
   }
 
-  /** Best-effort `0600`; non-POSIX filesystems (Windows) are left as-is. */
+  // Best-effort `0600`; non-POSIX filesystems (Windows) are left as-is.
   private fun restrictToOwner(file: File) {
     try {
       val tokenPath = file.toPath()
@@ -215,7 +215,7 @@ object ServerAuth {
   fun authCookieHeader(authToken: String): String =
     "$TOKEN_COOKIE_NAME=$authToken; Path=/; HttpOnly; SameSite=Strict"
 
-  /** Extracts the host name from a `Host` header, dropping the port. */
+  // Extracts the host name from a `Host` header, dropping the port.
   private fun extractHostName(hostHeader: String): String {
     val trimmedHost: String = hostHeader.trim()
     if (trimmedHost.startsWith("[")) {
@@ -278,10 +278,10 @@ class PairingState(val code: String = generatePairingCode()) {
     /** How many characters a code holds. */
     const val CODE_LENGTH: Int = 5
 
-    /** Wrong tries before every try pauses. */
+    // Wrong tries before every try pauses.
     private const val MAX_FAILURES: Int = 3
 
-    /** How long the pause lasts, in milliseconds. */
+    // How long the pause lasts, in milliseconds.
     private const val COOLDOWN_MILLIS: Long = 10_000L
 
     /** A fresh random five-character code, uppercase. */

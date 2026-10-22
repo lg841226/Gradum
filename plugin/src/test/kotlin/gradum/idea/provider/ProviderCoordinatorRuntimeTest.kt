@@ -18,10 +18,8 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 class ProviderCoordinatorRuntimeTest {
 
-  /**
-   * Scriptable fake probe: serves results from [results] in order, then
-   * keeps serving the last one. Records every probe in [calls].
-   */
+  // Scriptable fake probe: serves results from [results] in order, then
+  // keeps serving the last one. Records every probe in [calls].
   private class FakeProbe(
     private val results: List<ProviderStatus>,
     private val onProbe: suspend () -> Unit = {},

@@ -115,33 +115,29 @@ object DiffViewer {
     }
   }
 
-  /**
-   * Resolution tier used for selecting which [DiffContentFactory.create]
-   * overload to call. Split out as a sealed hierarchy so the caller
-   * does not have to remember whether the diff came from a
-   * [VirtualFile], a fallback [FileType], or `PlainTextFileType`,
-   * each tier routes to a different `create` overload and the log
-   * line records which path was taken.
-   */
+  // Resolution tier used for selecting which [DiffContentFactory.create]
+  // overload to call. Split out as a sealed hierarchy so the caller
+  // does not have to remember whether the diff came from a
+  // [VirtualFile], a fallback [FileType], or `PlainTextFileType`,
+  // each tier routes to a different `create` overload and the log
+  // line records which path was taken.
   private sealed class ResolvedType {
     data class FromVirtualFile(val file: VirtualFile) : ResolvedType()
     data class FromFileType(val type: FileType) : ResolvedType()
     data object PlainTextFallback : ResolvedType()
   }
 
-  /**
-   * Resolve [path] to a [VirtualFile] in the local file system.
-   *
-   * Tries, in order:
-   * 1. `LocalFileSystem.findFileByPath(path)`: succeeds for
-   *    absolute paths the platform already knows about.
-   * 2. `path` joined with `project.basePath`: needed because the
-   *    `write_file` tool receives project-relative paths from the
-   *    LLM and `findFileByPath` does NOT resolve them itself.
-   *
-   * Returns null when both lookups fail; the caller falls back to
-   * a [FileType] inferred from the file name.
-   */
+  // Resolve [path] to a [VirtualFile] in the local file system.
+  //
+  // Tries, in order:
+  // 1. `LocalFileSystem.findFileByPath(path)`: succeeds for
+  //    absolute paths the platform already knows about.
+  // 2. `path` joined with `project.basePath`: needed because the
+  //    `write_file` tool receives project-relative paths from the
+  //    LLM and `findFileByPath` does NOT resolve them itself.
+  //
+  // Returns null when both lookups fail; the caller falls back to
+  // a [FileType] inferred from the file name.
   private fun resolveVirtualFile(project: Project?, path: String): VirtualFile? {
     if (path.isBlank()) return null
     val localFileSystem: LocalFileSystem = LocalFileSystem.getInstance()

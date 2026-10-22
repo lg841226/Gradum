@@ -11,23 +11,21 @@ import java.awt.event.MouseEvent
 import javax.swing.JComponent
 import javax.swing.SwingUtilities
 
-/**
- * Lets the user drag the Gradum tool window header (its title strip) onto
- * the editor area to move the chat into an editor tab: the drag equivalent
- * of the Open in Editor title action.
- *
- * A press on the tool window chrome, outside the chat content itself, arms
- * a potential drag. When the release is at least [DRAG_THRESHOLD_PX] away
- * and lands on an editor window, the chat moves via
- * [openGradumChatInEditor] (same move semantics as the title action).
- * Every other gesture: clicks, releases outside the editor area, drags
- * starting inside the chat: is ignored, so the platform's own
- * tool-window redocking keeps working unchanged.
- *
- * Mouse events do not bubble in Swing, so the gesture is observed with a
- * toolkit-level AWTEventListener filtered to this tool window's components;
- * the listener is removed when the tool window is disposed.
- */
+// Lets the user drag the Gradum tool window header (its title strip) onto
+// the editor area to move the chat into an editor tab: the drag equivalent
+// of the Open in Editor title action.
+//
+// A press on the tool window chrome, outside the chat content itself, arms
+// a potential drag. When the release is at least [DRAG_THRESHOLD_PX] away
+// and lands on an editor window, the chat moves via
+// [openGradumChatInEditor] (same move semantics as the title action).
+// Every other gesture: clicks, releases outside the editor area, drags
+// starting inside the chat: is ignored, so the platform's own
+// tool-window redocking keeps working unchanged.
+//
+// Mouse events do not bubble in Swing, so the gesture is observed with a
+// toolkit-level AWTEventListener filtered to this tool window's components;
+// the listener is removed when the tool window is disposed.
 internal fun installToolWindowDragToEditor(project: Project, toolWindow: ToolWindow) {
   if (project.isDisposed) return
   val contentComponent: JComponent = toolWindow.component

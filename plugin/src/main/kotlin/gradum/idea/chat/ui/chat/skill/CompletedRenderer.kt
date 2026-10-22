@@ -25,7 +25,7 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 /**
  * Default renderer for the server-side `finish_to_do_item` skill
  * (alias "Completed"). Renders a collapsible capsule header (green
- * checkmark + "Completed" + just-completed task name + chevron),
+ * checkmark + "Completed" and just-completed task name and chevron),
  * mirroring the [PlannedRenderer] row pattern. Expanding the header
  * reveals the full task list with the same per-task states as the
  * plan list:

@@ -3,11 +3,9 @@ package gradum.acp
 import gradum.agent.GradumEventType
 import kotlinx.serialization.json.JsonObject
 
-/**
- * Translates Gradum agent events into ACP `session/update` payloads.
- * Pure and stateless: given the event type and its data, it returns the
- * update body (or null when the event maps to no ACP update).
- */
+// Translates Gradum agent events into ACP `session/update` payloads.
+// Pure and stateless: given the event type and its data, it returns the
+// update body (or null when the event maps to no ACP update).
 internal fun mapGradumEventToAcpUpdate(
   sessionId: String, eventType: String, eventData: Map<String, Any>
 ): JsonObject? {
@@ -57,12 +55,10 @@ internal fun mapGradumEventToAcpUpdate(
 
 private const val TITLE_PARAM_MAX = 60
 
-/**
- * Builds the ACP capsule title as `Label: value`, e.g. `Run command: npm test`.
- * [declaredLabel] / [declaredParamKey] come from the skill's ToolDisplay; when
- * absent (an external skill that declared nothing) the label is humanized from
- * [toolName] and the parameter is the first non-blank String argument.
- */
+// Builds the ACP capsule title as `Label: value`, e.g. `Run command: npm test`.
+// [declaredLabel] / [declaredParamKey] come from the skill's ToolDisplay; when
+// absent (an external skill that declared nothing) the label is humanized from
+// [toolName] and the parameter is the first non-blank String argument.
 private fun buildToolCallTitle(
   toolName: String,
   declaredLabel: String?,

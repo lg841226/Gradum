@@ -165,7 +165,7 @@ class GradumNestedCodeBlockTest {
     assertTrue("code content should be preserved: $text", text.contains("        nested code"))
   }
 
-  // ── Code block + blockquote in same list item ───────────────────────
+  // ── Code block and blockquote in same list item ───────────────────────
 
   @Test
   fun `list item with both code block and blockquote`() {

@@ -5,39 +5,37 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 
-/**
- * Type-safe builder DSL for the ACP v1 initialize response objects.
- *
- * Produces JsonObject directly (no intermediate data class and conversion
- * step), and eliminates every `put("key", JsonPrimitive(value))` call site
- * so the initialize handler reads as a plain declarative block.
- *
- * Field names mirror the ACP v1 schema: `loadSession`, `promptCapabilities`,
- * `mcpCapabilities` (`http`/`sse`). There is no agent-side permission
- * capability: `session/request_permission` is a core method.
- *
- * Usage:
- *
- *     val result = acpInitialize {
- *       protocolVersion = 1
- *       agentInfo {
- *         name = "Gradum"
- *         version = "1.0.2"
- *       }
- *       authMethod {
- *         id = "terminal"
- *         name = "Configure provider"
- *         description = "Run interactive setup in a terminal"
- *         type = "terminal"
- *         args = listOf("setup")
- *       }
- *       agentCapabilities {
- *         loadSession = false
- *         promptCapabilities { image = true }
- *         mcpCapabilities { /* stdio only: http/sse stay false */ }
- *       }
- *     }
- */
+// Type-safe builder DSL for the ACP v1 initialize response objects.
+//
+// Produces JsonObject directly (no intermediate data class and conversion
+// step), and eliminates every `put("key", JsonPrimitive(value))` call site
+// so the initialize handler reads as a plain declarative block.
+//
+// Field names mirror the ACP v1 schema: `loadSession`, `promptCapabilities`,
+// `mcpCapabilities` (`http`/`sse`). There is no agent-side permission
+// capability: `session/request_permission` is a core method.
+//
+// Usage:
+//
+//     val result = acpInitialize {
+//       protocolVersion = 1
+//       agentInfo {
+//         name = "Gradum"
+//         version = "1.0.2"
+//       }
+//       authMethod {
+//         id = "terminal"
+//         name = "Configure provider"
+//         description = "Run interactive setup in a terminal"
+//         type = "terminal"
+//         args = listOf("setup")
+//       }
+//       agentCapabilities {
+//         loadSession = false
+//         promptCapabilities { image = true }
+//         mcpCapabilities { /* stdio only: http/sse stay false */ }
+//       }
+//     }
 internal fun acpInitialize(block: AcpInitializeScope.() -> Unit): JsonObject {
   val scope = AcpInitializeScope().apply(block)
   return scope.toJsonObject()
@@ -81,15 +79,13 @@ internal class AcpAgentInfoScope {
     }
 }
 
-/**
- * One entry of the initialize response's `authMethods` array. Clients render
- * these as login/setup entries; the ACP registry requires at least one method
- * whose [type] is `agent` or `terminal`.
- *
- * [type] defaults to `agent` (the OAuth flow the agent runs itself). A
- * `terminal` entry points the client at [args]/[env] to launch the agent's
- * interactive setup instead, e.g. `args = listOf("setup")` runs `gradum setup`.
- */
+// One entry of the initialize response's `authMethods` array. Clients render
+// these as login/setup entries; the ACP registry requires at least one method
+// whose [type] is `agent` or `terminal`.
+//
+// [type] defaults to `agent` (the OAuth flow the agent runs itself). A
+// `terminal` entry points the client at [args]/[env] to launch the agent's
+// interactive setup instead, e.g. `args = listOf("setup")` runs `gradum setup`.
 internal class AcpAuthMethodScope {
   var id: String = ""
   var name: String = ""
@@ -147,10 +143,8 @@ internal class AcpPromptScope {
     }
 }
 
-/**
- * The agent's MCP transport support. Gradum only connects client-provided
- * MCP servers over stdio, so http/sse are false and not advertised.
- */
+// The agent's MCP transport support. Gradum only connects client-provided
+// MCP servers over stdio, so http/sse are false and not advertised.
 internal class AcpMcpCapabilitiesScope {
   var http: Boolean = false
   var sse: Boolean = false

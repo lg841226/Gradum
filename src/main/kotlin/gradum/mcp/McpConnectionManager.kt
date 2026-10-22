@@ -9,7 +9,7 @@ private val logger: Logger = LoggerFactory.getLogger("McpConnectionManager")
 
 /**
  * A configured MCP stdio server the user declared in settings.json.
- * [command] is the executable + arguments that spawn the server process;
+ * [command] is the executable and arguments that spawn the server process;
  * [workingDir] and [env] are passed through to [ProcessBuilder].
  */
 data class McpServerConfig(

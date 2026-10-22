@@ -65,7 +65,7 @@ class GradumMarkdownScope {
   var isSimplified: Boolean = false
 
   /**
-   * When `true`, segments animate in with a fade + rise effect.
+   * When `true`, segments animate in with a fade and rise effect.
    * Disable for dialogs / static content.
    */
   var animationEnabled: Boolean = true
@@ -117,10 +117,8 @@ fun GradumMarkdown(
   GradumMarkdownContent(text, config, modifier)
 }
 
-/**
- * Internal rendering implementation. Separated from [GradumMarkdown] so
- * [GradumMarkdownScope] properties are stable within the scope function.
- */
+// Internal rendering implementation. Separated from [GradumMarkdown] so
+// [GradumMarkdownScope] properties are stable within the scope function.
 @Composable
 internal fun GradumMarkdownContent(
   text: String,
@@ -165,9 +163,7 @@ internal fun GradumMarkdownContent(
   }
 }
 
-/**
- * Renders a single [MarkdownSegment] with optional animation.
- */
+// Renders a single [MarkdownSegment] with optional animation.
 @Composable
 private fun GradumMarkdownSegment(
   segment: MarkdownSegment,
@@ -189,9 +185,7 @@ private fun GradumMarkdownSegment(
   }
 }
 
-/**
- * Static (non-animated) segment renderer. Used by dialogs and static content.
- */
+// Static (non-animated) segment renderer. Used by dialogs and static content.
 @Composable
 private fun StaticGradumSegment(
   segment: MarkdownSegment,
@@ -289,9 +283,7 @@ private fun StaticGradumSegment(
   }
 }
 
-/**
- * Animated segment renderer. Used by chat bubble for fade + rise entrance.
- */
+// Animated segment renderer. Used by chat bubble for fade and rise entrance.
 @Composable
 private fun AnimatedGradumSegment(
   segment: MarkdownSegment,
@@ -358,9 +350,7 @@ private fun animationEasing(segment: MarkdownSegment): Easing = when (segment) {
   is MarkdownSegment.Plain -> LinearOutSlowInEasing
 }
 
-/**
- * Resolves the paragraph style with thinking-mode color override.
- */
+// Resolves the paragraph style with thinking-mode color override.
 @Composable
 private fun resolveParagraphStyle(baseStyle: TextStyle, config: GradumMarkdownScope): TextStyle {
   if (!config.thinkingMode) return baseStyle
@@ -368,12 +358,10 @@ private fun resolveParagraphStyle(baseStyle: TextStyle, config: GradumMarkdownSc
   return baseStyle.copy(color = thinkingColor)
 }
 
-/**
- * Draws background + border chips behind inline code spans.
- *
- * Extracted from the `drawWithContent` lambda so the rendering
- * logic is readable and testable independently.
- */
+// Draws background and border chips behind inline code spans.
+//
+// Extracted from the `drawWithContent` lambda so the rendering
+// logic is readable and testable independently.
 private fun DrawScope.drawInlineCodeBackgrounds(
   density: Density,
   fontSize: TextUnit,

@@ -189,7 +189,7 @@ class SessionSnapshotManagerTest {
     return projectDirectory
   }
 
-  /** Locates the snapshot store of [projectDirectory] by its unique temp dir name. */
+  // Locates the snapshot store of [projectDirectory] by its unique temp dir name.
   private fun turnRefsGitDirectory(projectDirectory: File): String =
     File(System.getProperty("user.home"), ".gradum/snapshots")
       .listFiles()!!

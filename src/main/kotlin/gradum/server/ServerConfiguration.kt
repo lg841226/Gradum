@@ -21,30 +21,34 @@ data class ServerConfiguration(
   val portNumber: Int = DEFAULT_PORT_NUMBER,
   val hostAddress: String = DEFAULT_HOST_ADDRESS,
 
-  // Server-wide fallback bearer token for hosted providers.
-  // Used by `/events` when request body omits `apiKey`. Lookup order:
-  // GRADUM_OPENAI_API_KEY -> BIGMODEL_API_KEY -> DEEPSEEK_API_KEY
-  // -> MiniMax_API_KEY -> OPENAI_API_KEY. Null = skip (works for local Ollama).
+  /**
+   * Server-wide fallback bearer token for hosted providers.
+   * Used by `/events` when request body omits `apiKey`. Lookup order:
+   * GRADUM_OPENAI_API_KEY -> BIGMODEL_API_KEY -> DEEPSEEK_API_KEY
+   * -> MiniMax_API_KEY -> OPENAI_API_KEY. Null = skip (works for local Ollama).
+   */
   val defaultApiKey: String? = null,
 
-  // Bearer token every HTTP request must present (see ServerAuth).
-  // Null = auth disabled (default for tests/embedded); production entry
-  // point always supplies the resolved token.
+  /**
+   * Bearer token every HTTP request must present (see ServerAuth).
+   * Null = auth disabled (default for tests/embedded); production entry
+   * point always supplies the resolved token.
+   */
   val authToken: String? = null,
 
-  // Server-wide default LLM base URL (mirrors AgentConfiguration.DEFAULT_OLLAMA_BASE_URL).
+  /** Server-wide default LLM base URL (mirrors AgentConfiguration.DEFAULT_OLLAMA_BASE_URL). */
   val defaultBaseUrl: String = DEFAULT_BASE_URL,
 
-  // Server-wide default model name; empty = "first discovered available model".
+  /** Server-wide default model name; empty = "first discovered available model". */
   val defaultModelName: String = "",
 
-  // Server-wide default thinking toggle (mirrors AgentConfiguration.DEFAULT_ENABLE_THINKING).
+  /** Server-wide default thinking toggle (mirrors AgentConfiguration.DEFAULT_ENABLE_THINKING). */
   val defaultThinkEnabled: Boolean = false,
 
-  // Server-wide default Ollama keep-alive minutes (mirrors AgentConfiguration.DEFAULT_KEEP_ALIVE_MINUTES).
+  /** Server-wide default Ollama keep-alive minutes (mirrors AgentConfiguration.DEFAULT_KEEP_ALIVE_MINUTES). */
   val defaultKeepAliveMinutes: Int = AgentConfiguration.DEFAULT_KEEP_ALIVE_MINUTES,
 
-  // Per-skill plugin config sections (plugins.<skillName>), carried to each Agent session.
+  /** Per-skill plugin config sections (plugins.<skillName>), carried to each Agent session. */
   val plugins: Map<String, Map<String, Any?>> = emptyMap(),
 ) {
   companion object {
@@ -67,7 +71,7 @@ data class ServerConfiguration(
         "GRADUM_OPENAI_API_KEY"
       )
 
-    // Resolve server-wide API key from env vars; first non-blank wins, trimmed.
+    /** Resolve server-wide API key from env vars; first non-blank wins, trimmed. */
     fun resolveDefaultApiKeyFromEnv(): String? {
       for (envVarName: String in API_KEY_ENV_CANDIDATES) {
         val rawValue: String? = System.getenv(envVarName)

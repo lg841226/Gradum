@@ -23,9 +23,7 @@ import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.Tooltip
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
-/**
- * Toolbar row inside [ChatInputPanel] with add-menu, permission selector, and action buttons.
- */
+/** Toolbar row inside [ChatInputPanel] with add-menu, permission selector, and action buttons. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ChatToolbar(

@@ -286,7 +286,7 @@ class ExternalSkillReloadTest {
     Files.createTempDirectory("external-skill-reload-test").toFile()
 }
 
-/** In-memory [SkillStore] so reconcile tests never touch the global registry. */
+// In-memory [SkillStore] so reconcile tests never touch the global registry.
 private class FakeSkillStore : SkillStore {
   private val skills: ConcurrentHashMap<String, Skill> = ConcurrentHashMap()
 
@@ -384,11 +384,9 @@ private val BROKEN_SKILL_SOURCE: String = """
   |class EchoSkill : Skill() {
 """.trimMargin()
 
-/**
- * A skill that cannot compile on its own: `ZuluHelper` lives in another file, so
- * only the whole-directory batch pass can resolve it. The file is named after
- * its class, so the batch can attribute `AlphaSkill.class` back to it.
- */
+// A skill that cannot compile on its own: `ZuluHelper` lives in another file, so
+// only the whole-directory batch pass can resolve it. The file is named after
+// its class, so the batch can attribute `AlphaSkill.class` back to it.
 private val ALPHA_SKILL_SOURCE: String = """
   |package external
   |
@@ -417,7 +415,7 @@ private val ALPHA_SKILL_SOURCE: String = """
   |}
 """.trimMargin()
 
-/** The sibling [ALPHA_SKILL_SOURCE] references; it declares no skill itself. */
+// The sibling [ALPHA_SKILL_SOURCE] references; it declares no skill itself.
 private val ZULU_HELPER_SOURCE: String = """
   |package external
   |
@@ -426,7 +424,7 @@ private val ZULU_HELPER_SOURCE: String = """
   |}
 """.trimMargin()
 
-/** An unparsable sibling: no skill, but enough to fail every compile pass. */
+// An unparsable sibling: no skill, but enough to fail every compile pass.
 private val BROKEN_HELPER_SOURCE: String = """
   |package external
   |

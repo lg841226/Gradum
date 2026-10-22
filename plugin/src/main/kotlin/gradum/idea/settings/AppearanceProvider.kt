@@ -16,29 +16,19 @@ import gradum.idea.utils.GradumSpacing
  */
 val LocalParagraphSpacing = staticCompositionLocalOf { GradumSpacing.md }
 
-/**
- * Current assistant body font size in sp, provided by [ProvideAppearance].
- */
+/** Current assistant body font size in sp, provided by [ProvideAppearance]. */
 val LocalParagraphFontSize = staticCompositionLocalOf { DEFAULT_PARAGRAPH_FONT_SIZE_SP.sp }
 
-/**
- * Whether the grouped message timestamps are rendered.
- */
+/** Whether the grouped message timestamps are rendered. */
 val LocalShowTimestamp = staticCompositionLocalOf { true }
 
-/**
- * Whether the thinking block starts collapsed (showing only the label).
- */
+/** Whether the thinking block starts collapsed (showing only the label). */
 val LocalCollapseThinkingByDefault = staticCompositionLocalOf { true }
 
-/**
- * Whether the assistant bubble shows the model name header.
- */
+/** Whether the assistant bubble shows the model name header. */
 val LocalShowModelName = staticCompositionLocalOf { true }
 
-/**
- * Whether the chat auto-scrolls to the bottom when new content arrives.
- */
+/** Whether the chat auto-scrolls to the bottom when new content arrives. */
 val LocalAutoScrollToBottom = staticCompositionLocalOf { true }
 
 /**

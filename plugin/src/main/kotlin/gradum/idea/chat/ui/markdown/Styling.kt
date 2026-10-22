@@ -38,19 +38,17 @@ import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createListSty
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createOrderedListStyling
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createUnorderedListStyling
 
-/**
- * Padding applied to every heading block (H1–H6).
- *
- * Jewel's default is `PaddingValues(top = 24.dp, bottom = 16.dp)`,
- * which is GitHub-flavored spacing designed for a documentation
- * page. In a chat bubble that stack of 24 dp + the heading's own
- * line-height slack + the markdown `blockVerticalSpacing` (16 dp)
- * creates a ~40 sp gap between an H1 and the body text that follows
- * it: roughly 2½ lines of empty space, which reads as a layout
- * bug. Override to 0 so the block-level `blockVerticalSpacing` is
- * the single source of truth for inter-block gaps, matching the
- * spacing between any two regular paragraphs.
- */
+// Padding applied to every heading block (H1–H6).
+//
+// Jewel's default is `PaddingValues(top = 24.dp, bottom = 16.dp)`,
+// which is GitHub-flavored spacing designed for a documentation
+// page. In a chat bubble that stack of 24 dp and the heading's own
+// line-height slack and the markdown `blockVerticalSpacing` (16 dp)
+// creates a ~40 sp gap between an H1 and the body text that follows
+// it: roughly 2½ lines of empty space, which reads as a layout
+// bug. Override to 0 so the block-level `blockVerticalSpacing` is
+// the single source of truth for inter-block gaps, matching the
+// spacing between any two regular paragraphs.
 private val HeadingBlockPadding: PaddingValues = PaddingValues(0.dp)
 
 /**
@@ -91,11 +89,9 @@ fun rememberGradumParagraphTextStyle(): TextStyle {
   return resolvedTextStyle
 }
 
-/**
- * Foreground color for inline code chips. Uses the default body text color
- * (chips read as regular text, not muted) and collapses to the same muted
- * gray as every other inline color in thinking mode.
- */
+// Foreground color for inline code chips. Uses the default body text color
+// (chips read as regular text, not muted) and collapses to the same muted
+// gray as every other inline color in thinking mode.
 @Composable
 internal fun rememberInlineCodeTextColor(thinkingMode: Boolean): Color {
   if (thinkingMode) return LocalGlobalColors.current.text.info
@@ -103,14 +99,12 @@ internal fun rememberInlineCodeTextColor(thinkingMode: Boolean): Color {
   return if (bodyColor == Color.Unspecified) JewelTheme.contentColor else bodyColor
 }
 
-/**
- * Returns a `LinkColors` with `content` overridden and the other 5
- * scanState colors (disabled / focused / hovered / pressed / visited)
- * carried through unchanged. `LinkColors` is a plain class (not
- * a data class) so it has no `copy(...)`: we hand-roll a small
- * `withContent` for the chat's "thinking-mode link color"
- * override. Used by [rememberGradumMarkdownStyling].
- */
+// Returns a `LinkColors` with `content` overridden and the other 5
+// scanState colors (disabled / focused / hovered / pressed / visited)
+// carried through unchanged. `LinkColors` is a plain class (not
+// a data class) so it has no `copy(...)`: we hand-roll a small
+// `withContent` for the chat's "thinking-mode link color"
+// override. Used by [rememberGradumMarkdownStyling].
 internal fun LinkColors.withContent(newContent: Color): LinkColors = LinkColors(
   content = newContent,
   contentFocused = contentFocused,
@@ -120,16 +114,14 @@ internal fun LinkColors.withContent(newContent: Color): LinkColors = LinkColors(
   contentDisabled = contentDisabled
 )
 
-/**
- * Build an [InlinesStyling] for the [MarkdownStyling] used by
- * BlockRenderer's non-prose block rendering. Link colors are
- * pulled directly from [linkColors]: the official Jewel API
- * already provides 6 scanState-aware Color fields (`content` /
- * `contentDisabled` / `contentFocused` / `contentHovered` /
- * `contentPressed` / `contentVisited`), and there is no need to
- * re-implement them in the chat. Centralized here so the paragraph
- * and heading configurations stay in sync.
- */
+// Build an [InlinesStyling] for the [MarkdownStyling] used by
+// BlockRenderer's non-prose block rendering. Link colors are
+// pulled directly from [linkColors]: the official Jewel API
+// already provides 6 scanState-aware Color fields (`content` /
+// `contentDisabled` / `contentFocused` / `contentHovered` /
+// `contentPressed` / `contentVisited`), and there is no need to
+// re-implement them in the chat. Centralized here so the paragraph
+// and heading configurations stay in sync.
 @OptIn(ExperimentalJewelApi::class)
 @Suppress("UnstableApiUsage")
 internal fun gradumInlinesStyling(

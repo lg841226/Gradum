@@ -12,12 +12,10 @@ import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.createChatComposePanel
 import javax.swing.JComponent
 
-/**
- * State of the tool window content while the chat lives in an editor tab.
- * The content's original chat panel is disposed by the platform when it is
- * replaced (ComposePanel disposes on remove), so restoring the content
- * builds a fresh panel via [GradumChatContent]/createChatComposePanel.
- */
+// State of the tool window content while the chat lives in an editor tab.
+// The content's original chat panel is disposed by the platform when it is
+// replaced (ComposePanel disposes on remove), so restoring the content
+// builds a fresh panel via [GradumChatContent]/createChatComposePanel.
 internal class ChatDisplacement(
   val toolWindow: ToolWindow,
   val content: Content,
@@ -71,11 +69,9 @@ fun openGradumChatInEditor(project: Project) {
   editorManager.openFile(file, true)
 }
 
-/**
- * Puts the tool window content back after the chat editor tab closes.
- * Called from [GradumChatFileEditor.dispose]; does nothing when the chat
- * was never displaced from the tool window.
- */
+// Puts the tool window content back after the chat editor tab closes.
+// Called from [GradumChatFileEditor.dispose]; does nothing when the chat
+// was never displaced from the tool window.
 internal fun restoreChatToToolWindow(project: Project, file: VirtualFile) {
   val displacement: ChatDisplacement = file.getUserData(CHAT_DISPLACEMENT_KEY) ?: return
   file.putUserData(CHAT_DISPLACEMENT_KEY, null)

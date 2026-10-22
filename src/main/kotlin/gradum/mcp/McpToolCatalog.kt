@@ -52,7 +52,7 @@ object McpToolCatalog {
   /** Number of registered MCP tools. */
   fun toolCount(): Int = adaptersByTool.size
 
-  /** Returns the full-schema adapter for [name], or null when not registered. */
+  // Returns the full-schema adapter for [name], or null when not registered.
   internal fun adapterFor(name: String): McpSkillAdapter? = adaptersByTool[name]
 
   /**
@@ -126,12 +126,10 @@ object McpToolCatalog {
   private const val OTHER_GROUP = "Other"
   private const val BRIEF_LENGTH = 90
 
-  /**
-   * Ordered (group, keyword) rules. The first rule whose keyword appears in a
-   * tool name assigns its group; tools matching none fall back to [OTHER_GROUP].
-   * Rule order matters, so broad keywords (e.g. `fill`) appear after narrower
-   * ones to avoid hijacking tools that belong to a more specific group.
-   */
+  // Ordered (group, keyword) rules. The first rule whose keyword appears in a
+  // tool name assigns its group; tools matching none fall back to [OTHER_GROUP].
+  // Rule order matters, so broad keywords (e.g. `fill`) appear after narrower
+  // ones to avoid hijacking tools that belong to a more specific group.
   private val GROUP_RULES: List<Pair<String, List<String>>> = listOf(
     "Navigation" to listOf("navigate", "new_page", "go_back", "reload", "wait_for", "close", "install"),
     "Interaction" to listOf("click", "hover", "drag", "press_key", "check", "uncheck", "handle_dialog"),

@@ -124,7 +124,7 @@ class DelegateSkill : Skill() {
     }
   }
 
-  /** Extracts the task string from arguments, or null if missing/too short/duplicate of user input. */
+  // Extracts the task string from arguments, or null if missing/too short/duplicate of user input.
   private fun validateTask(
     arguments: Map<String, Any>, conversationHistory: List<Map<String, Any>>
   ): String? {
@@ -149,7 +149,7 @@ class DelegateSkill : Skill() {
     return task
   }
 
-  /** Creates the sub-agent configuration based on the parent configuration. */
+  // Creates the sub-agent configuration based on the parent configuration.
   private fun buildSubAgentConfig(config: AgentConfiguration, task: String): AgentConfiguration {
     return config.copy(
       sessionId = null,
@@ -160,7 +160,7 @@ class DelegateSkill : Skill() {
     )
   }
 
-  /** Emits the start event to notify the client that a sub-agent is running. */
+  // Emits the start event to notify the client that a sub-agent is running.
   private fun emitStartEvent(
     emitEvent: (String, Map<String, Any>) -> Unit, modelName: String, title: String,
     task: String
@@ -175,7 +175,7 @@ class DelegateSkill : Skill() {
     )
   }
 
-  /** Creates and runs the sub-agent, then emits the end event and returns the result. */
+  // Creates and runs the sub-agent, then emits the end event and returns the result.
   private fun runSubAgent(
     config: AgentConfiguration, task: String, emitEvent: (String, Map<String, Any>) -> Unit,
     registerChild: ((String, Agent) -> Unit)?, unregisterChild: ((String) -> Unit)?

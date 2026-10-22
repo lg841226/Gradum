@@ -47,15 +47,17 @@ private const val INPUT_DEBOUNCE_MS: Long = PluginConfig.INPUT_DEBOUNCE_MS
  * debounced by [INPUT_DEBOUNCE_MS] so the coordinator is not reconfigured
  * on every keystroke.
  *
- * @param kind which provider this row edits.
- * @param baseUrlState Compose state backing the URL text field.
- * @param apiKeyState Compose state backing the API key text field.
- * @param onUrlChange invoked [INPUT_DEBOUNCE_MS] after the URL stops changing.
- * @param onApiKeyChange invoked [INPUT_DEBOUNCE_MS] after the API key stops changing.
- * @param extraToggle optional extra checkbox rendered below the API key field.
- * @param beforeAction optional content rendered between [extraToggle] and the
  * probe action row, e.g. an app-level setting that belongs to this provider.
- * @param onExtraToggleChange invoked when [extraToggle] is toggled.
+ *
+ * Parameters:
+ * - kind: which provider this row edits.
+ * - baseUrlState: Compose state backing the URL text field.
+ * - apiKeyState: Compose state backing the API key text field.
+ * - onUrlChange: invoked [INPUT_DEBOUNCE_MS] after the URL stops changing.
+ * - onApiKeyChange: invoked [INPUT_DEBOUNCE_MS] after the API key stops changing.
+ * - extraToggle: optional extra checkbox rendered below the API key field.
+ * - beforeAction: optional content rendered between [extraToggle] and the
+ * - onExtraToggleChange: invoked when [extraToggle] is toggled.
  */
 @Composable
 fun ApiProviderRow(
@@ -226,7 +228,7 @@ private fun ActionRow(
   }
 }
 
-/** Renders an icon + localized text pair; hides itself for transient states. */
+// Renders an icon and localized text pair; hides itself for transient states.
 @Composable
 private fun StatusBadge(status: ProviderStatus) {
   val (icon: IntelliJIconKey, text: String) =

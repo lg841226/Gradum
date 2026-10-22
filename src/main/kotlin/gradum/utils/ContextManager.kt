@@ -22,21 +22,17 @@ private val jsonFormatter: Json = Json { prettyPrint = true }
  */
 class ContextManager(private val outputDirectory: Path) {
 
-  /**
-   * Session id taken from the output directory name
-   * (convention: .../sessions/<sessionId>/ or .../.gradum/ for legacy).
-   */
+  // Session id taken from the output directory name
+  // (convention: .../sessions/<sessionId>/ or .../.gradum/ for legacy).
   private val sessionId: String = outputDirectory.fileName.toString()
 
-  /**
-   * Project root derived from the output directory layout:
-   * - Session layout: `<root>/.gradum/sessions/<sessionId>/`
-   * - Legacy layout: `<root>/.gradum/`
-   * In both cases the per-project database lives in the same `.gradum` folder
-   * that already holds the session files.
-   * Falls back to the current working directory if the parent chain is shorter
-   * than expected (e.g., when running in tests with minimal paths).
-   */
+  // Project root derived from the output directory layout:
+  // - Session layout: `<root>/.gradum/sessions/<sessionId>/`
+  // - Legacy layout: `<root>/.gradum/`
+  // In both cases the per-project database lives in the same `.gradum` folder
+  // that already holds the session files.
+  // Falls back to the current working directory if the parent chain is shorter
+  // than expected (e.g., when running in tests with minimal paths).
   private val projectRoot: Path =
     if (sessionId == ".gradum") {
       outputDirectory.parent ?: Path.of(".")
@@ -44,23 +40,19 @@ class ContextManager(private val outputDirectory: Path) {
       outputDirectory.parent?.parent?.parent ?: Path.of(".")
     }
 
-  /**
-   * Cached decrypted messages to avoid re-reading and decrypting from
-   * disk on every call.
-   *
-   * `@Volatile` because [loadContext] and [saveContext] can race
-   * across coroutines or threads (load reads the field, save writes
-   * `null` to invalidate it). Without the volatile, a load on
-   * another thread could see a stale non-null value after a save
-   * has invalidated it.
-   */
+  // Cached decrypted messages to avoid re-reading and decrypting from
+  // disk on every call.
+  //
+  // `@Volatile` because [loadContext] and [saveContext] can race
+  // across coroutines or threads (load reads the field, save writes
+  // `null` to invalidate it). Without the volatile, a load on
+  // another thread could see a stale non-null value after a save
+  // has invalidated it.
   @Volatile
   private var cachedMessages: List<Map<String, Any>>? = null
 
-  /**
-   * Whether to use the H2 database backend instead of the legacy JSON file.
-   * Controlled by the system property `-Dgradum.db.path=<path>`.
-   */
+  // Whether to use the H2 database backend instead of the legacy JSON file.
+  // Controlled by the system property `-Dgradum.db.path=<path>`.
   private val useDatabase: Boolean = System.getProperty("gradum.db.path") != null
 
   private val contextFilePath: Path = outputDirectory.resolve("context.json")
@@ -159,13 +151,11 @@ class ContextManager(private val outputDirectory: Path) {
     }
   }
 
-  /**
-   * Renders the session's two derived files from [messages]: the
-   * machine-readable `session-state.json` sidecar and the human-readable
-   * `conversation.md` transcript. Both come from the same projection, so they
-   * cannot disagree; a failure to write either is logged but never aborts the
-   * context save.
-   */
+  // Renders the session's two derived files from [messages]: the
+  // machine-readable `session-state.json` sidecar and the human-readable
+  // `conversation.md` transcript. Both come from the same projection, so they
+  // cannot disagree; a failure to write either is logged but never aborts the
+  // context save.
   private fun writeDerivedSessionFiles(messages: List<Map<String, Any>>, modelName: String) {
     val projection: List<Map<String, Any?>> = SessionStateStore.projectionMessages(messages)
     try {
@@ -226,7 +216,7 @@ class ContextManager(private val outputDirectory: Path) {
     saveContext(messages.subList(0, targetIndex), modelName = modelName())
   }
 
-  /** Reads the `model` field from the context header (blank when absent/unreadable). */
+  // Reads the `model` field from the context header (blank when absent/unreadable).
   private fun modelName(): String =
     if (useDatabase) {
       // In database mode the model name is embedded in the encrypted blob;
@@ -246,19 +236,17 @@ class ContextManager(private val outputDirectory: Path) {
       }
     }
 
-  /**
-   * Prepares history for persistence. Text turns (user / assistant) are kept
-   * in full; tool results are replaced with compact action stubs carrying
-   * only what the skill's [ToolDisplay] declares (label + key argument) plus
-   * the result size. Raw outputs are volatile snapshots (file contents,
-   * command output change over time), so they are deliberately not stored:
-   * the model re-runs a tool when it needs fresh data.
-   *
-   * System messages are dropped here because they are re-injected fresh on
-   * every request. No message-count truncation happens on this path; the
-   * request-side budget (MessageHistoryTruncator) decides how much history
-   * is re-sent to the model.
-   */
+  // Prepares history for persistence. Text turns (user / assistant) are kept
+  // in full; tool results are replaced with compact action stubs carrying
+  // only what the skill's [ToolDisplay] declares (label and key argument) plus
+  // the result size. Raw outputs are volatile snapshots (file contents,
+  // command output change over time), so they are deliberately not stored:
+  // the model re-runs a tool when it needs fresh data.
+  //
+  // System messages are dropped here because they are re-injected fresh on
+  // every request. No message-count truncation happens on this path; the
+  // request-side budget (MessageHistoryTruncator) decides how much history
+  // is re-sent to the model.
   private fun cleanMessageHistory(messages: List<Map<String, Any>>): List<Map<String, Any>> {
     val toolCallsByCallId: Map<String, Map<String, Any>> = collectToolCallsByCallId(messages)
     val cleanedMessages: MutableList<Map<String, Any>> = mutableListOf()
@@ -291,11 +279,9 @@ class ContextManager(private val outputDirectory: Path) {
     return cleanedMessages
   }
 
-  /**
-   * Maps every tool call id to its call entry (`function` name + JSON
-   * arguments), read from the assistant messages, so a tool result can be
-   * reduced to a stub that still names the action it belongs to.
-   */
+  // Maps every tool call id to its call entry (`function` name and JSON
+  // arguments), read from the assistant messages, so a tool result can be
+  // reduced to a stub that still names the action it belongs to.
   private fun collectToolCallsByCallId(messages: List<Map<String, Any>>): Map<String, Map<String, Any>> {
     val callsByCallId: MutableMap<String, Map<String, Any>> = mutableMapOf()
     for (message in messages) {
@@ -308,12 +294,10 @@ class ContextManager(private val outputDirectory: Path) {
     return callsByCallId
   }
 
-  /**
-   * Builds the stored stand-in for a tool result: the skill's display label
-   * and key argument from its [ToolDisplay] declaration, plus the payload
-   * size. Falls back to the raw function name when the skill (or its
-   * display) is unknown. The original output is never persisted.
-   */
+  // Builds the stored stand-in for a tool result: the skill's display label
+  // and key argument from its [ToolDisplay] declaration, plus the payload
+  // size. Falls back to the raw function name when the skill (or its
+  // display) is unknown. The original output is never persisted.
   private fun buildToolStub(
     toolMessage: Map<String, Any>,
     toolCallsByCallId: Map<String, Map<String, Any>>
@@ -346,11 +330,9 @@ class ContextManager(private val outputDirectory: Path) {
     }
   }
 
-  /**
-   * Extracts the [paramKey] field from a tool call's JSON `arguments`
-   * string, shortened for display. Returns an empty string when anything
-   * is missing or unparseable: the stub stays readable either way.
-   */
+  // Extracts the [paramKey] field from a tool call's JSON `arguments`
+  // string, shortened for display. Returns an empty string when anything
+  // is missing or unparseable: the stub stays readable either way.
   private fun readArgumentValue(rawArguments: Any?, paramKey: String): String {
     if (paramKey.isBlank() || rawArguments !is String) return ""
     return try {
@@ -362,13 +344,11 @@ class ContextManager(private val outputDirectory: Path) {
     }
   }
 
-  /**
-   * Runtime-safe coercion of a `Any?` value (typically read from a
-   * `Map<String, Any>` produced by [convertJsonElement]) into a
-   * `Map<String, Any>`. Non-`String` keys are dropped, null values
-   * become empty strings. Returns an empty map if the input is not a
-   * map at all.
-   */
+  // Runtime-safe coercion of a `Any?` value (typically read from a
+  // `Map<String, Any>` produced by [convertJsonElement]) into a
+  // `Map<String, Any>`. Non-`String` keys are dropped, null values
+  // become empty strings. Returns an empty map if the input is not a
+  // map at all.
   private fun readStringMap(rawMap: Any?): Map<String, Any> {
     if (rawMap !is Map<*, *>) return emptyMap()
 

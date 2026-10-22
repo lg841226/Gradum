@@ -16,7 +16,7 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  * [gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry].
  *
  * Registered with alias `"*"` (the wildcard) so the registry always
- * has a renderer to fall back to. Renders a minimal `Icon + alias`
+ * has a renderer to fall back to. Renders a minimal `Icon and alias`
  * capsule with no trailing content, and uses a generic
  * `Nodes.Plugin` icon. Third-party plugins should never need to
  * register this themselves; the Gradum plugin ships it
@@ -67,13 +67,11 @@ class DefaultRenderer : ToolCallRenderer {
   }
 }
 
-/**
- * Convert an unregistered tool alias (typically a snake_case MCP tool
- * name like `open_drawio_mermaid`) into a human-readable title, e.g.
- * `Open Drawio Mermaid`. Used by the catch-all renderer so unknown MCP
- * tools don't surface as raw identifiers in the chat bubble. Blank and
- * wildcard aliases pass through unchanged.
- */
+// Convert an unregistered tool alias (typically a snake_case MCP tool
+// name like `open_drawio_mermaid`) into a human-readable title, e.g.
+// `Open Drawio Mermaid`. Used by the catch-all renderer so unknown MCP
+// tools don't surface as raw identifiers in the chat bubble. Blank and
+// wildcard aliases pass through unchanged.
 internal fun humanizeToolName(raw: String): String {
   if (raw.isBlank() || raw == DefaultRenderer.WILDCARD_ALIAS) return raw
   return raw

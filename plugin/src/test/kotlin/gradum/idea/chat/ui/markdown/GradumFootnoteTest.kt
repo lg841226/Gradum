@@ -32,7 +32,7 @@ class GradumFootnoteTest {
   private fun inlineRender(text: String): InlineMarkdownRender =
     requireNotNull(render(text).render)
 
-  /** Drop PUA placeholders so assertions can read the visible text. */
+  // Drop PUA placeholders so assertions can read the visible text.
   private fun visibleText(annotated: AnnotatedString): String {
     val out: StringBuilder = StringBuilder()
     for (element in annotated) {

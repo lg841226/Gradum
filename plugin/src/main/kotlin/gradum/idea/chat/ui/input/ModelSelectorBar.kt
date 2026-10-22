@@ -24,24 +24,22 @@ import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
-/**
- * Cap on the model selector popup height. The local Ollama host on a
- * developer machine can easily surface 30+ entries (every pulled tag
- * counts as a row); without a cap the popup pushes the entire chat
- * area off-screen. 360dp comfortably fits ~6 rows and keeps the
- * selected row visible while scrolling.
- *
- * **Why no `verticalScroll` here.** Jewel `PopupMenu` already wraps
- * its `MenuContent` in an internal `verticalScroll`-backed Column
- * (visible in the disassembled `MenuKt.MenuContent` at
- * `ScrollKt.verticalScroll$default`). Stacking a second one on the
- * outside `Modifier` makes the inner modifier receive
- * `Constraints.Infinity` and throws
- * `IllegalStateException: Vertically scrollable component was
- * measured with an infinity maximum height constraints` the moment
- * the menu opens. The internal scroll container respects the
- * `heightIn(max=...)` cap, which is all we need.
- */
+// Cap on the model selector popup height. The local Ollama host on a
+// developer machine can easily surface 30+ entries (every pulled tag
+// counts as a row); without a cap the popup pushes the entire chat
+// area off-screen. 360dp comfortably fits ~6 rows and keeps the
+// selected row visible while scrolling.
+//
+// Why no `verticalScroll` here. Jewel `PopupMenu` already wraps
+// its `MenuContent` in an internal `verticalScroll`-backed Column
+// (visible in the disassembled `MenuKt.MenuContent` at
+// `ScrollKt.verticalScroll$default`). Stacking a second one on the
+// outside `Modifier` makes the inner modifier receive
+// `Constraints.Infinity` and throws
+// `IllegalStateException: Vertically scrollable component was
+// measured with an infinity maximum height constraints` the moment
+// the menu opens. The internal scroll container respects the
+// `heightIn(max=...)` cap, which is all we need.
 private val MODEL_MENU_MAX_HEIGHT = 300.dp
 
 @Composable
@@ -266,10 +264,8 @@ private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () ->
   }
 }
 
-/**
- * Renders the official parameter count as a badge label, trimming the
- * trailing `.0` (8.0 -> "8B", 7.6 -> "7.6B").
- */
+// Renders the official parameter count as a badge label, trimming the
+// trailing `.0` (8.0 -> "8B", 7.6 -> "7.6B").
 private fun formatParameterSize(sizeB: Double): String =
   if (sizeB % 1.0 == 0.0) "${sizeB.toInt()}B" else "${sizeB}B"
 
@@ -278,7 +274,7 @@ private fun resolveSelectorText(selectedModel: ModelInfo?): String = when {
   else -> message("gradum.model.none")
 }
 
-/** Caps a model display name at [MAX_MODEL_NAME_CHARS] characters for narrow selectors. */
+// Caps a model display name at [MAX_MODEL_NAME_CHARS] characters for narrow selectors.
 private const val MAX_MODEL_NAME_CHARS: Int = PluginConfig.MAX_MODEL_NAME_CHARS
 
 private fun clipModelName(name: String): String {
@@ -303,13 +299,11 @@ private val CLOUD_SERVER_NAMES = setOf(
 private fun isCloudHosted(model: ModelInfo): Boolean =
   model.serverName in CLOUD_SERVER_NAMES
 
-/**
- * Cloud detection for the badge row. Primary signal is the official
- * `remote_host` the server read from Ollama `/api/tags`; the naming
- * convention (`:cloud` tag or `-cloud` suffix) only covers servers old
- * enough to predate that field. The core's ModelIdentity is not visible
- * from the plugin module, so this fallback is duplicated here on purpose.
- */
+// Cloud detection for the badge row. Primary signal is the official
+// `remote_host` the server read from Ollama `/api/tags`; the naming
+// convention (`:cloud` tag or `-cloud` suffix) only covers servers old
+// enough to predate that field. The core's ModelIdentity is not visible
+// from the plugin module, so this fallback is duplicated here on purpose.
 private fun isCloudModel(model: ModelInfo): Boolean {
   if (!model.remoteHost.isNullOrBlank()) return true
   if (isCloudHosted(model)) return true

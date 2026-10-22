@@ -230,10 +230,8 @@ class ReadFileSkill : Skill() {
   }
 }
 
-/**
- * Builds the `PERMISSION_DENIED` failure for an out-of-project read target.
- * Used both when no ask capability is wired and when the user rejects.
- */
+// Builds the `PERMISSION_DENIED` failure for an out-of-project read target.
+// Used both when no ask capability is wired and when the user rejects.
 private fun outsideDenied(path: String, reason: String): SkillResult = makeFailure(
   code = ErrorCode.PERMISSION_DENIED,
   message = buildXmlError(
@@ -245,16 +243,12 @@ private fun outsideDenied(path: String, reason: String): SkillResult = makeFailu
   context = mapOf("path" to path)
 )
 
-/**
- * A validated, normalized `start..end` line range. Both bounds are
- * clamped to the document (start >= 1) and ordered so `start <= end`.
- */
+// A validated, normalized `start..end` line range. Both bounds are
+// clamped to the document (start >= 1) and ordered so `start <= end`.
 private data class LineRange(val start: Int, val end: Int)
 
-/**
- * Parses a `"start-end"` line-range string. Returns null when the format
- * is malformed or either bound is not a positive integer.
- */
+// Parses a `"start-end"` line-range string. Returns null when the format
+// is malformed or either bound is not a positive integer.
 private fun parseLineRange(rawValue: String): LineRange? {
   val rangeParts = rawValue.split("-")
   if (rangeParts.size != 2) return null

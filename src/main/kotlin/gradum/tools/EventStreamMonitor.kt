@@ -82,7 +82,7 @@ class EventStreamMonitor : JFrame("Gradum Event Stream Monitor") {
     tailThread.start()
   }
 
-  /** Background loop: polls for appended bytes, pushes complete lines to the EDT. Never touches Swing components directly. */
+  // Background loop: polls for appended bytes, pushes complete lines to the EDT. Never touches Swing components directly.
   private inner class Tailer : Runnable {
     override fun run() {
       while (!Thread.currentThread().isInterrupted) {
@@ -109,12 +109,10 @@ class EventStreamMonitor : JFrame("Gradum Event Stream Monitor") {
     }
   }
 
-  /**
-   * Returns every complete line appended since the last poll, or null when
-   * nothing new is readable. A trailing partial line is left unconsumed: the
-   * position stops at the last newline, so partial bytes (possibly half of a
-   * multibyte character) are re-read whole on the next poll.
-   */
+  // Returns every complete line appended since the last poll, or null when
+  // nothing new is readable. A trailing partial line is left unconsumed: the
+  // position stops at the last newline, so partial bytes (possibly half of a
+  // multibyte character) are re-read whole on the next poll.
   private fun readAppendedText(): String? {
     val filePath: Path = logFile
     if (!Files.isRegularFile(filePath)) return null
@@ -163,7 +161,7 @@ class EventStreamMonitor : JFrame("Gradum Event Stream Monitor") {
     updateStatus()
   }
 
-  /** Keeps the text area bounded so long-running sessions cannot exhaust memory. */
+  // Keeps the text area bounded so long-running sessions cannot exhaust memory.
   private fun trimOldLines() {
     val textDocument: javax.swing.text.Document = outputTextArea.document
     val totalLineCount: Int = outputTextArea.lineCount

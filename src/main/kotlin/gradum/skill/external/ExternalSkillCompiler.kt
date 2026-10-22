@@ -47,33 +47,31 @@ internal data class ExternalCompileResult(
       .map { diagnostic -> diagnostic.message }
 }
 
-/**
- * Compiles external skill sources into .class files with the embeddable
- * Kotlin compiler, and reports the outcome as [ExternalCompileResult]. On
- * success the output directory holds the .class files that
- * [ExternalSkillClassLoader] loads from.
- *
- * compile() never throws: on failure the compiler diagnostics come back in
- * compileErrors so the caller can log exactly why a skill was skipped and keep
- * its last-good version. The additionalClasspath parameter carries previously
- * compiled output, so an incremental single-source compile can still resolve
- * skills that were not recompiled.
- *
- * To compile classpath is the server's own runtime classpath, so a dropped-in
- * skill can reference the in-process gradum.* API (Skill, SkillContext,
- * SkillResult, the schema DSL) without declaring any dependency. The standard
- * library is intentionally not re-injected (K2JVMCompilerArguments.noStdlib)
- * because it is already present on that classpath. Bytecode targets JVM 21
- * (EXTERNAL_JVM_TARGET).
- *
- * Diagnostics are buffered in memory instead of being printed to a stream, and
- * each one is kept structured as an [ExternalDiagnostic] (severity, message,
- * the 1-based source line/column, and the source path when the compiler
- * supplies them) rather than string-tagged, so callers can filter on the
- * severity enum, an editor can place the diagnostic on the right line, and a
- * multi-file compile can file it under the source that reported it, all
- * without parsing message text.
- */
+// Compiles external skill sources into .class files with the embeddable
+// Kotlin compiler, and reports the outcome as [ExternalCompileResult]. On
+// success the output directory holds the .class files that
+// [ExternalSkillClassLoader] loads from.
+//
+// compile() never throws: on failure the compiler diagnostics come back in
+// compileErrors so the caller can log exactly why a skill was skipped and keep
+// its last-good version. The additionalClasspath parameter carries previously
+// compiled output, so an incremental single-source compile can still resolve
+// skills that were not recompiled.
+//
+// To compile classpath is the server's own runtime classpath, so a dropped-in
+// skill can reference the in-process gradum.* API (Skill, SkillContext,
+// SkillResult, the schema DSL) without declaring any dependency. The standard
+// library is intentionally not re-injected (K2JVMCompilerArguments.noStdlib)
+// because it is already present on that classpath. Bytecode targets JVM 21
+// (EXTERNAL_JVM_TARGET).
+//
+// Diagnostics are buffered in memory instead of being printed to a stream, and
+// each one is kept structured as an [ExternalDiagnostic] (severity, message,
+// the 1-based source line/column, and the source path when the compiler
+// supplies them) rather than string-tagged, so callers can filter on the
+// severity enum, an editor can place the diagnostic on the right line, and a
+// multi-file compile can file it under the source that reported it, all
+// without parsing message text.
 internal class ExternalSkillCompiler {
 
   fun compile(

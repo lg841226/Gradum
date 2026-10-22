@@ -11,9 +11,7 @@ import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.Tooltip
 import org.jetbrains.jewel.ui.icon.IconKey
 
-/**
- * Reusable icon button with tooltip, reducing repeated Tooltip+IconButton+Icon patterns.
- */
+/** Reusable icon button with tooltip, reducing repeated Tooltip+IconButton+Icon patterns. */
 @Composable
 fun IconTooltipButton(
   tooltip: String,

@@ -11,7 +11,7 @@ import java.util.concurrent.Future
 
 private val logger: Logger = LoggerFactory.getLogger("ProcessUtils")
 
-/** Shared reader pool for stdout/stderr draining that happens before waitFor. */
+// Shared reader pool for stdout/stderr draining that happens before waitFor.
 private val processStreamReaderPool: ExecutorService =
   Executors.newCachedThreadPool { runnable ->
     Thread(runnable, "gradum-process-stream").apply { isDaemon = true }

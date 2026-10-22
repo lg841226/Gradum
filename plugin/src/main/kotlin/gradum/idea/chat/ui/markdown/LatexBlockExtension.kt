@@ -64,20 +64,18 @@ internal class LatexBlockParser : AbstractBlockParser() {
     return BlockContinue.atIndex(state.index)
   }
 
-  /**
-   * Called once the closing line has been consumed: store the
-   * captured body. The opening `$$` was already consumed by
-   * [Factory.tryStart]; the closing line is `$$` itself, not
-   * part of the formula. First / last blank lines are trimmed
-   * so a `$$\n\int\n$$` source becomes the formula `"\int"`
-   * rather than `"\n\int\n"`. We also `trim()` the first and
-   * last surviving line so a casual `$$\n x^2 \n$$` (with
-   * stray spaces around the body) is normalized to `x^2`,
-   * the LaTeX library is sensitive to leading / trailing
-   * whitespace and chat users won't think to remove it.
-   * Internal newlines and the whitespace between non-edge
-   * lines are preserved.
-   */
+  // Called once the closing line has been consumed: store the
+  // captured body. The opening `$$` was already consumed by
+  // [Factory.tryStart]; the closing line is `$$` itself, not
+  // part of the formula. First / last blank lines are trimmed
+  // so a `$$\n\int\n$$` source becomes the formula `"\int"`
+  // rather than `"\n\int\n"`. We also `trim()` the first and
+  // last surviving line so a casual `$$\n x^2 \n$$` (with
+  // stray spaces around the body) is normalized to `x^2`,
+  // the LaTeX library is sensitive to leading / trailing
+  // whitespace and chat users won't think to remove it.
+  // Internal newlines and the whitespace between non-edge
+  // lines are preserved.
   override fun closeBlock() {
     val trimmedEdges: List<String> = lines.trimBlankEdges()
     if (trimmedEdges.isEmpty()) {
@@ -100,12 +98,10 @@ internal class LatexBlockParser : AbstractBlockParser() {
     block.formula = cleanedLines.joinToString(separator = "\n")
   }
 
-  /**
-   * `AbstractBlockParser#addLine` is also called for the
-   * opening line. We don't need it: the factory's `tryStart`
-   * already consumed the opening `$$`. Override to a no-op
-   * so the opening line isn't double-added to [lines].
-   */
+  // `AbstractBlockParser#addLine` is also called for the
+  // opening line. We don't need it: the factory's `tryStart`
+  // already consumed the opening `$$`. Override to a no-op
+  // so the opening line isn't double-added to [lines].
   override fun addLine(line: org.commonmark.parser.SourceLine) {}
 
   class Factory : AbstractBlockParserFactory() {
@@ -131,12 +127,10 @@ internal class LatexBlockParser : AbstractBlockParser() {
   }
 }
 
-/**
- * A block parser for single-line `$$...$$` formulas. Unlike
- * [LatexBlockParser] which requires `$$` on separate lines,
- * this parser captures the formula content from a single line
- * like `$$2x^2 - 7x + 3 = 0$$`.
- */
+// A block parser for single-line `$$...$$` formulas. Unlike
+// [LatexBlockParser] which requires `$$` on separate lines,
+// this parser captures the formula content from a single line
+// like `$$2x^2 - 7x + 3 = 0$$`.
 internal class SingleLineLatexBlockParser(private val formula: String) : AbstractBlockParser() {
 
   private val block: LatexBlock = LatexBlock()
@@ -154,7 +148,7 @@ internal class SingleLineLatexBlockParser(private val formula: String) : Abstrac
   override fun addLine(line: org.commonmark.parser.SourceLine) {}
 }
 
-/** Strip empty / whitespace-only lines from the start and end of a list. */
+// Strip empty / whitespace-only lines from the start and end of a list.
 private fun List<String>.trimBlankEdges(): List<String> {
   if (isEmpty()) return this
   var startIndex = 0

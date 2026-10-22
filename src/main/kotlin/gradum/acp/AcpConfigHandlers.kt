@@ -11,11 +11,9 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
 
-/**
- * The complete session config, in display-priority order. Both `session/new`
- * and `session/set_config_option` must return every option: the spec requires
- * the full configuration state on each change.
- */
+// The complete session config, in display-priority order. Both `session/new`
+// and `session/set_config_option` must return every option: the spec requires
+// the full configuration state on each change.
 internal fun buildSessionConfigOptions(sessionState: AcpSessionState): List<JsonObject> =
   listOf(
     buildModelConfigOption(sessionState.selectedModelName),
@@ -47,14 +45,12 @@ private fun buildModelOptionValues(): List<JsonObject> {
   }
 }
 
-/**
- * Model option description, e.g. `The local model from Ollama`. A model is
- * "local" when its provider runs on this machine (Ollama, LM Studio) and its
- * name is not cloud-tagged (Ollama also serves `-cloud` models); every other
- * provider is "cloud". The description carries the server name so multiple
- * OpenAI-compatible endpoints (DeepSeek, Zhipu BigModel, ...) stay
- * distinguishable.
- */
+// Model option description, e.g. `The local model from Ollama`. A model is
+// "local" when its provider runs on this machine (Ollama, LM Studio) and its
+// name is not cloud-tagged (Ollama also serves `-cloud` models); every other
+// provider is "cloud". The description carries the server name so multiple
+// OpenAI-compatible endpoints (DeepSeek, Zhipu BigModel, ...) stay
+// distinguishable.
 private fun buildOptionValue(modelName: String, serverName: String, providerType: String): JsonObject {
   val provider: Provider = Provider.fromStringOrDefault(providerType)
   val isLocalRuntime: Boolean = provider == Provider.OLLAMA || provider == Provider.LMSTUDIO
@@ -67,17 +63,13 @@ private fun buildOptionValue(modelName: String, serverName: String, providerType
   return acpOptionValue(modelName, modelDisplayLabel(modelName), description)
 }
 
-/**
- * Wire id for a [ToolMode], derived from the enum name so it stays in sync
- * with [ToolMode.fromStringOrDefault], which parses those same names back.
- */
+// Wire id for a [ToolMode], derived from the enum name so it stays in sync
+// with [ToolMode.fromStringOrDefault], which parses those same names back.
 private fun modeId(mode: ToolMode): String = mode.name.lowercase()
 
-/**
- * Labels and descriptions mirror the plugin's GradumBundle.properties
- * (gradum.select.permissions, gradum.*.mode, gradum.*.info) so the ACP
- * selector reads identically to the plugin's own permission selector.
- */
+// Labels and descriptions mirror the plugin's GradumBundle.properties
+// (gradum.select.permissions, gradum.*.mode, gradum.*.info) so the ACP
+// selector reads identically to the plugin's own permission selector.
 private fun modeLabel(mode: ToolMode): String =
   when (mode) {
     ToolMode.AGENT -> "Full Agent Mode"

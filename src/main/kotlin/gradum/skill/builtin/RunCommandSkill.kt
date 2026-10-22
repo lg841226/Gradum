@@ -14,26 +14,24 @@ import java.io.File
 import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 
-/** Default timeout in seconds: delegated to [GradumConfig]. */
+// Default timeout in seconds: delegated to [GradumConfig].
 private const val DEFAULT_TIMEOUT_SECONDS: Long = GradumConfig.COMMAND_DEFAULT_TIMEOUT_SECONDS
 
-/** Maximum allowed timeout in seconds: delegated to [GradumConfig]. */
+// Maximum allowed timeout in seconds: delegated to [GradumConfig].
 private const val MAX_TIMEOUT_SECONDS: Long = GradumConfig.COMMAND_MAX_TIMEOUT_SECONDS
 
-/** Grace period after SIGTERM before SIGKILL: delegated to [GradumConfig]. */
+// Grace period after SIGTERM before SIGKILL: delegated to [GradumConfig].
 private const val FORCE_KILL_DELAY_MS: Long = GradumConfig.COMMAND_FORCE_KILL_DELAY_MS
 
-/** Cap on how much command output is read into the LLM context: delegated to [GradumConfig]. */
+// Cap on how much command output is read into the LLM context: delegated to [GradumConfig].
 private const val MAX_OUTPUT_CHARS: Int = GradumConfig.COMMAND_MAX_OUTPUT_CHARS
 
-/**
- * Resolves authorization for a command that received a
- * [CommandVerdict.NeedsApproval] verdict. Returns true when it may run:
- * the category was already approved this session, the user allowed a single
- * execution, or the user chose "always" (remembered by [category]). Returns
- * false when no ask capability is wired (tests / sub-agents) or the user
- * rejected/canceled.
- */
+// Resolves authorization for a command that received a
+// [CommandVerdict.NeedsApproval] verdict. Returns true when it may run:
+// the category was already approved this session, the user allowed a single
+// execution, or the user chose "always" (remembered by [category]). Returns
+// false when no ask capability is wired (tests / sub-agents) or the user
+// rejected/canceled.
 private fun authorizeCommand(commandText: String, verdict: CommandVerdict.NeedsApproval, context: SkillContext): Boolean {
   if (context.isYolo) return true
   if (verdict.category in context.authorizedCommandCategories) return true

@@ -68,7 +68,7 @@ internal fun showThirdPartyNoticesDialog() =
     titleKey = "gradum.settings.oss.dialog.title"
   )
 
-/** Opens the bundled data security and privacy statement in a modal dialog. */
+// Opens the bundled data security and privacy statement in a modal dialog.
 internal fun showDataSecurityDialog() =
   showLegalDocumentDialog(
     resourcePath = "/legal/data_security.md",

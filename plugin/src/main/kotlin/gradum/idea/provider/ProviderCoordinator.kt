@@ -133,21 +133,19 @@ object ProviderCoordinator {
   }
 }
 
-/**
- * Strict base-URL validator for the local OpenAI-compatible providers
- * (Ollama / LM Studio / vLLM / LocalAI).
- *
- * Parses the value as a real [URI] and requires:
- * - an `http` / `https` scheme;
- * - a non-blank host that is a valid IPv4 literal or hostname
- *   (no spaces, control chars or garbage such as `/v1832483294239482394`);
- * - a port in `1..65535` when one is present;
- * - a path that is empty, `/`, `/v1` or `/v1/`: the API base prefixes
- *   these providers accept. Anything else (arbitrary junk paths) fails.
- *
- * A pure string/scheme check is not enough: users can paste garbage after
- * the scheme and still see a green URL field.
- */
+// Strict base-URL validator for the local OpenAI-compatible providers
+// (Ollama / LM Studio / vLLM / LocalAI).
+//
+// Parses the value as a real [URI] and requires:
+// - an `http` / `https` scheme;
+// - a non-blank host that is a valid IPv4 literal or hostname
+//   (no spaces, control chars or garbage such as `/v1832483294239482394`);
+// - a port in `1..65535` when one is present;
+// - a path that is empty, `/`, `/v1` or `/v1/`: the API base prefixes
+//   these providers accept. Anything else (arbitrary junk paths) fails.
+//
+// A pure string/scheme check is not enough: users can paste garbage after
+// the scheme and still see a green URL field.
 internal fun isValidBaseUrl(value: String, kind: ProviderKind? = null): Boolean {
   val trimmed: String = value.trim()
   if (trimmed.isEmpty()) return false

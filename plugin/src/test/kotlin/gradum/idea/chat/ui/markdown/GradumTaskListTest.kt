@@ -158,7 +158,7 @@ class GradumTaskListTest {
     assertNull(thirdMarker)
   }
 
-  /** Parse a single line of Markdown and return the first Paragraph found. */
+  // Parse a single line of Markdown and return the first Paragraph found.
   private fun parseFirstParagraph(line: String): Paragraph {
     val parser: Parser = Parser.builder().build()
     val bulletList: BulletList = parser.parse(line).firstChild as BulletList

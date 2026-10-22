@@ -56,25 +56,23 @@ import java.util.concurrent.Executors.newFixedThreadPool
 
 private val logger: Logger = LoggerFactory.getLogger("GradumServerRoutes")
 
-/** Cap on buffered NDJSON events per run before the producer drops. */
+// Cap on buffered NDJSON events per run before the producer drops.
 private const val EVENTS_CHANNEL_CAPACITY: Int = 2048
 
-/**
- * One live `/events` run, keyed in `activeSessions` by the run id.
- *
- * A run belongs to a [sessionId] (the durable session) and may have child
- * runs (sub-agents), which is why the parent link is a run id.
- */
+// One live `/events` run, keyed in `activeSessions` by the run id.
+//
+// A run belongs to a [sessionId] (the durable session) and may have child
+// runs (sub-agents), which is why the parent link is a run id.
 private data class SessionEntry(
   val agent: Agent,
   val sessionId: String? = null,
   val parentRunId: String? = null,
   val childRunIds: MutableSet<String> = ConcurrentHashMap.newKeySet(),
-  /** Live `sub_agent:start` payloads, mirrored so a reload can redraw them. */
+  // Live `sub_agent:start` payloads, mirrored so a reload can redraw them.
   val subAgents: MutableList<Map<String, Any>> = CopyOnWriteArrayList()
 )
 
-/** Sums per-message token usage; `contextTokens` comes from the newest message reporting it. */
+// Sums per-message token usage; `contextTokens` comes from the newest message reporting it.
 private fun aggregateTokenUsage(messages: List<Map<String, Any?>>): Map<String, Any> {
   var totalSum = 0
   var promptSum = 0
@@ -222,23 +220,21 @@ data class ConfigOverrides(
   }
 }
 
-/**
- * Infer the chat-completions path for an OpenAI-compatible provider
- * from its [baseUrl]. Most providers (`api.openai.com`,
- * `openrouter.ai/api`, `api.deepseek.com`) put the version in the
- * path (`/v1/chat/completions`); Zhipu BigModel under
- * `api/coding/paas/v4` does not: the URL fragment is already
- * versioned, so the chat-completions endpoint is the bare
- * `/chat/completions`.
- *
- * Plugin callers can always override the inference with the
- * `chatCompletionsPath` field in the request `config` map.
- *
- * Detection is by substring on the host portion of [baseUrl]; we
- * keep the matching conservative (single known host) to avoid
- * accidentally rewriting a custom deployment that just happens to
- * share a path shape.
- */
+// Infer the chat-completions path for an OpenAI-compatible provider
+// from its [baseUrl]. Most providers (`api.openai.com`,
+// `openrouter.ai/api`, `api.deepseek.com`) put the version in the
+// path (`/v1/chat/completions`); Zhipu BigModel under
+// `api/coding/paas/v4` does not: the URL fragment is already
+// versioned, so the chat-completions endpoint is the bare
+// `/chat/completions`.
+//
+// Plugin callers can always override the inference with the
+// `chatCompletionsPath` field in the request `config` map.
+//
+// Detection is by substring on the host portion of [baseUrl]; we
+// keep the matching conservative (single known host) to avoid
+// accidentally rewriting a custom deployment that just happens to
+// share a path shape.
 internal fun inferChatCompletionsPath(baseUrl: String): String {
   val lower: String = baseUrl.lowercase()
   return when {
@@ -1422,11 +1418,9 @@ fun Application.registerAllRoutes(
   }
 }
 
-/**
- * The single place that shapes a compile outcome for the wire. Both deploy and
- * build answer with this body, so the editor parses one result shape whichever
- * request it sent.
- */
+// The single place that shapes a compile outcome for the wire. Both deploy and
+// build answer with this body, so the editor parses one result shape whichever
+// request it sent.
 private suspend fun ApplicationCall.respondSkillCompileResult(result: DeployResult) {
   respondText(
     text = JsonUtil.encodeMap(

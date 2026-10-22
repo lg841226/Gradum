@@ -13,9 +13,7 @@ import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
 import gradum.idea.utils.GradumSpacing
 
-/**
- * Wraps [ChatInputPanel] with a model selector bar below it.
- */
+/** Wraps [ChatInputPanel] with a model selector bar below it. */
 @Composable
 fun ChatInputSection(
   state: ChatInputState,

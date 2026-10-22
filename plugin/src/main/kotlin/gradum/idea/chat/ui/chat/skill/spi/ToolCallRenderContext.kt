@@ -26,7 +26,7 @@ data class ToolCallRenderContext(
   val errorDetail: String?,
   /**
    * Pre-formatted, copy-friendly snapshot of the tool call (alias
-   * + arguments + result + error message + error detail). Built by
+   * + arguments, result and error message and error detail). Built by
    * `ToolCallBlock` from the underlying `RenderBlock.ToolCall` and
    * surfaced through the error popup's "Copy details" action so the
    * user can paste a full debug snapshot without us hand-curating

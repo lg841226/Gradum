@@ -52,20 +52,16 @@ class AcpServer(internal val runtime: GradumRuntime) {
   internal val pendingQuestions: PendingQuestions = PendingQuestions()
   internal val activeSessions: ConcurrentHashMap<String, AcpSessionState> = ConcurrentHashMap()
 
-  /**
-   * Whether the connected client opted into terminal auth methods, captured at
-   * `initialize`. `session/new` only answers `auth_required` when the client can
-   * actually run the setup wizard, so the user is never left without a way out.
-   */
+  // Whether the connected client opted into terminal auth methods, captured at
+  // `initialize`. `session/new` only answers `auth_required` when the client can
+  // actually run the setup wizard, so the user is never left without a way out.
   internal var clientTerminalAuthEnabled: Boolean = false
 
-  /**
-   * In-flight agent->client requests (today: `session/request_permission`),
-   * keyed by the outbound id. Outbound ids are negative so they can never
-   * collide with the client's own request ids; [sendClientRequest] parks on
-   * the matching deferred and [completeOutboundRequest] resolves it when the
-   * client's response frame arrives on the read loop.
-   */
+  // In-flight agent->client requests (today: `session/request_permission`),
+  // keyed by the outbound id. Outbound ids are negative so they can never
+  // collide with the client's own request ids; [sendClientRequest] parks on
+  // the matching deferred and [completeOutboundRequest] resolves it when the
+  // client's response frame arrives on the read loop.
   private val outboundRequests: ConcurrentHashMap<Long, CompletableDeferred<JsonObject>> =
     ConcurrentHashMap()
   private val outboundIdCounter: AtomicLong = AtomicLong(0L)
@@ -100,16 +96,14 @@ class AcpServer(internal val runtime: GradumRuntime) {
     probeJob.cancel()
   }
 
-  /**
-   * Watches model availability on a fixed interval and, when the set of usable
-   * models changes (e.g. a local server such as LM Studio was started or
-   * stopped), pushes a `config_option_update` to every active session so ACP
-   * clients refresh their model picker without polling.
-   *
-   * The first tick only records a baseline: nothing is pushed until a change is
-   * actually observed. A probe that throws keeps the last snapshot, so a single
-   * transient failure never looks like "all models disappeared".
-   */
+  // Watches model availability on a fixed interval and, when the set of usable
+  // models changes (e.g. a local server such as LM Studio was started or
+  // stopped), pushes a `config_option_update` to every active session so ACP
+  // clients refresh their model picker without polling.
+  //
+  // The first tick only records a baseline: nothing is pushed until a change is
+  // actually observed. A probe that throws keeps the last snapshot, so a single
+  // transient failure never looks like "all models disappeared".
   private suspend fun runConfigOptionProbe(frameWriter: BufferedWriter) {
     var lastSnapshot: List<String>? = null
     while (currentCoroutineContext().isActive) {
@@ -123,7 +117,7 @@ class AcpServer(internal val runtime: GradumRuntime) {
     }
   }
 
-  /** Stable identity of the currently usable models, or null when the probe itself failed. */
+  // Stable identity of the currently usable models, or null when the probe itself failed.
   private fun availableModelKeys(): List<String>? =
     try {
       ModelIdentity.discoverModels()
@@ -211,14 +205,12 @@ class AcpServer(internal val runtime: GradumRuntime) {
     writeFrame(frameWriter, rpcJson.encodeToString(notification))
   }
 
-  /**
-   * Sends an agent->client JSON-RPC request and parks until the client answers.
-   *
-   * There is deliberately **no timeout**: the caller blocks however long the
-   * client takes (matching [PendingQuestions]' no-timeout ask channel). The
-   * response frame is matched by its outbound id on the read loop and handed
-   * back here via [completeOutboundRequest].
-   */
+  // Sends an agent->client JSON-RPC request and parks until the client answers.
+  //
+  // There is deliberately no timeout: the caller blocks however long the
+  // client takes (matching [PendingQuestions]' no-timeout ask channel). The
+  // response frame is matched by its outbound id on the read loop and handed
+  // back here via [completeOutboundRequest].
   internal suspend fun sendClientRequest(
     frameWriter: BufferedWriter, method: String, params: JsonObject
   ): JsonObject {
@@ -234,11 +226,9 @@ class AcpServer(internal val runtime: GradumRuntime) {
     }
   }
 
-  /**
-   * Routes a method-less frame to an in-flight outbound request. Returns true
-   * when the id matched a live request (the deferred now holds the response),
-   * false when the frame is an orphan response the server never asked for.
-   */
+  // Routes a method-less frame to an in-flight outbound request. Returns true
+  // when the id matched a live request (the deferred now holds the response),
+  // false when the frame is an orphan response the server never asked for.
   private fun completeOutboundRequest(responseObject: JsonObject): Boolean {
     val responseId: Long = responseObject["id"]?.jsonPrimitive?.longOrNull ?: return false
     val pending: CompletableDeferred<JsonObject> = outboundRequests.remove(responseId) ?: return false
@@ -292,7 +282,7 @@ class AcpServer(internal val runtime: GradumRuntime) {
   companion object {
     private const val METHOD_NOT_FOUND = -32601
 
-    /** Model-availability probe cadence; 1s keeps the client's model picker near-live. */
+    // Model-availability probe cadence; 1s keeps the client's model picker near-live.
     private const val MODEL_PROBE_INTERVAL_MS = 1_000L
   }
 }
@@ -302,10 +292,8 @@ internal const val TERMINAL_AUTH_METHOD_NAME: String = "Configure provider"
 internal const val TERMINAL_AUTH_METHOD_DESCRIPTION: String = "Run interactive setup in a terminal"
 internal const val TERMINAL_AUTH_ARGUMENT: String = "setup"
 
-/**
- * The terminal auth method payload, shared by the `initialize` result and the
- * `auth_required` error so both describe the same entry the client renders.
- */
+// The terminal auth method payload, shared by the `initialize` result and the
+// `auth_required` error so both describe the same entry the client renders.
 internal fun buildTerminalAuthMethod(): JsonObject = buildJsonObject {
   put("id", TERMINAL_AUTH_METHOD_ID)
   put("name", TERMINAL_AUTH_METHOD_NAME)
@@ -314,12 +302,10 @@ internal fun buildTerminalAuthMethod(): JsonObject = buildJsonObject {
   putJsonArray("args") { add(TERMINAL_AUTH_ARGUMENT) }
 }
 
-/**
- * Whether the client opted into terminal auth methods. ACP v1 signals this with
- * `clientCapabilities.auth.terminal`; older clients, including the ACP registry
- * validator, put `terminal-auth` under `clientCapabilities._meta`. Either counts,
- * so a client that omits both never sees a terminal method it cannot run.
- */
+// Whether the client opted into terminal auth methods. ACP v1 signals this with
+// `clientCapabilities.auth.terminal`; older clients, including the ACP registry
+// validator, put `terminal-auth` under `clientCapabilities._meta`. Either counts,
+// so a client that omits both never sees a terminal method it cannot run.
 internal fun clientSupportsTerminalAuth(params: JsonObject?): Boolean {
   val clientCapabilities: JsonObject = params?.get("clientCapabilities")?.jsonObject ?: return false
   val authOptIn: Boolean = clientCapabilities["auth"]?.jsonObject

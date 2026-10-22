@@ -53,7 +53,7 @@ class RunCommandSkillSecurityTest {
     return Triple(ctx, pending, emitted)
   }
 
-  /** Context in [ToolMode.YOLO]: same ask wiring, but every gate is bypassed. */
+  // Context in [ToolMode.YOLO]: same ask wiring, but every gate is bypassed.
   private fun yoloContext(): Triple<SkillContext, PendingQuestions, MutableList<Pair<String, Map<String, Any>>>> {
     val pending = PendingQuestions()
     val emitted = mutableListOf<Pair<String, Map<String, Any>>>()
@@ -67,7 +67,7 @@ class RunCommandSkillSecurityTest {
     return Triple(ctx, pending, emitted)
   }
 
-  /** Answers the single outstanding ask question and returns the executed result. */
+  // Answers the single outstanding ask question and returns the executed result.
   private fun runAskWith(
     ctx: SkillContext,
     pending: PendingQuestions,

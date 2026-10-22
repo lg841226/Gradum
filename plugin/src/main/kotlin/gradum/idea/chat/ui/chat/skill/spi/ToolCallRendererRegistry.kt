@@ -29,20 +29,18 @@ import gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry.RENDERERS
  * `<Alias>Renderer.kt` and is added to [RENDERERS] with a single
  * line.
  *
- * **Order matters.** The first renderer whose [ToolCallRenderer.alias]
+ * Order matters. The first renderer whose [ToolCallRenderer.alias]
  * matches is used. The default catch-all must be last and use the
  * alias `"*"` (see [DefaultRenderer]).
  */
 object ToolCallRendererRegistry {
 
-  /**
-   * The exhaustive list of renderers the chat panel will consult.
-   *
-   * To add a new tool-call row, append a new `Renderer()` instance
-   * here and place the file at
-   * `chat/ui/chat/skill/<Alias>Renderer.kt`. See
-   * `docs/PLUGIN_DEVELOPMENT.md` section 16 for the full tutorial.
-   */
+  // The exhaustive list of renderers the chat panel will consult.
+  //
+  // To add a new tool-call row, append a new `Renderer()` instance
+  // here and place the file at
+  // `chat/ui/chat/skill/<Alias>Renderer.kt`. See
+  // `docs/PLUGIN_DEVELOPMENT.md` section 16 for the full tutorial.
   private val RENDERERS: List<ToolCallRenderer> = listOf(
     RanRenderer(),
     WriteFileRenderer(),

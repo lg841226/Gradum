@@ -43,14 +43,12 @@ import kotlin.time.Duration.Companion.milliseconds
 
 private const val MCP_LABEL_WIDTH_DP: Int = 160
 
-/**
- * Detail form for the selected server. Each field mirrors its
- * [McpServerItem] text, shows [Outline.Error] while the value is
- * invalid, and pushes the edit up after [MCP_INPUT_DEBOUNCE_MS]; an
- * invalid value is flagged and never reaches the settings file. The
- * environment row is a button: env vars live in settings.json and are
- * edited there in the IDE editor, not in this panel.
- */
+// Detail form for the selected server. Each field mirrors its
+// [McpServerItem] text, shows [Outline.Error] while the value is
+// invalid, and pushes the edit up after [MCP_INPUT_DEBOUNCE_MS]; an
+// invalid value is flagged and never reaches the settings file. The
+// environment row is a button: env vars live in settings.json and are
+// edited there in the IDE editor, not in this panel.
 @Composable
 internal fun McpServerForm(
   item: McpServerItem,
@@ -185,7 +183,7 @@ internal fun McpServerForm(
   }
 }
 
-/** One label + control row matching the model-provider field layout. */
+// One label and control row matching the model-provider field layout.
 @Composable
 private fun FieldRow(label: String, field: @Composable () -> Unit) {
   Row(
@@ -201,15 +199,13 @@ private fun FieldRow(label: String, field: @Composable () -> Unit) {
   }
 }
 
-/**
- * Opens `../.gradum/settings.json` in the IDE editor and lands the caret
- * on the selected server's entry (falling back to the `mcpServers`
- * header), so environment variables are edited in a real editor against
- * the single source of truth. Creates a minimal `{}` file first when none
- * exists yet; a no-op while no project window is open (the settings
- * dialog is modal, so the editor becomes interactive once the dialog is
- * closed).
- */
+// Opens `../.gradum/settings.json` in the IDE editor and lands the caret
+// on the selected server's entry (falling back to the `mcpServers`
+// header), so environment variables are edited in a real editor against
+// the single source of truth. Creates a minimal `{}` file first when none
+// exists yet; a no-op while no project window is open (the settings
+// dialog is modal, so the editor becomes interactive once the dialog is
+// closed).
 @Suppress("UnstableApiUsage")
 private fun openSettingsFileInIdeEditor(serverName: String) {
   val project: Project = ProjectManager.getInstance().openProjects.firstOrNull() ?: return

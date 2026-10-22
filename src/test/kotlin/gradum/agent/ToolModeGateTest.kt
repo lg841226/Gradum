@@ -260,11 +260,9 @@ class ToolModeGateTest {
     )
   }
 
-  /**
-   * Shared driver: build an Agent with a mocked LLM that emits exactly
-   * one tool call followed by a no-op text chunk (so the agent loop
-   * terminates), and return every event the agent emitted.
-   */
+  // Shared driver: build an Agent with a mocked LLM that emits exactly
+  // one tool call followed by a no-op text chunk (so the agent loop
+  // terminates), and return every event the agent emitted.
   private fun runAgentWithToolCall(toolCall: ToolCallEntry, toolMode: ToolMode): List<Pair<String, Map<String, Any>>> {
     val events = mutableListOf<Pair<String, Map<String, Any>>>()
     val mockClient: LlmClient = mockk {

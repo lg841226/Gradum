@@ -19,21 +19,23 @@ sealed class CommandVerdict {
 
   data class Blocked(val ruleName: String, val description: String) : CommandVerdict()
 
-  // Potentially destructive but only touches paths outside project root and
-  // outside always-protected set. Runs only after user approval: granted for
-  // one execution or remembered for session by [category] (e.g. `rm:delete`,
-  // `chmod:recursive`, `dd:device-write`).
+  /**
+   * Potentially destructive but only touches paths outside project root and
+   * outside always-protected set. Runs only after user approval: granted for
+   * one execution or remembered for session by [category] (e.g. `rm:delete`,
+   * `chmod:recursive`, `dd:device-write`).
+   */
   data class NeedsApproval(val category: String, val description: String) : CommandVerdict()
 }
 
 data class ProtectedPathsConfig(
-  // System roots that destructive operations must never touch
+  /** System roots that destructive operations must never touch */
   val systemPrefixes: List<String>,
-  // Home subdirectories that destructive operations must never touch
+  /** Home subdirectories that destructive operations must never touch */
   val protectedHomeSubdirectories: List<String>,
-  // Directories LLM-driven file ops are always allowed to touch
+  /** Directories LLM-driven file ops are always allowed to touch */
   val safePathPrefixes: List<String>,
-  // Bare paths that are always protected (e.g. `/dev`)
+  /** Bare paths that are always protected (e.g. `/dev`) */
   val exactProtectedPaths: List<String>
 )
 
@@ -129,15 +131,13 @@ private val FIND_EXEC_PREDICATES: Set<String> = setOf("-exec", "-execdir", "-ok"
 // Redirection sinks safe to write even though they sit under a protected root
 private val SAFE_REDIRECTION_TARGETS: Set<String> = setOf("/dev/null", "/dev/stdout", "/dev/stderr", "/dev/tty")
 
-/**
- * Feature weights for the command risk score. Total risk maps to 0-100:
- *
- * `Risk = min(100, (target + action) * (1 + (privilege + composite + injection) / 100))`
- *
- * The multiplier makes privilege escalation and command composition amplify
- * base destructiveness (`sudo rm` worse than `rm` plus `sudo`), and
- * thresholds split score into silent-pass / log / approval / block.
- */
+// Feature weights for the command risk score. Total risk maps to 0-100:
+//
+// `Risk = min(100, (target and action) * (1 + (privilege, composite and injection) / 100))`
+//
+// The multiplier makes privilege escalation and command composition amplify
+// base destructiveness (`sudo rm` worse than `rm` plus `sudo`), and
+// thresholds split score into silent-pass / log / approval / block.
 private const val LOG_THRESHOLD: Int = 20
 private const val MUTATING_WEIGHT: Int = 15
 private const val BLOCK_THRESHOLD: Int = 80
@@ -255,7 +255,7 @@ object ProtectedPaths {
  * Classify a shell command by risk score. Hard rules block outright before
  * scoring: blacklisted executables, device writes, and write operations
  * against protected system paths. Everything else is scored
- * `min(100, (target + action) * (1 + (privilege + composite + injection) / 100))`
+ * `min(100, (target and action) * (1 + (privilege, composite and injection) / 100))`
  * and mapped to a verdict: below [LOG_THRESHOLD] silent pass, below
  * [APPROVAL_THRESHOLD] pass with a log line, below [BLOCK_THRESHOLD]
  * [CommandVerdict.NeedsApproval], otherwise [CommandVerdict.Blocked].
@@ -393,12 +393,10 @@ private fun analyzeCommand(commandText: String, projectRoot: String, depth: Int)
   }
 }
 
-/**
- * Resolves a `sh -c "<payload>"` payload by classifying it as its own
- * command. A nested block is reported as [risk:highScore] because the real
- * target was not visible at the outer level; a nested approval propagates
- * unchanged; a nested pass falls through to the outer analysis.
- */
+// Resolves a `sh -c "<payload>"` payload by classifying it as its own
+// command. A nested block is reported as [risk:highScore] because the real
+// target was not visible at the outer level; a nested approval propagates
+// unchanged; a nested pass falls through to the outer analysis.
 private fun analyzeNestedShell(
   commandText: String, commands: List<SimpleCommand>, projectRoot: String, depth: Int
 ): CommandVerdict? {
@@ -533,13 +531,11 @@ private fun targetWeightFor(targetPath: String, projectRoot: String): Int =
     else -> 0
   }
 
-/**
- * Action weight: 0 for read-only commands, [MUTATING_WEIGHT] for plain file
- * mutations, [DESTRUCTIVE_WEIGHT] for irreversible deletes, raw writes,
- * file redirections, recursive `chmod`, and `find -delete` / `find -exec`.
- * Destructive executables are matched anywhere in the text so a payload
- * hidden inside a composite or injected string still scores.
- */
+// Action weight: 0 for read-only commands, [MUTATING_WEIGHT] for plain file
+// mutations, [DESTRUCTIVE_WEIGHT] for irreversible deletes, raw writes,
+// file redirections, recursive `chmod`, and `find -delete` / `find -exec`.
+// Destructive executables are matched anywhere in the text so a payload
+// hidden inside a composite or injected string still scores.
 private fun actionWeight(commands: List<SimpleCommand>, commandText: String): Int {
   if (DESTRUCTIVE_EXECUTABLE_PATTERN.containsMatchIn(commandText)) return DESTRUCTIVE_WEIGHT
   if (commandText.contains(other = "of=")) return DESTRUCTIVE_WEIGHT
@@ -655,11 +651,9 @@ private fun isUnresolvablePath(targetPath: String): Boolean {
     expandedPath.contains(other = "}")
 }
 
-/**
- * Strips the wrapping a composite or injected payload leaves on an embedded
- * operand (`$(/etc`, `/etc)`, `` `/etc` ``) so the same path is checked
- * whether it was written bare, quoted, or substituted.
- */
+// Strips the wrapping a composite or injected payload leaves on an embedded
+// operand (`$(/etc`, `/etc)`, `` `/etc` ``) so the same path is checked
+// whether it was written bare, quoted, or substituted.
 private fun stripWrapping(rawToken: String): String {
   var value: String = rawToken
   if (value.startsWith(prefix = "$(")) value = value.removePrefix(prefix = "$(")
@@ -875,12 +869,10 @@ private fun isFdRedirectionAt(commandText: String, start: Int): Boolean {
   return cursor > start && cursor < commandText.length && (commandText[cursor] == '<' || commandText[cursor] == '>')
 }
 
-/**
- * Canonicalizes a path to its real, absolute form. Non-existent trailing
- * components are kept and appended to the nearest existing ancestor, which is
- * itself resolved with [Path.toRealPath] so symlinks (`/tmp` -> `/private/tmp`)
- * and a case-insensitive prefix cannot forge a path past the boundary checks.
- */
+// Canonicalizes a path to its real, absolute form. Non-existent trailing
+// components are kept and appended to the nearest existing ancestor, which is
+// itself resolved with [Path.toRealPath] so symlinks (`/tmp` -> `/private/tmp`)
+// and a case-insensitive prefix cannot forge a path past the boundary checks.
 private fun canonicalize(rawPath: String): String {
   if (rawPath.isBlank()) return rawPath
 

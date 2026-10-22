@@ -37,9 +37,7 @@ data class MergeModeCallbacks(
   val onDeleteSession: (String) -> Unit
 )
 
-/**
- * Linear gradient for the welcome heading text.
- */
+// Linear gradient for the welcome heading text.
 private val WelcomeGradient: Brush = Brush.linearGradient(
   end = Offset(0f, Float.POSITIVE_INFINITY),
   start = Offset(Float.POSITIVE_INFINITY, 0f),

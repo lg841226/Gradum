@@ -16,7 +16,7 @@ import org.jetbrains.jewel.ui.theme.badgeStyle
 /**
  * Default renderer for the server-side `run_cmd` skill (alias "Ran").
  *
- * Parses the command + the model's one-line `reason` ("read package.json
+ * Parses the command and the model's one-line `reason` ("read package.json
  * to confirm the Gradle version") from the `arguments` payload and
  * exposes an `OpenInEditor` action whose target is the command string
  * (Gradum's existing open-in-editor handler treats a shell script path

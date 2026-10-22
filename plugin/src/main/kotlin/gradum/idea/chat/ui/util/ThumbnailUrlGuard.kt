@@ -6,33 +6,31 @@ import java.net.Inet6Address
 import java.net.InetAddress
 import java.net.URI
 
-/**
- * URL / network-target guard for [ThumbnailImageLoader].
- *
- * Gradum is a local agent, the network is its only outbound channel,
- * and every thumbnail URL we fetch is attacker-influenced: a malicious
- * page can publish any URL as its `favicon` field, the result page's
- * own root favicon path is composed from a Tavily-supplied host, and
- * even a third-party aggregator sees whatever the host string says.
- * The guard sits in front of every socket open and refuses to:
- *
- *  - non-`https` schemes (http would leak bearer cookies via Referer;
- *    `file:` / `data:` / `javascript:` would let a hostile result
- *    pull bytes off the local disk or execute script);
- *  - URLs whose hostname can't be parsed or is empty;
- *  - hostnames that resolve (today, on *this* machine) to any
- *    RFC 1918 / loopback / link-local / CGNAT / multicast / reserved
- *    / benchmarking / TEST-NET / IPv6 ULA / IPv6 link-local /
- *    IPv4-mapped-private address. A single bad answer in the
- *    round-robin is enough to block: partial checks are how SSRF
- *    gets in.
- *
- * The check is split out from the loader so it can be unit-tested
- * without spinning up a fake HTTP server.
- */
+// URL / network-target guard for [ThumbnailImageLoader].
+//
+// Gradum is a local agent, the network is its only outbound channel,
+// and every thumbnail URL we fetch is attacker-influenced: a malicious
+// page can publish any URL as its `favicon` field, the result page's
+// own root favicon path is composed from a Tavily-supplied host, and
+// even a third-party aggregator sees whatever the host string says.
+// The guard sits in front of every socket open and refuses to:
+//
+//  - non-`https` schemes (http would leak bearer cookies via Referer;
+//    `file:` / `data:` / `javascript:` would let a hostile result
+//    pull bytes off the local disk or execute script);
+//  - URLs whose hostname can't be parsed or is empty;
+//  - hostnames that resolve (today, on *this* machine) to any
+//    RFC 1918 / loopback / link-local / CGNAT / multicast / reserved
+//    / benchmarking / TEST-NET / IPv6 ULA / IPv6 link-local /
+//    IPv4-mapped-private address. A single bad answer in the
+//    round-robin is enough to block: partial checks are how SSRF
+//    gets in.
+//
+// The check is split out from the loader so it can be unit-tested
+// without spinning up a fake HTTP server.
 internal object ThumbnailUrlGuard {
 
-  /** Outcome of [check]. [Unsafe] carries a short reason for the log. */
+  // Outcome of [check]. [Unsafe] carries a short reason for the log.
   sealed class Check {
     object Safe : Check()
     data class Unsafe(val reason: String) : Check()
@@ -80,12 +78,10 @@ internal object ThumbnailUrlGuard {
     return if (blockedReason != null) Check.Unsafe(blockedReason) else Check.Safe
   }
 
-  /**
-   * Returns true for any IPv4 address that is not safely routable on
-   * the public internet. Covers RFC 1918, loopback, link-local
-   * (incl. cloud-metadata 169.254.169.254), CGNAT, multicast, reserved,
-   * benchmarking, and the documentation TEST-NET ranges.
-   */
+  // Returns true for any IPv4 address that is not safely routable on
+  // the public internet. Covers RFC 1918, loopback, link-local
+  // (incl. cloud-metadata 169.254.169.254), CGNAT, multicast, reserved,
+  // benchmarking, and the documentation TEST-NET ranges.
   private fun isPrivateV4(bytes: ByteArray): Boolean {
     if (bytes.size != 4) return false
     val octet0: Int = bytes[0].toInt() and 0xFF
@@ -109,11 +105,9 @@ internal object ThumbnailUrlGuard {
     }
   }
 
-  /**
-   * Returns true for IPv6 addresses that should not be reached from
-   * a public client: unspecified, loopback, link-local, ULA, and
-   * IPv4-mapped private addresses (the last via recursive [isPrivateV4]).
-   */
+  // Returns true for IPv6 addresses that should not be reached from
+  // a public client: unspecified, loopback, link-local, ULA, and
+  // IPv4-mapped private addresses (the last via recursive [isPrivateV4]).
   private fun isPrivateV6(bytes: ByteArray): Boolean {
     if (bytes.size != 16) return false
 

@@ -59,16 +59,16 @@ data class BubbleState(
   val selectedPermission: String = PermissionMode.READONLY
 )
 
-/** Opens a file region in the IDE editor. */
+// Opens a file region in the IDE editor.
 private typealias OpenInEditorAction = (filePath: String, startLine: Int, endLine: Int) -> Unit
 
-/** Shows a before/after diff for one file. */
+// Shows a before/after diff for one file.
 private typealias ShowDiffAction = (filePath: String, originalContent: String, modifiedContent: String) -> Unit
 
-/** Opens the sub-chat conversation behind one tool-call fold. */
+// Opens the sub-chat conversation behind one tool-call fold.
 private typealias OpenSubChatAction = (messages: List<ChatMessage>, title: String) -> Unit
 
-/** Resolves an in-flight ask_interaction card. */
+// Resolves an in-flight ask_interaction card.
 private typealias RespondToAskAction = suspend (
   sessionId: String, requestId: String, choice: String?, text: String?, cancelled: Boolean
 ) -> Unit
@@ -212,13 +212,11 @@ private sealed interface BubbleItem {
   data class ToolGroup(val calls: List<Pair<Int, RenderBlock.ToolCall>>) : BubbleItem
 }
 
-/**
- * Groups consecutive tool-call blocks into one [BubbleItem.ToolGroup] so the
- * UI can fold the exploration phase into a single collapsible section while
- * text, thinking, and answers stay in the main flow. Hidden pending calls
- * (renderers that opt out of the pending state) are skipped exactly as in
- * the flat path.
- */
+// Groups consecutive tool-call blocks into one [BubbleItem.ToolGroup] so the
+// UI can fold the exploration phase into a single collapsible section while
+// text, thinking, and answers stay in the main flow. Hidden pending calls
+// (renderers that opt out of the pending state) are skipped exactly as in
+// the flat path.
 private fun buildBubbleItems(renderBlocks: List<RenderBlock>): List<BubbleItem> {
   val items: MutableList<BubbleItem> = mutableListOf()
   var collectedCalls: MutableList<Pair<Int, RenderBlock.ToolCall>> = mutableListOf()
@@ -247,12 +245,10 @@ private fun buildBubbleItems(renderBlocks: List<RenderBlock>): List<BubbleItem> 
   return items
 }
 
-/**
- * A collapsible "process" section holding a run of tool calls. The header
- * shows the call count; the body expands with a short animation and lists
- * the individual call blocks. A group that is still running starts
- * expanded, a finished group starts collapsed.
- */
+// A collapsible "process" section holding a run of tool calls. The header
+// shows the call count; the body expands with a short animation and lists
+// the individual call blocks. A group that is still running starts
+// expanded, a finished group starts collapsed.
 @Composable
 private fun ToolCallGroupSection(
   group: BubbleItem.ToolGroup,
@@ -639,5 +635,5 @@ private fun ErrorBlock(block: RenderBlock.Error) {
   }
 }
 
-/** Max height of the expanded error-detail block before it scrolls. */
+// Max height of the expanded error-detail block before it scrolls.
 private val ERROR_DETAIL_MAX_HEIGHT = 200.dp

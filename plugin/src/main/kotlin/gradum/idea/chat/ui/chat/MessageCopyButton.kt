@@ -67,8 +67,9 @@ fun MessageCopyButton(
 /**
  * Copies [text] to the system clipboard and fires callbacks.
  *
- * @param onCopied  Invoked immediately after the copy succeeds.
- * @param onReset   Invoked after [delayMillis] to revert any visual scanState.
+ * Parameters:
+ * - onCopied: Invoked immediately after the copy succeeds.
+ * - onReset: Invoked after [delayMillis] to revert any visual scanState.
  */
 fun copyToClipboard(
   text: String,

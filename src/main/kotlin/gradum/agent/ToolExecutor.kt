@@ -16,11 +16,9 @@ import org.slf4j.LoggerFactory
 
 private val logger = LoggerFactory.getLogger("ToolExecutor")
 
-/**
- * Maps skill function names to their most meaningful argument key
- * for compact log display. Falls back to no parameter display when
- * the key is absent or the skill is not listed.
- */
+// Maps skill function names to their most meaningful argument key
+// for compact log display. Falls back to no parameter display when
+// the key is absent or the skill is not listed.
 private val SKILL_PARAM_KEY: Map<String, String> = mapOf(
   "read_file" to "path",
   "write_file" to "path",
@@ -234,10 +232,8 @@ class ToolExecutor(
     return repeatedToolCallCount >= configuration.maxRepeatedToolCalls
   }
 
-  /**
-   * Emits a `tool_call_start` event. Skills that manage their own event
-   * stream (e.g. DelegateSkill) are skipped.
-   */
+  // Emits a `tool_call_start` event. Skills that manage their own event
+  // stream (e.g. DelegateSkill) are skipped.
   private fun emitToolCallStart(
     toolAlias: String,
     toolCallId: String,
@@ -270,10 +266,8 @@ class ToolExecutor(
     )
   }
 
-  /**
-   * Emits the post-execution `tool_call` event, appends the result to
-   * conversation history, and handles history compaction.
-   */
+  // Emits the post-execution `tool_call` event, appends the result to
+  // conversation history, and handles history compaction.
   private fun emitToolResult(
     functionName: String,
     skillInstance: Skill?,

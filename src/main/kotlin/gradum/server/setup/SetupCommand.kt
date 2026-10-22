@@ -24,11 +24,9 @@ private const val PROVIDER_KIND_WIDTH: Int = 7
 private const val API_KEY_LABEL: String = "API key"
 private const val THINKING_LABEL: String = "Thinking"
 
-/**
- * One selectable provider. [key] is the lowercase config key used for the
- * `<key>.baseUrl` / `<key>.apiKey` settings keys (see `ProviderConfigStore`);
- * [baseUrl] is the value pre-filled when nothing is configured yet.
- */
+// One selectable provider. [key] is the lowercase config key used for the
+// `<key>.baseUrl` / `<key>.apiKey` settings keys (see `ProviderConfigStore`);
+// [baseUrl] is the value pre-filled when nothing is configured yet.
 internal class ProviderChoice(
   val key: String,
   val kind: String,
@@ -36,10 +34,8 @@ internal class ProviderChoice(
   val baseUrl: String
 )
 
-/**
- * Derived from `ModelIdentity.setupServers()` so the wizard can never drift
- * from server-side discovery; kind follows the hosted (API key) marker.
- */
+// Derived from `ModelIdentity.setupServers()` so the wizard can never drift
+// from server-side discovery; kind follows the hosted (API key) marker.
 internal val PROVIDER_CHOICES: List<ProviderChoice> =
   ModelIdentity.setupServers().map { serverDef: ServerDef ->
     ProviderChoice(
@@ -50,18 +46,16 @@ internal val PROVIDER_CHOICES: List<ProviderChoice> =
     )
   }
 
-/** Column width follows the longest provider label so renaming ServerDefs can't break the table. */
+// Column width follows the longest provider label so renaming ServerDefs can't break the table.
 internal val PROVIDER_NAME_WIDTH: Int = PROVIDER_CHOICES.maxOf { choice -> choice.label.length }
 
-/**
- * Line-based fallback provider wizard, used when there is no attached console
- * (piped output, ACP terminal auth without a pty) so [runTuiSetup] cannot draw.
- *
- * Reads the same `../.gradum/settings.json` the server loads and writes back only
- * the keys it touches, so hand-edited `server` / `commandFilter` / `mcpServers`
- * sections survive. The write happens once at the very end, so interrupting the
- * wizard with Ctrl-C leaves the file untouched.
- */
+// Line-based fallback provider wizard, used when there is no attached console
+// (piped output, ACP terminal auth without a pty) so [runTuiSetup] cannot draw.
+//
+// Reads the same `../.gradum/settings.json` the server loads and writes back only
+// the keys it touches, so hand-edited `server` / `commandFilter` / `mcpServers`
+// sections survive. The write happens once at the very end, so interrupting the
+// wizard with Ctrl-C leaves the file untouched.
 internal fun runSetup() {
   val useColor: Boolean = supportsAnsiColor()
   val settingsFile = File(ServerSettingsStore.configDir(), "settings.json")
@@ -219,7 +213,7 @@ private fun readAnswer(prompt: String): String {
   return readlnOrNull()?.trim().orEmpty()
 }
 
-/** Parses the whole settings file; null when it exists but is not valid JSON. */
+// Parses the whole settings file; null when it exists but is not valid JSON.
 internal fun readSettingsRoot(file: File): MutableMap<String, Any?>? =
   try {
     if (file.isFile) JsonUtil.decodeMap(file.readText(Charsets.UTF_8)).toMutableMap()
@@ -228,10 +222,8 @@ internal fun readSettingsRoot(file: File): MutableMap<String, Any?>? =
     null
   }
 
-/**
- * The `llm` section `ServerSettings.load` reads (nested object, not flat
- * `llm.*` keys): created when absent, or handed back when already present.
- */
+// The `llm` section `ServerSettings.load` reads (nested object, not flat
+// `llm.*` keys): created when absent, or handed back when already present.
 internal fun llmGroup(settingsRoot: MutableMap<String, Any?>): MutableMap<String, Any?> {
   val current: Any? = settingsRoot["llm"]
   if (current is MutableMap<*, *>) {
@@ -253,11 +245,9 @@ internal fun llmString(settingsRoot: Map<String, Any?>, key: String): String =
 internal fun llmBoolean(settingsRoot: Map<String, Any?>, key: String): Boolean =
   (settingsRoot["llm"] as? Map<*, *>)?.get(key) as? Boolean ?: false
 
-/**
- * Drops the flat `llm.baseUrl` / `llm.model` / `llm.think` keys older setup
- * runs scattered at the top level: the loader only honors the nested `llm`
- * section, and `TOP_LEVEL_KEYS` flags the flat ones as unknown.
- */
+// Drops the flat `llm.baseUrl` / `llm.model` / `llm.think` keys older setup
+// runs scattered at the top level: the loader only honors the nested `llm`
+// section, and `TOP_LEVEL_KEYS` flags the flat ones as unknown.
 internal fun dropLegacyFlatLlmKeys(settingsRoot: MutableMap<String, Any?>) {
   settingsRoot.remove("llm.baseUrl")
   settingsRoot.remove("llm.model")

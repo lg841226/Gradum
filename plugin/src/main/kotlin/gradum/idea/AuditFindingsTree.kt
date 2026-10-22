@@ -36,17 +36,15 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 import java.util.*
 
-/** Default number of findings shown per group before a loadProperties-more row appears. */
+// Default number of findings shown per group before a loadProperties-more row appears.
 private const val DEFAULT_FINDING_LIMIT = 50
 
-/** Cap for the displayed count so rows never overflow with huge numbers. */
+// Cap for the displayed count so rows never overflow with huge numbers.
 private const val MAX_DISPLAY_COUNT = 9999
 
-/**
- * Builds the displayed count text and its singular/plural message key from
- * [count]. Shared by every row that shows a finding total so the number
- * formatting and key selection stay in one place.
- */
+// Builds the displayed count text and its singular/plural message key from
+// [count]. Shared by every row that shows a finding total so the number
+// formatting and key selection stay in one place.
 private fun findingCountPresentation(count: Int): Pair<String, String> {
   val formatted: String = "%,d".format(Locale.ROOT, minOf(a = count, b = MAX_DISPLAY_COUNT))
   val key: String =
@@ -55,12 +53,10 @@ private fun findingCountPresentation(count: Int): Pair<String, String> {
   return formatted to key
 }
 
-/**
- * Builds a [Tree] of [AuditTreeItem] nodes for the findings list. When a
- * non-blank [branchName] is available the group rows are wrapped in a single
- * branch node on top; groups with zero findings are still skipped, and each
- * group's children are its findings, sorted most-severe-first.
- */
+// Builds a [Tree] of [AuditTreeItem] nodes for the findings list. When a
+// non-blank [branchName] is available the group rows are wrapped in a single
+// branch node on top; groups with zero findings are still skipped, and each
+// group's children are its findings, sorted most-severe-first.
 internal fun buildAuditFindingsTree(
   findings: List<AuditFinding>, groupBySeverity: Boolean, branchName: String?,
   groupLimits: Map<AuditTreeItem, Int>
@@ -123,13 +119,11 @@ internal fun buildAuditFindingsTree(
     else addNode(data = branchKey, id = branchKey) { addGroupRows() }
   }
 
-/**
- * Renders the parsed SXXXX audit findings after a successful scan. Findings
- * are bucketed into either the four fixed [AuditGroup] rows or severity
- * rows (when [groupBySeverity] is true). Each group row shows its name plus
- * finding count; an empty findings list falls back to the "no suspicious
- * issues" message.
- */
+// Renders the parsed SXXXX audit findings after a successful scan. Findings
+// are bucketed into either the four fixed [AuditGroup] rows or severity
+// rows (when [groupBySeverity] is true). Each group row shows its name plus
+// finding count; an empty findings list falls back to the "no suspicious
+// issues" message.
 @Composable
 internal fun AuditFindingsTree(
   isAllExpanded: Boolean,

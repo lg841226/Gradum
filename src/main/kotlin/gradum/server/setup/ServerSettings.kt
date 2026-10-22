@@ -382,13 +382,11 @@ object ServerSettingsStore {
       else -> null
     }
 
-  /**
-   * Resolves the user's optional `commandFilter` section into a
-   * [CommandFilterConfig]. Starts from [CommandFilterConfig.DEFAULT] and
-   * replaces each field that the user supplied (replace-whole semantics);
-   * an absent or malformed field keeps the DEFAULT. Non-object values for
-   * the section itself are ignored and fall back to [CommandFilterConfig.DEFAULT].
-   */
+  // Resolves the user's optional `commandFilter` section into a
+  // [CommandFilterConfig]. Starts from [CommandFilterConfig.DEFAULT] and
+  // replaces each field that the user supplied (replace-whole semantics);
+  // an absent or malformed field keeps the DEFAULT. Non-object values for
+  // the section itself are ignored and fall back to [CommandFilterConfig.DEFAULT].
   private fun parseCommandFilter(
     sectionRaw: Any?, issues: MutableList<ValidationIssue>
   ): CommandFilterConfig {
@@ -436,16 +434,14 @@ object ServerSettingsStore {
     )
   }
 
-  /** Returns the strings of a JSON array, or null when [jsonValue] is not an all-string list. */
+  // Returns the strings of a JSON array, or null when [jsonValue] is not an all-string list.
   private fun stringListOrNull(jsonValue: Any?): List<String>? =
     if (jsonValue is List<*>) jsonValue.filterIsInstance<String>().takeIf { it.size == jsonValue.size } else null
 
-  /**
-   * Parses the optional top-level `mcpServers` array into [McpServerConfig]s.
-   * Each entry must be an object with a non-blank `name` and a non-empty
-   * `command` string array; malformed entries are logged and skipped so one
-   * bad server never blocks the rest from registering.
-   */
+  // Parses the optional top-level `mcpServers` array into [McpServerConfig]s.
+  // Each entry must be an object with a non-blank `name` and a non-empty
+  // `command` string array; malformed entries are logged and skipped so one
+  // bad server never blocks the rest from registering.
   private fun parseMcpServers(sectionRaw: Any?, issues: MutableList<ValidationIssue>): List<McpServerConfig> {
     if (sectionRaw == null) return emptyList()
     if (sectionRaw !is List<*>) {
@@ -529,25 +525,21 @@ object ServerSettingsStore {
 
   private val COMMAND_FILTER_KEYS: Set<String> = setOf("blockedExecutables", "protectedPaths")
 
-  /**
-   * Properties that earlier releases wrote into `settings.json` but that the
-   * current code no longer reads. An existing file released before the upgrade
-   * still carries them, and [warnUnknownKeys] would flag them as typos on every
-   * startup. They are accepted and ignored instead, so an old file loads clean.
-   */
+  // Properties that earlier releases wrote into `settings.json` but that the
+  // current code no longer reads. An existing file released before the upgrade
+  // still carries them, and [warnUnknownKeys] would flag them as typos on every
+  // startup. They are accepted and ignored instead, so an old file loads clean.
   private val RETIRED_COMMAND_FILTER_KEYS: Set<String> = setOf("readOnlyAllowedExecutables")
 
   private val PROTECTED_PATHS_KEYS: Set<String> =
     setOf("systemPrefixes", "protectedHomeSubdirectories", "safePathPrefixes", "exactProtectedPaths")
 
-  /**
-   * Parses the optional top-level `plugins` section into per-skill config
-   * maps. Each skill gets a free-form object (numbers, strings, booleans,
-   * arrays, objects) that skills read back through the settings DSL with the
-   * type each skill declared. Unknown keys inside a skill's section are kept
-   * as-is: plugin keys are intentionally not validated here. A non-object
-   * skill entry is logged and skipped so one bad section never blocks the rest.
-   */
+  // Parses the optional top-level `plugins` section into per-skill config
+  // maps. Each skill gets a free-form object (numbers, strings, booleans,
+  // arrays, objects) that skills read back through the settings DSL with the
+  // type each skill declared. Unknown keys inside a skill's section are kept
+  // as-is: plugin keys are intentionally not validated here. A non-object
+  // skill entry is logged and skipped so one bad section never blocks the rest.
   private fun parsePlugins(
     sectionRaw: Any?, issues: MutableList<ValidationIssue>
   ): Map<String, Map<String, Any?>> {

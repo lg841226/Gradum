@@ -34,14 +34,16 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  * Shows "Thinking" label when collapsed, full thinking content when expanded.
  * Uses animated visibility for expand/collapse transitions.
  *
- * @param thinking The accumulated thinking content from the LLM.
- * @param isTaskComplete When true, collapses the thinking content.
- * @param hasResponseAfter When true, auto-collapses because a
  *   response block follows this thinking block.
- * @param onUrlClick Forwarded to the Markdown renderer for inline
  *   links inside the reasoning block. Same signature as the
  *   response-block renderer so the host (a chat bubble) only has
  *   to wire one handler.
+ *
+ * Parameters:
+ * - thinking: The accumulated thinking content from the LLM.
+ * - isTaskComplete: When true, collapses the thinking content.
+ * - hasResponseAfter: When true, auto-collapses because a
+ * - onUrlClick: Forwarded to the Markdown renderer for inline
  */
 @Composable
 fun ThinkingIndicator(
@@ -141,8 +143,8 @@ fun ThinkingIndicator(
 
 private const val PREVIEW_WINDOW = 400
 
-/** Expanded content beyond this length gets a capped height with a scrollbar. */
+// Expanded content beyond this length gets a capped height with a scrollbar.
 private const val PREVIEW_MAX_CHARS = 600
 
-/** Max height of the expanded thinking block once it exceeds [PREVIEW_MAX_CHARS]. */
+// Max height of the expanded thinking block once it exceeds [PREVIEW_MAX_CHARS].
 private val THINKING_MAX_HEIGHT = 300.dp

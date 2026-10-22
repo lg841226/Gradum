@@ -8,7 +8,7 @@ import org.junit.Test
  * Behavior tests for the `parseContent` half of [SearchedRenderer].
  *
  * The `render` composable is harder to unit-test (it needs a full
- * Compose runtime + Jewel theme), but the data-shaping half is what
+ * Compose runtime and Jewel theme), but the data-shaping half is what
  * decides whether a row can show a favicon at all. If `parseContent`
  * drops `faviconUrl` or normalizes it away, the renderer has no way to
  * recover it. These tests guard the contract.

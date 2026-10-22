@@ -60,11 +60,9 @@ class GradumConfigurable : Configurable, Configurable.NoScroll {
   private val appearance: AppearanceSettings = AppearanceSettings.getInstance()
   private var composePanel: JComponent? = null
 
-  /**
-   * Working copy edited by the settings panel. Committed to the
-   * persisted service state on [apply] and discarded on [reset], so
-   * changes take effect once the user confirms.
-   */
+  // Working copy edited by the settings panel. Committed to the
+  // persisted service state on [apply] and discarded on [reset], so
+  // changes take effect once the user confirms.
   private val appearanceDraft: MutableState<AppearanceSettings.State> =
     mutableStateOf(value = appearance.snapshot)
 
@@ -533,9 +531,7 @@ private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
   }
 }
 
-/**
- * Welcome layout picker: segmented control + preview on a separate line.
- */
+// Welcome layout picker: segmented control and preview on a separate line.
 @Composable
 private fun WelcomeLayoutRow(
   layout: WelcomeLayout,
@@ -773,10 +769,8 @@ private fun welcomeLayoutFromQsCount(qsCount: Int): WelcomeLayout = when (qsCoun
   else -> WelcomeLayout.QS4_RC2
 }
 
-/**
- * One toolbar-option row: a checkbox, its descriptive label, and the icon
- * the toolbar actually shows, so the user can map the toggle to the button.
- */
+// One toolbar-option row: a checkbox, its descriptive label, and the icon
+// the toolbar actually shows, so the user can map the toggle to the button.
 @Composable
 private fun ActionOptionRow(
   label: String, checked: Boolean,
@@ -797,7 +791,7 @@ private fun ActionOptionRow(
   }
 }
 
-/** One font-size slider entry in a [FontSizeRow]. */
+// One font-size slider entry in a [FontSizeRow].
 private data class FontSizeEntry(
   val minSp: Float,
   val maxSp: Float,
@@ -806,18 +800,16 @@ private data class FontSizeEntry(
   val allowAuto: Boolean = false
 )
 
-/**
- * Number fields for the assistant body and code-block font sizes, laid out
- * as a single flowing sentence with the number fields inlined
- * ("Body font size is [14] sp, code blocks [14] sp").
- * Each field mirrors the auto-detect poll-interval row: valid input is
- * clamped to its range on focus loss, blank / non-numeric input reverts
- * to the last valid value, and invalid text shows a red error outline
- * while focused.
- *
- * The code-block field supports an empty value meaning "auto"
- * ([CODE_BLOCK_FONT_SIZE_AUTO_SP]), i.e. follow the body font size.
- */
+// Number fields for the assistant body and code-block font sizes, laid out
+// as a single flowing sentence with the number fields inlined
+// ("Body font size is [14] sp, code blocks [14] sp").
+// Each field mirrors the auto-detect poll-interval row: valid input is
+// clamped to its range on focus loss, blank / non-numeric input reverts
+// to the last valid value, and invalid text shows a red error outline
+// while focused.
+//
+// The code-block field supports an empty value meaning "auto"
+// ([CODE_BLOCK_FONT_SIZE_AUTO_SP]), i.e. follow the body font size.
 @Composable
 private fun FontSizeRow(
   labelKey: String, primary: FontSizeEntry, secondary: FontSizeEntry

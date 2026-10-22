@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 
-/** Shared token formatter: 1234 -> "1.2K", 1234567 -> "1.2M", below 1000 stays raw. */
+// Shared token formatter: 1234 -> "1.2K", 1234567 -> "1.2M", below 1000 stays raw.
 internal fun formatTokenCount(count: Int): String = when {
   count >= 1_000_000 -> String.format("%.1fM", count / 1_000_000.0)
   count >= 1_000 -> String.format("%.1fK", count / 1_000.0)

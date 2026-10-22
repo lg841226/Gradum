@@ -20,11 +20,13 @@ data class SessionMeta(
  * projection via `GET /session/state`, and renames/deletes/merges via
  * `POST /session/rename` / `POST /session/delete` / `POST /sessions/merge`.
  *
- * @param projectRoot Absolute path of the IntelliJ project (from
  *   `Project.basePath`); sent to the server so it resolves the same
  *   sessions directory the agent writes to.
- * @param apiClient HTTP client sharing the chat panel's base URL and
  *   bearer-token handling.
+ *
+ * Parameters:
+ * - projectRoot: Absolute path of the IntelliJ project (from
+ * - apiClient: HTTP client sharing the chat panel's base URL and
  */
 class ChatSessionStore(
   private val projectRoot: Path,
@@ -38,8 +40,9 @@ class ChatSessionStore(
   /**
    * Lists all sessions, most recently updated first.
    *
-   * @return The server's session list, or an empty list when the server is
    *   unreachable so the UI degrades to "no history" instead of crashing.
+   *
+   * Returns The server's session list, or an empty list when the server is.
    */
   suspend fun listSessions(): List<SessionMeta> {
     return try {
@@ -62,8 +65,9 @@ class ChatSessionStore(
   /**
    * Loads one session's authoritative projection (`GET /session/state`).
    *
-   * @return The projection, or `null` when the session does not exist on the
    *   server or the request failed.
+   *
+   * Returns The projection, or `null` when the session does not exist on the.
    */
   suspend fun loadSessionState(sessionId: String): GradumApiClient.ApiSessionState? =
     apiClient.fetchSessionState(projectRoot = projectRootPath, sessionId = sessionId)
@@ -75,8 +79,9 @@ class ChatSessionStore(
    * timeline order, numbers [baseTitle] per the existing sessions, and writes
    * the merged session itself, so the plugin makes no merge decisions.
    *
-   * @return The new session id, or `null` when a source session is missing or
    *   the request fails.
+   *
+   * Returns The new session id, or `null` when a source session is missing or.
    */
   suspend fun mergeSessions(sessionIds: List<String>, baseTitle: String): String? =
     apiClient.mergeSessions(projectRoot = projectRootPath, sessionIds = sessionIds, baseTitle = baseTitle)
@@ -85,8 +90,9 @@ class ChatSessionStore(
    * Renames [sessionId]'s transcript header title on the server. The
    * conversation body is untouched.
    *
-   * @return `false` when the session does not exist, [newTitle] is blank, or
    *   the request fails.
+   *
+   * Returns `false` when the session does not exist, [newTitle] is blank, or.
    */
   suspend fun renameSession(sessionId: String, newTitle: String): Boolean {
     val trimmedTitle: String = newTitle.trim()
@@ -102,7 +108,7 @@ class ChatSessionStore(
    * Deletes a session on the server: its transcript directory and the
    * matching chat DB row.
    *
-   * @return `true` when the server confirmed deletion.
+   * Returns `true` when the server confirmed deletion..
    */
   suspend fun deleteSession(sessionId: String): Boolean =
     apiClient.deleteSession(projectRoot = projectRootPath, sessionId = sessionId)

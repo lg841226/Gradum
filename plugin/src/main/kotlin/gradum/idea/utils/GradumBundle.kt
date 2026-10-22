@@ -10,14 +10,14 @@ import java.util.*
  *
  * Two hardening measures beyond the plain `DynamicBundle` base:
  *
- * 1. **Startup probe.** An `init {}` block tries to resolve one well-known
+ * 1. Startup probe. An `init {}` block tries to resolve one well-known
  *    key on object-init. If the resource is missing entirely (renamed folder,
  *    wrong base name, packaged plugin with stripped .properties), the IDE
  *    log gets a single clear warning with the exact path that failed.
- * 2. **Per-key fallback.** [message] catches [MissingResourceException] and
+ * 2. Per-key fallback. [message] catches [MissingResourceException] and
  *    returns the key wrapped in `???…???` markers. The UI is never blank,
  *    a missing key is obvious in screenshots, and we get a log line that
- *    points at the offending key + the bundle's base name.
+ *    points at the offending key and the bundle's base name.
  *
  * The hard-coded [BUNDLE_NAME] is the JetBrains-recommended pattern (the
  * class lives in `gradum.idea.bundle` but its resources sit in the

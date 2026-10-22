@@ -15,11 +15,9 @@ import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
-/**
- * Reusable vertical action bar shown after a successful scan. Every action is
- * backed by [IconTooltipButton] with an internationalized tooltip and
- * accessibility description.
- */
+// Reusable vertical action bar shown after a successful scan. Every action is
+// backed by [IconTooltipButton] with an internationalized tooltip and
+// accessibility description.
 @Composable
 internal fun GitAuditActionBar(
   onClose: () -> Unit,

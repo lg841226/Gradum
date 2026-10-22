@@ -33,14 +33,12 @@ import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
-/**
- * Maximum height of the user bubble while expanded. Content past this
- * point is reachable via the bubble's internal vertical scroll rather
- * than letting the bubble grow to fill the entire chat panel. At the
- * current typography (16sp regular x 1.5 line-height ≈ 24dp per line)
- * 200dp fits roughly 5 lines of body text: a tight cap, with most
- * longer pastes scrolling internally rather than growing the bubble.
- */
+// Maximum height of the user bubble while expanded. Content past this
+// point is reachable via the bubble's internal vertical scroll rather
+// than letting the bubble grow to fill the entire chat panel. At the
+// current typography (16sp regular x 1.5 line-height ≈ 24dp per line)
+// 200dp fits roughly 5 lines of body text: a tight cap, with most
+// longer pastes scrolling internally rather than growing the bubble.
 private val EXPAND_MAX_HEIGHT: Dp = 200.dp
 
 /**
@@ -52,9 +50,11 @@ private val EXPAND_MAX_HEIGHT: Dp = 200.dp
  * ([MessageAttachmentList]). The two halves never overlap because
  * they live in different render slots.
  *
- * @param onAttachmentClick Forwarded to [MessageAttachmentPreview];
  *   file chips have no click action (they are display-only after
  *   the message is sent).
+ *
+ * Parameters:
+ * - onAttachmentClick: Forwarded to [MessageAttachmentPreview];
  */
 @Composable
 fun UserChatBubble(

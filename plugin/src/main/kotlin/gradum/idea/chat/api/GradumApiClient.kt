@@ -28,7 +28,8 @@ import java.nio.charset.StandardCharsets
  * malformed lines are logged at WARN and skipped without aborting the stream.
  * This gives callers a typed `Flow<JsonObject>` contract with per-line resilience.
  *
- * @property baseUrl The base URL of the Gradum server (default: `http://localhost:8765`).
+ * Attributes:
+ * - baseUrl: The base URL of the Gradum server (default: `http://localhost:8765`).
  */
 class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
 
@@ -37,12 +38,10 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     .connectTimeout(PluginConfig.API_CONNECT_TIMEOUT)
     .build()
 
-  /**
-   * Builds a request for [url] with the embedded server's bearer token
-   * attached when one is published. The token is read lazily per request
-   * (cached by file mtime in [ServerTokenStore]) so a server restart that
-   * rotates the token is picked up without restarting the IDE.
-   */
+  // Builds a request for [url] with the embedded server's bearer token
+  // attached when one is published. The token is read lazily per request
+  // (cached by file mtime in [ServerTokenStore]) so a server restart that
+  // rotates the token is picked up without restarting the IDE.
   private fun newRequest(url: String): HttpRequest.Builder {
     val builder: HttpRequest.Builder = HttpRequest.newBuilder().uri(URI.create(url))
     ServerTokenStore.currentToken()?.let { token ->
@@ -51,11 +50,9 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     return builder
   }
 
-  /**
-   * Sends the request built by [buildRequest]. On 401 the token cache is
-   * invalidated and the request is rebuilt and sent once more, so a token
-   * rotated after this client last read the file still succeeds.
-   */
+  // Sends the request built by [buildRequest]. On 401 the token cache is
+  // invalidated and the request is rebuilt and sent once more, so a token
+  // rotated after this client last read the file still succeeds.
   private fun <T> sendWithAuthRetry(
     bodyHandler: HttpResponse.BodyHandler<T>,
     buildRequest: () -> HttpRequest
@@ -115,8 +112,9 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    * and returns a consolidated list of models. This is typically called on
    * plugin startup and when the user clicks the refresh button.
    *
-   * @return A JSON string containing the model list.
-   * @throws java.net.ConnectException If the server is not running.
+   * Returns A JSON string containing the model list..
+   *
+   * Throws java: .net.ConnectException If the server is not running.
    */
   suspend fun getModels(): String = withContext(Dispatchers.IO) {
     val response: HttpResponse<String> =
@@ -138,8 +136,10 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
   /**
    * Aborts an in-flight `/events` run on the server.
    *
-   * @param runId The run to stop (the envelope's `runId`).
-   * @return A JSON string with the stop status.
+   * Parameters:
+   * - runId: The run to stop (the envelope's `runId`).
+   *
+   * Returns A JSON string with the stop status..
    */
   suspend fun stopSession(runId: String): String = withContext(Dispatchers.IO) {
     val requestBody: JsonObject = buildJsonObject { put("runId", runId) }
@@ -161,8 +161,9 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    * `cancelled` for the matching [requestId]. Only one of [choice], [text] or
    * [cancelled] is sent per call.
    *
-   * @return `true` when the server acknowledged the answer (HTTP 200), `false`
    *   when the request id is unknown/already answered (404) or the call failed.
+   *
+   * Returns `true` when the server acknowledged the answer (HTTP 200), `false`.
    */
   suspend fun respondToAsk(
     sessionId: String,
@@ -202,8 +203,9 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    * Mirrors the plugin's local withdrawal so the persisted `context.json` and
    * the on-screen transcript stay aligned.
    *
-   * @return `true` when the server truncated the context, `false` when the
    *   message id was not found or the request failed.
+   *
+   * Returns `true` when the server truncated the context, `false` when the.
    */
   suspend fun rewindSession(projectRoot: String, sessionId: String, messageId: String): Boolean =
     withContext(Dispatchers.IO) {
@@ -232,10 +234,13 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    * Deletes a session on the server: the transcript directory under
    * `<projectRoot>/.gradum/sessions/` and the matching chat DB row.
    *
-   * @param projectRoot The project the session belongs to.
-   * @param sessionId The client-generated conversation session id.
-   * @return `true` when the server confirmed deletion, `false` when the
    *   session was not found or the request failed.
+   *
+   * Parameters:
+   * - projectRoot: The project the session belongs to.
+   * - sessionId: The client-generated conversation session id.
+   *
+   * Returns `true` when the server confirmed deletion, `false` when the.
    */
   suspend fun deleteSession(projectRoot: String, sessionId: String): Boolean =
     withContext(Dispatchers.IO) {
@@ -299,8 +304,9 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    * at or before that 0-based index; the default (-1) returns the whole
    * history.
    *
-   * @return The projection, or `null` when the session does not exist or the
    *   request failed.
+   *
+   * Returns The projection, or `null` when the session does not exist or the.
    */
   suspend fun fetchSessionState(
     projectRoot: String,
@@ -353,8 +359,8 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    * The server reads only each transcript's leading header lines, so the
    * plugin gets the same cheap listing it used to build from local files.
    *
-   * @throws java.net.ConnectException If the server is not running.
-   * @throws IOException On any non-2xx response.
+   * Throws java: .net.ConnectException If the server is not running.
+   * Throws IOException: On any non-2xx response.
    */
   suspend fun listSessions(projectRoot: String): List<ApiSessionSummary> =
     withContext(Dispatchers.IO) {
@@ -391,8 +397,9 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    * timeline order, numbers [baseTitle] per the existing sessions, and writes
    * the merged session itself, so the plugin makes no merge decisions.
    *
-   * @return The new session id, or `null` when a source is missing or the
    *   request failed.
+   *
+   * Returns The new session id, or `null` when a source is missing or the.
    */
   suspend fun mergeSessions(projectRoot: String, sessionIds: List<String>, baseTitle: String): String? =
     withContext(Dispatchers.IO) {
@@ -427,8 +434,9 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
   /**
    * Renames a session by rewriting the title in its transcript header.
    *
-   * @return `true` when the server renamed the session, `false` when the
    *   session was not found or the request failed.
+   *
+   * Returns `true` when the server renamed the session, `false` when the.
    */
   suspend fun renameSession(projectRoot: String, sessionId: String, title: String): Boolean =
     withContext(Dispatchers.IO) {
@@ -460,19 +468,22 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    * and streams back NDJSON events: `session_start`, `thinking`, `response`, `tool_call`,
    * `error`, `session_end`.
    *
-   * **Per-line resilience:** a malformed line is logged at WARN and skipped; only
+   * Per-line resilience: a malformed line is logged at WARN and skipped; only
    * connection-level failures abort the flow (caught by caller's `.catch`).
    * Line payload truncated to [MAX_LOGGED_LINE] chars in logs.
    *
-   * **Sequence check:** every event carries a monotonic `seq` (plus a `gap`
+   * Sequence check: every event carries a monotonic `seq` (plus a `gap`
    * count); a discontinuity is logged at WARN and reported to [onStreamGap] so
    * the caller can reconcile against the authoritative projection instead of
    * trusting an incomplete local view.
    *
-   * @param request The chat message and its associated parameters.
-   * @param onStreamGap Invoked with `(expected, received, dropped)` when the
    *   stream skips an event. Local state may be incomplete from then on.
-   * @return A [Flow] of [JsonObject] events. Failed lines are skipped without aborting the flow.
+   *
+   * Parameters:
+   * - request: The chat message and its associated parameters.
+   * - onStreamGap: Invoked with `(expected, received, dropped)` when the
+   *
+   * Returns A [Flow] of [JsonObject] events. Failed lines are skipped without aborting the flow..
    */
   fun sendMessage(
     request: SendMessageRequest,
@@ -543,10 +554,8 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     }
   }.flowOn(context = Dispatchers.IO)
 
-  /**
-   * Parses a single NDJSON line into a [JsonObject]. A malformed line is logged
-   * with a truncated preview and skipped (`null`), so the stream keeps flowing.
-   */
+  // Parses a single NDJSON line into a [JsonObject]. A malformed line is logged
+  // with a truncated preview and skipped (`null`), so the stream keeps flowing.
   private fun parseLine(line: String, lineNumber: Int): JsonObject? {
     val parsed: JsonElement =
       try {
@@ -565,12 +574,10 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     }
   }
 
-  /**
-   * Compares an event's `seq` with the previous one and logs when part of the
-   * stream was lost. The server reserves a number even for events it had to
-   * drop, so both `gap > 0` and a sequence jump mean the client is missing
-   * events. Returns the sequence to remember for the next event.
-   */
+  // Compares an event's `seq` with the previous one and logs when part of the
+  // stream was lost. The server reserves a number even for events it had to
+  // drop, so both `gap > 0` and a sequence jump mean the client is missing
+  // events. Returns the sequence to remember for the next event.
   private fun warnOnStreamGap(
     event: JsonObject,
     previousSeq: Long,

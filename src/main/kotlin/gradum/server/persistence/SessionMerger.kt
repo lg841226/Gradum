@@ -27,8 +27,9 @@ object SessionMerger {
   /**
    * Creates a session from [sourceIds]' histories, numbered from [baseTitle].
    *
-   * @return the merge result, or `null` when a source has no readable sidecar
    *   or the merged state could not be written.
+   *
+   * Returns the merge result, or `null` when a source has no readable sidecar.
    */
   fun merge(projectRoot: Path, sourceIds: List<String>, baseTitle: String): MergeResult? {
     val sources: List<SourceSession> = sourceIds.map { sessionId: String ->

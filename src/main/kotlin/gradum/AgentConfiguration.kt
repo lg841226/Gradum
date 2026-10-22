@@ -2,9 +2,7 @@ package gradum
 
 import gradum.client.ThinkingLevel
 
-/**
- * LLM backend selection, parsed from free-form user input.
- */
+/** LLM backend selection, parsed from free-form user input. */
 enum class Provider {
   OLLAMA,
   OPENAI,

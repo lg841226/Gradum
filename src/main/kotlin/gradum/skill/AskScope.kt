@@ -24,7 +24,7 @@ import java.util.*
  * executing thread on a [PendingQuestions] entry, and returns the user's
  * answer when the plugin POSTs it back via POST /events/respond.
  *
- * There is intentionally **no timeout**: a question may stay open
+ * There is intentionally no timeout: a question may stay open
  * indefinitely until the user answers or dismisses the card (see
  * [PendingQuestions]). [Skill.execute] is non-suspend, so the wait is a
  * blocking run on the agent's IO thread rather than a coroutine suspension.
@@ -34,8 +34,9 @@ import java.util.*
  * `choices` block (to [AskResult.Case]) or an `input` block (to [AskResult.Text]).
  * The card is emitted before the wait so the plugin can resolve it immediately.
  *
- * @property pendingQuestions registry the answer is parked against.
- * @property emitEvent gateway that ships the card over the NDJSON stream.
+ * Attributes:
+ * - pendingQuestions: registry the answer is parked against.
+ * - emitEvent: gateway that ships the card over the NDJSON stream.
  */
 class AskScope(
   private val sessionId: String,

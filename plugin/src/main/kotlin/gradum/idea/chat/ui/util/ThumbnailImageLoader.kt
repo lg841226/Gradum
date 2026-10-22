@@ -15,43 +15,37 @@ import java.util.concurrent.ExecutionException
 
 private val logger: Logger = LoggerFactory.getLogger("ThumbnailImageLoader")
 
-/**
- * HTTP request timeout for a thumbnail fetch. Kept short because the
- * user is staring at a chat reply: a slow favicon should never make
- * the whole row feel laggy. 3 s matches JetBrains' own URL handler
- * default for image previews in the IDE.
- */
+// HTTP request timeout for a thumbnail fetch. Kept short because the
+// user is staring at a chat reply: a slow favicon should never make
+// the whole row feel laggy. 3 s matches JetBrains' own URL handler
+// default for image previews in the IDE.
 private const val THUMBNAIL_HTTP_TIMEOUT_MS: Int = PluginConfig.THUMBNAIL_TIMEOUT_MS
 
-/**
- * Hard upper bound on the in-memory LRU. 64 entries is more than
- * enough for a single chat turn (a `search_web` result row rarely
- * returns more than 10 items) and keeps the cache from leaking
- * across very long sessions.
- */
+// Hard upper bound on the in-memory LRU. 64 entries is more than
+// enough for a single chat turn (a `search_web` result row rarely
+// returns more than 10 items) and keeps the cache from leaking
+// across very long sessions.
 private const val LRU_MAX_ENTRIES: Int = PluginConfig.THUMBNAIL_LRU_MAX_ENTRIES
 
-/**
- * Hard cap on the bytes we will read from any single response. Real
- * favicons are 1–15 KB; an honest web image preview for a 16x16 box
- * is well under 100 KB even at the high end. Anything past 512 KB is
- * either a misconfigured server, a malicious zip-bomb surrogate, or
- * someone using this channel to exfiltrate data into the cache. We
- * abort the read and discard the response in that case.
- */
+// Hard cap on the bytes we will read from any single response. Real
+// favicons are 1–15 KB; an honest web image preview for a 16x16 box
+// is well under 100 KB even at the high end. Anything past 512 KB is
+// either a misconfigured server, a malicious zip-bomb surrogate, or
+// someone using this channel to exfiltrate data into the cache. We
+// abort the read and discard the response in that case.
 private const val MAX_IMAGE_BYTES: Int = PluginConfig.THUMBNAIL_MAX_IMAGE_BYTES
 
 /**
  * In-house loader for thumbnail images used in tool-call result rows.
  *
- * **Two-tier cache.** A 64-entry in-memory LRU of decoded
+ * Two-tier cache. A 64-entry in-memory LRU of decoded
  * [ImageBitmap]s (the hot path) sits in front of an on-disk byte
  * cache ([ThumbnailDiskCache], ~50 MB) that survives IDE restarts.
  * A URL that's already on disk is decoded and replayed through the
  * memory cache; only a true miss touches the network. See
  * [ThumbnailDiskCache] for the on-disk invariants.
  *
- * **Security posture.** Gradum is a local agent and the network is
+ * Security posture. Gradum is a local agent and the network is
  * its only outbound channel. Thumbnail URLs come from three places,
  * all of which are attacker-controlled in principle: the Tavily
  * search response (a malicious page can publish any URL as its
@@ -70,7 +64,7 @@ private const val MAX_IMAGE_BYTES: Int = PluginConfig.THUMBNAIL_MAX_IMAGE_BYTES
  * change). Disk-cache hits skip the guard on the read path: the
  * URL was already vetted when it was first written.
  *
- * **Other guarantees.** Thread-safe (used from arbitrary
+ * Other guarantees. Thread-safe (used from arbitrary
  * `LaunchedEffect` scopes). URL-keyed LRU (most-recently-requested
  * URL is the last to be evicted). All cache mutations are guarded by
  * `Collections.synchronizedMap` around a `LinkedHashMap` so the
@@ -186,23 +180,21 @@ object ThumbnailImageLoader {
     cache.remove(key = url)
   }
 
-  /** Clear the entire cache. Tests use this for isolation. */
+  // Clear the entire cache. Tests use this for isolation.
   @Suppress("unused")
   internal fun clearCache() {
     cache.clear()
   }
 
-  /**
-   * Validates the URL, opens the connection, reads (capped) bytes,
-   * decodes via Skia, and returns the bitmap. Returns `null` on any
-   * failure: guard rejection, HTTP error, oversized body, decode
-   * error, timeout, and logs a single warning. Caller renders the
-   * placeholder box on null.
-   *
-   * We use [URI] rather than [URL] so URLs with unusual characters
-   * (Unicode, percent-encoded specials) parse cleanly; the JDK 21
-   * `URL(String)` constructor is also deprecated.
-   */
+  // Validates the URL, opens the connection, reads (capped) bytes,
+  // decodes via Skia, and returns the bitmap. Returns `null` on any
+  // failure: guard rejection, HTTP error, oversized body, decode
+  // error, timeout, and logs a single warning. Caller renders the
+  // placeholder box on null.
+  //
+  // We use [URI] rather than [URL] so URLs with unusual characters
+  // (Unicode, percent-encoded specials) parse cleanly; the JDK 21
+  // `URL(String)` constructor is also deprecated.
   private fun fetchAndDecode(url: String): ImageBitmap? {
     when (val check: ThumbnailUrlGuard.Check = ThumbnailUrlGuard.check(url)) {
       is ThumbnailUrlGuard.Check.Unsafe -> {
@@ -268,12 +260,10 @@ object ThumbnailImageLoader {
     }
   }
 
-  /**
-   * Decode a byte payload into a Compose [ImageBitmap]. Returns `null`
-   * on any Skia parse error. Skia is format-agnostic: PNG, JPG, WebP,
-   * GIF are all auto-detected from the byte header, so the caller
-   * doesn't need to know which format a given URL serves.
-   */
+  // Decode a byte payload into a Compose [ImageBitmap]. Returns `null`
+  // on any Skia parse error. Skia is format-agnostic: PNG, JPG, WebP,
+  // GIF are all auto-detected from the byte header, so the caller
+  // doesn't need to know which format a given URL serves.
   private fun decodeFromBytes(imageBytes: ByteArray): ImageBitmap? = try {
     val skiaImage: Image = Image.makeFromEncoded(imageBytes)
     skiaImage.toComposeImageBitmap()

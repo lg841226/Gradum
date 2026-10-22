@@ -37,24 +37,22 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
-/** Default width of the commit-details panel shown right of the problem list. */
+// Default width of the commit-details panel shown right of the problem list.
 internal val CommitInfoPanelWidth = 320.dp
 
-/** Minimum width the commit-details panel can be dragged to. */
+// Minimum width the commit-details panel can be dragged to.
 internal val CommitInfoPanelMinWidth = 320.dp
 
-/** Maximum width the commit-details panel can be dragged to. */
+// Maximum width the commit-details panel can be dragged to.
 internal val CommitInfoPanelMaxWidth = 500.dp
 
-/**
- * Vertical drag handle between the findings tree and the commit-details
- * panel. Dragging left or right resizes the panel width within
- * [CommitInfoPanelMinWidth]..[CommitInfoPanelMaxWidth].
- *
- * Implemented with a raw pointer loop instead of a gesture detector: the
- * start width is captured once at pointer-down, so a width change never
- * restarts the gesture coroutine.
- */
+// Vertical drag handle between the findings tree and the commit-details
+// panel. Dragging left or right resizes the panel width within
+// [CommitInfoPanelMinWidth]..[CommitInfoPanelMaxWidth].
+//
+// Implemented with a raw pointer loop instead of a gesture detector: the
+// start width is captured once at pointer-down, so a width change never
+// restarts the gesture coroutine.
 @Composable
 internal fun CommitInfoPanelResizeHandle(
   commitInfoWidth: Dp,
@@ -108,13 +106,11 @@ internal fun CommitInfoPanelResizeHandle(
   }
 }
 
-/**
- * Right-hand panel that shows the commit details behind the currently
- * selected finding. Delimited from the problem list by a 1 dp line in the
- * theme's normal border color. It renders the commit subject as a bold main
- * title in the editor font, followed by the commit's full body text; the
- * content scrolls independently of the findings tree.
- */
+// Right-hand panel that shows the commit details behind the currently
+// selected finding. Delimited from the problem list by a 1 dp line in the
+// theme's normal border color. It renders the commit subject as a bold main
+// title in the editor font, followed by the commit's full body text; the
+// content scrolls independently of the findings tree.
 @Composable
 internal fun CommitInfoPanel(
   project: Project,

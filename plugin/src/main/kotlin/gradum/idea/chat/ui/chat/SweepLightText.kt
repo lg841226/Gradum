@@ -22,9 +22,10 @@ import org.jetbrains.jewel.ui.component.Text
  * seamlessly re-enters from the left on the next cycle. The underlying
  * `Text` re-lays out its `Brush` on every frame.
  *
- * @param text  The string to render.
- * @param modifier  Compose modifier forwarded to the underlying `Text`.
- * @param durationMillis  Length of one full left-to-right sweep; default 1200ms.
+ * Parameters:
+ * - text: The string to render.
+ * - modifier: Compose modifier forwarded to the underlying `Text`.
+ * - durationMillis: Length of one full left-to-right sweep; default 1200ms.
  */
 @Composable
 fun SweepLightText(

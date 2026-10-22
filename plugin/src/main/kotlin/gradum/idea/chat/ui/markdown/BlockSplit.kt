@@ -10,11 +10,9 @@ private val blockSplitParser: Parser = Parser.builder()
   .build()
 
 
-/**
- * Re-serializes a CommonMark node back to its Markdown source. Top-level
- * callers use [serializeMarkdownNode] or [serializeInlineChildren]
- * (children only, used for paragraph-in-block and list-item rendering paths).
- */
+// Re-serializes a CommonMark node back to its Markdown source. Top-level
+// callers use [serializeMarkdownNode] or [serializeInlineChildren]
+// (children only, used for paragraph-in-block and list-item rendering paths).
 internal fun serializeMarkdownNode(rootNode: Node): String =
   serializeInto(currentNode = rootNode)
 
@@ -24,22 +22,20 @@ internal fun serializeInlineChildren(containerNode: Node): String {
   return resultBuilder.toString()
 }
 
-/**
- * Splits a Plain segment on top-level CommonMark block boundaries.
- * Each `Paragraph` becomes [MarkdownSegment.Plain] (routed to the
- * inline chip parser); every other top-level block becomes
- * [MarkdownSegment.NonProseBlock] (routed to the non-prose block
- * renderer). [LinkReferenceDefinition] is dropped (the link inside
- * the `Paragraph` already has the resolved URL).
- *
- * A `HtmlBlock` whose text content is non-empty (after stripping the
- * raw `<tag>` markers) is reclassified as [MarkdownSegment.Plain]
- * rather than [MarkdownSegment.NonProseBlock]: Jewel's native
- * `Markdown(...)` renders raw HTML as a fenced code block, which
- * reads as "broken output" in chat. Stripping + reclassifying sends
- * the inner text through the inline path (with bold / italic / links
- * / code chips), so the chat shows clean prose, not the raw tags.
- */
+// Splits a Plain segment on top-level CommonMark block boundaries.
+// Each `Paragraph` becomes [MarkdownSegment.Plain] (routed to the
+// inline chip parser); every other top-level block becomes
+// [MarkdownSegment.NonProseBlock] (routed to the non-prose block
+// renderer). [LinkReferenceDefinition] is dropped (the link inside
+// the `Paragraph` already has the resolved URL).
+//
+// A `HtmlBlock` whose text content is non-empty (after stripping the
+// raw `<tag>` markers) is reclassified as [MarkdownSegment.Plain]
+// rather than [MarkdownSegment.NonProseBlock]: Jewel's native
+// `Markdown(...)` renders raw HTML as a fenced code block, which
+// reads as "broken output" in chat. Stripping and reclassifying sends
+// the inner text through the inline path (with bold / italic / links
+// / code chips), so the chat shows clean prose, not the raw tags.
 internal fun splitPlainAtBlocks(plainText: String): List<MarkdownSegment> {
   if (plainText.isBlank()) return emptyList()
   val document: Document = blockSplitParser.parse(plainText) as Document
@@ -70,13 +66,11 @@ internal fun splitPlainAtBlocks(plainText: String): List<MarkdownSegment> {
     }
 }
 
-/**
- * Walk a `HtmlBlock`'s children, collecting only the inline text
- * content (skipping `HtmlInline` opening/closing tags and any other
- * non-text inline children). Returns `null` if the block is empty
- * after stripping (e.g. `<br>`) so the caller can fall back to the
- * raw-literal NonProseBlock path.
- */
+// Walk a `HtmlBlock`'s children, collecting only the inline text
+// content (skipping `HtmlInline` opening/closing tags and any other
+// non-text inline children). Returns `null` if the block is empty
+// after stripping (e.g. `<br>`) so the caller can fall back to the
+// raw-literal NonProseBlock path.
 private fun stripHtmlBlockTags(htmlBlock: HtmlBlock): String? {
   val resultBuilder: StringBuilder = StringBuilder()
   val children: NodeChildren = NodeChildren.of(parent = htmlBlock)
@@ -139,7 +133,7 @@ private fun serializeInto(currentNode: Node, output: StringBuilder) {
   }
 }
 
-/** Appends a node's literal text, if any. */
+// Appends a node's literal text, if any.
 private fun appendLiteral(node: Node, output: StringBuilder) {
   val literalValue: String? = when (node) {
     is HtmlBlock -> node.literal
@@ -238,14 +232,12 @@ private fun serializeOrderedListInto(orderedList: OrderedList, output: StringBui
   }
 }
 
-/**
- * Serialize a `ListItem`: emit `<listMarker>` then the first child inline
- * (on the same line as the listMarker); subsequent children (nested list,
- * second paragraph, fenced code) are emitted on the next line(s)
- * indented 4 columns so Markdown recognizes them as continuation
- * content of the list item (not a new top-level list). The 4-column
- * minimum is the CommonMark rule for list-item continuation.
- */
+// Serialize a `ListItem`: emit `<listMarker>` then the first child inline
+// (on the same line as the listMarker); subsequent children (nested list,
+// second paragraph, fenced code) are emitted on the next line(s)
+// indented 4 columns so Markdown recognizes them as continuation
+// content of the list item (not a new top-level list). The 4-column
+// minimum is the CommonMark rule for list-item continuation.
 private fun serializeListItemInto(listItem: ListItem, listMarker: String, output: StringBuilder) {
   val children: NodeChildren = NodeChildren.of(parent = listItem)
   output.append(listMarker)
@@ -291,14 +283,14 @@ private fun serializeLatexBlockInto(latexBlock: LatexBlock, output: StringBuilde
   output.append("\n$$")
 }
 
-/** Prefix every line of [content] with [indent]. */
+// Prefix every line of [content] with [indent].
 private fun indentEveryLine(content: String, indent: String): String {
   if (content.isEmpty()) return content
   val lines: List<String> = content.split('\n')
   return lines.joinToString(separator = "\n") { line -> indent + line }
 }
 
-/** Prefix every line of [content] except the first with `> `. */
+// Prefix every line of [content] except the first with `> `.
 private fun prefixEachLineExceptFirst(content: String): String {
   if (!content.contains(char = '\n')) return content
   val lines: List<String> = content.split('\n')

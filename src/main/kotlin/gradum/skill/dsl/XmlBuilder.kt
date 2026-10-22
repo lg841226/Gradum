@@ -65,9 +65,7 @@ class XmlBuilder internal constructor() {
   }
 }
 
-/**
- * Entry point for the [XmlBuilder] DSL. Returns the serialized XML string.
- */
+/** Entry point for the [XmlBuilder] DSL. Returns the serialized XML string. */
 fun buildXml(block: XmlBuilder.() -> Unit): String {
   val builder = XmlBuilder()
   builder.block()

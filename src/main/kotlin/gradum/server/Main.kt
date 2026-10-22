@@ -35,12 +35,10 @@ fun main(arguments: Array<String>) {
   }
 }
 
-/**
- * Shared startup block: loads settings, initializes MCP manager, scans
- * external skills, starts the directory watcher, and resolves the API key.
- * HTTP and ACP entry points both call this so the long-lived runtime
- * components are constructed exactly once per process.
- */
+// Shared startup block: loads settings, initializes MCP manager, scans
+// external skills, starts the directory watcher, and resolves the API key.
+// HTTP and ACP entry points both call this so the long-lived runtime
+// components are constructed exactly once per process.
 private fun initRuntime(): GradumRuntime {
   ServerSettingsStore.releaseDefaultsIfMissing()
   val settings: ServerSettings = ServerSettingsStore.load()

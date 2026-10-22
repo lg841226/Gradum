@@ -69,7 +69,7 @@ data class OllamaModelCapabilities(
  */
 class OllamaModelCatalog(private val baseUrl: String) {
 
-  // Convenience constructor for callers that hold an AgentConfiguration
+  /** Convenience constructor for callers that hold an AgentConfiguration */
   constructor(configuration: AgentConfiguration) : this(baseUrl = configuration.baseUrl)
 
   companion object {

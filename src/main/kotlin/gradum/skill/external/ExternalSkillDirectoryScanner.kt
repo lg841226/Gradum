@@ -150,10 +150,10 @@ class ExternalSkillDirectoryScanner(
     }
   }
 
-  // Names of the `.kt` sources currently in ~/.gradum/skills/, sorted
+  /** Names of the `.kt` sources currently in ~/.gradum/skills/, sorted */
   fun listSourceNames(): List<String> = listKtSources().map { sourceFile -> sourceFile.name }
 
-  // Reads the text of a skill source, or null when it does not exist
+  /** Reads the text of a skill source, or null when it does not exist */
   fun readSource(fileName: String): String? {
     val safeName = try {
       normalizeSourceName(fileName)
@@ -250,16 +250,14 @@ class ExternalSkillDirectoryScanner(
     saveBuildManifest()
   }
 
-  /**
-   * Restores the incremental compile state written by a previous process.
-   * A source is only trusted when its recorded hash still matches the file on
-   * disk and every recorded output file exists under [outputDirectory]; the
-   * rest recompile through the normal changed-source path. Any output file
-   * that no restored source owns is deleted, so a partially restored cache
-   * can never leave stale classes behind for the classloader to pick up.
-   * Returns `true` when a manifest existed and parsed, even if it matched
-   * nothing; only an unreadable manifest falls back to the clean rebuild.
-   */
+  // Restores the incremental compile state written by a previous process.
+  // A source is only trusted when its recorded hash still matches the file on
+  // disk and every recorded output file exists under [outputDirectory]; the
+  // rest recompile through the normal changed-source path. Any output file
+  // that no restored source owns is deleted, so a partially restored cache
+  // can never leave stale classes behind for the classloader to pick up.
+  // Returns `true` when a manifest existed and parsed, even if it matched
+  // nothing; only an unreadable manifest falls back to the clean rebuild.
   private fun restoreBuildManifest(sourceFiles: List<File>, outputDirectory: File): Boolean {
     if (!manifestFile.isFile) return false
     val manifest: Map<String, Any?> = try {
@@ -348,17 +346,15 @@ class ExternalSkillDirectoryScanner(
       )
     }
 
-  /**
-   * Compiles one source, or a whole batch of them, into .build-staging and
-   * swaps the output into [outputDirectory] only when all of [batchSources]
-   * compile. A success records the batch's outputs, hashes, and diagnostics
-   * under every source name, so unchanged files pulled into the batch have
-   * their output ownership refreshed too and outputsExist() cannot fail against
-   * a stale record. A failure keeps the previous working classes (last-good);
-   * only [failureOwners] then record their new hash beside the batch's
-   * diagnostics for them, and an empty set leaves every source's record as the
-   * single-source pass left it.
-   */
+  // Compiles one source, or a whole batch of them, into .build-staging and
+  // swaps the output into [outputDirectory] only when all of [batchSources]
+  // compile. A success records the batch's outputs, hashes, and diagnostics
+  // under every source name, so unchanged files pulled into the batch have
+  // their output ownership refreshed too and outputsExist() cannot fail against
+  // a stale record. A failure keeps the previous working classes (last-good);
+  // only [failureOwners] then record their new hash beside the batch's
+  // diagnostics for them, and an empty set leaves every source's record as the
+  // single-source pass left it.
   private fun compileSourceBatch(
     batchSources: List<File>,
     currentHashes: Map<String, String>,
@@ -415,13 +411,11 @@ class ExternalSkillDirectoryScanner(
     return true
   }
 
-  /**
-   * Attributes each staged .class file to the batch source that produced it: a
-   * file facade (`NameKt`) or a top-level type (`Name`, `Name$Nested`) carries
-   * the source's base name. A class named unlike its file is shared by the
-   * whole batch instead, so no source's record can leave it orphaned for the
-   * manifest's ownership sweep to delete.
-   */
+  // Attributes each staged .class file to the batch source that produced it: a
+  // file facade (`NameKt`) or a top-level type (`Name`, `Name$Nested`) carries
+  // the source's base name. A class named unlike its file is shared by the
+  // whole batch instead, so no source's record can leave it orphaned for the
+  // manifest's ownership sweep to delete.
   private fun claimStagedOutputs(
     stagedOutputs: List<File>, batchNames: Set<String>
   ): Map<String, MutableSet<String>> {
@@ -445,12 +439,10 @@ class ExternalSkillDirectoryScanner(
     return claimed
   }
 
-  /**
-   * Files each diagnostic under the batch source its path names, so a broken
-   * file's errors stay on that file; a diagnostic the compiler left unlocated
-   * (or that names an outside file) is reported against every source in the
-   * batch, which keeps a lone failed file's own diagnostics on it.
-   */
+  // Files each diagnostic under the batch source its path names, so a broken
+  // file's errors stay on that file; a diagnostic the compiler left unlocated
+  // (or that names an outside file) is reported against every source in the
+  // batch, which keeps a lone failed file's own diagnostics on it.
   private fun attributeDiagnostics(
     diagnostics: List<ExternalDiagnostic>, batchNames: Set<String>
   ): Map<String, List<ExternalDiagnostic>> {
@@ -472,11 +464,9 @@ class ExternalSkillDirectoryScanner(
     return producedOutputs.all { relativePath -> outputDirectory.resolve(relativePath).isFile }
   }
 
-  /**
-   * Deletes the .class files [sourceName] owns, skipping any [retainedOutputs]
-   * another source still claims, so a shared output survives its owner's
-   * removal and keeps a surviving skill loadable.
-   */
+  // Deletes the .class files [sourceName] owns, skipping any [retainedOutputs]
+  // another source still claims, so a shared output survives its owner's
+  // removal and keeps a surviving skill loadable.
   private fun removeOutputs(outputDirectory: File, sourceName: String, retainedOutputs: Set<String> = emptySet()) {
     for (relativePath in outputsBySource[sourceName].orEmpty()) {
       if (relativePath in retainedOutputs) continue

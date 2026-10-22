@@ -69,12 +69,10 @@ fun RenderLatexBlock(formula: String, modifier: Modifier = Modifier) {
   }
 }
 
-/**
- * Render an inline LaTeX formula (`$…$`). Sized to match the
- * surrounding text so it sits on the same baseline. Used by
- * [RenderState.allocateLatex] in InlineMarkdown for the PUA
- * placeholder path.
- */
+// Render an inline LaTeX formula (`$…$`). Sized to match the
+// surrounding text so it sits on the same baseline. Used by
+// [RenderState.allocateLatex] in InlineMarkdown for the PUA
+// placeholder path.
 @Composable
 internal fun RenderInlineLatex(
   formula: String, fontSizeSp: Float
@@ -95,7 +93,7 @@ internal fun RenderInlineLatex(
   }
 }
 
-/** Cached per-formula render decisions. */
+// Cached per-formula render decisions.
 @Composable
 private fun rememberLatexRenderState(formula: String): LatexRenderState {
   val globalColors: GlobalColors = LocalGlobalColors.current
@@ -111,14 +109,12 @@ private fun rememberLatexRenderState(formula: String): LatexRenderState {
   }
 }
 
-/** Bundle of cached per-formula render decisions. */
+// Bundle of cached per-formula render decisions.
 internal data class LatexRenderState(val config: LatexConfig, val shouldFallback: Boolean)
 
-/**
- * Build a [LatexConfig] with the IDE's text color for both light/dark (the chat panel's text
- * color is the same in both modes: IntelliJ inverts background, not text).
- * Background is [Color.Transparent] to avoid a "chip-like" rectangle behind formulas.
- */
+// Build a [LatexConfig] with the IDE's text color for both light/dark (the chat panel's text
+// color is the same in both modes: IntelliJ inverts background, not text).
+// Background is [Color.Transparent] to avoid a "chip-like" rectangle behind formulas.
 private fun buildAdaptiveLatexConfig(baseColor: Color): LatexConfig {
   val colors = LatexThemeColors(
     color = baseColor,
@@ -128,10 +124,8 @@ private fun buildAdaptiveLatexConfig(baseColor: Color): LatexConfig {
   return LatexConfig(theme = theme)
 }
 
-/**
- * Fallback rendering for a formula the library can't draw. Shows the original Markdown source
- * (with `$$…$$` / `$…$` wrapping) as monospace text in a muted color.
- */
+// Fallback rendering for a formula the library can't draw. Shows the original Markdown source
+// (with `$$…$$` / `$…$` wrapping) as monospace text in a muted color.
 @Composable
 private fun LatexFallbackText(
   formula: String,

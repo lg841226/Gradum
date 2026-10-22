@@ -17,15 +17,13 @@ class GradumLatexTest {
   private val testImageAltColor: Color = Color(0xFF888888)
   private val testFontSizeSp: Float = 14f
 
-  /**
-   * JVM-only CommonMark parser with the LaTeX block extension.
-   * Mirrors the [Parser] used by [splitPlainAtBlocks] in production.
-   */
+  // JVM-only CommonMark parser with the LaTeX block extension.
+  // Mirrors the [Parser] used by [splitPlainAtBlocks] in production.
   private val latexBlockParser: Parser = Parser.builder()
     .extensions(listOf(LatexBlockExtension.create()))
     .build()
 
-  /** Render a single paragraph of inline text through the inline walker. */
+  // Render a single paragraph of inline text through the inline walker.
   private fun inlineRender(text: String): InlineMarkdownRenderResult =
     parseInlineMarkdown(
       linkColor = testLinkColor,
@@ -35,11 +33,9 @@ class GradumLatexTest {
       codeColor = testTint
     )
 
-  /**
-   * Visible text of an [AnnotatedString] after dropping PUA placeholders
-   * (code / image / footnote / LaTeX chips all share the PUA block,
-   * plus the paren-form LaTeX markers in the U+E100..U+E1FF range).
-   */
+  // Visible text of an [AnnotatedString] after dropping PUA placeholders
+  // (code / image / footnote / LaTeX chips all share the PUA block,
+  // plus the paren-form LaTeX markers in the U+E100..U+E1FF range).
   private fun visibleText(annotated: AnnotatedString): String {
     val builder: StringBuilder = StringBuilder(annotated.length)
     for (char in annotated) {

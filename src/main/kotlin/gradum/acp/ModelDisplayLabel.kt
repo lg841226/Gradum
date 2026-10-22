@@ -1,25 +1,23 @@
 package gradum.acp
 
-/**
- * Human-readable label for the ACP model picker.
- *
- * ACP option labels are a single string (no badge slot like the plugin's own
- * selector), so a recognized tag parameter size is appended as a trailing token
- * and noise tags (`latest`, quantization) are dropped. The caller keeps the
- * raw id as the option's `value` so `session/set_config_option` round-trips.
- *
- * Deliberately a small local approximation of the plugin's `ModelNameFormatter`
- * (separate module): well-known family casing from [MODEL_FAMILY_LABELS],
- * everything else falls back to title case.
- *
- * Examples:
- *   qwen3.5:9b                  -> Qwen 3.5 9B
- *   qwen2.5-coder:7b            -> Qwen 2.5 Coder 7B
- *   deepseek-r1:7b              -> DeepSeek R1 7B
- *   llama3.1:8b-instruct-q4_K_M -> Llama 3.1 8B Instruct
- *   mistral:latest              -> Mistral
- *   org/some-model-name         -> Some Model Name
- */
+// Human-readable label for the ACP model picker.
+//
+// ACP option labels are a single string (no badge slot like the plugin's own
+// selector), so a recognized tag parameter size is appended as a trailing token
+// and noise tags (`latest`, quantization) are dropped. The caller keeps the
+// raw id as the option's `value` so `session/set_config_option` round-trips.
+//
+// Deliberately a small local approximation of the plugin's `ModelNameFormatter`
+// (separate module): well-known family casing from [MODEL_FAMILY_LABELS],
+// everything else falls back to title case.
+//
+// Examples:
+//   qwen3.5:9b                  -> Qwen 3.5 9B
+//   qwen2.5-coder:7b            -> Qwen 2.5 Coder 7B
+//   deepseek-r1:7b              -> DeepSeek R1 7B
+//   llama3.1:8b-instruct-q4_K_M -> Llama 3.1 8B Instruct
+//   mistral:latest              -> Mistral
+//   org/some-model-name         -> Some Model Name
 internal fun modelDisplayLabel(modelName: String): String {
   val baseName: String = modelName.substringBefore(delimiter = ":").substringAfterLast(delimiter = "/")
   val tagName: String = modelName.substringAfter(delimiter = ":", missingDelimiterValue = "")
@@ -38,7 +36,7 @@ internal fun modelDisplayLabel(modelName: String): String {
   return labelParts.joinToString(separator = " ").ifBlank { modelName }
 }
 
-// Family token split into letters + version: `qwen3.5` -> `Qwen 3.5`
+// Family token split into letters and version: `qwen3.5` -> `Qwen 3.5`
 private fun familyLabel(part: String): String {
   val familyRoot: String = part.takeWhile { it.isLetter() }.lowercase()
   if (familyRoot.isEmpty()) return wordLabel(part)

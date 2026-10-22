@@ -8,24 +8,22 @@ import gradum.skill.SkillContext
 import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.dsl.string
 
-/**
- * The single entry point through which the model discovers MCP tools, named
- * `mcp_tools`.
- *
- * With no arguments it returns a compact functional directory: every connected
- * tool grouped by purpose (navigation / interaction / forms / ...) with a
- * one-line description each, so the model can browse without a large schema.
- *
- * With a query it searches tool names, descriptions, and group labels, then
- * **materializes** every match: each tool's full native schema is injected into
- * the model's per-turn tool list (via
- * [gradum.skill.SkillContext.materializedMcpTools] and [McpToolCatalog]) and the
- * tool becomes directly callable for the rest of the session: no generic
- * caller indirection. Other tools stay hidden until searched.
- *
- * This skill is registered at startup instead of the individual MCP tool
- * adapters, so the model never sees the full tool set at once.
- */
+// The single entry point through which the model discovers MCP tools, named
+// `mcp_tools`.
+//
+// With no arguments it returns a compact functional directory: every connected
+// tool grouped by purpose (navigation / interaction / forms / ...) with a
+// one-line description each, so the model can browse without a large schema.
+//
+// With a query it searches tool names, descriptions, and group labels, then
+// materializes every match: each tool's full native schema is injected into
+// the model's per-turn tool list (via
+// [gradum.skill.SkillContext.materializedMcpTools] and [McpToolCatalog]) and the
+// tool becomes directly callable for the rest of the session: no generic
+// caller indirection. Other tools stay hidden until searched.
+//
+// This skill is registered at startup instead of the individual MCP tool
+// adapters, so the model never sees the full tool set at once.
 internal class McpToolsSkill : Skill() {
 
   override val skillName: String = "mcp_tools"

@@ -63,7 +63,7 @@ fun MessageAttachmentPreview(
   }
 }
 
-/** Single thumbnail chip with rounded corners and border. */
+// Single thumbnail chip with rounded corners and border.
 @Composable
 private fun ImageThumbnailChip(
   onClick: () -> Unit,
@@ -108,7 +108,7 @@ private fun ImageThumbnailChip(
   }
 }
 
-/** Decode `file` into a Compose `ImageBitmap`. Returns null on failure. */
+// Decode `file` into a Compose `ImageBitmap`. Returns null on failure.
 private fun decodeImage(file: VirtualFile): ImageBitmap? = runCatching {
   SkiaImage.makeFromEncoded(bytes = file.contentsToByteArray()).toComposeImageBitmap()
 }.getOrNull()

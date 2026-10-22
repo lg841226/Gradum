@@ -67,7 +67,7 @@ abstract class Skill {
 
   /**
    * Execute the skill with the LLM's tool-call arguments and the
-   * per-session [SkillContext] (tool mode + project root).
+   * per-session [SkillContext] (tool mode and project root).
    */
   abstract fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult
 
@@ -95,27 +95,21 @@ abstract class Skill {
     }
   }
 
-  /**
-   * Single source of truth for this skill's parameters, declared with the
-   * [SchemaBuilder] DSL (`string`, `integer`, `boolean`, `stringArray`,
-   * `objectArray`, and the `cloudOnly` / `simpleOnly` scopes). One declaration
-   * is rendered into both the simple and cloud schemas.
-   */
+  // Single source of truth for this skill's parameters, declared with the
+  // [SchemaBuilder] DSL (`string`, `integer`, `boolean`, `stringArray`,
+  // `objectArray`, and the `cloudOnly` / `simpleOnly` scopes). One declaration
+  // is rendered into both the simple and cloud schemas.
   protected abstract val schemaProperties: SchemaBuilder.() -> Unit
 
-  /**
-   * Optional shorter description used for simple (local) model schemas. When
-   * `null`, [description] is reused for both model tiers.
-   */
+  // Optional shorter description used for simple (local) model schemas. When
+  // `null`, [description] is reused for both model tiers.
   protected open val simpleDescription: String? = null
 
-  /**
-   * Builds the standard OpenAI function-schema envelope
-   * (`{"type":"function","function":{...}}`) around this skill's
-   * [skillName]. Single source of truth for the wrapper shape: every
-   * skill schema is composed through this helper instead of hand-rolling
-   * the `mapOf` envelope.
-   */
+  // Builds the standard OpenAI function-schema envelope
+  // (`{"type":"function","function":{...}}`) around this skill's
+  // [skillName]. Single source of truth for the wrapper shape: every
+  // skill schema is composed through this helper instead of hand-rolling
+  // the `mapOf` envelope.
   protected fun buildFunctionSchema(
     description: String, properties: Map<String, Any>, required: List<String>
   ): Map<String, Any> = mapOf(
@@ -131,14 +125,12 @@ abstract class Skill {
     ),
   )
 
-  /**
-   * Builds the schema envelope from a [SchemaBuilder] DSL block instead of
-   * raw `mapOf` property maps. The [properties] argument describes the
-   * parameter object's fields with `string` / `integer` / ... helpers.
-   *
-   * When [useSimple] is true, parameters marked [ParameterLevel.CLOUD_ONLY]
-   * are dropped and required is derived from the remaining parameters.
-   */
+  // Builds the schema envelope from a [SchemaBuilder] DSL block instead of
+  // raw `mapOf` property maps. The [properties] argument describes the
+  // parameter object's fields with `string` / `integer` / ... helpers.
+  //
+  // When [useSimple] is true, parameters marked [ParameterLevel.CLOUD_ONLY]
+  // are dropped and required is derived from the remaining parameters.
   protected fun buildFunctionSchema(
     useSimple: Boolean, description: String, properties: SchemaBuilder.() -> Unit
   ): Map<String, Any> {
@@ -183,7 +175,7 @@ abstract class Skill {
    * full. Older calls have their [historyVolatileKeys] stripped by
    * [compactHistory]. Defaults to [Int.MAX_VALUE] (no stripping).
    *
-   * **Applies to OLDER history only**: the current call's result is
+   * Applies to OLDER history only: the current call's result is
    * never silently stripped.
    */
   open val historyKeepCount: Int = Int.MAX_VALUE
@@ -234,7 +226,7 @@ abstract class Skill {
    * the LLM's view of THIS turn. e.g. [gradum.skill.builtin.WriteFileSkill] strips diff
    * payloads that would blow the response context.
    *
-   * **Do not** override to strip based on [historyKeepCount] /
+   * Do not override to strip based on [historyKeepCount] /
    * [historyVolatileKeys], that is [compactHistory]'s job and applies
    * to OLDER messages only.
    */

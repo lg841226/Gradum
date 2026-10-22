@@ -18,9 +18,7 @@ import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.Tooltip
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
-/**
- * A button styled as a selector with a chevron icon and optional tooltip.
- */
+/** A button styled as a selector with a chevron icon and optional tooltip. */
 @Composable
 fun SelectorButton(
   text: String,

@@ -21,9 +21,7 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
-/**
- * Popup menu for adding context files.
- */
+/** Popup menu for adding context files. */
 @Composable
 fun AddContextPopup(
   searchState: TextFieldState,

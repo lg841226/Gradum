@@ -9,18 +9,14 @@ import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import gradum.idea.chat.ui.input.PermissionMode
 
-/**
- * Vertical spacing between assistant response paragraphs.
- */
+/** Vertical spacing between assistant response paragraphs. */
 enum class ParagraphDensity(val storageKey: String) {
   COMPACT("compact"),
   DEFAULT("default"),
   SPACIOUS("spacious");
 }
 
-/**
- * Welcome screen layout: how many quick-start suggestions vs recent chats.
- */
+/** Welcome screen layout: how many quick-start suggestions vs recent chats. */
 enum class WelcomeLayout(val storageKey: String, val quickStartCount: Int, val recentCount: Int) {
   QS0_RC6(storageKey = "qs0_rc6", quickStartCount = 0, recentCount = 6),
   QS1_RC5(storageKey = "qs1_rc5", quickStartCount = 1, recentCount = 5),

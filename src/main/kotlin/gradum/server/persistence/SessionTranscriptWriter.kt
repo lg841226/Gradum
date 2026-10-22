@@ -49,7 +49,7 @@ object SessionTranscriptWriter {
 
   /**
    * Renders [messages] into `<projectRoot>/.gradum/sessions/<sessionId>/conversation.md`
-   * (temp file + atomic rename, like `ContextManager`). Header's `createdAt`
+   * (temp file and atomic rename, like `ContextManager`). Header's `createdAt`
    * is [createdAt] when given (merge passes earliest origin), else ChatDb session
    * row when exists, else write time; per-message timestamps fall back to write
    * time (in-memory history carries no per-message clock, stored rows share one

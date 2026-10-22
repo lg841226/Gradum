@@ -10,8 +10,10 @@ import gradum.idea.utils.GradumBundle.message
  * internals. Messages are intentionally non-technical so that end
  * users can understand the cause of failure at a glance.
  *
- * @param code The error code string sent by the server (e.g. "CLIENT_ERROR").
- * @return A human-readable description suitable for the error popup.
+ * Parameters:
+ * - code: The error code string sent by the server (e.g. "CLIENT_ERROR").
+ *
+ * Returns A human-readable description suitable for the error popup..
  */
 fun friendlyErrorMessage(code: String): String = when (code) {
   ChatErrorCode.CLIENT_ERROR -> message("gradum.error.client")

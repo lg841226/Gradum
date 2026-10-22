@@ -27,20 +27,22 @@ data class McpRegistryEnvHint(
 /**
  * One server from the official MCP registry, flattened for the settings UI.
  *
- * @property name namespaced registry name (`io.github.example/server`).
- * @property command argv that starts the server over stdio, or null when the
  *   registry only advertises transports/packages this runtime cannot run yet
  *   (remote-only servers, unknown package types).
- * @property envHints environment variables pre-filled into the imported entry.
- * @property version server-level version from the registry, or null.
- * @property packageLine `identifier@version` for the package the command
  *   installs from (or the first package when none is importable), rendered
  *   as a meta line; null when the server lists no packages.
- * @property registryType package registry of that same package (`npm`,
  *   `pypi`, …) for the ecosystem badge; null when the server lists none.
- * @property repositoryUrl repository link opened by the info-link icon.
- * @property publishedAt official publish month (`yyyy-MM`) taken from the
  *   registry's `_meta` block, or null for entries without it.
+ *
+ * Attributes:
+ * - name: namespaced registry name (`io.github.example/server`).
+ * - command: argv that starts the server over stdio, or null when the
+ * - envHints: environment variables pre-filled into the imported entry.
+ * - version: server-level version from the registry, or null.
+ * - packageLine: `identifier@version` for the package the command
+ * - registryType: package registry of that same package (`npm`,
+ * - repositoryUrl: repository link opened by the info-link icon.
+ * - publishedAt: official publish month (`yyyy-MM`) taken from the
  */
 data class McpRegistryResult(
   val name: String,
@@ -56,22 +58,20 @@ data class McpRegistryResult(
   val shortName: String get() = name.substringAfterLast(delimiter = '/')
 }
 
-/**
- * Client for the official MCP registry directory (`registry.modelcontextprotocol.io`),
- * the keyless canonical index of publicly published MCP servers. [search] is a
- * blocking HTTP call: run it on a background dispatcher (the settings panel
- * does this via `Dispatchers.IO`).
- *
- * Only stdio packages are imported: the embedded runtime spawns local
- * processes and has no remote (streamable HTTP / SSE) transport yet, so
- * remote-only results surface with a null [McpRegistryResult.command].
- */
+// Client for the official MCP registry directory (`registry.modelcontextprotocol.io`),
+// the keyless canonical index of publicly published MCP servers. [search] is a
+// blocking HTTP call: run it on a background dispatcher (the settings panel
+// does this via `Dispatchers.IO`).
+//
+// Only stdio packages are imported: the embedded runtime spawns local
+// processes and has no remote (streamable HTTP / SSE) transport yet, so
+// remote-only results surface with a null [McpRegistryResult.command].
 internal object McpRegistryClient {
 
   private const val BASE_URL: String = "https://registry.modelcontextprotocol.io/v0.1/servers"
   private const val SEARCH_LIMIT: Int = 20
 
-  /** When the hedged second attempt starts racing the first one. */
+  // When the hedged second attempt starts racing the first one.
   private const val HEDGE_DELAY_MS: Long = 3_000
 
   private const val HEDGE_POLL_MS: Long = 100
@@ -84,26 +84,22 @@ internal object McpRegistryClient {
     Thread(runnable, "mcp-registry-search").apply { isDaemon = true }
   }
 
-  /**
-   * Search endpoint for [query]: the term is URL-encoded (space becomes
-   * `+`), capped at [SEARCH_LIMIT] rows of the latest version each so one
-   * server appears at most once.
-   */
+  // Search endpoint for [query]: the term is URL-encoded (space becomes
+  // `+`), capped at [SEARCH_LIMIT] rows of the latest version each so one
+  // server appears at most once.
   internal fun searchUrl(query: String): String {
     val encoded: String = URLEncoder.encode(query.trim(), Charsets.UTF_8)
     return "$BASE_URL?search=$encoded&limit=$SEARCH_LIMIT&version=latest"
   }
 
-  /**
-   * Searches the registry by name substring and returns importable results.
-   * `version=latest` keeps one row per server; failures (network, non-200,
-   * malformed body) throw so callers can distinguish empty from broken.
-   *
-   * The registry link swings between ~1s and ~17s, so the first attempt is
-   * hedged: after [HEDGE_DELAY_MS] without an answer a second identical
-   * request starts racing it (and a fast outright failure retries the same
-   * way), and whichever attempt succeeds first wins.
-   */
+  // Searches the registry by name substring and returns importable results.
+  // `version=latest` keeps one row per server; failures (network, non-200,
+  // malformed body) throw so callers can distinguish empty from broken.
+  //
+  // The registry link swings between ~1s and ~17s, so the first attempt is
+  // hedged: after [HEDGE_DELAY_MS] without an answer a second identical
+  // request starts racing it (and a fast outright failure retries the same
+  // way), and whichever attempt succeeds first wins.
   fun search(query: String): List<McpRegistryResult> {
     val url: String = searchUrl(query)
     val first: CompletableFuture<List<McpRegistryResult>> = attempt(url = url)
@@ -119,11 +115,9 @@ internal object McpRegistryClient {
     }
   }
 
-  /**
-   * Returns the first attempt to finish successfully. Every attempt ends
-   * on its own through the per-request timeout; once all of them are done
-   * without a success, rethrows the first attempt's failure.
-   */
+  // Returns the first attempt to finish successfully. Every attempt ends
+  // on its own through the per-request timeout; once all of them are done
+  // without a success, rethrows the first attempt's failure.
   internal fun awaitSuccess(
     attempts: List<CompletableFuture<List<McpRegistryResult>>>
   ): List<McpRegistryResult> {
@@ -165,14 +159,12 @@ internal object McpRegistryClient {
     return response.body()
   }
 
-  /**
-   * Parses a registry `ServerList` body. Lenient by design: entries without a
-   * name are skipped, missing descriptions become empty, and any server whose
-   * packages cannot be turned into a stdio command keeps a null command so the
-   * UI can show it as not-yet-importable instead of dropping it. Importable
-   * results (non-null command) sort above remote-only ones while the
-   * registry's relevance order is preserved inside each group.
-   */
+  // Parses a registry `ServerList` body. Lenient by design: entries without a
+  // name are skipped, missing descriptions become empty, and any server whose
+  // packages cannot be turned into a stdio command keeps a null command so the
+  // UI can show it as not-yet-importable instead of dropping it. Importable
+  // results (non-null command) sort above remote-only ones while the
+  // registry's relevance order is preserved inside each group.
   internal fun parse(json: String): List<McpRegistryResult> {
     val root: JsonObject = Json.parseToJsonElement(json).let { it as? JsonObject } ?: return emptyList()
     val servers: JsonArray = root["servers"] as? JsonArray ?: return emptyList()
@@ -214,15 +206,13 @@ internal object McpRegistryClient {
     return official.string(key = "publishedAt")?.takeIf { it.length >= 7 }?.take(n = 7)
   }
 
-  /**
-   * Builds argv for one registry package:
-   * `[runtime, ...runtimeArguments, identifier, ...packageArguments]`: the
-   * runner receives `runtimeArguments` (e.g. npx's `-y`) before the package
-   * name, the package binary receives `packageArguments` after it. Arguments
-   * without a fixed value are user-supplied and skipped (the settings panel
-   * lets the user finish the command by hand). Missing `runtimeHint` falls
-   * back to the conventional runner for well-known registries.
-   */
+  // Builds argv for one registry package:
+  // `[runtime, ...runtimeArguments, identifier, ...packageArguments]`: the
+  // runner receives `runtimeArguments` (e.g. npx's `-y`) before the package
+  // name, the package binary receives `packageArguments` after it. Arguments
+  // without a fixed value are user-supplied and skipped (the settings panel
+  // lets the user finish the command by hand). Missing `runtimeHint` falls
+  // back to the conventional runner for well-known registries.
   private fun buildCommand(pkg: JsonObject): List<String>? {
     val identifier: String = pkg.string(key = "identifier") ?: return null
     val registryType: String = pkg.string(key = "registryType") ?: return null

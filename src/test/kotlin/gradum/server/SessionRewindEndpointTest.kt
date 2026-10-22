@@ -32,7 +32,7 @@ class SessionRewindEndpointTest {
     tempRoot?.toFile()?.deleteRecursively()
   }
 
-  /** Seeds a saved session with two complete turns and returns the project root. */
+  // Seeds a saved session with two complete turns and returns the project root.
   private fun seedSession(): String {
     val root: Path = Files.createTempDirectory("gradum-rewind-test")
     tempRoot = root

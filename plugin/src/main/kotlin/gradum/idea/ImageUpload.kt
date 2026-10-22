@@ -5,13 +5,11 @@ import gradum.idea.editor.AttachedImage
 import gradum.idea.editor.fileIcon
 import java.util.*
 
-/**
- * Per-extension MIME type for the wire payload. The key is the
- * lower-cased extension with no leading dot; the value is the
- * IANA media type sent to the model. Extensions not in this map
- * are rejected outright: we'd rather fail loud than ship a
- * `application/octet-stream` blob the vision model can't decode.
- */
+// Per-extension MIME type for the wire payload. The key is the
+// lower-cased extension with no leading dot; the value is the
+// IANA media type sent to the model. Extensions not in this map
+// are rejected outright: we'd rather fail loud than ship a
+// `application/octet-stream` blob the vision model can't decode.
 private val imageMimeByExtension: Map<String, String> = mapOf(
   "jpg" to "image/jpeg",
   "jpeg" to "image/jpeg",
@@ -25,35 +23,31 @@ private val imageMimeByExtension: Map<String, String> = mapOf(
   "heif" to "image/heif"
 )
 
-/**
- * Resolve the wire MIME type from [file]'s extension. Returns `null`
- * for unknown / missing extensions: the caller treats that as a
- * "not an image we support" failure and bails out.
- */
+// Resolve the wire MIME type from [file]'s extension. Returns `null`
+// for unknown / missing extensions: the caller treats that as a
+// "not an image we support" failure and bails out.
 private fun getImageMimeType(file: VirtualFile): String? {
   val extension: String = file.extension?.lowercase() ?: return null
   return imageMimeByExtension[extension]
 }
 
-/**
- * Read [file] verbatim and return an [AttachedImage] carrying the
- * original bytes on the wire. Returns `null` if the file extension
- * is not a recognized image format: the 5 MB cap is enforced by
- * the caller in `attachImages` before we get
- * here, so this function does no size check of its own.
- *
- * The bytes are base64-encoded for the wire because the plugin
- * surfaces the payload as a UTF-8 string in the request body.
- * Original file content is preserved byte-for-byte: vision
- * models that need lossless input (HEIC from iPhone screenshots,
- * WebP animations, large PNGs with subtle gradients) get exactly
- * what the user picked, not a re-encoded JPEG.
- *
- * Note that the *render* path is independent: the original
- * [VirtualFile] is still passed to [AttachedImage.file] and the
- * Compose preview chip decodes it on demand. The wire path and
- * the render path share the on-disk file but never re-encode.
- */
+// Read [file] verbatim and return an [AttachedImage] carrying the
+// original bytes on the wire. Returns `null` if the file extension
+// is not a recognized image format: the 5 MB cap is enforced by
+// the caller in `attachImages` before we get
+// here, so this function does no size check of its own.
+//
+// The bytes are base64-encoded for the wire because the plugin
+// surfaces the payload as a UTF-8 string in the request body.
+// Original file content is preserved byte-for-byte: vision
+// models that need lossless input (HEIC from iPhone screenshots,
+// WebP animations, large PNGs with subtle gradients) get exactly
+// what the user picked, not a re-encoded JPEG.
+//
+// Note that the *render* path is independent: the original
+// [VirtualFile] is still passed to [AttachedImage.file] and the
+// Compose preview chip decodes it on demand. The wire path and
+// the render path share the on-disk file but never re-encode.
 internal fun encodeImageToAttachment(file: VirtualFile): AttachedImage? {
   val mime: String = getImageMimeType(file) ?: return null
   val bytes: ByteArray = file.contentsToByteArray()

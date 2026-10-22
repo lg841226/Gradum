@@ -33,22 +33,20 @@ import kotlin.time.Duration.Companion.milliseconds
 private const val MCP_REGISTRY_RESULTS_MAX_HEIGHT_DP: Int = 320
 private const val MCP_REGISTRY_SCROLLBAR_RESERVE_DP: Int = 18
 
-/**
- * Search box for the official online MCP registry: a width capped field
- * centered in the section, with the search action living inside it as a
- * trailing icon (a spinner while a request is in flight). Keystrokes are
- * debounced by [MCP_INPUT_DEBOUNCE_MS], and tapping the icon re-runs the
- * current query manually; either way the blocking HTTP call runs on
- * [Dispatchers.IO] and surfaces as a transient error line, an
- * empty result line, or a scrollable result panel capped at
- * [MCP_REGISTRY_RESULTS_MAX_HEIGHT_DP]; each cut-off edge fades only while
- * content is still hidden beyond it and clears when that edge is reached.
- * Three dropdowns to the field's left narrow the hits by
- * importability, package ecosystem, and publish window before they reach
- * the panel. Choosing a result hands it to [onAdd],
- * which writes a new entry into settings.json. Remote only servers render
- * with their import disabled.
- */
+// Search box for the official online MCP registry: a width capped field
+// centered in the section, with the search action living inside it as a
+// trailing icon (a spinner while a request is in flight). Keystrokes are
+// debounced by [MCP_INPUT_DEBOUNCE_MS], and tapping the icon re-runs the
+// current query manually; either way the blocking HTTP call runs on
+// [Dispatchers.IO] and surfaces as a transient error line, an
+// empty result line, or a scrollable result panel capped at
+// [MCP_REGISTRY_RESULTS_MAX_HEIGHT_DP]; each cut-off edge fades only while
+// content is still hidden beyond it and clears when that edge is reached.
+// Three dropdowns to the field's left narrow the hits by
+// importability, package ecosystem, and publish window before they reach
+// the panel. Choosing a result hands it to [onAdd],
+// which writes a new entry into settings.json. Remote only servers render
+// with their import disabled.
 @Composable
 internal fun McpRegistrySearch(onAdd: (McpRegistryResult) -> Unit) {
   val searchState: TextFieldState = remember { TextFieldState() }
@@ -182,11 +180,9 @@ internal fun McpRegistrySearch(onAdd: (McpRegistryResult) -> Unit) {
   }
 }
 
-/**
- * Scrollable results panel for [McpRegistrySearch]: capped at
- * [MCP_REGISTRY_RESULTS_MAX_HEIGHT_DP], with a directional edge fade on
- * whichever cut still hides content and a scrollbar on the right.
- */
+// Scrollable results panel for [McpRegistrySearch]: capped at
+// [MCP_REGISTRY_RESULTS_MAX_HEIGHT_DP], with a directional edge fade on
+// whichever cut still hides content and a scrollbar on the right.
 @Composable
 private fun McpRegistryResults(
   list: List<McpRegistryResult>,
@@ -237,13 +233,11 @@ private fun McpRegistryResults(
   }
 }
 
-/**
- * Compact filter dropdown for the registry search: a [SelectorButton]
- * whose face shows the filter name while [anyValue] is selected and the
- * chosen option afterward (the tooltip always names the filter),
- * opening a [PopupMenu] with a header row and one selectable row per
- * option (the selected row stays bold).
- */
+// Compact filter dropdown for the registry search: a [SelectorButton]
+// whose face shows the filter name while [anyValue] is selected and the
+// chosen option afterward (the tooltip always names the filter),
+// opening a [PopupMenu] with a header row and one selectable row per
+// option (the selected row stays bold).
 @Composable
 private fun <T> McpRegistryFilterDropdown(
   selected: T,
@@ -307,11 +301,9 @@ private fun <T> McpRegistryFilterDropdown(
   }
 }
 
-/**
- * Publish-time filter cutoff as a `yyyy-MM` month string, or null when
- * [within] picks no window. Month granularity matches the registry's
- * publishedAt field, so the comparison stays a plain string order.
- */
+// Publish-time filter cutoff as a `yyyy-MM` month string, or null when
+// [within] picks no window. Month granularity matches the registry's
+// publishedAt field, so the comparison stays a plain string order.
 private fun publishedCutoff(within: String?): String? {
   val days: Long =
     when (within) {

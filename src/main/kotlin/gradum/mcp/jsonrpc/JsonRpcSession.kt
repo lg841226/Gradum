@@ -13,32 +13,30 @@ import kotlin.time.Duration.Companion.milliseconds
 
 private val logger: Logger = LoggerFactory.getLogger("JsonRpcSession")
 
-/**
- * Concurrent request/response dispatcher for JSON-RPC 2.0.
- *
- * Each [call] assigns a fresh `id`, stashes a deferred for it, writes the
- * request frame, then suspends until [handleFrame] completes the matching
- * deferred. Because matching is by `id`, never by arrival order, many
- * calls can be in flight at once. Frames that carry no `id` are treated as
- * notifications and routed to [onNotification].
- *
- * The internal Json is configured with encodeDefaults so the mandatory
- * `jsonrpc: "2.0"` member is always emitted, and with explicitNulls off so
- * absent params are omitted rather than sent as `"params": null` (JSON-RPC
- * 2.0 params must be an object or array, and servers reject null).
- *
- * call(method, params, timeoutMillis) sends a request and awaits its
- * result: it throws [RpcException] on a JSON-RPC error response and
- * TimeoutCancellationException if no response arrives within timeoutMillis.
- * sendNotification(method, params) sends a fire-and-forget notification (a
- * request with no id). handleFrame(jsonString) feeds one decoded message
- * body from the transport, non-suspending so a background reader can
- * dispatch responses as they arrive; a frame that fails to parse as JSON is
- * dropped rather than crashing the reader coroutine, because the MCP stdio
- * spec says stdout must carry only newline-delimited JSON-RPC frames but
- * some servers (e.g. location-mcp) print a startup banner or log line to
- * stdout anyway.
- */
+// Concurrent request/response dispatcher for JSON-RPC 2.0.
+//
+// Each [call] assigns a fresh `id`, stashes a deferred for it, writes the
+// request frame, then suspends until [handleFrame] completes the matching
+// deferred. Because matching is by `id`, never by arrival order, many
+// calls can be in flight at once. Frames that carry no `id` are treated as
+// notifications and routed to [onNotification].
+//
+// The internal Json is configured with encodeDefaults so the mandatory
+// `jsonrpc: "2.0"` member is always emitted, and with explicitNulls off so
+// absent params are omitted rather than sent as `"params": null` (JSON-RPC
+// 2.0 params must be an object or array, and servers reject null).
+//
+// call(method, params, timeoutMillis) sends a request and awaits its
+// result: it throws [RpcException] on a JSON-RPC error response and
+// TimeoutCancellationException if no response arrives within timeoutMillis.
+// sendNotification(method, params) sends a fire-and-forget notification (a
+// request with no id). handleFrame(jsonString) feeds one decoded message
+// body from the transport, non-suspending so a background reader can
+// dispatch responses as they arrive; a frame that fails to parse as JSON is
+// dropped rather than crashing the reader coroutine, because the MCP stdio
+// spec says stdout must carry only newline-delimited JSON-RPC frames but
+// some servers (e.g. location-mcp) print a startup banner or log line to
+// stdout anyway.
 internal class JsonRpcSession(
   private val sendFrame: suspend (ByteArray) -> Unit,
   private val onNotification: (RpcNotification) -> Unit = {},
@@ -106,8 +104,6 @@ internal class JsonRpcSession(
   }
 }
 
-/**
- * Raised when the peer answers a request with a JSON-RPC error object.
- */
+// Raised when the peer answers a request with a JSON-RPC error object.
 internal class RpcException(val code: Int, serverMessage: String, val data: JsonElement? = null) :
   Exception("JSON-RPC error $code: $serverMessage")

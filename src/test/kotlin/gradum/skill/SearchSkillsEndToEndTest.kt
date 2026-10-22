@@ -81,13 +81,11 @@ class SearchSkillsEndToEndTest {
     modelName = "qwen2.5:7b"
   )
 
-  /**
-   * The SIMPLE schema path (local 7B models) is hard-wired to
-   * case-insensitive matching: small models can't reliably use
-   * `caseSensitive`. The CLOUD/FULL path is what actually honors the
-   * `caseSensitive` argument, so the case-sensitivity tests must run
-   * with a model that resolves to `SchemaVariant.FULL`.
-   */
+  // The SIMPLE schema path (local 7B models) is hard-wired to
+  // case-insensitive matching: small models can't reliably use
+  // `caseSensitive`. The CLOUD/FULL path is what actually honors the
+  // `caseSensitive` argument, so the case-sensitivity tests must run
+  // with a model that resolves to `SchemaVariant.FULL`.
   private fun cloudContext(): SkillContext = SkillContext(
     toolMode = ToolMode.READ_ONLY,
     projectRoot = projectRoot.absolutePath,

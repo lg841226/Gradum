@@ -35,14 +35,12 @@ private val logger: Logger = LoggerFactory.getLogger("Agent")
 
 private const val REPEATED_LOOP_REASON: String = "repetitive_loop"
 
-/**
- * Resolves the ContextManager output directory for an agent run.
- *
- * Single source of truth for the `.gradum/sessions/<sessionId>/` layout:
- * a non-blank `sessionId` scopes this conversation's context file to its
- * own directory; blank falls back to the legacy single
- * `<projectRoot>/.gradum/context.json` directory.
- */
+// Resolves the ContextManager output directory for an agent run.
+//
+// Single source of truth for the `.gradum/sessions/<sessionId>/` layout:
+// a non-blank `sessionId` scopes this conversation's context file to its
+// own directory; blank falls back to the legacy single
+// `<projectRoot>/.gradum/context.json` directory.
 internal fun contextOutputDirectory(configuration: AgentConfiguration): Path {
   val sessionKey: String = configuration.sessionId?.trim().orEmpty()
   val projectRootPath: Path = Path.of(configuration.projectRoot)
@@ -88,10 +86,8 @@ class Agent(
   private val configuration: AgentConfiguration,
   private val emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit,
   private val registerChildSession: ((childSessionId: String, agent: Agent) -> Unit)? = null,
-  /**
-   * Paired with [registerChildSession]; called when a sub-agent completes
-   * or errors so the session hierarchy stays clean.
-   */
+  // Paired with [registerChildSession]; called when a sub-agent completes
+  // or errors so the session hierarchy stays clean.
   private val unregisterChildSession: ((childSessionId: String) -> Unit)? = null,
   /**
    * Registry that backs the ask_interaction channel. When non-null the
@@ -120,11 +116,9 @@ class Agent(
   private val promptLoader: SystemPromptLoader = SystemPromptLoader(configuration)
   private val guardrailManager: GuardrailManager = GuardrailManager(configuration)
 
-  /**
-   * Per-session context shared with [toolExecutor]. Carries the session-scoped
-   * [SkillContext.materializedMcpTools] set that drives which MCP tools are
-   * injected into the model's tool list this session (see [buildToolSchemas]).
-   */
+  // Per-session context shared with [toolExecutor]. Carries the session-scoped
+  // [SkillContext.materializedMcpTools] set that drives which MCP tools are
+  // injected into the model's tool list this session (see [buildToolSchemas]).
   private val skillContext: SkillContext = SkillContext(
     emitEvent = emitEvent,
     toolMode = configuration.toolMode,
@@ -156,9 +150,11 @@ class Agent(
   private val maxHistoryMessages: Int = gradum.utils.MAX_HISTORY_MESSAGES
 
   init {
-    // For LM Studio, probe /v1/responses availability to decide wire format.
-    // If available, use OpenAICompatibleClient (which handles RESPONSES wire).
-    // If not, fall back to chat/completions via same client (A-route behavior).
+    /**
+     * For LM Studio, probe /v1/responses availability to decide wire format.
+     * If available, use OpenAICompatibleClient (which handles RESPONSES wire).
+     * If not, fall back to chat/completions via same client (A-route behavior).
+     */
     val lmStudioClient = openAiClient
     val selectedClient = when (configuration.provider) {
       Provider.OPENAI -> openAiClient
@@ -358,12 +354,10 @@ class Agent(
     sessionManager.abort(reason, tokenUsage)
   }
 
-  /**
-   * Builds the tool list for the current LLM turn: the globally registered
-   * skills (including the `mcp_tools` directory skill) plus the full schemas of
-   * any MCP tools this session has materialized. Rebuilt every turn so tools
-   * materialized mid-conversation appear in the model's tool list immediately.
-   */
+  // Builds the tool list for the current LLM turn: the globally registered
+  // skills (including the `mcp_tools` directory skill) plus the full schemas of
+  // any MCP tools this session has materialized. Rebuilt every turn so tools
+  // materialized mid-conversation appear in the model's tool list immediately.
   private fun buildToolSchemas(): List<Map<String, Any>> {
     val base: List<Map<String, Any>> = SkillRegistry.getSchemas(
       toolMode = configuration.toolMode,
@@ -486,14 +480,12 @@ class Agent(
     return true
   }
 
-  /**
-   * Debug tool-call playback mode. The developer authors a scenario as
-   * a short `<tls>` XML block, playing the part of the model, instead
-   * of spending LLM tokens. Every listed call runs through the real
-   * [toolExecutor] pipeline, streams the same `tool_call` NDJSON events,
-   * then writes a machine-readable recording to
-   * `<projectRoot>/.gradum/recordings/<scenario>.json`.
-   */
+  // Debug tool-call playback mode. The developer authors a scenario as
+  // a short `<tls>` XML block, playing the part of the model, instead
+  // of spending LLM tokens. Every listed call runs through the real
+  // [toolExecutor] pipeline, streams the same `tool_call` NDJSON events,
+  // then writes a machine-readable recording to
+  // `<projectRoot>/.gradum/recordings/<scenario>.json`.
   private fun playToolCallScenario(toolCallXml: String): Unit {
     val scenario: ToolCallScenario =
       try {
@@ -639,11 +631,9 @@ class Agent(
     }
   }
 
-  /**
-   * Drains completed background task outcomes and injects them into the
-   * conversation history as tool messages. Called before each model turn to
-   * ensure background results are included in the next LLM request.
-   */
+  // Drains completed background task outcomes and injects them into the
+  // conversation history as tool messages. Called before each model turn to
+  // ensure background results are included in the next LLM request.
   private fun injectPendingBackgroundResults() {
     val manager = gradum.task.BackgroundTaskManager.getInstance() ?: return
     val sessionId = configuration.sessionId ?: return

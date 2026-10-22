@@ -69,7 +69,7 @@ class WriteFileSkillSecurityTest {
     return Triple(ctx, pending, emitted)
   }
 
-  /** Answers the single outstanding ask question and returns the executed result. */
+  // Answers the single outstanding ask question and returns the executed result.
   private fun runAskWith(
     ctx: SkillContext,
     pending: PendingQuestions,

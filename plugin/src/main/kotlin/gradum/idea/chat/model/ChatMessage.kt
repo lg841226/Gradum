@@ -205,7 +205,7 @@ data class ChatMessage(
    * Finds the last failed ToolCall and updates its error info in O(1) (no full
    * list re-iteration).
    *
-   * @return The updated message, or `this` if no failed ToolCall was found.
+   * Returns The updated message, or `this` if no failed ToolCall was found..
    */
   fun updateLastError(friendlyMessage: String, errorDetail: String): ChatMessage {
     val lastFailedIndex: Int = renderBlocks.indexOfLast {

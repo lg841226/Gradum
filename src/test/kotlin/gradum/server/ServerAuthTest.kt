@@ -147,7 +147,7 @@ class ServerAuthTest {
     )
   }
 
-  /** Points `gradum.server.configDir` at a temp dir for the duration of [block]. */
+  // Points `gradum.server.configDir` at a temp dir for the duration of [block].
   private fun withTempConfigDir(block: (File) -> Unit) {
     val tempDir: File = Files.createTempDirectory("gradum-auth-test").toFile()
     val previousValue: String? = System.getProperty("gradum.server.configDir")

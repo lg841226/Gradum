@@ -20,20 +20,17 @@ import org.jetbrains.jewel.ui.component.styling.DefaultBannerStyle
 import org.jetbrains.jewel.ui.theme.defaultBannerStyle
 import org.jetbrains.jewel.ui.typography
 
-/**
- * Banner severity level, controls the border and background tint.
- */
+/** Banner severity level, controls the border and background tint. */
 enum class BannerSeverity {
   Success, Warning, Error
 }
 
-/**
- * Customizable banner component based on Jewel's DefaultBannerImpl.
- *
- * @param text The banner message text.
- * @param severity Severity level, controls the color scheme.
- * @param showClose Whether to render the close icon button area.
- */
+// Customizable banner component based on Jewel's DefaultBannerImpl.
+//
+// Parameters:
+// - text: The banner message text.
+// - severity: Severity level, controls the color scheme.
+// - showClose: Whether to render the close icon button area.
 @Composable
 internal fun GradumBanner(
   text: String,

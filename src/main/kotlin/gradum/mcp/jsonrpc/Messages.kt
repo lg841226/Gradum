@@ -4,12 +4,10 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
-/**
- * JSON-RPC 2.0 wire messages for the stdio MCP transport. These mirror the
- * spec shapes (a response carries exactly one of `result` or `error`, and a
- * notification has a `method` but no `id`); the JsonRpcSession decides which
- * subtype a frame maps to by inspecting the presence of an `id` field.
- */
+// JSON-RPC 2.0 wire messages for the stdio MCP transport. These mirror the
+// spec shapes (a response carries exactly one of `result` or `error`, and a
+// notification has a `method` but no `id`); the JsonRpcSession decides which
+// subtype a frame maps to by inspecting the presence of an `id` field.
 @Serializable
 internal data class RpcRequest(
   val id: Long,

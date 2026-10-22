@@ -75,35 +75,29 @@ data class AuditFinding(
   }
 }
 
-/**
- * Codes whose bundle templates weave the commit hash into the sentence
- * (as the last placeholder). Only these findings carry a real per-commit
- * hash; aggregate/statistical findings keep their original wording.
- */
+// Codes whose bundle templates weave the commit hash into the sentence
+// (as the last placeholder). Only these findings carry a real per-commit
+// hash; aggregate/statistical findings keep their original wording.
 private val AUDIT_HASH_WEAVED_CODES = setOf(
   "S1001", "S1004", "S2003", "S2006", "S2012", "S3001", "S3003"
 )
 
-/**
- * True when this finding is tied to a specific commit and carries a usable
- * commit hash. Aggregate/statistical findings (`hash` is `-`, `Cluster #N`,
- * `Recent Spike`, …) return false. This is what gates the "show commit
- * details" action button in the tool window.
- */
+// True when this finding is tied to a specific commit and carries a usable
+// commit hash. Aggregate/statistical findings (`hash` is `-`, `Cluster #N`,
+// `Recent Spike`, …) return false. This is what gates the "show commit
+// details" action button in the tool window.
 internal fun AuditFinding.hasRealCommitHash(): Boolean =
   code in AUDIT_HASH_WEAVED_CODES && hash.isNotBlank() && hash != "-"
 
-/** Stable string key for a finding, used for reviewed-set tracking. */
+// Stable string key for a finding, used for reviewed-set tracking.
 internal fun findingKey(f: AuditFinding) = "${f.code}|${f.hash}|${f.index}"
 
-/**
- * Opens the given commit hash on GitHub. Resolves the `origin` remote of
- * the project'store git repository (`git remote get-url origin`) on a
- * background thread, converts the URL into a browsable web link, and
- * opens it with [BrowserUtil.browse]. A short hash works on GitHub, so
- * [hash] is used as-is. SSH forms (`git@github.com:o/r.git`)
- * and `https://github.com/o/r.git` both resolve.
- */
+// Opens the given commit hash on GitHub. Resolves the `origin` remote of
+// the project'store git repository (`git remote get-url origin`) on a
+// background thread, converts the URL into a browsable web link, and
+// opens it with [BrowserUtil.browse]. A short hash works on GitHub, so
+// [hash] is used as-is. SSH forms (`git@github.com:o/r.git`)
+// and `https://github.com/o/r.git` both resolve.
 internal fun openCommitOnGitHub(project: Project, hash: String) {
   if (hash.isBlank()) return
   val basePath = project.basePath ?: return
@@ -131,7 +125,7 @@ internal fun openCommitOnGitHub(project: Project, hash: String) {
   }.start()
 }
 
-/** Converts a git remote URL + short hash into a GitHub commit URL, or null. */
+// Converts a git remote URL and short hash into a GitHub commit URL, or null.
 internal fun githubWebUrl(remoteUrl: String, hash: String): String? {
   val trimmed = remoteUrl.trim().removeSuffix(".git")
   val hostPath =
@@ -154,22 +148,18 @@ internal fun githubWebUrl(remoteUrl: String, hash: String): String? {
 
 private const val AUDIT_MESSAGE_PREFIX = "gradum.audit."
 
-/**
- * Ordered parameter spec for one SXXXX finding, mirroring the placeholder
- * order of its bundle template. `decimals` is null for string params.
- */
+// Ordered parameter spec for one SXXXX finding, mirroring the placeholder
+// order of its bundle template. `decimals` is null for string params.
 private data class AuditParamSpec(val name: String, val decimals: Int?)
 
-/** String param, rendered verbatim. */
+// String param, rendered verbatim.
 private fun str(name: String): AuditParamSpec = AuditParamSpec(name, null)
 
-/** Numeric param rounded to [decimals] decimal places. */
+// Numeric param rounded to [decimals] decimal places.
 private fun dec(name: String, decimals: Int): AuditParamSpec = AuditParamSpec(name, decimals)
 
-/**
- * DSL builder for [AUDIT_PARAM_ORDER]. Each `S(code, ...)` line lists the
- * params in placeholder order; plain strings become int params (0 decimals).
- */
+// DSL builder for [AUDIT_PARAM_ORDER]. Each `S(code, ...)` line lists the
+// params in placeholder order; plain strings become int params (0 decimals).
 private class AuditParamOrderBuilder {
   private val entries = LinkedHashMap<String, List<AuditParamSpec>>()
 
@@ -189,10 +179,8 @@ private class AuditParamOrderBuilder {
 private fun auditParamOrder(block: AuditParamOrderBuilder.() -> Unit): Map<String, List<AuditParamSpec>> =
   AuditParamOrderBuilder().apply(block).build()
 
-/**
- * code -> ordered params to substitute into `gradum.audit.<code>`. Decimals
- * match the Python format spec that used to produce the message (e.g. `:.1f`).
- */
+// code -> ordered params to substitute into `gradum.audit.<code>`. Decimals
+// match the Python format spec that used to produce the message (e.g. `:.1f`).
 private val AUDIT_PARAM_ORDER: Map<String, List<AuditParamSpec>> = auditParamOrder {
   store(code = "S1001", "add", "dels", "threshold")
   store(code = "S1002", "ratio", "dels", "add")
@@ -233,11 +221,9 @@ private fun formatAuditParam(value: Any?, decimals: Int?): String {
   )
 }
 
-/**
- * The four fixed audit groups. Findings are bucketed into these instead of
- * their many SXXXX `type` labels so the report stays concise. Each group
- * name is localized via [label].
- */
+// The four fixed audit groups. Findings are bucketed into these instead of
+// their many SXXXX `type` labels so the report stays concise. Each group
+// name is localized via [label].
 internal enum class AuditGroup(val labelKey: String) {
   SUSPECTED_AI_CODE(labelKey = "gradum.audit.group.suspected_ai_code"),
   ENGINEERING_RISK_ISSUES(labelKey = "gradum.audit.group.engineering_risk_issues"),
@@ -247,7 +233,7 @@ internal enum class AuditGroup(val labelKey: String) {
   fun label(): String = message(labelKey)
 }
 
-/** Buckets a finding into one of the four [AuditGroup]store by its SXXXX code. */
+// Buckets a finding into one of the four [AuditGroup]store by its SXXXX code.
 internal fun auditGroupOf(code: String): AuditGroup = when (code) {
   "S2005", "S2006", "S2007", "S2008", "S2009", "S2010", "S2013" -> AuditGroup.SUSPECTED_AI_CODE
   "S1001", "S1002", "S1004", "S2001", "S2002", "S2003", "S2004",
@@ -259,7 +245,7 @@ internal fun auditGroupOf(code: String): AuditGroup = when (code) {
   else -> AuditGroup.OTHER
 }
 
-/** Severity ordering used to sort findings most-severe-first. */
+// Severity ordering used to sort findings most-severe-first.
 internal fun severityRank(level: String): Int = when (level) {
   "critical" -> 0
   "alert" -> 1
@@ -297,7 +283,7 @@ object GradumGitAnalysisService {
    */
   enum class ScanState { IDLE, SCANNING, SUCCESS, FAILED }
 
-  /** Sentinel log level that marks a fatal script error in the output stream. */
+  // Sentinel log level that marks a fatal script error in the output stream.
   private const val LEVEL_ERROR = "ERROR"
 
   private const val FIELD_MESSAGE = "message"
@@ -362,11 +348,11 @@ object GradumGitAnalysisService {
   private var analysisReader: BufferedReader? = null
   private var currentErrorFile: File? = null
 
-  /** Set to request an orderly cancellation of the current scan. */
+  // Set to request an orderly cancellation of the current scan.
   @Volatile
   private var isScanCancelled: Boolean = false
 
-  /** Set once the script reports the `scanned` marker; triggers the hand-off to [AnalyzeDataTask]. */
+  // Set once the script reports the `scanned` marker; triggers the hand-off to [AnalyzeDataTask].
   @Volatile
   private var isScanCompleted: Boolean = false
 
@@ -465,16 +451,14 @@ object GradumGitAnalysisService {
     currentBranch = null
   }
 
-  /**
-   * Stage one: walks every commit in the repository.
-   *
-   * The script is launched with `--jsonl`; its stdout is consumed line by
-   * line. Per-commit `scanning commit` records update the progress indicator,
-   * and any premature SXXXX findings are collected too. When the script emits
-   * the `scanned` marker, [isScanCompleted] is set and control is handed to
-   * [AnalyzeDataTask] via [onSuccess]; the process handle is left running and
-   * resource cleanup is deferred so stage two can keep reading stdout.
-   */
+  // Stage one: walks every commit in the repository.
+  //
+  // The script is launched with `--jsonl`; its stdout is consumed line by
+  // line. Per-commit `scanning commit` records update the progress indicator,
+  // and any premature SXXXX findings are collected too. When the script emits
+  // the `scanned` marker, [isScanCompleted] is set and control is handed to
+  // [AnalyzeDataTask] via [onSuccess]; the process handle is left running and
+  // resource cleanup is deferred so stage two can keep reading stdout.
   private class ScanCommitsTask(
     project: Project,
     private val analysisScript: File,
@@ -546,15 +530,13 @@ object GradumGitAnalysisService {
     }
   }
 
-  /**
-   * Stage two: consumes the project-wide analysis output.
-   *
-   * Runs after [ScanCommitsTask] reports the `scanned` marker, continuing to
-   * read the same process stdout until EOF. This pass collects the findings
-   * that live on the `scanned`/`quality`/period records the script emits after
-   * the per-commit walk. On a clean exit the state is set to
-   * [ScanState.SUCCESS]; otherwise [handleFailure] surfaces the error.
-   */
+  // Stage two: consumes the project-wide analysis output.
+  //
+  // Runs after [ScanCommitsTask] reports the `scanned` marker, continuing to
+  // read the same process stdout until EOF. This pass collects the findings
+  // that live on the `scanned`/`quality`/period records the script emits after
+  // the per-commit walk. On a clean exit the state is set to
+  // [ScanState.SUCCESS]; otherwise [handleFailure] surfaces the error.
   private class AnalyzeDataTask(project: Project) :
     Task.Backgroundable(project, message("gradum.toolwindow.git.analysis.scan.title")) {
 
@@ -624,7 +606,7 @@ object GradumGitAnalysisService {
       ?.contentOrNull
       ?.equals(other = SCANNED_MESSAGE, ignoreCase = true) == true
 
-  /** Routes one JSONL record to its handler: findings, progress, quality, or error. */
+  // Routes one JSONL record to its handler: findings, progress, quality, or error.
   private fun handleJsonRecord(record: JsonObject, indicator: ProgressIndicator) {
     val auditFinding = parseAuditFinding(jsonRecord = record)
     if (auditFinding != null) {
@@ -693,7 +675,7 @@ object GradumGitAnalysisService {
     else -> element.toString()
   }
 
-  /** Localizes a script error code, falling back to the raw script message. */
+  // Localizes a script error code, falling back to the raw script message.
   private fun friendlyErrorMessage(errorCode: String, fallback: String): String {
     val localized = message(key = "$ERROR_CODE_PREFIX$errorCode")
     return if (localized.isNotBlank() && !localized.startsWith(prefix = "???"))
@@ -728,7 +710,7 @@ object GradumGitAnalysisService {
     return errorFile.readText().trim().ifBlank { null }
   }
 
-  /** Resolves the script: project copy, then jar-adjacent copy, then the bundled resource. */
+  // Resolves the script: project copy, then jar-adjacent copy, then the bundled resource.
   private fun resolveScript(project: Project): File? {
     val jarPath = PathManager.getJarPathForClass(GradumGitAnalysisService::class.java) ?: ""
     findScriptUpFrom(startDirectory = File(jarPath))
@@ -746,7 +728,7 @@ object GradumGitAnalysisService {
     return null
   }
 
-  /** Copies the script + config out of the plugin jar and marks the script executable. */
+  // Copies the script and config out of the plugin jar and marks the script executable.
   private fun extractBundledScript(): File? {
     return try {
       val tempRoot: Path = Paths.get(PathManager.getTempDir().toString(), "gradum", "gitstats")
@@ -772,7 +754,7 @@ object GradumGitAnalysisService {
   }
 }
 
-/** Human-readable severity label, localized via the bundle. */
+// Human-readable severity label, localized via the bundle.
 internal fun severityLabel(level: String): String = when (level) {
   "critical" -> message("gradum.toolwindow.git.analysis.severity.very.high")
   "alert" -> message("gradum.toolwindow.git.analysis.severity.high")
@@ -780,7 +762,7 @@ internal fun severityLabel(level: String): String = when (level) {
   else -> message("gradum.toolwindow.git.analysis.severity.information")
 }
 
-/** Formats a date string as relative time (e.g. "3 days ago" or "just now"). */
+// Formats a date string as relative time (e.g. "3 days ago" or "just now").
 internal fun relativeTime(dateString: String): String {
   if (dateString.isBlank() || dateString == "-") return ""
   return try {
@@ -796,7 +778,7 @@ internal fun relativeTime(dateString: String): String {
   }
 }
 
-/** Formats an epoch-millis timestamp as relative time with minute/hour precision. */
+// Formats an epoch-millis timestamp as relative time with minute/hour precision.
 internal fun scanCompletedAgo(millis: Long): String {
   if (millis <= 0L) return ""
   val elapsed = System.currentTimeMillis() - millis
@@ -823,7 +805,7 @@ internal fun scanCompletedAgo(millis: Long): String {
   }
 }
 
-/** Serializes a list of [AuditFinding]store into a JSON document. */
+// Serializes a list of [AuditFinding]store into a JSON document.
 internal fun auditFindingsToJson(findings: List<AuditFinding>): String {
   val records = findings.map { finding ->
     buildJsonObject {
@@ -851,7 +833,7 @@ internal fun auditFindingsToJson(findings: List<AuditFinding>): String {
   }.toString()
 }
 
-/** Converts an [AuditFinding] param value into a JSON element. */
+// Converts an [AuditFinding] param value into a JSON element.
 private fun Any?.toJsonElement(): JsonElement =
   when (this) {
     null -> JsonNull

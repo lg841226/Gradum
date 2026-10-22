@@ -12,11 +12,9 @@ import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.Tooltip
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
-/**
- * Open-in-editor action button. Reusable across Ran / Read / Saved
- * / Edited renderers. Lives next to [ToolCallCapsule] because
- * every default renderer that touches a file uses it.
- */
+// Open-in-editor action button. Reusable across Ran / Read / Saved
+// / Edited renderers. Lives next to [ToolCallCapsule] because
+// every default renderer that touches a file uses it.
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun OpenInEditorButton(

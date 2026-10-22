@@ -41,7 +41,7 @@ private fun ChatMessage.minimapTargetKey(index: Int): String =
   messageId.ifBlank { "idx:$index" }
 
 /**
- * Active conversation: scrollable history + input pinned to bottom.
+ * Active conversation: scrollable history and input pinned to bottom.
  *
  * Auto-scrolls to the bottom when new content arrives and the user was at
  * the bottom; otherwise a `JumpToBottomButton` appears.
@@ -356,14 +356,12 @@ fun ChatScreen(
   }
 }
 
-/**
- * Renders sticky section toolbars that fade in/out as the user scrolls.
- *
- * Each [StickySectionEntry] registers its toolbar height via
- * [onGloballyPositioned][androidx.compose.ui.layout.onGloballyPositioned];
- * when the active section's remaining space shrinks below twice the toolbar
- * height the toolbar starts fading out, producing a smooth collapse effect.
- */
+// Renders sticky section toolbars that fade in/out as the user scrolls.
+//
+// Each [StickySectionEntry] registers its toolbar height via
+// [onGloballyPositioned][androidx.compose.ui.layout.onGloballyPositioned];
+// when the active section's remaining space shrinks below twice the toolbar
+// height the toolbar starts fading out, producing a smooth collapse effect.
 @Composable
 private fun StickyOverlay(
   scrollOffset: Float,
@@ -395,16 +393,14 @@ private fun StickyOverlay(
   }
 }
 
-/**
- * Computes the alpha for a sticky section toolbar.
- *
- * - Inactive sections: `0f` (hidden).
- * - Active section with a measured toolbar: linearly fade from `1f` to `0f`
- *   as the remaining space shrinks from `toolbarHeight` to `0f`, eased
- *   with [FastOutSlowInEasing].
- * - Active section before first measurement (`toolbarHeight == 0`): fully
- *   opaque so the toolbar is visible immediately.
- */
+// Computes the alpha for a sticky section toolbar.
+//
+// - Inactive sections: `0f` (hidden).
+// - Active section with a measured toolbar: linearly fade from `1f` to `0f`
+//   as the remaining space shrinks from `toolbarHeight` to `0f`, eased
+//   with [FastOutSlowInEasing].
+// - Active section before first measurement (`toolbarHeight == 0`): fully
+//   opaque so the toolbar is visible immediately.
 private fun sectionToolbarAlpha(
   isActive: Boolean,
   scrollOffset: Float,

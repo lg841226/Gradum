@@ -70,7 +70,7 @@ class GradumChatFileEditor(
   }
 }
 
-/** Locates the [ComposePanel] inside the Jewel wrapper (or the panel itself). */
+// Locates the [ComposePanel] inside the Jewel wrapper (or the panel itself).
 internal fun findComposePanel(component: Component): ComposePanel? =
   when (component) {
     is ComposePanel -> component
@@ -78,7 +78,7 @@ internal fun findComposePanel(component: Component): ComposePanel? =
     else -> null
   }
 
-/** Disposes the Compose host so its composition and host scope go away. */
+// Disposes the Compose host so its composition and host scope go away.
 @OptIn(ExperimentalComposeUiApi::class)
 internal fun disposeComposeHost(component: JComponent) {
   findComposePanel(component = component)?.dispose()

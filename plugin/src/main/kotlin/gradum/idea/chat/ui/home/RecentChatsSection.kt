@@ -38,7 +38,7 @@ import org.jetbrains.jewel.ui.typography
  *
  * One row per session mirrors `SuggestionCard` (hover highlight, leading
  * icon, ellipsized title); a delete icon is revealed on hover. Clicking a
- * row resumes that session; the delete icon removes it locally + on the
+ * row resumes that session; the delete icon removes it locally and on the
  * server ([gradum.idea.chat.state.GradumChatSession.deleteSession]).
  */
 @OptIn(ExperimentalFoundationApi::class)

@@ -101,13 +101,11 @@ class SkillRegistrySchemaTest {
     }
   }
 
-  /**
-   * Schema maps carry the Skill's name under the standard OpenAI
-   * tool shape. We pull it back out so the test can assert by name
-   * rather than by reference identity. If the schema shape changes
-   * the test will throw and the next person to touch the registry
-   * will see what they broke.
-   */
+  // Schema maps carry the Skill's name under the standard OpenAI
+  // tool shape. We pull it back out so the test can assert by name
+  // rather than by reference identity. If the schema shape changes
+  // the test will throw and the next person to touch the registry
+  // will see what they broke.
   @Suppress("UNCHECKED_CAST")
   private fun nameOf(schema: Map<String, Any>): String {
     val function: Map<String, Any> = schema["function"] as Map<String, Any>

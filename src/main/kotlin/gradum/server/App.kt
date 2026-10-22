@@ -18,18 +18,16 @@ import org.slf4j.LoggerFactory
 
 private val logger: Logger = LoggerFactory.getLogger("GradumServer")
 
-/** Liveness route that stays reachable without a token. */
+// Liveness route that stays reachable without a token.
 private const val HEALTH_PATH: String = "/health"
 
-/** Editor page route; it decides full access vs. reader mode (see Routes.kt). */
+// Editor page route; it decides full access vs. reader mode (see Routes.kt).
 private const val EDITOR_PAGE_PATH: String = "/skills/editor"
 
-/**
- * The GET routes a token-less session may read so the editor can show code:
- * the skill-source list and a single skill's source. Everything else: every
- * POST included: keeps demanding the token, which is what makes that session
- * read-only.
- */
+// The GET routes a token-less session may read so the editor can show code:
+// the skill-source list and a single skill's source. Everything else: every
+// POST included: keeps demanding the token, which is what makes that session
+// read-only.
 private val READER_PATHS: Set<String> = setOf("/skills/sources", "/skills/source")
 
 typealias GradumServer = EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>
@@ -84,19 +82,17 @@ fun Application.module(
   logger.info("Pairing code (unlock editing from other devices): ${pairingState.code}")
 }
 
-/**
- * Installs the Host whitelist and bearer-token check.
- *
- * Runs in the `Plugins` phase, before routing, so an unauthorized call is
- * rejected before any handler body executes. Four kinds of route bypass the
- * token check: `/health` (the build's readiness probe and monitoring),
- * `POST /skills/pair` (the pairing-code exchange that *earns* the token), and
- * reader mode `GET` for the editor page with its static assets plus the
- * two skill-source reads that put code on screen. Everything else, every POST
- * included, still carries the token check below, and since the mutating
- * routes are all POSTs, that is exactly what makes a token-less session
- * read-only.
- */
+// Installs the Host whitelist and bearer-token check.
+//
+// Runs in the `Plugins` phase, before routing, so an unauthorized call is
+// rejected before any handler body executes. Four kinds of route bypass the
+// token check: `/health` (the build's readiness probe and monitoring),
+// `POST /skills/pair` (the pairing-code exchange that *earns* the token), and
+// reader mode `GET` for the editor page with its static assets plus the
+// two skill-source reads that put code on screen. Everything else, every POST
+// included, still carries the token check below, and since the mutating
+// routes are all POSTs, that is exactly what makes a token-less session
+// read-only.
 private fun Application.installRequestGuard(serverConfiguration: ServerConfiguration) {
   intercept(ApplicationCallPipeline.Plugins) {
     val requestHost: String =
@@ -141,20 +137,18 @@ private fun Application.installRequestGuard(serverConfiguration: ServerConfigura
   }
 }
 
-/** Extracts the token from an `Authorization: Bearer <token>` header, or null. */
+// Extracts the token from an `Authorization: Bearer <token>` header, or null.
 private fun bearerToken(request: ApplicationRequest): String? {
   val headerValue: String = request.headers[HttpHeaders.Authorization] ?: return null
   if (!headerValue.startsWith(ServerAuth.BEARER_PREFIX)) return null
   return headerValue.removePrefix(ServerAuth.BEARER_PREFIX).trim().takeIf { it.isNotEmpty() }
 }
 
-/**
- * Startup log label for one skill: alias(skillName), suffixed with
- * external when the skill class was loaded from ~/.gradum/skills/ by
- * [ExternalSkillClassLoader]. Built-in and MCP skills come from the app
- * classloader, so they stay untagged. Derived from the live classloader
- * instead of a registry snapshot, so hot-reloaded skills keep the tag.
- */
+// Startup log label for one skill: alias(skillName), suffixed with
+// external when the skill class was loaded from ~/.gradum/skills/ by
+// [ExternalSkillClassLoader]. Built-in and MCP skills come from the app
+// classloader, so they stay untagged. Derived from the live classloader
+// instead of a registry snapshot, so hot-reloaded skills keep the tag.
 private fun skillLabel(skill: Skill): String {
   val baseLabel = "${skill.alias}(${skill.skillName})"
   return if (skill.javaClass.classLoader is ExternalSkillClassLoader) "$baseLabel [external]" else baseLabel

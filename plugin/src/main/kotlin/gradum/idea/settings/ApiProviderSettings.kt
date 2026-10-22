@@ -36,14 +36,12 @@ private const val API_FIELD_WIDTH_DP = 56
 private const val MIN_POLL_INTERVAL_SECONDS = PluginConfig.MIN_POLL_INTERVAL_SECONDS
 private const val MAX_POLL_INTERVAL_SECONDS = PluginConfig.MAX_POLL_INTERVAL_SECONDS
 
-/**
- * Settings page section that owns both provider rows.
- *
- * Persists edits through [ProviderSettings] and mirrors the latest
- * configuration into [ProviderCoordinator] on first composition and on
- * every relevant change. Provider rows themselves are pure subscribers:
- * they do not run probes.
- */
+// Settings page section that owns both provider rows.
+//
+// Persists edits through [ProviderSettings] and mirrors the latest
+// configuration into [ProviderCoordinator] on first composition and on
+// every relevant change. Provider rows themselves are pure subscribers:
+// they do not run probes.
 @Composable
 internal fun ApiProviderSettings() {
   val settings: ProviderSettings = remember { ProviderSettings.getInstance() }
@@ -180,22 +178,18 @@ internal fun ApiProviderSettings() {
   }
 }
 
-/**
- * Stable [LazyRow] key for the trailing "+" add-provider chip, so it is
- * not treated as a data item and never runs the removal animation.
- */
+// Stable [LazyRow] key for the trailing "+" add-provider chip, so it is
+// not treated as a data item and never runs the removal animation.
 private const val CLOUD_TAB_ADD_KEY = "cloud-tab-add"
 
-/**
- * Cloud-provider section rendered below the two fixed local providers.
- *
- * The user's cloud providers (Zhipu / DeepSeek / MiniMax) are organized
- * as removable capsule tabs. Clicking a tab selects it (outlined) and
- * shows its [ApiProviderRow] panel; the trailing "+" opens a [PopupMenu]
- * listing the not-yet-added providers. Removing a tab deletes its config
- * and shifts the selection one tab to the left; an empty tab strip shows
- * a hint instead of a panel.
- */
+// Cloud-provider section rendered below the two fixed local providers.
+//
+// The user's cloud providers (Zhipu / DeepSeek / MiniMax) are organized
+// as removable capsule tabs. Clicking a tab selects it (outlined) and
+// shows its [ApiProviderRow] panel; the trailing "+" opens a [PopupMenu]
+// listing the not-yet-added providers. Removing a tab deletes its config
+// and shifts the selection one tab to the left; an empty tab strip shows
+// a hint instead of a panel.
 @Composable
 private fun CloudProviderTabsSection(
   settings: ProviderSettings, enabledKinds: List<ProviderKind>
@@ -321,14 +315,12 @@ private fun CloudProviderTabsSection(
   }
 }
 
-/**
- * Removes [kind] from the cloud-provider tab strip.
- *
- * Deletes its persisted config (URL / API key / enable flag) so the
- * embedded server stops probing it, stops the coordinator's poll loop,
- * and returns the next selection for the tab strip: the tab to the
- * left of the removed one, or `null` when no tab remains.
- */
+// Removes [kind] from the cloud-provider tab strip.
+//
+// Deletes its persisted config (URL / API key / enable flag) so the
+// embedded server stops probing it, stops the coordinator's poll loop,
+// and returns the next selection for the tab strip: the tab to the
+// left of the removed one, or `null` when no tab remains.
 private fun removeCloudProvider(
   settings: ProviderSettings, enabledKinds: List<ProviderKind>, kind: ProviderKind
 ): ProviderKind? {
@@ -415,19 +407,17 @@ private fun CloudAddIcon(enabled: Boolean, onClick: () -> Unit) {
   }
 }
 
-/**
- * Auto-detect row with its scope hint.
- *
- * Renders as `Automatically check connection status when opening Gradum,
- * poll every [n] s` followed by an info-colored scope hint.
- * The field is disabled while auto-detect is off ([enabled] = false). Input handling:
- *
- * - while focused, invalid text (blank, non-numeric, out of range) shows
- *   a red error outline but is never touched mid-edit;
- * - on focus loss, blank/non-numeric text reverts to the last valid
- *   interval and out-of-range values are clamped to 1..60;
- * - valid values are pushed up through onIntervalChange and persisted.
- */
+// Auto-detect row with its scope hint.
+//
+// Renders as `Automatically check connection status when opening Gradum,
+// poll every [n] s` followed by an info-colored scope hint.
+// The field is disabled while auto-detect is off ([enabled] = false). Input handling:
+//
+// - while focused, invalid text (blank, non-numeric, out of range) shows
+//   a red error outline but is never touched mid-edit;
+// - on focus loss, blank/non-numeric text reverts to the last valid
+//   interval and out-of-range values are clamped to 1..60;
+// - valid values are pushed up through onIntervalChange and persisted.
 @Composable
 private fun AutoDetectRow(
   enabled: Boolean,
@@ -523,13 +513,11 @@ private fun pushKindToCoordinator(settings: ProviderSettings, kind: ProviderKind
   )
 }
 
-/**
- * App-level row for the Ollama keep-alive, mirroring [AutoDetectRow]:
- * a checkbox and short field on one line, with a one-line hint below. The
- * field holds a whole number of minutes (`12`, or `-1` for always-on);
- * values push up through [onKeepAliveChange] after a short debounce so the
- * request builder always reads the persisted keepAliveMinutes.
- */
+// App-level row for the Ollama keep-alive, mirroring [AutoDetectRow]:
+// a checkbox and short field on one line, with a one-line hint below. The
+// field holds a whole number of minutes (`12`, or `-1` for always-on);
+// values push up through [onKeepAliveChange] after a short debounce so the
+// request builder always reads the persisted keepAliveMinutes.
 @Composable
 private fun KeepAliveRow(
   checked: Boolean,

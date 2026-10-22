@@ -40,25 +40,23 @@ internal const val MCP_FIELD_WIDTH_DP: Int = 480
 internal const val MCP_INPUT_DEBOUNCE_MS: Long = PluginConfig.INPUT_DEBOUNCE_MS
 private const val NOTIFICATION_GROUP_ID: String = "Gradum"
 
-/**
- * Settings page section for the `mcpServers` array in
- * `../.gradum/settings.json`.
- *
- * Mirrors the cloud-provider tabs layout: servers are removable capsule
- * tabs in a horizontal strip with a trailing add button; the
- * selected server's form (name / command / working dir) renders
- * underneath. Every field edit is debounced by [MCP_INPUT_DEBOUNCE_MS]
- * and written straight to the settings file through [ProviderConfigFile]:
- * there is no Apply button and no second copy of the config, so the file
- * stays the single source of truth. Environment variables have no input
- * field here: their row opens settings.json itself in the IDE editor
- * (caret on the selected server), and each panel write rereads env maps
- * from disk so the two surfaces never clobber each other. A search box on
- * top queries the official online registry ([gradum.idea.mcp.McpRegistryClient]) and
- * imports stdio servers as new tabs. The embedded server reads
- * `mcpServers` only at startup, so the section ends with a restart hint
- * instead of a connection test.
- */
+// Settings page section for the `mcpServers` array in
+// `../.gradum/settings.json`.
+//
+// Mirrors the cloud-provider tabs layout: servers are removable capsule
+// tabs in a horizontal strip with a trailing add button; the
+// selected server's form (name / command / working dir) renders
+// underneath. Every field edit is debounced by [MCP_INPUT_DEBOUNCE_MS]
+// and written straight to the settings file through [ProviderConfigFile]:
+// there is no Apply button and no second copy of the config, so the file
+// stays the single source of truth. Environment variables have no input
+// field here: their row opens settings.json itself in the IDE editor
+// (caret on the selected server), and each panel write rereads env maps
+// from disk so the two surfaces never clobber each other. A search box on
+// top queries the official online registry ([gradum.idea.mcp.McpRegistryClient]) and
+// imports stdio servers as new tabs. The embedded server reads
+// `mcpServers` only at startup, so the section ends with a restart hint
+// instead of a connection test.
 @Composable
 internal fun McpServersSettings() {
   val loaded: List<McpServerItem> = remember {
@@ -81,16 +79,14 @@ internal fun McpServersSettings() {
     missingRuntime = if (found) null else requirement
   }
 
-  /**
-   * Writes the working copy back to the file. Env maps are not part of
-   * the working copy: they are edited directly in settings.json through
-   * the form's open-in-editor button, so every write re-reads them from
-   * disk by name and splices them into the entries being saved: a
-   * panel edit can never revert an env change made in the IDE editor.
-   * [providedEnvs] overrides the splice for entries whose env should
-   * come from somewhere else instead of the file (the online registry
-   * imports pre-filled environment variables this way).
-   */
+  // Writes the working copy back to the file. Env maps are not part of
+  // the working copy: they are edited directly in settings.json through
+  // the form's open-in-editor button, so every write re-reads them from
+  // disk by name and splices them into the entries being saved: a
+  // panel edit can never revert an env change made in the IDE editor.
+  // [providedEnvs] overrides the splice for entries whose env should
+  // come from somewhere else instead of the file (the online registry
+  // imports pre-filled environment variables this way).
   fun persist(
     updated: List<McpServerItem>,
     providedEnvs: Map<String, Map<String, String>> = emptyMap()
@@ -148,13 +144,11 @@ internal fun McpServersSettings() {
       selectedId = updated.getOrNull(index = (index - 1).coerceAtLeast(minimumValue = 0))?.id
   }
 
-  /**
-   * Imports a result from the official online registry: builds the stdio
-   * command entry, uniquifies the short name against existing tabs, and
-   * pre-fills the env hints the registry advertised. The entry lands in
-   * settings.json immediately like any other edit: the embedded server
-   * picks it up after the next runtime restart.
-   */
+  // Imports a result from the official online registry: builds the stdio
+  // command entry, uniquifies the short name against existing tabs, and
+  // pre-fills the env hints the registry advertised. The entry lands in
+  // settings.json immediately like any other edit: the embedded server
+  // picks it up after the next runtime restart.
   fun onAddFromRegistry(result: McpRegistryResult) {
     val command: List<String> = result.command ?: return
     val finalName: String = uniqueMcpTabName(
@@ -252,11 +246,9 @@ internal fun McpServersSettings() {
   }
 }
 
-/**
- * Removable capsule tab for one MCP server: a direct copy of the
- * cloud-provider tab: click selects the server, the trailing "x"
- * removes it and shifts the selection one tab to the left.
- */
+// Removable capsule tab for one MCP server: a direct copy of the
+// cloud-provider tab: click selects the server, the trailing "x"
+// removes it and shifts the selection one tab to the left.
 @Composable
 private fun McpTab(
   name: String,
@@ -306,14 +298,12 @@ private fun McpTab(
   }
 }
 
-/**
- * Bottom-right balloon after a server lands in settings.json: the
- * embedded runtime reads `mcpServers` only at startup, so the entry
- * stays inert until the runtime restarts. Without an open project
- * (settings opened from the welcome screen) there is no window to
- * anchor the balloon on and the restart hint under the form already
- * says the same, so the notification is skipped.
- */
+// Bottom-right balloon after a server lands in settings.json: the
+// embedded runtime reads `mcpServers` only at startup, so the entry
+// stays inert until the runtime restarts. Without an open project
+// (settings opened from the welcome screen) there is no window to
+// anchor the balloon on and the restart hint under the form already
+// says the same, so the notification is skipped.
 private fun notifyServerAdded(name: String) {
   val project: Project = ProjectManager.getInstance().openProjects.firstOrNull() ?: return
   val notification = NotificationGroupManager.getInstance()

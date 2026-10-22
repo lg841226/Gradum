@@ -9,7 +9,7 @@ import kotlin.test.assertIs
 
 class CommandFilterTest {
 
-  /** Project root under /tmp so in-project relative targets stay outside the protected set. */
+  // Project root under /tmp so in-project relative targets stay outside the protected set.
   private val projectRoot: String = "/tmp/gradum-command-filter-test"
 
   @Test
@@ -363,7 +363,7 @@ class CommandFilterTest {
     assertIs<CommandVerdict.Blocked>(value = verdict)
   }
 
-  /** Creates a probe in the temp dir and checks whether its upper-cased sibling resolves. */
+  // Creates a probe in the temp dir and checks whether its upper-cased sibling resolves.
   private fun isCaseInsensitiveFileSystem(): Boolean {
     return try {
       val directory: Path = Files.createTempDirectory("gradum-case-probe")

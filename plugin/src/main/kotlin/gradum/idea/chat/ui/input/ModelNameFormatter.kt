@@ -9,7 +9,7 @@ package gradum.idea.chat.ui.input
  * The split is deliberately lossy: noise is dropped; [rawName] preserves the original.
  */
 data class FormattedModelName(
-  /** Human-friendly family + variant name, e.g. "Qwen 2.5 Coder". */
+  /** Human-friendly family and variant name, e.g. "Qwen 2.5 Coder". */
   val displayName: String,
   /** Parameter count badge, e.g. "7B", "70B", "8x7B". `null` for size-less cloud models. */
   val parameterSize: String?,
@@ -23,15 +23,13 @@ data class FormattedModelName(
   val rawName: String
 )
 
-/**
- * Known families -> human-friendly display names.
- * Lookup key is the lower-cased family root after stripping org, tag, size, quant, variant.
- * Fuzzy: key miss triggers progressive prefix shortening (`phi-3-mini-4k` -> `phi-3-mini` -> `phi-3` -> `phi`)
- * and no-dash fallback (`llama-3` -> `llama3`).
- *
- * Map (not regex ladder) because family roots are short, stable, and ~150 entries;
- * a regex would either under- or over-match.
- */
+// Known families -> human-friendly display names.
+// Lookup key is the lower-cased family root after stripping org, tag, size, quant, variant.
+// Fuzzy: key miss triggers progressive prefix shortening (`phi-3-mini-4k` -> `phi-3-mini` -> `phi-3` -> `phi`)
+// and no-dash fallback (`llama-3` -> `llama3`).
+//
+// Map (not regex ladder) because family roots are short, stable, and ~150 entries;
+// a regex would either under- or over-match.
 private val modelDisplayNames: Map<String, String> = buildMap {
   put("qwen", "Qwen")
   put("qwen2", "Qwen 2")
@@ -302,14 +300,12 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("ernie-4", "ERNIE 4")
 }
 
-/**
- * Provider display names, in priority order. The first keyword
- * to match (substring, lowercased) wins. Order matters: more
- * specific keywords (e.g. `gpt-oss`, `command-r`) are listed
- * before their generic parents (`gpt`, `command`) so a `gpt-oss-20b`
- * resolves to OpenAI and a `command-r-plus` resolves to Cohere
- * (not "OpenAI via command-r" or similar nonsense).
- */
+// Provider display names, in priority order. The first keyword
+// to match (substring, lowercased) wins. Order matters: more
+// specific keywords (e.g. `gpt-oss`, `command-r`) are listed
+// before their generic parents (`gpt`, `command`) so a `gpt-oss-20b`
+// resolves to OpenAI and a `command-r-plus` resolves to Cohere
+// (not "OpenAI via command-r" or similar nonsense).
 private val providerDisplayByKeyword: List<Pair<String, String>> = listOf(
   "claude" to "Anthropic",
   "gpt-oss" to "OpenAI",
@@ -364,23 +360,19 @@ private val providerDisplayByKeyword: List<Pair<String, String>> = listOf(
   "skywork" to "Skywork"
 )
 
-/**
- * Recognized parameter-size patterns. MoE (`8x7B`) must come before standalone `7B`
- * so the trailing `7B` in `8x7B` is consumed first. Decimals (`0.5B`) before integer
- * patterns for the same reason.
- * Unit is `[bm]` only: `k` is reserved for context size, `M` for million-param models.
- */
+// Recognized parameter-size patterns. MoE (`8x7B`) must come before standalone `7B`
+// so the trailing `7B` in `8x7B` is consumed first. Decimals (`0.5B`) before integer
+// patterns for the same reason.
+// Unit is `[bm]` only: `k` is reserved for context size, `M` for million-param models.
 private val parameterSizePatterns: List<Regex> = listOf(
   Regex(pattern = """(\d+)x(\d+(?:\.\d+)?)[bm]""", option = RegexOption.IGNORE_CASE),
   Regex(pattern = """(\d+\.\d+)[bm]""", option = RegexOption.IGNORE_CASE),
   Regex(pattern = """(\d+)[bm]""", option = RegexOption.IGNORE_CASE)
 )
 
-/**
- * Recognized quant tags, tried in long-form-first order. Covers GGUF (`Q4_K_M`), AWQ,
- * GPTQ, EXL2, BNB, and precision tags (FP16/BF16/INT4/INT8).
- * Anchored to word boundary so `qwen2.5` doesn't lose the `2.5`.
- */
+// Recognized quant tags, tried in long-form-first order. Covers GGUF (`Q4_K_M`), AWQ,
+// GPTQ, EXL2, BNB, and precision tags (FP16/BF16/INT4/INT8).
+// Anchored to word boundary so `qwen2.5` doesn't lose the `2.5`.
 private val quantPatterns: List<Regex> = listOf(
   Regex(pattern = """\bq\d+_k_[sml]\b""", option = RegexOption.IGNORE_CASE),
   Regex(pattern = """\bq\d+_k\b""", option = RegexOption.IGNORE_CASE),
@@ -390,23 +382,19 @@ private val quantPatterns: List<Regex> = listOf(
   Regex(pattern = """\b(?:awq|gptq|exl2|gguf|ggml|bnb)\b""", option = RegexOption.IGNORE_CASE)
 )
 
-/**
- * Recognized variant / pipeline suffixes that are dropped during family-key lookup.
- * `preview`, `experimental`, `exp` are NOT here: they are valid identifiers
- * (`o1-preview`, `gpt-4o-exp`) and the fuzzy lookup handles them by dropping
- * the suffix and re-checking. File-format tags (`gguf`, `ggml`) are also NOT
- * here: quant extraction handles them.
- */
+// Recognized variant / pipeline suffixes that are dropped during family-key lookup.
+// `preview`, `experimental`, `exp` are NOT here: they are valid identifiers
+// (`o1-preview`, `gpt-4o-exp`) and the fuzzy lookup handles them by dropping
+// the suffix and re-checking. File-format tags (`gguf`, `ggml`) are also NOT
+// here: quant extraction handles them.
 private val variantSuffixes: Set<String> = setOf(
   "instruct", "chat", "base", "it", "hf",
   "awq", "gptq", "exl2", "fp16", "bf16", "fp32", "cloud"
 )
 
-/**
- * Version/date tokens dropped when at the end of the family key.
- * Requires either `v` prefix (`v0.1`) or 3+ segment numeric pattern (`0.2.1`).
- * Bare digits preserved: they are usually model generations (`V3`, `3`, `5`).
- */
+// Version/date tokens dropped when at the end of the family key.
+// Requires either `v` prefix (`v0.1`) or 3+ segment numeric pattern (`0.2.1`).
+// Bare digits preserved: they are usually model generations (`V3`, `3`, `5`).
 private val versionPatterns: List<Regex> = listOf(
   Regex(pattern = """v\d+(\.\d+)+""", option = RegexOption.IGNORE_CASE),
   Regex(pattern = """\d+\.\d+\.\d+.*""")
@@ -472,14 +460,12 @@ fun parseModelName(raw: String): FormattedModelName {
  */
 fun formatModelName(raw: String): String = parseModelName(raw).displayName
 
-/**
- * Look up the display name in [modelDisplayNames]. Tries in order: literal key -> no-dash form
- * (`llama-3` -> `llama3`) -> dash-inserted form (`glm4` -> `glm-4`) -> drop last segment
- * (`phi-3-mini-4k` -> `phi-3-mini` -> ...). First hit wins. Returns `null` on no match.
- *
- * Order: "first specific, then general". Step 3 (dash-inserted) exists for Ollama-style names
- * (`glm4:latest` -> `glm-4`); the alpha↔digit boundary insert handles `gpt4` -> `gpt-4`, `phi3` -> `phi-3`.
- */
+// Look up the display name in [modelDisplayNames]. Tries in order: literal key -> no-dash form
+// (`llama-3` -> `llama3`) -> dash-inserted form (`glm4` -> `glm-4`) -> drop last segment
+// (`phi-3-mini-4k` -> `phi-3-mini` -> ...). First hit wins. Returns `null` on no match.
+//
+// Order: "first specific, then general". Step 3 (dash-inserted) exists for Ollama-style names
+// (`glm4:latest` -> `glm-4`); the alpha↔digit boundary insert handles `gpt4` -> `gpt-4`, `phi3` -> `phi-3`.
 private fun lookupDisplayName(key: String): String? {
   if (key.isEmpty()) return null
   modelDisplayNames[key]?.let { return it }
@@ -510,16 +496,14 @@ private fun lookupDisplayName(key: String): String? {
   return null
 }
 
-/**
- * Variant of [lookupDisplayName] that tries a size-qualified key (e.g. `gpt-oss-20b`)
- * before falling through to the bare key. Needed because [buildLookupKey] operates on the
- * base name only: the colon tag's size is lost if not re-appended here.
- *
- * The size-qualified entry wins only when the bare entry ALSO exists AND the size-specific
- * displayName is NOT simply `bareDisplay + " " + size`. This rejects cases where the suffix
- * just appends the parameter count (which the badge already shows) and accepts cases
- * where the suffix carries independent semantic content (distillation tier name, e.g. "Nano").
- */
+// Variant of [lookupDisplayName] that tries a size-qualified key (e.g. `gpt-oss-20b`)
+// before falling through to the bare key. Needed because [buildLookupKey] operates on the
+// base name only: the colon tag's size is lost if not re-appended here.
+//
+// The size-qualified entry wins only when the bare entry ALSO exists AND the size-specific
+// displayName is NOT simply `bareDisplay + " " + size`. This rejects cases where the suffix
+// just appends the parameter count (which the badge already shows) and accepts cases
+// where the suffix carries independent semantic content (distillation tier name, e.g. "Nano").
 private fun lookupDisplayNameWithSize(key: String, parameterSize: String?): String? {
   if (parameterSize != null) {
     val sizeQualified = "$key-${parameterSize.lowercase()}"
@@ -534,14 +518,12 @@ private fun lookupDisplayNameWithSize(key: String, parameterSize: String?): Stri
   return lookupDisplayName(key)
 }
 
-/**
- * Extract the parameter size from a model name. Returns a
- * canonical `NB` form (or `NxMB` for MoE) or `null` if the
- * name doesn't carry one (cloud models, embeddings).
- *
- * Tries each pattern in [parameterSizePatterns] in order, taking
- * the **first** match in the input string.
- */
+// Extract the parameter size from a model name. Returns a
+// canonical `NB` form (or `NxMB` for MoE) or `null` if the
+// name doesn't carry one (cloud models, embeddings).
+//
+// Tries each pattern in [parameterSizePatterns] in order, taking
+// the first match in the input string.
 private fun extractParameterSize(name: String): String? {
   for (pattern: Regex in parameterSizePatterns) {
     val match: MatchResult? = pattern.find(input = name)
@@ -563,17 +545,15 @@ private fun extractParameterSize(name: String): String? {
   return null
 }
 
-/**
- * Extract the quant tag from a model name. Returns the matched
- * substring in its canonical form (uppercase letters, lowercase
- * digits+separators) or `null` if none is recognized.
- *
- * Examples:
- *  - `qwen2.5-7b-instruct-q4_k_m` -> `Q4_K_M`
- *  - `Mistral-7B-Instruct-v0.2.AWQ` -> `AWQ`
- *  - `llama-3-8b-instruct-4bit` -> (not matched: 4bit isn't in
- *    our list; would only show in rawName)
- */
+// Extract the quant tag from a model name. Returns the matched
+// substring in its canonical form (uppercase letters, lowercase
+// digits+separators) or `null` if none is recognized.
+//
+// Examples:
+//  - `qwen2.5-7b-instruct-q4_k_m` -> `Q4_K_M`
+//  - `Mistral-7B-Instruct-v0.2.AWQ` -> `AWQ`
+//  - `llama-3-8b-instruct-4bit` -> (not matched: 4bit isn't in
+//    our list; would only show in rawName)
 private fun extractQuant(name: String): String? {
   for (pattern: Regex in quantPatterns) {
     val match: MatchResult? = pattern.find(input = name)
@@ -587,11 +567,9 @@ private fun extractQuant(name: String): String? {
   return null
 }
 
-/**
- * Build the family-root lookup key by repeatedly stripping trailing size, quant, version,
- * and variant tokens until nothing changes. Loop (not fixed pipeline) because the order
- * of trailing tokens varies: any fixed order leaves at least one case partially stripped.
- */
+// Build the family-root lookup key by repeatedly stripping trailing size, quant, version,
+// and variant tokens until nothing changes. Loop (not fixed pipeline) because the order
+// of trailing tokens varies: any fixed order leaves at least one case partially stripped.
 private fun buildLookupKey(name: String): String {
   var working: String = name
   var changed = true
@@ -640,33 +618,29 @@ private fun buildLookupKey(name: String): String {
   return working.lowercase()
 }
 
-/**
- * Title-Case-Space-Replace fallback for unrecognized models.
- * Hyphens -> spaces, first letter uppercase, rest lowercase.
- * Deliberately simple: if the model isn't in the map, the user
- * gets a readable approximation, not a guess.
- */
+// Title-Case-Space-Replace fallback for unrecognized models.
+// Hyphens -> spaces, first letter uppercase, rest lowercase.
+// Deliberately simple: if the model isn't in the map, the user
+// gets a readable approximation, not a guess.
 private fun fallbackDisplay(key: String): String =
   key.split("-").joinToString(separator = " ") { part: String ->
     if (part.isEmpty()) ""
     else part.replaceFirstChar { it.uppercase() }
   }
 
-/**
- * GLM (Zhipu BigModel) family formatter. The chat UI pulls the live
- * model list from the server's `/models` endpoint, which lists every
- * variant the provider offers (`glm-4.5`, `glm-4.5-air`, `glm-4.6`,
- * `glm-5-turbo`, `glm-5.1`, ...). [modelDisplayNames] only has ~150
- * hand-curated entries and would never keep up, so we synthesize a
- * readable display name for any `glm-*` key by splitting on `-`,
- * title-casing each segment, and joining with a space.
- *
- * Crucially this keeps the variant suffix visible in the selector:
- * `glm-4.5-air` -> `GLM 4.5 Air`, `glm-5-turbo` -> `GLM 5 Turbo`.
- * The old `fallbackDisplay` would render both as `Glm 4.5` / `Glm 5`,
- * which made `glm-4.5` (Ollama) and `glm-4.5-air` (Zhipu) look
- * identical to the user.
- */
+// GLM (Zhipu BigModel) family formatter. The chat UI pulls the live
+// model list from the server's `/models` endpoint, which lists every
+// variant the provider offers (`glm-4.5`, `glm-4.5-air`, `glm-4.6`,
+// `glm-5-turbo`, `glm-5.1`, ...). [modelDisplayNames] only has ~150
+// hand-curated entries and would never keep up, so we synthesize a
+// readable display name for any `glm-*` key by splitting on `-`,
+// title-casing each segment, and joining with a space.
+//
+// Crucially this keeps the variant suffix visible in the selector:
+// `glm-4.5-air` -> `GLM 4.5 Air`, `glm-5-turbo` -> `GLM 5 Turbo`.
+// The old `fallbackDisplay` would render both as `Glm 4.5` / `Glm 5`,
+// which made `glm-4.5` (Ollama) and `glm-4.5-air` (Zhipu) look
+// identical to the user.
 private val OLLAMA_TRAILING_SUFFIXES: Regex = Regex(
   pattern = """-(?:\d+(?:\.\d+)?[bm]|chat|instruct|base|it|hf|cloud|\d+k)$""",
   option = RegexOption.IGNORE_CASE
@@ -697,8 +671,6 @@ private fun resolveGlmDisplay(key: String): String? {
   }
 }
 
-/**
- * Mini-catalog of well-known model identifiers. Used only for [FormattedModelName.isFromCatalog].
- * Local proxy: can't reach server-side `ModelCatalog` from the plugin module.
- */
+// Mini-catalog of well-known model identifiers. Used only for [FormattedModelName.isFromCatalog].
+// Local proxy: can't reach server-side `ModelCatalog` from the plugin module.
 private val knownModelSet: Set<String> = modelDisplayNames.keys

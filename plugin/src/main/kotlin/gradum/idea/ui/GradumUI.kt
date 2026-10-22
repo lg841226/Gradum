@@ -188,11 +188,9 @@ fun GradumUI(
   }
 }
 
-/**
- * Banner shown when the local Gradum runtime could not be reached. The text
- * names the classified cause, so "not started" reads differently from "running
- * but stuck"; a copy entry puts the raw failure diagnostics on the clipboard.
- */
+// Banner shown when the local Gradum runtime could not be reached. The text
+// names the classified cause, so "not started" reads differently from "running
+// but stuck"; a copy entry puts the raw failure diagnostics on the clipboard.
 @Composable
 private fun RuntimeUnreachableBanner(
   runtimeErrorMessage: String,
@@ -851,15 +849,13 @@ private fun TabNameEffect(session: GradumChatSession, toolWindow: ToolWindow?) {
   }
 }
 
-/**
- * Starts session-owned model polling keyed on the provider settings.
- *
- * Polling intentionally has no dispose-time stop: with the chat open both in
- * the tool window and in an editor tab, one host's teardown would otherwise
- * kill the other host's polling. [GradumChatSession.startModelPolling]
- * replaces the previous jobs on every (re)start, and the session cancels its
- * polling scope when the project closes.
- */
+// Starts session-owned model polling keyed on the provider settings.
+//
+// Polling intentionally has no dispose-time stop: with the chat open both in
+// the tool window and in an editor tab, one host's teardown would otherwise
+// kill the other host's polling. [GradumChatSession.startModelPolling]
+// replaces the previous jobs on every (re)start, and the session cancels its
+// polling scope when the project closes.
 @Composable
 private fun ModelPollingEffect(session: GradumChatSession, coroutineScope: CoroutineScope) {
   val settings: ProviderSettings = remember { ProviderSettings.getInstance() }

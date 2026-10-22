@@ -6,15 +6,13 @@ import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.RenderBlock
 import kotlinx.serialization.json.JsonObject
 
-/**
- * Server-authoritative reconciliation for the chat panel.
- *
- * The client still assembles the live turn from the event stream (cheap, and it
- * carries UI-only decorations the server history does not store), but it no
- * longer *trusts* that assembly once events were lost or a session is reloaded.
- * In those cases it swaps in the server's cold projection instead of keeping a
- * silently diverged copy.
- */
+// Server-authoritative reconciliation for the chat panel.
+//
+// The client still assembles the live turn from the event stream (cheap, and it
+// carries UI-only decorations the server history does not store), but it no
+// longer *trusts* that assembly once events were lost or a session is reloaded.
+// In those cases it swaps in the server's cold projection instead of keeping a
+// silently diverged copy.
 internal suspend fun GradumChatSession.adoptServerProjection(sessionId: String): Boolean {
   val projectRoot: String = project?.basePath ?: return false
   val state: GradumApiClient.ApiSessionState = apiClient.fetchSessionState(projectRoot, sessionId)
@@ -27,11 +25,9 @@ internal suspend fun GradumChatSession.adoptServerProjection(sessionId: String):
   return true
 }
 
-/**
- * Replaces the in-memory conversation with [state]'s projection and re-attaches
- * the still-parked ask cards. Shared by session reopen and gap recovery, so the
- * two paths cannot rebuild the view differently.
- */
+// Replaces the in-memory conversation with [state]'s projection and re-attaches
+// the still-parked ask cards. Shared by session reopen and gap recovery, so the
+// two paths cannot rebuild the view differently.
 internal fun GradumChatSession.applyServerProjection(state: GradumApiClient.ApiSessionState) {
   val rebuiltMessages: List<ChatMessage> = SessionProjection.toMessages(
     projectedMessages = state.messages,

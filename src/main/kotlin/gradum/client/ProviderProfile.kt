@@ -4,9 +4,7 @@ import gradum.Provider
 import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 
-/**
- * Wire format used to talk to a provider endpoint.
- */
+/** Wire format used to talk to a provider endpoint. */
 enum class WireFormat {
   CHAT_COMPLETIONS,
   RESPONSES
@@ -40,20 +38,16 @@ data class GenerationParams(
   val keepAliveMinutes: Int? = null
 )
 
-/**
- * Backing key to value store shared by the request-body and options scopes.
- * Named delegates write straight into [fields] under the provider's wire key;
- * the encoded map is merged into the outgoing payload by the LLM clients.
- */
+// Backing key to value store shared by the request-body and options scopes.
+// Named delegates write straight into [fields] under the provider's wire key;
+// the encoded map is merged into the outgoing payload by the LLM clients.
 internal interface FieldStore {
   val fields: MutableMap<String, Any>
 }
 
-/**
- * Delegate factory for a named wire field. [encode] maps the declared value
- * onto its wire shape; returning null skips the field entirely (used by
- * `keep_alive` for the "leave unset" case).
- */
+// Delegate factory for a named wire field. [encode] maps the declared value
+// onto its wire shape; returning null skips the field entirely (used by
+// `keep_alive` for the "leave unset" case).
 private fun <T> field(key: String, encode: (T) -> Any? = { it }): ReadWriteProperty<FieldStore, T> =
   object : ReadWriteProperty<FieldStore, T> {
     @Suppress("UNCHECKED_CAST")
@@ -179,8 +173,8 @@ fun providerProfile(configure: ProfileScope.() -> Unit): ProviderProfile =
  *
  * The `think` field encoding depends on [OllamaModelCapabilities]:
  * - OFF -> `think: false`
- * - ON + supportsThinkingLevels -> `think: "low"/"medium"/"high"`
- * - ON + supportsThinking only -> `think: true`
+ * - ON and supportsThinkingLevels -> `think: "low"/"medium"/"high"`
+ * - ON and supportsThinking only -> `think: true`
  * - ON + !supportsThinking -> field omitted entirely
  * - null capabilities (legacy / no probe) -> graded string levels, the
  *   pre-capability behavior

@@ -10,28 +10,30 @@ import java.nio.file.Paths
  * Result of resolving a tool-path argument against the project
  * root.
  *
- * @property resolved The final on-disk path the tool should
  *   operate on. Always non-null, always normalized. When
  *   [shifted] is `true` this is the corrected form, not the
  *   path the LLM originally passed.
- * @property original The exact string the LLM passed in
  *   (relative, after `.trim()`). Surface this in error
  *   messages so the LLM sees what it asked for.
- * @property shifted `true` if the resolver autocorrected
  *   [original] by stripping a redundant project-basename
  *   segment; `false` if the path resolved as-is (including
  *   the case where the original path was a hit and the
  *   shifted candidate was not).
- * @property shiftedForm The corrected form: only set when
  *   [shifted] is `true`. Useful for the `original` ->
  *   `shiftedForm` mapping the LLM can observe in the
  *   success response.
- * @property rejectionReason Non-null when the path was
  *   rejected by the [resolveProjectPath]'s
  *   `requireWithinProject` check: i.e. the resolved path
  *   escapes the project root and is not on the safe-prefix
  *   list (`/tmp`). The tool should fail the call with
  *   `PERMISSION_DENIED` rather than operate on the path.
+ *
+ * Attributes:
+ * - resolved: The final on-disk path the tool should
+ * - original: The exact string the LLM passed in
+ * - shifted: `true` if the resolver autocorrected
+ * - shiftedForm: The corrected form: only set when
+ * - rejectionReason: Non-null when the path was
  */
 data class ResolvedProjectPath(
   val resolved: Path,
@@ -46,7 +48,7 @@ data class ResolvedProjectPath(
  * autocorrection for the LLM's "redundant project-basename"
  * mistake.
  *
- * ## Why
+ * Why
  *
  * LLMs routinely include the project root's basename as the
  * first segment of a relative path:
@@ -65,7 +67,7 @@ data class ResolvedProjectPath(
  * feature request: an `Explored` + a self-corrected `Read`
  * immediately after a single failed `Read`.
  *
- * ## Security: `requireWithinProject`
+ * Security: `requireWithinProject`
  *
  * The LLM is treated as untrusted input: a prompt-injected
  * search result or a malicious context file can tell it to
@@ -84,13 +86,13 @@ data class ResolvedProjectPath(
  * the path math (single source of truth) instead of being
  * duplicated in every skill.
  *
- * ## What it does
+ * What it does
  *
  * Given a non-blank, non-absolute [filePath]:
  *  1. Resolve [filePath] against [projectRoot] and check
  *     existence. If it exists, return as-is.
  *  2. Compute the basename of [projectRoot].
- *  3. If the **first** `/`- or `\\`-separated segment of
+ *  3. If the first `/`- or `\\`-separated segment of
  *     [filePath] equals that basename, drop the first
  *     segment and resolve the remainder. If that exists,
  *     return it with [ResolvedProjectPath.shifted] = `true`.
@@ -216,21 +218,19 @@ fun resolveProjectPath(
   }
 }
 
-/**
- * Apply the within-project constraint to [resolved] when
- * [requireWithinProject] is `true`, and return either a
- * successful [ResolvedProjectPath] or a rejected one. Centralizes
- * the boundary check so every code path through [resolveProjectPath]
- * uses the same definition of "inside the project".
- *
- * [originalWasAbsolute] is the gate on the safe-prefix escape:
- * only an LLM that explicitly typed an absolute path can opt into
- * a `/tmp`-style carve-out. A relative path whose `..` happens to
- * land in `/tmp` is still rejected: that's the point of the
- * boundary check, and treating the two cases the same is what let
- * a project under `java.io.tmpdir` (the macOS default) silently
- * expose its siblings as "safe scratch space".
- */
+// Apply the within-project constraint to [resolved] when
+// [requireWithinProject] is `true`, and return either a
+// successful [ResolvedProjectPath] or a rejected one. Centralizes
+// the boundary check so every code path through [resolveProjectPath]
+// uses the same definition of "inside the project".
+//
+// [originalWasAbsolute] is the gate on the safe-prefix escape:
+// only an LLM that explicitly typed an absolute path can opt into
+// a `/tmp`-style carve-out. A relative path whose `..` happens to
+// land in `/tmp` is still rejected: that's the point of the
+// boundary check, and treating the two cases the same is what let
+// a project under `java.io.tmpdir` (the macOS default) silently
+// expose its siblings as "safe scratch space".
 private fun evaluate(
   resolved: Path,
   original: String,
@@ -261,7 +261,7 @@ private fun evaluate(
   )
 }
 
-/** Reject the path with a single, machine-and-LLM-friendly reason. */
+// Reject the path with a single, machine-and-LLM-friendly reason.
 private fun rejectedPath(original: String, reason: String): ResolvedProjectPath =
   ResolvedProjectPath(
     shifted = false,
@@ -270,12 +270,10 @@ private fun rejectedPath(original: String, reason: String): ResolvedProjectPath 
     rejectionReason = reason
   )
 
-/**
- * True iff [resolved] is [normalizedRoot] itself, or a strict
- * descendant of it. Segment-boundary safe: `/home/u/proj-evil`
- * is NOT considered inside `/home/u/proj` even though the string
- * starts with it.
- */
+// True iff [resolved] is [normalizedRoot] itself, or a strict
+// descendant of it. Segment-boundary safe: `/home/u/proj-evil`
+// is NOT considered inside `/home/u/proj` even though the string
+// starts with it.
 private fun isWithinProjectRoot(resolved: Path, normalizedRoot: Path?): Boolean {
   if (normalizedRoot == null) return false
   val resolvedString: String = resolved.toString()
@@ -283,14 +281,12 @@ private fun isWithinProjectRoot(resolved: Path, normalizedRoot: Path?): Boolean 
   return resolvedString == rootString || resolvedString.startsWith(prefix = "$rootString/")
 }
 
-/**
- * True when [resolved] exists on disk and its fully-resolved real target
- * (following symlinks) falls outside the project / safe-prefix boundary.
- * A string-level `startsWith` check is fooled by `proj/evil -> ~/.ssh`:
- * the path reads as inside, but every file operation follows the link
- * out of the project. Only checks paths that actually exist: a
- * not-yet-created target has no symlink chain to resolve yet.
- */
+// True when [resolved] exists on disk and its fully-resolved real target
+// (following symlinks) falls outside the project / safe-prefix boundary.
+// A string-level `startsWith` check is fooled by `proj/evil -> ~/.ssh`:
+// the path reads as inside, but every file operation follows the link
+// out of the project. Only checks paths that actually exist: a
+// not-yet-created target has no symlink chain to resolve yet.
 private fun isResolvedThroughSymlinkOutside(
   resolved: Path, normalizedRoot: Path?, originalWasAbsolute: Boolean
 ): Boolean {
@@ -316,7 +312,7 @@ private fun isResolvedThroughSymlinkOutside(
   }
 }
 
-/** Allow `/tmp` etc. so test fixtures and IDE scratch files keep working. */
+// Allow `/tmp` etc. so test fixtures and IDE scratch files keep working.
 private fun isInSafePrefix(resolved: Path): Boolean {
   val resolvedString: String = resolved.toString()
   for (safePrefix in ProtectedPaths.safePathPrefixes) {

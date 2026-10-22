@@ -3,29 +3,27 @@ package gradum.acp
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.*
 
-/**
- * Builder DSL for session-scoped ACP payloads:
- * `session/new`, `session/set_config_option`, `session/prompt`,
- * `session/cancel`, `session/update` notifications.
- *
- * Following [AcpCapabilityDsl] style: call sites are declarative, never touch
- * `put(...)` or `JsonPrimitive(...)` directly; every `put` lives here in one
- * `toJsonObject()` or builder function per payload shape.
- *
- * Shapes with named/optional fields are scope blocks (`acpConfigOption { ... }`);
- * fixed-arity shapes are plain builder functions (`acpPromptResult("end_turn")`).
- *
- * Usage:
- *     result = acpSessionNew {
- *       sessionId = id
- *       configOptions = listOf(buildModelConfigOption(model))
- *     }
- *     acpToolCallStart {
- *       toolCallId = callId
- *       name = toolName
- *       rawInput = eventData["arguments"]
- *     }
- */
+// Builder DSL for session-scoped ACP payloads:
+// `session/new`, `session/set_config_option`, `session/prompt`,
+// `session/cancel`, `session/update` notifications.
+//
+// Following [AcpCapabilityDsl] style: call sites are declarative, never touch
+// `put(...)` or `JsonPrimitive(...)` directly; every `put` lives here in one
+// `toJsonObject()` or builder function per payload shape.
+//
+// Shapes with named/optional fields are scope blocks (`acpConfigOption { ... }`);
+// fixed-arity shapes are plain builder functions (`acpPromptResult("end_turn")`).
+//
+// Usage:
+//     result = acpSessionNew {
+//       sessionId = id
+//       configOptions = listOf(buildModelConfigOption(model))
+//     }
+//     acpToolCallStart {
+//       toolCallId = callId
+//       name = toolName
+//       rawInput = eventData["arguments"]
+//     }
 
 internal fun acpSessionNew(block: AcpSessionNewScope.() -> Unit): JsonObject =
   AcpSessionNewScope().apply(block).toJsonObject()

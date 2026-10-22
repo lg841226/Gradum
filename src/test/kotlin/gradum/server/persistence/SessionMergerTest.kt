@@ -83,7 +83,7 @@ class SessionMergerTest {
     )
   )
 
-  /** Sidecar via the real writer; a hand-written header so the timestamps are deterministic. */
+  // Sidecar via the real writer; a hand-written header so the timestamps are deterministic.
   private fun seedSession(
     projectRoot: Path,
     sessionId: String,

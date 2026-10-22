@@ -50,13 +50,11 @@ internal fun GradumChatSession.handleThinkingEvent(data: JsonObject?) {
     messages[assistantIndex] = messages[assistantIndex].appendBlock(RenderBlock.Thinking(content))
 }
 
-/**
- * Handles the pre-execution `tool_call_start` event. Appends a
- * *pending* tool call row (spinner) with the already-known arguments
- * so the UI can show "running this tool" before the blocking skill
- * finishes. The matching `tool_call` event replaces this placeholder
- * in place (same `toolCallId`).
- */
+// Handles the pre-execution `tool_call_start` event. Appends a
+// *pending* tool call row (spinner) with the already-known arguments
+// so the UI can show "running this tool" before the blocking skill
+// finishes. The matching `tool_call` event replaces this placeholder
+// in place (same `toolCallId`).
 internal fun GradumChatSession.handleToolCallStartEvent(data: JsonObject?) {
   val toolName: String = data?.get("tool")?.jsonPrimitive?.content ?: "unknown"
   val toolCallId = data?.get("toolCallId")?.jsonPrimitive?.content ?: ""
@@ -267,13 +265,11 @@ internal fun GradumChatSession.handleSubAgentToolCall(data: JsonObject?) {
   }
 }
 
-/**
- * Clean up sub-agent state: cancel the timeout job, resetAllState state, and update
- * the delegate capsule to show "stopped" if the assistant message still exists.
- *
- * Called when the session is externally terminated (stop, resetAllState, cancellation)
- * while a sub-agent is still running.
- */
+// Clean up sub-agent state: cancel the timeout job, resetAllState state, and update
+// the delegate capsule to show "stopped" if the assistant message still exists.
+//
+// Called when the session is externally terminated (stop, resetAllState, cancellation)
+// while a sub-agent is still running.
 internal fun GradumChatSession.cleanupSubAgent() {
   val savedTitle: String = subAgentState.title
   val wasActive: Boolean = subAgentState.isActive
@@ -412,12 +408,10 @@ internal fun GradumChatSession.handleSubAgentEnd(data: JsonObject?) {
   sendingPhase = message("gradum.phase.delegate.done")
 }
 
-/**
- * Handles an agent-initiated `ask_interaction` event. Parses the server wire
- * shape (requestId/sessionId/title/details/default plus either `choices` or
- * `input`), resolves title/details/placeholder from their `L10nText` form via
- * the i18n bundle, and appends an ask card to the current assistant message.
- */
+// Handles an agent-initiated `ask_interaction` event. Parses the server wire
+// shape (requestId/sessionId/title/details/default plus either `choices` or
+// `input`), resolves title/details/placeholder from their `L10nText` form via
+// the i18n bundle, and appends an ask card to the current assistant message.
 internal fun GradumChatSession.handleAskInteractionEvent(data: JsonObject?) {
   val interaction: RenderBlock.AskInteraction = parseAskInteraction(data) ?: return
 
@@ -427,14 +421,12 @@ internal fun GradumChatSession.handleAskInteractionEvent(data: JsonObject?) {
   messages[assistantIndex] = messages[assistantIndex].appendBlock(interaction)
 }
 
-/**
- * Decodes an `ask_interaction` wire payload into a renderable
- * [RenderBlock.AskInteraction]: a live event and a replayed `pendingAsks` entry
- * from `/session/state` share this shape and this parser.
- *
- * Returns `null` for a malformed payload or one carrying neither `choices` nor
- * `input` (nothing to render as a card).
- */
+// Decodes an `ask_interaction` wire payload into a renderable
+// [RenderBlock.AskInteraction]: a live event and a replayed `pendingAsks` entry
+// from `/session/state` share this shape and this parser.
+//
+// Returns `null` for a malformed payload or one carrying neither `choices` nor
+// `input` (nothing to render as a card).
 internal fun parseAskInteraction(data: JsonObject?): RenderBlock.AskInteraction? {
   if (data == null) return null
   val requestId: String = data["requestId"]?.jsonPrimitive?.contentOrNull ?: return null
@@ -474,11 +466,9 @@ internal fun parseAskInteraction(data: JsonObject?): RenderBlock.AskInteraction?
   )
 }
 
-/**
- * Resolves a server `L10nText` value into a display string. `key` form looks
- * the key up in the i18n bundle (interpolating `{0}`-style args); `raw` form
- * shows the text verbatim.
- */
+// Resolves a server `L10nText` value into a display string. `key` form looks
+// the key up in the i18n bundle (interpolating `{0}`-style args); `raw` form
+// shows the text verbatim.
 private fun resolveL10n(element: JsonElement?, fallback: String = "?"): String {
   val value: JsonObject = element as? JsonObject ?: return fallback
   return when (value["kind"]?.jsonPrimitive?.contentOrNull) {

@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 /**
  * Strength of the reasoning the user wants the model to apply on a turn.
  *
- * **Wire contract.** The selected level crosses the plugin -> server
+ * Wire contract. The selected level crosses the plugin -> server
  * boundary as the lowercase `thinkingLevel` field of the `/events` request
  * body; the server turns it into the provider's native structured thinking
  * parameter (Ollama `think`, OpenAI-style `reasoning_effort`). The old

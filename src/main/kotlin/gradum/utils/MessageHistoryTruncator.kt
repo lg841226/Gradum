@@ -59,18 +59,16 @@ fun takeLastTurns(messages: List<Map<String, Any>>, maxTurns: Int): List<Map<Str
   return keptMessages
 }
 
-/**
- * Given that [tailIndex] is the index of the *last* message of a
- * turn, return the index of the *first* message of that turn.
- *
- * Rules:
- *  - If `messages[tailIndex]` is a `user` or `assistant` message ->
- *    return `tailIndex` (single-message turn).
- *  - If it's a `tool` message -> walk back over the contiguous run
- *    of preceding `tool` messages, then include the `assistant`
- *    message that issued those `tool_calls` (it must exist; if not,
- *    the orphan tool messages form their own turn).
- */
+// Given that [tailIndex] is the index of the *last* message of a
+// turn, return the index of the *first* message of that turn.
+//
+// Rules:
+//  - If `messages[tailIndex]` is a `user` or `assistant` message ->
+//    return `tailIndex` (single-message turn).
+//  - If it's a `tool` message -> walk back over the contiguous run
+//    of preceding `tool` messages, then include the `assistant`
+//    message that issued those `tool_calls` (it must exist; if not,
+//    the orphan tool messages form their own turn).
 private fun findTurnStart(messages: List<Map<String, Any>>, tailIndex: Int): Int {
   val lastRole: String = roleOf(messages[tailIndex])
   if (lastRole == "user") return tailIndex

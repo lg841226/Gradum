@@ -87,10 +87,12 @@ object EditorUtils {
    * the platform's "read action on EDT" requirement. [FileEditorManager.openFile]
    * runs back on the EDT once the read action releases.
    *
-   * @param project  current IntelliJ project.
-   * @param code     raw code block text (no fence markers).
-   * @param language fenced language tag (e.g. `"kotlin"`); pass `""` for
    *                 unknown / unlabelled blocks: falls back to plain text.
+   *
+   * Parameters:
+   * - project: current IntelliJ project.
+   * - code: raw code block text (no fence markers).
+   * - language: fenced language tag (e.g. `"kotlin"`); pass `""` for
    */
   fun openCodeAsNewFile(project: Project, code: String, language: String) {
     val normalizedLanguage: String = language.trim().lowercase()
@@ -113,10 +115,8 @@ object EditorUtils {
     }
   }
 
-  /**
-   * Maps a GFM fenced-code language tag to a conventional file extension.
-   * Unknown / blank tags fall back to `.txt`.
-   */
+  // Maps a GFM fenced-code language tag to a conventional file extension.
+  // Unknown / blank tags fall back to `.txt`.
   internal fun extensionForLanguage(language: String): String =
     when (language) {
       "kotlin", "kt" -> "kt"

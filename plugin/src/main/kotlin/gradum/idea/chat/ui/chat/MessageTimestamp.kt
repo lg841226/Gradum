@@ -10,9 +10,7 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.typography
 
-/**
- * Centered timestamp separator between message groups.
- */
+/** Centered timestamp separator between message groups. */
 @Composable
 fun MessageTimestamp(timestamp: Long, modifier: Modifier = Modifier) {
   Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
