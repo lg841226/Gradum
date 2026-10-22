@@ -5,6 +5,14 @@ import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 
 /**
+ * Wire format used to talk to a provider endpoint.
+ */
+enum class WireFormat {
+  CHAT_COMPLETIONS,
+  RESPONSES
+}
+
+/**
  * Provider-neutral reasoning dial. Each [ProviderProfile] translates a level
  * into its backend's wire vocabulary (Ollama `think`, OpenAI `reasoning_effort`).
  */
@@ -115,6 +123,7 @@ class OptionsScope internal constructor() : FieldStore {
 class ProfileScope internal constructor() {
 
   var reasoningDelta: String? = null
+  var wireFormat: WireFormat = WireFormat.CHAT_COMPLETIONS
 
   private var requestEncoder: ((GenerationParams) -> Map<String, Any>)? = null
   private var thinkingEncoder: ((ThinkingLevel, OllamaModelCapabilities?) -> Map<String, Any>)? = null
@@ -138,7 +147,8 @@ class ProfileScope internal constructor() {
   internal fun build(): ProviderProfile = ProviderProfile(
     requestEncoder = requestEncoder ?: { emptyMap() },
     thinkingEncoder = thinkingEncoder ?: { _, _ -> emptyMap() },
-    reasoningDeltaField = reasoningDelta
+    reasoningDeltaField = reasoningDelta,
+    wireFormat = wireFormat
   )
 }
 
@@ -149,7 +159,8 @@ class ProfileScope internal constructor() {
 class ProviderProfile internal constructor(
   private val requestEncoder: (GenerationParams) -> Map<String, Any>,
   private val thinkingEncoder: (ThinkingLevel, OllamaModelCapabilities?) -> Map<String, Any>,
-  val reasoningDeltaField: String?
+  val reasoningDeltaField: String?,
+  val wireFormat: WireFormat = WireFormat.CHAT_COMPLETIONS
 ) {
   fun requestFields(params: GenerationParams): Map<String, Any> = requestEncoder(params)
 
@@ -291,24 +302,22 @@ val MiniMaxProfile: ProviderProfile = providerProfile {
 }
 
 /**
- * LM Studio (`/v1/chat/completions`). LM Studio ignores `reasoning_effort`
- * on this surface, so no thinking parameter is sent for any level (the
- * OFF case is therefore identical to every other level). Reasoning tokens
- * still stream back and are picked up by the client's delta fallback
- * chain, which reads `reasoning_content` first and `reasoning` second.
- * The request body mirrors [OpenAiProfile] (`temperature`, `top_p`,
- * `max_tokens`).
+ * LM Studio `/v1/responses`. Uses reasoning.effort for LOW/MEDIUM/HIGH and
+ * omits reasoning when OFF. Request/response shapes are handled by the
+ * Responses wire path in [OpenAICompatibleClient].
  */
 val LmStudioProfile: ProviderProfile = providerProfile {
-  // No `reasoningDelta`: the client falls back across the known reasoning
-  // field names instead of trusting a single declared one.
-  thinking { _, _ ->
-    // Intentionally empty: LM Studio has no request-side thinking switch.
+  wireFormat = WireFormat.RESPONSES
+  reasoningDelta = null
+  thinking { level, _ ->
+    when (level) {
+      ThinkingLevel.OFF -> Unit
+      ThinkingLevel.LOW -> reasoningEffort = "low"
+      ThinkingLevel.MEDIUM -> reasoningEffort = "medium"
+      ThinkingLevel.HIGH -> reasoningEffort = "high"
+    }
   }
-  body { params ->
-    temperature = params.temperature
-    topP = params.topP
-    maxTokens = params.maxTokens
+  body { _ ->
   }
 }
 

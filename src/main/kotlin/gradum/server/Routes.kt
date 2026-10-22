@@ -967,11 +967,11 @@ fun Application.registerAllRoutes(
                   lmStudioCatalog != null -> {
                     val caps: LmStudioModelCapabilities = lmStudioCatalog.capabilitiesFor(modelName = entry.modelName)
                     entry.copy(
-                      // LM Studio's OpenAI-compatible surface ignores
-                      // reasoning_effort: report that the model reasons but do
-                      // not advertise graded levels (the A path sends none).
+                      // LM Studio's Responses API honors reasoning.effort when
+                      // the model exposes allowed_options. Advertise graded
+                      // levels so the UI selector enables the dial.
                       reasoning = caps.reasoningOptions.isNotEmpty(),
-                      reasoningLevels = false,
+                      reasoningLevels = caps.reasoningOptions.isNotEmpty(),
                       toolCall = caps.supportsTools,
                       // Union with the discovery-time v0 vision flag so a
                       // failed capability probe never downgrades it.

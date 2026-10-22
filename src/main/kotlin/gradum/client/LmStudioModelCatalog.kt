@@ -37,6 +37,65 @@ private val probeHttpClient: HttpClient = HttpClient {
 }
 
 /**
+ * Process-lifetime cache for `/v1/responses` endpoint availability.
+ * Keyed by baseUrl (stripped of `/v1` suffix). Value is true when the
+ * endpoint responds with 2xx, false on 404/405/timeout/exception.
+ * Conservative default: assume unavailable until proven otherwise.
+ */
+private val responsesAvailabilityCache: ConcurrentHashMap<String, Boolean> = ConcurrentHashMap()
+
+/**
+ * Probes whether the `/v1/responses` endpoint is available on the given
+ * LM Studio server. Result is cached for the process lifetime.
+ *
+ * A minimal POST is sent; 404 or 405 means the server is too old and
+ * the Responses wire must not be used. Any other error (timeout, connection
+ * refused, etc.) is treated as unavailable to avoid blocking the chat flow.
+ */
+internal suspend fun probeResponsesAvailability(baseUrl: String): Boolean {
+  val cacheKey = baseUrl.trimEnd('/').removeSuffix(suffix = "/v1")
+  val cached = responsesAvailabilityCache[cacheKey]
+  if (cached != null) return cached
+
+  val result = try {
+    val responsesUrl = "$cacheKey/v1/responses"
+    val minimalPayload = buildJsonObject {
+      put("model", "probe")
+      putJsonArray("input") {
+        add(buildJsonObject {
+          put("role", "user")
+          put("content", "probe")
+        })
+      }
+      put("store", false)
+    }.toString()
+
+    val response: HttpResponse = probeHttpClient.post(responsesUrl) {
+      contentType(ContentType.Application.Json)
+      setBody(minimalPayload)
+    }
+
+    val available = response.status.value in 200..299
+    if (!available && response.status.value !in setOf(404, 405)) {
+      logger.debug(
+        "Responses probe for {} returned HTTP {}: treating as unavailable",
+        baseUrl, response.status.value
+      )
+    }
+    available
+  } catch (probeException: Exception) {
+    logger.debug(
+      "Responses probe for {} failed ({}): treating as unavailable",
+      baseUrl, probeException.message ?: probeException::class.simpleName
+    )
+    false
+  }
+
+  responsesAvailabilityCache[cacheKey] = result
+  return result
+}
+
+/**
  * Capability profile of a single LM Studio model, discovered via
  * `GET /api/v1/models`.
  *

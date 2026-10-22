@@ -35,6 +35,31 @@ private val sharedHttpClient: HttpClient = HttpClient {
   }
 }
 
+/**
+ * Cache for LM Studio /v1/responses availability per baseUrl.
+ * Populated by Agent on startup; read by OpenAICompatibleClient to decide
+ * wire format at request time. Conservative default: assume unavailable.
+ */
+private val lmStudioResponsesCache: MutableMap<String, Boolean> = mutableMapOf()
+
+/**
+ * Records the LM Studio responses probe result for a given baseUrl.
+ * Called by Agent during initialization.
+ */
+internal fun recordLmStudioResponsesAvailability(baseUrl: String, available: Boolean) {
+  val cacheKey = baseUrl.trimEnd('/').removeSuffix(suffix = "/v1")
+  lmStudioResponsesCache[cacheKey] = available
+}
+
+/**
+ * Checks if LM Studio /v1/responses is available for a given baseUrl.
+ * Returns false if unknown (conservative default).
+ */
+private fun isLmStudioResponsesAvailable(baseUrl: String): Boolean {
+  val cacheKey = baseUrl.trimEnd('/').removeSuffix(suffix = "/v1")
+  return lmStudioResponsesCache[cacheKey] ?: false
+}
+
 private fun JsonObject.optString(key: String): String =
   this[key]?.jsonPrimitive?.contentOrNull ?: ""
 
@@ -149,6 +174,97 @@ private fun projectMessageForBackend(
     Provider.MINIMAX -> projectToOpenAi(contentParts)
     Provider.LMSTUDIO -> projectToOpenAi(contentParts)
   }
+}
+
+/**
+ * Projects the internal chat history (chat/completions shape) into the
+ * OpenAI Responses API `input` array.
+ *
+ * Mapping rules:
+ * - system/user/assistant messages -> {type: "message", role, content}
+ * - assistant.tool_calls -> {type: "function_call", call_id, name, arguments}
+ * - tool messages -> {type: "function_call_output", call_id, output}
+ *
+ * Content arrays (multimodal) are preserved as-is for the Responses API.
+ * Bookkeeping fields (modelName, thinking, tokenUsage, attachments, alias)
+ * are stripped by [sanitizeMessageForWire] before projection.
+ */
+private fun projectHistoryToResponsesInput(
+  messageHistory: List<Map<String, Any>>
+): List<Map<String, Any>> {
+  val inputItems: MutableList<Map<String, Any>> = mutableListOf()
+
+  for (message in messageHistory) {
+    val sanitized = sanitizeMessageForWire(message)
+    val role = sanitized["role"] as? String ?: continue
+
+    when (role) {
+      "system", "user" -> {
+        val content = sanitized["content"]
+        val contentList: List<Map<String, Any>> = if (content is List<*>) {
+          content.filterIsInstance<Map<String, Any>>()
+        } else if (content is String) {
+          listOf(mapOf("type" to "text", "text" to content))
+        } else {
+          listOf(mapOf("type" to "text", "text" to content.toString()))
+        }
+        if (contentList.isNotEmpty()) {
+          inputItems.add(mapOf(
+            "type" to "message",
+            "role" to role,
+            "content" to contentList
+          ))
+        }
+      }
+
+      "assistant" -> {
+        val content = sanitized["content"]
+        val contentList: List<Map<String, Any>> = if (content is List<*>) {
+          content.filterIsInstance<Map<String, Any>>()
+        } else if (content is String) {
+          if (content.isNotEmpty()) listOf(mapOf("type" to "text", "text" to content))
+          else emptyList()
+        } else {
+          emptyList()
+        }
+        if (contentList.isNotEmpty()) {
+          inputItems.add(mapOf(
+            "type" to "message",
+            "role" to "assistant",
+            "content" to contentList
+          ))
+        }
+
+        // Project tool_calls as function_call items
+        (sanitized["tool_calls"] as? List<*>)?.forEach { toolCall ->
+          val tc = toolCall as? Map<String, Any> ?: return@forEach
+          val id = tc["id"] as? String ?: return@forEach
+          val function = tc["function"] as? Map<String, Any> ?: return@forEach
+          val name = function["name"] as? String ?: return@forEach
+          val arguments = function["arguments"] as? String ?: "{}"
+          inputItems.add(mapOf(
+            "type" to "function_call",
+            "call_id" to id,
+            "name" to name,
+            "arguments" to arguments
+          ))
+        }
+      }
+
+      "tool" -> {
+        val toolCallId = sanitized["tool_call_id"] as? String ?: continue
+        val content = sanitized["content"]
+        val output = if (content is String) content else content.toString()
+        inputItems.add(mapOf(
+          "type" to "function_call_output",
+          "call_id" to toolCallId,
+          "output" to output
+        ))
+      }
+    }
+  }
+
+  return inputItems
 }
 
 private fun extractContentParts(message: Map<String, Any>): List<Map<String, Any>>? {
@@ -412,6 +528,39 @@ class OpenAICompatibleClient(
     messageHistory: List<Map<String, Any>>, toolDefinitions: List<Map<String, Any>>?
   ): Flow<LLMResponseChunk> = flow {
 
+    val wireProfile: ProviderProfile = profileFor(configuration.provider)
+
+    // Dispatch based on wire format
+    val effectiveWireFormat = when {
+      wireProfile.wireFormat == WireFormat.RESPONSES
+          && configuration.provider == Provider.LMSTUDIO
+          && !isLmStudioResponsesAvailable(configuration.baseUrl) -> {
+        // LM Studio Responses wire not available: fall back to chat/completions
+        logger.info("LM Studio /v1/responses unavailable for {} — falling back to chat/completions", configuration.baseUrl)
+        WireFormat.CHAT_COMPLETIONS
+      }
+      else -> wireProfile.wireFormat
+    }
+
+    when (effectiveWireFormat) {
+      WireFormat.CHAT_COMPLETIONS -> {
+        sendChatCompletions(messageHistory, toolDefinitions, wireProfile).collect { emit(it) }
+      }
+      WireFormat.RESPONSES -> {
+        sendResponses(messageHistory, toolDefinitions, wireProfile).collect { emit(it) }
+      }
+    }
+  }
+
+  /**
+   * Legacy `/v1/chat/completions` path (OpenAI, DeepSeek, MiniMax, LM Studio A-route).
+   */
+  private fun sendChatCompletions(
+    messageHistory: List<Map<String, Any>>,
+    toolDefinitions: List<Map<String, Any>>?,
+    wireProfile: ProviderProfile
+  ): Flow<LLMResponseChunk> = flow {
+
     val base = configuration.baseUrl.trimEnd('/')
     val path = configuration.chatCompletionsPath.trimStart('/')
     val requestUrl =
@@ -420,7 +569,6 @@ class OpenAICompatibleClient(
       } else {
         "$base/$path"
       }
-    val wireProfile: ProviderProfile = profileFor(configuration.provider)
     val thinkingLevel: ThinkingLevel = effectiveThinkingLevel(configuration)
     val generationParams = GenerationParams(
       topP = configuration.topPValue,
@@ -471,6 +619,105 @@ class OpenAICompatibleClient(
 
         val streamedChunks: Flow<LLMResponseChunk> =
           parseServerSentEvents(httpResponse, wireProfile)
+        streamedChunks.collect { chunk ->
+          emittedAnyChunk = true
+          emit(value = chunk)
+        }
+
+        lastError = null
+        break
+
+      } catch (httpClientException: Exception) {
+        if (httpClientException is CancellationException) throw httpClientException
+        if (emittedAnyChunk) throw httpClientException
+
+        lastError = httpClientException
+        if (isTransientError(httpClientException) && attemptIndex < 2)
+          delay(duration = (5_000L * 2.0.pow(x = attemptIndex.toDouble())).toLong().milliseconds)
+        else break
+      }
+    }
+
+    lastError?.let { error ->
+      emit(
+        value = LLMResponseChunk.ErrorMessage(
+          description = formatLlmError(
+            baseUrl = "server",
+            serverName = configuration.baseUrl,
+            runningHint = "Make sure the server is running.",
+            configuration.timeoutSeconds,
+            exception = error
+          )
+        )
+      )
+    }
+  }
+
+  /**
+   * OpenAI Responses API `/v1/responses` path (LM Studio B-route).
+   * Stateless: each turn sends full `input`, `store=false`, no `previous_response_id`.
+   */
+  private fun sendResponses(
+    messageHistory: List<Map<String, Any>>,
+    toolDefinitions: List<Map<String, Any>>?,
+    wireProfile: ProviderProfile
+  ): Flow<LLMResponseChunk> = flow {
+
+    val base = configuration.baseUrl.trimEnd('/')
+    val requestUrl = if (base.endsWith(suffix = "/v1")) {
+      base + "/responses"
+    } else {
+      "$base/v1/responses"
+    }
+    val thinkingLevel: ThinkingLevel = effectiveThinkingLevel(configuration)
+    val generationParams = GenerationParams(
+      topP = configuration.topPValue,
+      temperature = configuration.temperatureValue,
+      maxTokens = configuration.maxTokensToGenerate,
+      contextWindow = configuration.contextWindowSize
+    )
+
+    val inputItems: List<Map<String, Any>> = projectHistoryToResponsesInput(messageHistory)
+
+    val requestPayload: MutableMap<String, Any> = mutableMapOf(
+      "model" to configuration.modelName,
+      "input" to inputItems,
+      "store" to false,
+      "stream" to true,
+    )
+    requestPayload.putAll(wireProfile.requestFields(params = generationParams))
+    requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel, capabilities = null))
+
+    toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
+
+    var lastError: Exception? = null
+    var emittedAnyChunk = false
+
+    for (attemptIndex in 0..2) {
+      try {
+        val httpResponse: HttpResponse = httpClient.post(urlString = requestUrl) {
+          contentType(ContentType.Application.Json)
+          setBody(JsonUtil.encodeMap(input = requestPayload))
+
+          configuration.apiKey?.takeIf { it.isNotBlank() }?.let { key ->
+            header("Authorization", "Bearer $key")
+          }
+        }
+
+        if (httpResponse.status.value !in 200..299) {
+          val apiError: LlmApiError = extractApiError(httpResponse)
+          emit(
+            value = LLMResponseChunk.ErrorMessage(
+              description = apiError.message,
+              apiStatusCode = apiError.statusCode
+            )
+          )
+          lastError = null
+          break
+        }
+
+        val streamedChunks: Flow<LLMResponseChunk> =
+          parseResponsesServerSentEvents(httpResponse)
         streamedChunks.collect { chunk ->
           emittedAnyChunk = true
           emit(value = chunk)
@@ -581,6 +828,138 @@ class OpenAICompatibleClient(
 
     if (accumulatedCalls.isNotEmpty()) {
       val finalCalls: List<ToolCallEntry> = buildCompletedCalls(accumulator = accumulatedCalls)
+      emit(value = LLMResponseChunk.ToolCallBatch(toolCalls = finalCalls))
+    }
+
+    if (!streamCompleted) {
+      emit(
+        value = LLMResponseChunk.ErrorMessage(
+          description = "Response interrupted, the model may have run out of memory. Try reducing the context length in your model settings."
+        )
+      )
+    }
+  }
+
+  /**
+   * Parses SSE events from the OpenAI Responses API `/v1/responses` endpoint.
+   *
+   * Event types handled (per OpenAI Responses API spec):
+   * - response.created: initial event, can be ignored
+   * - response.output_text.delta: text content delta
+   * - response.output_text.done: final text (we use deltas only)
+   * - response.reasoning.delta: reasoning content delta
+   * - response.reasoning.done: final reasoning (we use deltas only)
+   * - response.function_call_arguments.delta: function call arguments delta
+   * - response.function_call_arguments.done: final arguments (we accumulate deltas)
+   * - response.completed: final event, can be ignored
+   * - response.failed: error event
+   *
+   * Tool calls are assembled from function_call_arguments.delta events,
+   * keyed by call_id which appears in the first delta event.
+   */
+  private fun parseResponsesServerSentEvents(
+    httpResponse: HttpResponse
+  ): Flow<LLMResponseChunk> = flow {
+    val accumulatedCalls: MutableMap<String, MutableMap<String, Any>> = mutableMapOf()
+    var streamCompleted = false
+
+    val responseChannel: ByteReadChannel = httpResponse.bodyAsChannel()
+
+    while (!responseChannel.isClosedForRead) {
+      val rawLine: String = responseChannel.readUTF8Line() ?: break
+      if (rawLine.isBlank()) continue
+
+      val eventBody: String =
+        if (rawLine.startsWith(prefix = "data:")) {
+          rawLine.removePrefix("data:").trimStart()
+        } else continue
+
+      if (eventBody.trim() == "[DONE]") {
+        streamCompleted = true
+        break
+      }
+
+      val parsedPayload: JsonObject =
+        try {
+          jsonParser.parseToJsonElement(string = eventBody).jsonObject
+        } catch (jsonParseException: Exception) {
+          logger.debug("Skipping malformed SSE event: ${jsonParseException.message}", jsonParseException)
+          continue
+        }
+
+      // Usage appears in response.completed event
+      (parsedPayload["usage"] as? JsonObject)?.let { usageStats ->
+        tokenUsage = recordTokenUsage(
+          usageStats,
+          currentUsage = tokenUsage,
+          promptField = "input_tokens",
+          completionField = "output_tokens"
+        )
+      }
+
+      val eventType: String = parsedPayload["type"]?.jsonPrimitive?.contentOrNull ?: continue
+
+      when (eventType) {
+        "response.output_text.delta" -> {
+          val delta: String = parsedPayload["delta"]?.jsonPrimitive?.contentOrNull ?: ""
+          if (delta.isNotEmpty())
+            emit(value = LLMResponseChunk.TextContent(delta))
+        }
+
+        "response.reasoning.delta" -> {
+          val delta: String = parsedPayload["delta"]?.jsonPrimitive?.contentOrNull ?: ""
+          if (delta.isNotEmpty())
+            emit(value = LLMResponseChunk.ReasoningContent(text = delta))
+        }
+
+        "response.function_call_arguments.delta" -> {
+          val callId: String = parsedPayload["call_id"]?.jsonPrimitive?.contentOrNull ?: continue
+          val delta: String = parsedPayload["delta"]?.jsonPrimitive?.contentOrNull ?: ""
+          val name: String? = parsedPayload["name"]?.jsonPrimitive?.contentOrNull
+
+          val storedEntry: MutableMap<String, Any> = accumulatedCalls.getOrPut(key = callId) {
+            mutableMapOf(
+              "callId" to callId,
+              "functionName" to name.orEmpty(),
+              "argumentsBuffer" to StringBuilder()
+            )
+          }
+          if (name != null && name.isNotBlank()) storedEntry["functionName"] = name
+          if (delta.isNotBlank()) {
+            val argumentsBuffer: StringBuilder = storedEntry["argumentsBuffer"] as? StringBuilder
+              ?: StringBuilder().also { storedEntry["argumentsBuffer"] = it }
+            argumentsBuffer.append(delta)
+          }
+        }
+
+        "response.failed" -> {
+          val errorObj: JsonObject = parsedPayload["error"]?.jsonObject ?: JsonObject(emptyMap())
+          val errorMessage: String = errorObj.optString(key = "message")
+          emit(value = LLMResponseChunk.ErrorMessage(description = errorMessage.takeIf { it.isNotBlank() } ?: "Response failed"))
+        }
+      }
+    }
+
+    if (accumulatedCalls.isNotEmpty()) {
+      val finalCalls: List<ToolCallEntry> = accumulatedCalls.values.map { callData ->
+        val argumentsBuffer: StringBuilder = callData["argumentsBuffer"] as? StringBuilder ?: StringBuilder()
+        val argumentsText: String = argumentsBuffer.toString()
+
+        val parsedArguments: Map<String, JsonElement> =
+          if (argumentsText.isBlank()) emptyMap()
+          else try {
+            jsonParser.parseToJsonElement(string = argumentsText).jsonObject.toMap()
+          } catch (jsonParseException: Exception) {
+            logger.debug("Failed to parse tool-call arguments: ${jsonParseException.message}", jsonParseException)
+            emptyMap()
+          }
+
+        ToolCallEntry(
+          functionName = callData["functionName"] as? String ?: "",
+          callIdentifier = callData["callId"] as? String ?: "",
+          functionArguments = parsedArguments,
+        )
+      }.toList()
       emit(value = LLMResponseChunk.ToolCallBatch(toolCalls = finalCalls))
     }
 
