@@ -5,6 +5,8 @@ import io.ktor.client.plugins.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.*
 import org.slf4j.Logger
@@ -36,53 +38,77 @@ private val probeHttpClient: HttpClient = HttpClient {
 // Conservative default: assume unavailable until proven otherwise.
 private val responsesAvailabilityCache: ConcurrentHashMap<String, Boolean> = ConcurrentHashMap()
 
+// Probes currently in flight, so concurrent sessions sharing one server issue
+// a single request instead of racing on a cold cache.
+private val inFlightResponseProbes: ConcurrentHashMap<String, CompletableDeferred<Boolean>> =
+  ConcurrentHashMap()
+
 // Probes whether the `/v1/responses` endpoint is available on the given
 // LM Studio server. Result is cached for the process lifetime.
 //
 // A minimal POST is sent; 404 or 405 means the server is too old and
 // the Responses wire must not be used. Any other error (timeout, connection
 // refused, etc.) is treated as unavailable to avoid blocking the chat flow.
-internal suspend fun probeResponsesAvailability(baseUrl: String): Boolean {
+internal suspend fun probeResponsesAvailability(
+  baseUrl: String,
+  httpClient: HttpClient = probeHttpClient,
+): Boolean {
   val cacheKey = baseUrl.trimEnd('/').removeSuffix(suffix = "/v1")
-  val cached = responsesAvailabilityCache[cacheKey]
-  if (cached != null) return cached
+  responsesAvailabilityCache[cacheKey]?.let { cachedAvailability -> return cachedAvailability }
 
-  val result = try {
-    val responsesUrl = "$cacheKey/v1/responses"
-    val minimalPayload = buildJsonObject {
-      put("model", "probe")
-      putJsonArray("input") {
-        add(buildJsonObject {
-          put("role", "user")
-          put("content", "probe")
-        })
-      }
-      put("store", false)
-    }.toString()
+  val newProbe = CompletableDeferred<Boolean>()
+  inFlightResponseProbes.putIfAbsent(cacheKey, newProbe)?.let { runningProbe ->
+    return runningProbe.await()
+  }
 
-    val response: HttpResponse = probeHttpClient.post(responsesUrl) {
-      contentType(ContentType.Application.Json)
-      setBody(minimalPayload)
-    }
-
-    val available = response.status.value in 200..299
-    if (!available && response.status.value !in setOf(404, 405)) {
-      logger.debug(
-        "Responses probe for {} returned HTTP {}: treating as unavailable",
-        baseUrl, response.status.value
-      )
-    }
-    available
+  val isAvailable: Boolean = try {
+    probeResponsesEndpoint(cacheKey = cacheKey, httpClient = httpClient)
+  } catch (cancellation: CancellationException) {
+    // Release the waiters, but cache nothing: the server was never disproved.
+    inFlightResponseProbes.remove(cacheKey, newProbe)
+    newProbe.complete(false)
+    throw cancellation
   } catch (probeException: Exception) {
     logger.debug(
       "Responses probe for {} failed ({}): treating as unavailable",
-      baseUrl, probeException.message ?: probeException::class.simpleName
+      cacheKey, probeException.message ?: probeException::class.simpleName
     )
     false
   }
 
-  responsesAvailabilityCache[cacheKey] = result
-  return result
+  responsesAvailabilityCache[cacheKey] = isAvailable
+  inFlightResponseProbes.remove(cacheKey, newProbe)
+  newProbe.complete(isAvailable)
+  return isAvailable
+}
+
+// Sends the minimal request and maps the reply to "endpoint supported?".
+private suspend fun probeResponsesEndpoint(cacheKey: String, httpClient: HttpClient): Boolean {
+  val responsesUrl = "$cacheKey/v1/responses"
+  val minimalPayload = buildJsonObject {
+    put("model", "probe")
+    putJsonArray("input") {
+      add(buildJsonObject {
+        put("role", "user")
+        put("content", "probe")
+      })
+    }
+    put("store", false)
+  }.toString()
+
+  val response: HttpResponse = httpClient.post(responsesUrl) {
+    contentType(ContentType.Application.Json)
+    setBody(minimalPayload)
+  }
+
+  val isAvailable = response.status.value in 200..299
+  if (!isAvailable && response.status.value !in setOf(404, 405)) {
+    logger.debug(
+      "Responses probe for {} returned HTTP {}: treating as unavailable",
+      cacheKey, response.status.value
+    )
+  }
+  return isAvailable
 }
 
 /**

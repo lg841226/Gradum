@@ -108,7 +108,7 @@ class ProviderProfileTest {
   }
 
   @Test
-  fun `LmStudioProfile mirrors OpenAI body and never sends a thinking param`() {
+  fun `LmStudioProfile mirrors OpenAI body and maps levels to reasoning effort`() {
     val requestFields: Map<String, Any> = LmStudioProfile.requestFields(sampleParams)
 
     assertEquals(0.7, requestFields["temperature"])
@@ -116,14 +116,20 @@ class ProviderProfileTest {
     assertEquals(1024, requestFields["max_tokens"])
     assertFalse(requestFields.containsKey("keep_alive"))
 
-    // LM Studio ignores reasoning_effort on the OpenAI-compatible surface, so
-    // no level (including OFF) may add a field to the request.
-    for (level in ThinkingLevel.entries) {
-      assertTrue(
-        LmStudioProfile.thinkingFields(level).isEmpty(),
-        "LM Studio must not send a thinking parameter for $level"
-      )
-    }
+    // The Responses wire carries the level as reasoning_effort; OFF omits it.
+    assertTrue(LmStudioProfile.thinkingFields(ThinkingLevel.OFF).isEmpty())
+    assertEquals(
+      "low",
+      LmStudioProfile.thinkingFields(ThinkingLevel.LOW)["reasoning_effort"]
+    )
+    assertEquals(
+      "medium",
+      LmStudioProfile.thinkingFields(ThinkingLevel.MEDIUM)["reasoning_effort"]
+    )
+    assertEquals(
+      "high",
+      LmStudioProfile.thinkingFields(ThinkingLevel.HIGH)["reasoning_effort"]
+    )
 
     // No declared reasoning field: the client falls back across the known
     // key names (`reasoning_content`, then `reasoning`).

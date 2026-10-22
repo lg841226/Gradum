@@ -4,11 +4,14 @@ import io.ktor.client.*
 import io.ktor.client.engine.mock.*
 import io.ktor.http.*
 import io.ktor.utils.io.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Probe/parse tests for [LmStudioModelCatalog] against a mocked HTTP engine.
@@ -158,5 +161,55 @@ class LmStudioModelCatalogTest {
     )
 
     assertTrue(catalog.capabilitiesByModel().isEmpty())
+  }
+
+  private fun responsesProbeClient(
+    status: HttpStatusCode,
+    requestCount: AtomicInteger = AtomicInteger(),
+  ): HttpClient {
+    val engine = MockEngine { request ->
+      requestCount.incrementAndGet()
+      assertEquals("/v1/responses", request.url.encodedPath)
+      respond(
+        content = ByteReadChannel("{}"),
+        status = status,
+        headers = headersOf(name = HttpHeaders.ContentType, value = "application/json"),
+      )
+    }
+    return HttpClient(engine)
+  }
+
+  @Test
+  fun `a 2xx responses probe reports the endpoint as available`() = runBlocking {
+    val available = probeResponsesAvailability(
+      baseUrl = "http://mock-lmstudio-responses-ok:1234/v1",
+      httpClient = responsesProbeClient(status = HttpStatusCode.OK),
+    )
+
+    assertTrue(available)
+  }
+
+  @Test
+  fun `a 404 responses probe reports the endpoint as unavailable`() = runBlocking {
+    val available = probeResponsesAvailability(
+      baseUrl = "http://mock-lmstudio-responses-missing:1234/v1",
+      httpClient = responsesProbeClient(status = HttpStatusCode.NotFound),
+    )
+
+    assertFalse(available)
+  }
+
+  @Test
+  fun `concurrent probes for one server share a single request`() = runBlocking {
+    val requestCount = AtomicInteger()
+    val httpClient = responsesProbeClient(status = HttpStatusCode.OK, requestCount = requestCount)
+    val baseUrl = "http://mock-lmstudio-responses-concurrent:1234/v1"
+
+    val results = (1..8).map {
+      async { probeResponsesAvailability(baseUrl = baseUrl, httpClient = httpClient) }
+    }.awaitAll()
+
+    assertTrue(results.all { isAvailable -> isAvailable })
+    assertEquals(expected = 1, actual = requestCount.get())
   }
 }

@@ -296,9 +296,10 @@ val MiniMaxProfile: ProviderProfile = providerProfile {
 }
 
 /**
- * LM Studio `/v1/responses`. Uses reasoning.effort for LOW/MEDIUM/HIGH and
- * omits reasoning when OFF. Request/response shapes are handled by the
- * Responses wire path in [OpenAICompatibleClient].
+ * LM Studio: prefers the `/v1/responses` wire, where the level is sent as
+ * `reasoning_effort` and omitted at OFF. If the server lacks that endpoint
+ * the client downgrades to `/v1/chat/completions` and sends no thinking
+ * field. Sampler knobs mirror [OpenAiProfile].
  */
 val LmStudioProfile: ProviderProfile = providerProfile {
   wireFormat = WireFormat.RESPONSES
@@ -311,7 +312,10 @@ val LmStudioProfile: ProviderProfile = providerProfile {
       ThinkingLevel.HIGH -> reasoningEffort = "high"
     }
   }
-  body { _ ->
+  body { params ->
+    temperature = params.temperature
+    topP = params.topP
+    maxTokens = params.maxTokens
   }
 }
 

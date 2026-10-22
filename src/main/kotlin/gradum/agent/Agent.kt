@@ -7,8 +7,6 @@ import gradum.ErrorCode
 import gradum.Provider
 import gradum.Version
 import gradum.client.*
-import gradum.client.probeResponsesAvailability
-import gradum.client.recordLmStudioResponsesAvailability
 import gradum.debug.*
 import gradum.mcp.McpToolCatalog
 import gradum.skill.*
@@ -20,11 +18,9 @@ import gradum.utils.ContextManager
 import gradum.utils.JsonUtil
 import gradum.utils.trimmedOutputLines
 import gradum.vcs.SessionSnapshotManager
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
@@ -150,34 +146,11 @@ class Agent(
   private val maxHistoryMessages: Int = gradum.utils.MAX_HISTORY_MESSAGES
 
   init {
-    /**
-     * For LM Studio, probe /v1/responses availability to decide wire format.
-     * If available, use OpenAICompatibleClient (which handles RESPONSES wire).
-     * If not, fall back to chat/completions via same client (A-route behavior).
-     */
-    val lmStudioClient = openAiClient
-    val selectedClient = when (configuration.provider) {
-      Provider.OPENAI -> openAiClient
-      Provider.DEEPSEEK -> openAiClient
-      Provider.MINIMAX -> openAiClient
-      Provider.LMSTUDIO -> {
-        val responsesAvailable = runBlocking {
-          withContext(Dispatchers.IO) {
-            probeResponsesAvailability(configuration.baseUrl)
-          }
-        }
-        // Record result for OpenAICompatibleClient to use at request time
-        recordLmStudioResponsesAvailability(configuration.baseUrl, responsesAvailable)
-        if (responsesAvailable) {
-          logger.info("LM Studio /v1/responses available at {} — using Responses wire", configuration.baseUrl)
-        } else {
-          logger.info("LM Studio /v1/responses unavailable at {} — falling back to chat/completions", configuration.baseUrl)
-        }
-        lmStudioClient
+    activeClient =
+      when (configuration.provider) {
+        Provider.OLLAMA -> ollamaClient
+        else -> openAiClient
       }
-      Provider.OLLAMA -> ollamaClient
-    }
-    activeClient = selectedClient
   }
 
   internal constructor(

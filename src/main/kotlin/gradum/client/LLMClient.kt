@@ -35,25 +35,6 @@ private val sharedHttpClient: HttpClient = HttpClient {
   }
 }
 
-// Cache for LM Studio /v1/responses availability per baseUrl.
-// Populated by Agent on startup; read by OpenAICompatibleClient to decide
-// wire format at request time. Conservative default: assume unavailable.
-private val lmStudioResponsesCache: MutableMap<String, Boolean> = mutableMapOf()
-
-// Records the LM Studio responses probe result for a given baseUrl.
-// Called by Agent during initialization.
-internal fun recordLmStudioResponsesAvailability(baseUrl: String, available: Boolean) {
-  val cacheKey = baseUrl.trimEnd('/').removeSuffix(suffix = "/v1")
-  lmStudioResponsesCache[cacheKey] = available
-}
-
-// Checks if LM Studio /v1/responses is available for a given baseUrl.
-// Returns false if unknown (conservative default).
-private fun isLmStudioResponsesAvailable(baseUrl: String): Boolean {
-  val cacheKey = baseUrl.trimEnd('/').removeSuffix(suffix = "/v1")
-  return lmStudioResponsesCache[cacheKey] ?: false
-}
-
 private fun JsonObject.optString(key: String): String =
   this[key]?.jsonPrimitive?.contentOrNull ?: ""
 
@@ -195,11 +176,13 @@ private fun projectHistoryToResponsesInput(
           listOf(mapOf("type" to "text", "text" to content.toString()))
         }
         if (contentList.isNotEmpty()) {
-          inputItems.add(mapOf(
-            "type" to "message",
-            "role" to role,
-            "content" to contentList
-          ))
+          inputItems.add(
+            mapOf(
+              "type" to "message",
+              "role" to role,
+              "content" to contentList
+            )
+          )
         }
       }
 
@@ -214,11 +197,13 @@ private fun projectHistoryToResponsesInput(
           emptyList()
         }
         if (contentList.isNotEmpty()) {
-          inputItems.add(mapOf(
-            "type" to "message",
-            "role" to "assistant",
-            "content" to contentList
-          ))
+          inputItems.add(
+            mapOf(
+              "type" to "message",
+              "role" to "assistant",
+              "content" to contentList
+            )
+          )
         }
 
         // Project tool_calls as function_call items
@@ -228,12 +213,14 @@ private fun projectHistoryToResponsesInput(
           val function = tc["function"] as? Map<String, Any> ?: return@forEach
           val name = function["name"] as? String ?: return@forEach
           val arguments = function["arguments"] as? String ?: "{}"
-          inputItems.add(mapOf(
-            "type" to "function_call",
-            "call_id" to id,
-            "name" to name,
-            "arguments" to arguments
-          ))
+          inputItems.add(
+            mapOf(
+              "type" to "function_call",
+              "call_id" to id,
+              "name" to name,
+              "arguments" to arguments
+            )
+          )
         }
       }
 
@@ -241,11 +228,13 @@ private fun projectHistoryToResponsesInput(
         val toolCallId = sanitized["tool_call_id"] as? String ?: continue
         val content = sanitized["content"]
         val output = if (content is String) content else content.toString()
-        inputItems.add(mapOf(
-          "type" to "function_call_output",
-          "call_id" to toolCallId,
-          "output" to output
-        ))
+        inputItems.add(
+          mapOf(
+            "type" to "function_call_output",
+            "call_id" to toolCallId,
+            "output" to output
+          )
+        )
       }
     }
   }
@@ -503,10 +492,27 @@ class OllamaClient(
 class OpenAICompatibleClient(
   private val configuration: AgentConfiguration,
   private val httpClient: HttpClient = sharedHttpClient,
+  // Seam for tests: reports whether the server exposes /v1/responses.
+  // Production uses the process-wide cached probe.
+  private val responsesEndpointProbe: suspend (String) -> Boolean = ::probeResponsesAvailability,
 ) : LlmClient {
 
   override var tokenUsage: TokenUsageSnapshot = TokenUsageSnapshot()
     private set
+
+  // Picks the wire format for one request. A profile that declares RESPONSES
+  // keeps it only when the server proves /v1/responses support; an LM Studio
+  // build without the endpoint stays on chat/completions.
+  private suspend fun resolveWireFormat(wireProfile: ProviderProfile): WireFormat {
+    if (wireProfile.wireFormat != WireFormat.RESPONSES) return wireProfile.wireFormat
+    if (configuration.provider != Provider.LMSTUDIO) return wireProfile.wireFormat
+    if (responsesEndpointProbe(configuration.baseUrl)) return WireFormat.RESPONSES
+    logger.info(
+      "LM Studio /v1/responses unavailable for {} — falling back to chat/completions",
+      configuration.baseUrl
+    )
+    return WireFormat.CHAT_COMPLETIONS
+  }
 
   override fun sendChat(
     messageHistory: List<Map<String, Any>>, toolDefinitions: List<Map<String, Any>>?
@@ -514,22 +520,11 @@ class OpenAICompatibleClient(
 
     val wireProfile: ProviderProfile = profileFor(configuration.provider)
 
-    // Dispatch based on wire format
-    val effectiveWireFormat = when {
-      wireProfile.wireFormat == WireFormat.RESPONSES
-          && configuration.provider == Provider.LMSTUDIO
-          && !isLmStudioResponsesAvailable(configuration.baseUrl) -> {
-        // LM Studio Responses wire not available: fall back to chat/completions
-        logger.info("LM Studio /v1/responses unavailable for {} — falling back to chat/completions", configuration.baseUrl)
-        WireFormat.CHAT_COMPLETIONS
-      }
-      else -> wireProfile.wireFormat
-    }
-
-    when (effectiveWireFormat) {
+    when (resolveWireFormat(wireProfile)) {
       WireFormat.CHAT_COMPLETIONS -> {
         sendChatCompletions(messageHistory, toolDefinitions, wireProfile).collect { emit(it) }
       }
+
       WireFormat.RESPONSES -> {
         sendResponses(messageHistory, toolDefinitions, wireProfile).collect { emit(it) }
       }
@@ -569,7 +564,10 @@ class OpenAICompatibleClient(
       "stream_options" to mapOf("include_usage" to true),
     )
     requestPayload.putAll(wireProfile.requestFields(params = generationParams))
-    requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel, capabilities = null))
+
+    if (wireProfile.wireFormat == WireFormat.CHAT_COMPLETIONS) {
+      requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel, capabilities = null))
+    }
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
 
