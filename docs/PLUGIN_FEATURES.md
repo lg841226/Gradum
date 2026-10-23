@@ -745,9 +745,17 @@ Returns a JSON object of the shape:
 }
 ```
 
-For Ollama entries the server probes each model's `/api/show` capabilities and fills in `reasoning` (model can think), `reasoningLevels` (model accepts graded `low`/`medium`/`high` depth, currently gpt-oss only), `toolCall`, `attachment` (vision), `contextLimit`, and `parameterSizeB`. LM Studio entries are enriched in the same pass from `GET /api/v1/models`: `reasoning` (non-empty `capabilities.reasoning.allowed_options`), `toolCall` (`trained_for_tool_use`), and `attachment` (`vision`); `reasoningLevels` stays false because LM Studio ignores `reasoning_effort` on the OpenAI-compatible surface. Other entries keep their discovery-time defaults. `reasoning` / `reasoningLevels` drive the plugin's thinking-level selector (hidden when the model cannot think, grayed when it thinks on a binary switch only).
+For Ollama entries the server probes each model's `/api/show` capabilities and fills in `reasoning` (model can think),
+`reasoningLevels` (model accepts graded `low`/`medium`/`high` depth, currently gpt-oss only), `toolCall`, `attachment`
+(vision), `contextLimit`, and `parameterSizeB`. LM Studio entries are enriched in the same pass from
+`GET /api/v1/models`: `reasoning` (non-empty `capabilities.reasoning.allowed_options`), `toolCall`
+(`trained_for_tool_use`), and `attachment` (`vision`); `reasoningLevels` stays false because LM Studio ignores
+`reasoning_effort` on the OpenAI-compatible surface. Other entries keep their discovery-time defaults. `reasoning` /
+`reasoningLevels` drive the plugin's thinking-level selector (hidden when the model cannot think, grayed when it thinks
+on a binary switch only).
 
-The response is decoded with `Json { ignoreUnknownKeys = true }`, so fields added by newer server builds decode cleanly. `unavailableReason` is server-only today (the plugin model does not read it).
+The response is decoded with `Json { ignoreUnknownKeys = true }`, so fields added by newer server builds decode cleanly.
+`unavailableReason` is server-only today (the plugin model does not read it).
 
 ### 12.2 `POST /events` (NDJSON stream)
 
@@ -811,25 +819,28 @@ Source: [`GradumApiClient.kt`](../plugin/src/main/kotlin/gradum/idea/chat/api/Gr
 ## 13. i18n
 
 Every user-visible string in the plugin is loaded through `GradumBundle`, which extends IntelliJ's `DynamicBundle`. The
-bundle ships two locales:
+bundle ships three locales:
 
 - **`en`**: `messages/GradumBundle.properties` (default).
 - **`zh_CN`**: `messages/GradumBundle_zh_CN.properties`.
+- **`zh_TW`**: `messages/GradumBundle_zh_TW.properties` (Traditional Chinese).
 
-Both files are kept in lockstep: a key that exists in
-one must exist in the other, and the bundle is hardened with two safety nets:
+All files are kept in lockstep: a key that exists in
+one must exist in the others, and the bundle is hardened with two safety nets:
 
 1. **Startup probe**: the `init` block of `GradumBundle` looks up a sentinel key (e.g. `gradum.toolwindow.welcome`) to
    confirm the active locale's resource is on the classpath.
 2. **Per-key fallback**: `GradumBundle.message(key, ...)` catches
    `MissingResourceException` and returns `???<key>???` so a missing key is obvious in the UI without breaking layout.
 
-The Chinese copy is not a direct translation; it is curated for cultural relevance (Chinese proverbs, regional phrasing)
+The Chinese copies are not direct translations; they are curated for cultural relevance (Chinese proverbs, regional
+phrasing)
 and the English copy is deliberately terse and tech-flavored.
 
 Source: [`GradumBundle.kt`](../plugin/src/main/kotlin/gradum/idea/utils/GradumBundle.kt),
 [`GradumBundle.properties`](../plugin/src/main/resources/messages/GradumBundle.properties),
-[`GradumBundle_zh_CN.properties`](../plugin/src/main/resources/messages/GradumBundle_zh_CN.properties).
+[`GradumBundle_zh_CN.properties`](../plugin/src/main/resources/messages/GradumBundle_zh_CN.properties),
+[`GradumBundle_zh_TW.properties`](../plugin/src/main/resources/messages/GradumBundle_zh_TW.properties).
 
 ---
 
@@ -1048,7 +1059,7 @@ factors: recency, anti-AI, deletion-health, scale, and hero dependency.
 ### 19.8 i18n for the audit feature
 
 All strings live under the `gradum.toolwindow.git.analysis.*` and
-`gradum.audit.*` key families in `GradumBundle` (en + zh_CN): scan title, progress
+`gradum.audit.*` key families in `GradumBundle` (en + zh_CN + zh_TW): scan title, progress
 (`Scanning commits {0} / {1} completed`), action tooltips, severity labels, relative-time strings (`just now`,
 `N minutes/hours/days ago`), the banner text + band labels + dismiss/close, `N Problem(s)` pluralization, the load-more
 row, the four audit group labels, and one template per S-code.
@@ -1227,7 +1238,8 @@ Sources: [`ManageSessionsBoard.kt`](../plugin/src/main/kotlin/gradum/idea/chat/u
 [`WelcomeScreen.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/home/WelcomeScreen.kt),
 [`GradumUI.kt`](../plugin/src/main/kotlin/gradum/idea/ui/GradumUI.kt),
 [`GradumBundle.properties`](../plugin/src/main/resources/messages/GradumBundle.properties),
-[`GradumBundle_zh_CN.properties`](../plugin/src/main/resources/messages/GradumBundle_zh_CN.properties).
+[`GradumBundle_zh_CN.properties`](../plugin/src/main/resources/messages/GradumBundle_zh_CN.properties),
+[`GradumBundle_zh_TW.properties`](../plugin/src/main/resources/messages/GradumBundle_zh_TW.properties).
 
 ### 20.6 Per-message delete / rewind
 

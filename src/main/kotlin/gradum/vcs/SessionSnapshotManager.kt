@@ -21,7 +21,7 @@ private class GitCommandFailure(gitMessage: String) : Exception(gitMessage)
 /**
  * Per-session worktree snapshots built on git plumbing commands.
  *
- * Snapshots live in a dedicated git repository outside the project
+ * Snapshots live in a dedicated git repository **outside** the project
  * (`~/.gradum/snapshots/<project>-<hash>`), driven with
  * `--git-dir`/`--work-tree` on every invocation — mirroring OpenCode's
  * design. The user's repository is never touched: no `git init`, no refs,
@@ -47,7 +47,7 @@ private class GitCommandFailure(gitMessage: String) : Exception(gitMessage)
  */
 object SessionSnapshotManager {
 
-  // Runtime state excluded from snapshots so reverts never touch it.
+  /** Runtime state excluded from snapshots so reverts never touch it. */
   private val SNAPSHOT_ADD_PATHSPECS: Array<out String> =
     arrayOf("add", "-A", "--", ".", ":(exclude).gradum")
 
@@ -152,7 +152,7 @@ object SessionSnapshotManager {
     }
   }
 
-  // Shared reverse-patch replay behind [revertSnapshot] and [revertTurnSnapshot].
+  /** Shared reverse-patch replay behind [revertSnapshot] and [revertTurnSnapshot]. */
   private fun revertToRef(
     projectRoot: String, snapshotGitDirectory: Path, snapshotRef: String, snapshotLabel: String
   ) {
@@ -183,9 +183,11 @@ object SessionSnapshotManager {
     }
   }
 
-  // `~/.gradum/snapshots/<projectDirName>-<pathHash>`: the readable project
-  // name plus a hash of the absolute path, so same-named projects in
-  // different locations never share a store.
+  /**
+   * `~/.gradum/snapshots/<projectDirName>-<pathHash>`: the readable project
+   * name plus a hash of the absolute path, so same-named projects in
+   * different locations never share a store.
+   */
   private fun snapshotStoreDirectory(projectRoot: String): Path {
     val absoluteRoot: Path = Path.of(projectRoot).toAbsolutePath().normalize()
     val pathHash: String = MessageDigest.getInstance("SHA-256")
@@ -196,7 +198,7 @@ object SessionSnapshotManager {
       .resolve("${absoluteRoot.fileName}-$pathHash")
   }
 
-  // Creates the snapshot repository once; a plain `git init` with directed env.
+  /** Creates the snapshot repository once; a plain `git init` with directed env. */
   private fun ensureSnapshotRepository(projectRoot: String, snapshotGitDirectory: Path) {
     if (Files.exists(snapshotGitDirectory)) return
     Files.createDirectories(snapshotGitDirectory)
@@ -208,7 +210,7 @@ object SessionSnapshotManager {
     logger.info("initialized snapshot store at '{}'", snapshotGitDirectory)
   }
 
-  // Best-effort garbage collection; unreachable snapshot objects linger otherwise.
+  /** Best-effort garbage collection; unreachable snapshot objects linger otherwise. */
   private fun pruneSnapshotStore(projectRoot: String, snapshotGitDirectory: Path) {
     try {
       runGitCommand(projectRoot, snapshotGitDirectory, emptyMap(), "gc", "--prune=14.days")
@@ -221,7 +223,7 @@ object SessionSnapshotManager {
 
   private fun turnRefName(sessionId: String, messageId: String): String = "$TURN_REF_PREFIX/$sessionId/$messageId"
 
-  // Drops every turn ref of [sessionId]; called when the session itself is deleted.
+  /** Drops every turn ref of [sessionId]; called when the session itself is deleted. */
   private fun dropTurnRefs(projectRoot: String, snapshotGitDirectory: Path, sessionId: String) {
     val turnRefList: String = runGitCommand(
       projectRoot, snapshotGitDirectory, emptyMap(), "for-each-ref", "--format=%(refname)", "$TURN_REF_PREFIX/$sessionId/"
@@ -232,10 +234,12 @@ object SessionSnapshotManager {
     pruneSnapshotStore(projectRoot, snapshotGitDirectory)
   }
 
-  // Environment pointing `GIT_INDEX_FILE` at a fresh, non-existent temp path so
-  // git builds a private index without touching any existing one. The temp file
-  // is removed right away: git rejects a pre-existing zero-byte index with
-  // "index file smaller than expected", so it must be allowed to create one.
+  /**
+   * Environment pointing `GIT_INDEX_FILE` at a fresh, non-existent temp path so
+   * git builds a private index without touching any existing one. The temp file
+   * is removed right away: git rejects a pre-existing zero-byte index with
+   * "index file smaller than expected", so it must be allowed to create one.
+   */
   private fun freshTempIndexEnvironment(): Map<String, String> {
     val tempIndexFile: Path = Files.createTempFile("gradum-index", ".idx")
     tempIndexFile.toFile().deleteOnExit()
@@ -243,7 +247,7 @@ object SessionSnapshotManager {
     return mapOf("GIT_INDEX_FILE" to tempIndexFile.toString())
   }
 
-  // Author/committer identity so commit-tree works without user-level git config.
+  /** Author/committer identity so commit-tree works without user-level git config. */
   private fun authorEnvironment(): Map<String, String> = mapOf(
     "GIT_AUTHOR_NAME" to "Gradum",
     "GIT_COMMITTER_NAME" to "Gradum",
