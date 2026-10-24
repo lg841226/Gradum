@@ -84,11 +84,6 @@ object SkillRegistry : SkillStore {
       .map { skill: Skill -> annotateToolAvailability(skill.getSchema(schemaContext), skill) }
   }
 
-  // Appends an explicit [Skill.allowedToolModes] note to a skill's
-  // function description so readers never mistake a skill for being
-  // globally available. Display-only: the runtime gate stays in
-  // [Skill.allows] and the [filter] above; this only annotates what the
-  // LLM and humans see.
   private fun annotateToolAvailability(schema: Map<String, Any>, skillInstance: Skill): Map<String, Any> {
     @Suppress("UNCHECKED_CAST")
     val functionBlock: Map<String, Any> = schema["function"] as? Map<String, Any> ?: return schema

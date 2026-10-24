@@ -103,21 +103,8 @@ abstract class Skill {
     }
   }
 
-  // Single source of truth for this skill's parameters, declared with the
-  // [SchemaBuilder] DSL (`string`, `integer`, `boolean`, `stringArray`,
-  // `objectArray`, and the `cloudOnly` / `simpleOnly` scopes). One declaration
-  // is rendered into both the simple and cloud schemas.
   protected abstract val schemaProperties: SchemaBuilder.() -> Unit
-
-  // Optional shorter description used for simple (local) model schemas. When
-  // `null`, [description] is reused for both model tiers.
   protected open val simpleDescription: String? = null
-
-  // Builds the standard OpenAI function-schema envelope
-  // (`{"type":"function","function":{...}}`) around this skill's
-  // [skillName]. Single source of truth for the wrapper shape: every
-  // skill schema is composed through this helper instead of hand-rolling
-  // the `mapOf` envelope.
   protected fun buildFunctionSchema(
     description: String, properties: Map<String, Any>, required: List<String>
   ): Map<String, Any> = mapOf(
@@ -133,12 +120,6 @@ abstract class Skill {
     ),
   )
 
-  // Builds the schema envelope from a [SchemaBuilder] DSL block instead of
-  // raw `mapOf` property maps. The [properties] argument describes the
-  // parameter object's fields with `string` / `integer` / ... helpers.
-  //
-  // When [useSimple] is true, parameters marked [ParameterLevel.CLOUD_ONLY]
-  // are dropped and required is derived from the remaining parameters.
   protected fun buildFunctionSchema(
     useSimple: Boolean, description: String, properties: SchemaBuilder.() -> Unit
   ): Map<String, Any> {

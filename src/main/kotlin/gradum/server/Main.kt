@@ -35,10 +35,6 @@ fun main(arguments: Array<String>) {
   }
 }
 
-// Shared startup block: loads settings, initializes MCP manager, scans
-// external skills, starts the directory watcher, and resolves the API key.
-// HTTP and ACP entry points both call this so the long-lived runtime
-// components are constructed exactly once per process.
 private fun initRuntime(): GradumRuntime {
   ServerSettingsStore.releaseDefaultsIfMissing()
   val settings: ServerSettings = ServerSettingsStore.load()
@@ -263,11 +259,11 @@ private fun printUsage() {
 
 private fun printStartupBanner(hostAddress: String, portNumber: Int, mcpToolCount: Int, skillCount: Int) {
   val colored: Boolean = supportsAnsiColor()
-  val leftWidth: Int = 37
-  val rightWidth: Int = 46
+  val leftWidth = 37
+  val rightWidth = 46
   val innerWidth: Int = leftWidth + 1 + rightWidth
 
-  val urlRow: String = "Serving on http://$hostAddress:$portNumber"
+  val urlRow = "Serving on http://$hostAddress:$portNumber"
   val workDirRow: String = abbreviatePath(System.getProperty("user.dir") ?: "?")
 
   val leftRows: List<String> = buildList {
@@ -310,7 +306,7 @@ private fun printStartupBanner(hostAddress: String, portNumber: Int, mcpToolCoun
 }
 
 private fun centerText(text: String, width: Int): String {
-  val clipped: String = if (text.length > width) text.take(width - 1) + "…" else text
+  val clipped: String = if (text.length > width) text.take(width - 1) + "..." else text
   val padLeft: Int = (width - clipped.length) / 2
   return " ".repeat(padLeft) + clipped + " ".repeat(width - clipped.length - padLeft)
 }
@@ -321,7 +317,7 @@ private fun emphasize(text: String, colored: Boolean, style: String): String =
   if (colored) ANSI_BOLD + style + text + ANSI_RESET else text
 
 private fun dim(text: String, colored: Boolean): String =
-  if (colored) "\u001B[90m" + text + ANSI_RESET else text
+  if (colored) "\u001B[90m$text$ANSI_RESET" else text
 
 private fun paintGradientRow(text: String, colored: Boolean): String {
   if (!colored) return text

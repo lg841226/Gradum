@@ -327,10 +327,6 @@ class Agent(
     sessionManager.abort(reason, tokenUsage)
   }
 
-  // Builds the tool list for the current LLM turn: the globally registered
-  // skills (including the `mcp_tools` directory skill) plus the full schemas of
-  // any MCP tools this session has materialized. Rebuilt every turn so tools
-  // materialized mid-conversation appear in the model's tool list immediately.
   private fun buildToolSchemas(): List<Map<String, Any>> {
     val base: List<Map<String, Any>> = SkillRegistry.getSchemas(
       toolMode = configuration.toolMode,

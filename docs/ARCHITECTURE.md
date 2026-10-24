@@ -6,7 +6,7 @@
 
 | Field              | Value                                                                              |
 |--------------------|------------------------------------------------------------------------------------|
-| **Version**        | Server 1.0.2 / Plugin 1.0.3                                                        |
+| **Version**        | Server 1.0.2 / Plugin 1.0.4                                                        |
 | **Status**         | Active Development                                                                 |
 | **Language**       | Kotlin 2.3.0 (JVM 21; plugin JVM 25)                                               |
 | **HTTP Framework** | Ktor 3.0.3 and Netty                                                               |

@@ -315,7 +315,10 @@ object SessionHistoryReader {
     return when (val content: Any? = message["content"]) {
       is String -> content
       is List<*> -> content.filterIsInstance<Map<*, *>>()
-        .firstOrNull { it["type"] == "text" }?.get("text") as? String ?: ""
+        .filter { it["type"] == "text" }
+        .mapNotNull { it["text"] as? String }
+        .filter { it.isNotEmpty() }
+        .joinToString(separator = "\n\n")
 
       else -> ""
     }

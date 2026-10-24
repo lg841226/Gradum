@@ -20,7 +20,7 @@ header names a loopback address and that carry the per-machine bearer token. The
 machine's addresses on the local network, still only requests carrying the token. The runtime generates that token
 on first start and stores it at `~/.gradum/server.token` with owner-only permissions (`0600`);
 it can be overridden with the `GRADUM_SERVER_TOKEN` environment variable. Without a token, a request can only
-read the skill editor in read-only viewer mode; editing unlocks either with the token or: from another device:
+read the skill editor in read only viewer mode; editing unlocks either with the token or: from another device:
 with a five-character pairing code that the server prints to the host's console at startup and regenerates on every
 restart. Only the `/health` liveness route and the pairing-code exchange itself are reachable without a token.
 

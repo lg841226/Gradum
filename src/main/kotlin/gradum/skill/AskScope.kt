@@ -44,7 +44,7 @@ class AskScope(
   private val emitEvent: ((eventType: String, eventData: Map<String, Any>) -> Unit)?,
 ) {
   fun askInteraction(builder: AskBuilder.() -> Unit): AskResult {
-    val request = AskBuilder().apply(builder)
+    val request = AskBuilder().apply(block = builder)
     request.validate()
 
     val requestId: String = UUID.randomUUID().toString()
@@ -57,7 +57,7 @@ class AskScope(
       is AskResult.Case ->
         AskResult.Case(
           id = result.id,
-          meaning = request.meaningFor(result.id) ?: Choice.Meaning.REJECT
+          meaning = request.meaningFor(choice = result.id) ?: Choice.Meaning.REJECT
         )
 
       else -> result

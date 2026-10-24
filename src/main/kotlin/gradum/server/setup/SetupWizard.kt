@@ -19,7 +19,6 @@ private const val ANSI_GREEN: String = "$ESC[38;2;74;222;128m"
 private const val GLYPH_POINTER: String = "\u25B8"
 private const val GLYPH_DONE: String = "\u2713"
 private const val GLYPH_MASK: String = "\u2022"
-private const val GLYPH_DOT: String = "\u00B7"
 private const val GLYPH_RULE: Char = '\u2500'
 private const val GLYPH_ACTIVE: String = "*"
 private const val ARROW_LEFT: String = "\u2190"
@@ -47,7 +46,6 @@ private const val EMPTY_GLYPH: String = " "
 private const val ROW_INDENT: String = "   "
 private const val LABEL_JOIN: String = " : "
 private const val NOT_SET_TEXT: String = "(not set)"
-private const val DOT_JOIN: String = "  $GLYPH_DOT  "
 private const val AUTO_MODEL_TEXT: String = "auto (first available)"
 private const val ACTIVE_SUFFIX: String = "  $GLYPH_ACTIVE"
 private const val HINT_LOCAL_SKIP: String = "  (blank to skip for local)"
@@ -376,10 +374,6 @@ private fun buildFrame(state: WizardState, colored: Boolean): String {
   val frameLines: MutableList<String> = mutableListOf()
   frameLines += ""
   renderGradientBanner(BANNER_ART, colored).split("\n").forEach { frameLines += it }
-  frameLines += ""
-  frameLines += INDENT + paint("Gradum", gradientColor(0f), colored) +
-    paint(DOT_JOIN + "setup", ANSI_MUTED, colored)
-  frameLines += INDENT + headerDivider(colored)
   frameLines += ""
   frameLines += stepTabLine(state, colored)
   frameLines += ""
