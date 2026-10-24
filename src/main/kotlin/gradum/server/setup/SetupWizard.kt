@@ -526,14 +526,3 @@ private fun labelColumn(label: String, focused: Boolean, colored: Boolean): Stri
 private fun paint(text: String, ansi: String, colored: Boolean): String =
   if (colored) ansi + text + ANSI_RESET
   else text
-
-private fun headerDivider(colored: Boolean): String {
-  if (!colored) return "-".repeat(RULE_WIDTH)
-
-  return buildString {
-    for (column in 0 until RULE_WIDTH) {
-      append(gradientColor(column.toFloat() / (RULE_WIDTH - 1))).append(GLYPH_RULE)
-    }
-    append(ANSI_RESET)
-  }
-}
