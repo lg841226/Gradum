@@ -7,7 +7,6 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.ui.content.Content
-import gradum.idea.GradumChatContent
 import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.createChatComposePanel
 import javax.swing.JComponent

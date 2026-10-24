@@ -24,9 +24,6 @@ private const val MAX_OUTPUT_CHARS: Int = GradumConfig.COMMAND_MAX_OUTPUT_CHARS
 // Grace period after SIGTERM before SIGKILL (shared with RunCommandSkill)
 private const val FORCE_KILL_DELAY_MS: Long = GradumConfig.COMMAND_FORCE_KILL_DELAY_MS
 
-// Retention window for completed jobs per session before pruning
-private const val COMPLETED_JOB_RETENTION_COUNT: Int = 20
-
 /** Status of a [BackgroundJob]. State machine is one-way: RUNNING -> terminal. */
 enum class JobStatus {
   RUNNING,
@@ -341,7 +338,6 @@ class BackgroundTaskManager(
     )
   }
 
-  /** Returns all non-cancelled jobs for [sessionId]: running and recent terminal */
   fun listForSession(sessionId: String): List<BackgroundJob> {
     val taskIds: List<String> = taskIdsBySession[sessionId]?.toList() ?: return emptyList()
     return taskIds.mapNotNull { jobsByTaskId[it]?.toSnapshot() }

@@ -167,14 +167,20 @@ private fun projectHistoryToResponsesInput(
 
     when (role) {
       "system", "user" -> {
-        val content = sanitized["content"]
-        val contentList: List<Map<String, Any>> = if (content is List<*>) {
-          content.filterIsInstance<Map<String, Any>>()
-        } else if (content is String) {
-          listOf(mapOf("type" to "text", "text" to content))
-        } else {
-          listOf(mapOf("type" to "text", "text" to content.toString()))
-        }
+        val contentList: List<Map<String, Any>> =
+          when (val content = sanitized["content"]) {
+            is List<*> -> {
+              content.filterIsInstance<Map<String, Any>>()
+            }
+
+            is String -> {
+              listOf(mapOf("type" to "text", "text" to content))
+            }
+
+            else -> {
+              listOf(mapOf("type" to "text", "text" to content.toString()))
+            }
+          }
         if (contentList.isNotEmpty()) {
           inputItems.add(
             mapOf(
@@ -227,7 +233,7 @@ private fun projectHistoryToResponsesInput(
       "tool" -> {
         val toolCallId = sanitized["tool_call_id"] as? String ?: continue
         val content = sanitized["content"]
-        val output = if (content is String) content else content.toString()
+        val output = content as? String ?: content.toString()
         inputItems.add(
           mapOf(
             "type" to "function_call_output",
@@ -642,11 +648,9 @@ class OpenAICompatibleClient(
   ): Flow<LLMResponseChunk> = flow {
 
     val base = configuration.baseUrl.trimEnd('/')
-    val requestUrl = if (base.endsWith(suffix = "/v1")) {
-      base + "/responses"
-    } else {
-      "$base/v1/responses"
-    }
+    val requestUrl =
+      if (base.endsWith(suffix = "/v1")) "$base/responses"
+      else "$base/v1/responses"
     val thinkingLevel: ThinkingLevel = effectiveThinkingLevel(configuration)
     val generationParams = GenerationParams(
       topP = configuration.topPValue,
@@ -898,7 +902,7 @@ class OpenAICompatibleClient(
               "argumentsBuffer" to StringBuilder()
             )
           }
-          if (name != null && name.isNotBlank()) storedEntry["functionName"] = name
+          if (!name.isNullOrBlank()) storedEntry["functionName"] = name
           if (delta.isNotBlank()) {
             val argumentsBuffer: StringBuilder = storedEntry["argumentsBuffer"] as? StringBuilder
               ?: StringBuilder().also { storedEntry["argumentsBuffer"] = it }

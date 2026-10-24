@@ -1,5 +1,6 @@
 package gradum.idea.chat.state
 
+import gradum.idea.chat.api.AttachmentRenderer
 import gradum.idea.chat.api.GradumApiClient
 import gradum.idea.chat.model.ChatErrorCode
 import gradum.idea.chat.model.ModelInfo
@@ -119,17 +120,39 @@ internal suspend fun GradumChatSession.sendMessage(
         }
 
     val fileApiAttachments: List<GradumApiClient.ApiFileAttachment> =
-      (attachments.filterIsInstance<AttachedFile>() + attachments.filterIsInstance<AttachedSymbol>())
+      (attachments.filterIsInstance<AttachedFile>() + attachments.filterIsInstance<AttachedSymbol>() + attachments.filterIsInstance<AttachedFileErrors>())
         .map { attachment ->
           when (attachment) {
-            is AttachedSymbol -> GradumApiClient.ApiFileAttachment(
-              path = attachment.file.path,
-              startLine = attachment.lineRange.first,
-              endLine = attachment.lineRange.last,
-              symbolName = attachment.symbolName
-            )
+            is AttachedSymbol ->
+              GradumApiClient.ApiFileAttachment(
+                path = attachment.file.path,
+                symbolName = attachment.symbolName,
+                endLine = attachment.lineRange.last,
+                startLine = attachment.lineRange.first,
+                attachmentText = AttachmentRenderer.renderFileTag(
+                  path = attachment.file.path,
+                  symbolName = attachment.symbolName,
+                  endLine = attachment.lineRange.last,
+                  startLine = attachment.lineRange.first
+                )
+              )
 
-            is AttachedFile -> GradumApiClient.ApiFileAttachment(path = attachment.file.path)
+            is AttachedFile ->
+              GradumApiClient.ApiFileAttachment(
+                path = attachment.file.path,
+                attachmentText = AttachmentRenderer.renderFileTag(path = attachment.file.path)
+              )
+
+            is AttachedFileErrors ->
+              GradumApiClient.ApiFileAttachment(
+                path = attachment.file.path,
+                errorCount = attachment.errors.size,
+                attachmentText = AttachmentRenderer.renderFileTag(
+                  path = attachment.file.path,
+                  errorSummary = AttachmentRenderer.renderErrorSummary(errors = attachment.errors)
+                )
+              )
+
             else -> throw IllegalArgumentException("Unexpected attachment type: ${attachment.javaClass.simpleName}")
           }
         }

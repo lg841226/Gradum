@@ -21,6 +21,7 @@ import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.model.ThinkingLevel
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.editor.AttachedContext
+import gradum.idea.editor.AttachedFileErrors
 import gradum.idea.editor.AttachedSymbol
 import gradum.idea.editor.PendingMessage
 import gradum.idea.provider.ProviderCoordinator
@@ -104,7 +105,7 @@ class GradumChatSession : Disposable {
   private var sendRequested: Boolean = false
 
   /**
-   * Registers the UI send callback, replaying a send that arrived while the
+   * Registers the UI send callback, replaying send that arrived while the
    * chat was still being composed (for example a cold tool window opening).
    */
   fun registerSendHandler(handler: () -> Unit) {
@@ -143,6 +144,33 @@ class GradumChatSession : Disposable {
 
     val handler: (() -> Unit)? = sendHandler
     if (handler != null) handler() else sendRequested = true
+  }
+
+  /**
+   * Attaches file errors from the Problems tool window to the chat.
+   *
+   * Merges errors by (line, message) for files that already have an [AttachedFileErrors] entry.
+   * New file entries are subject to [MAX_ATTACHMENTS] limit.
+   * Does not trigger send; the caller decides when to send.
+   *
+   * @return number of new file entries actually added (maybe less than size if limit reached)
+   */
+  fun attachFileErrors(entries: List<AttachedFileErrors>): Int {
+    var addedCount = 0
+    for (entry in entries) {
+      val existingIndex = attachedFiles.indexOfFirst {
+        it is AttachedFileErrors && it.file.path == entry.file.path
+      }
+      if (existingIndex >= 0) {
+        val existing = attachedFiles[existingIndex] as AttachedFileErrors
+        val merged = (existing.errors + entry.errors).distinctBy { it.line to it.message }
+        attachedFiles[existingIndex] = AttachedFileErrors(existing.file, merged.toList())
+      } else if (attachedFiles.size < MAX_ATTACHMENTS) {
+        attachedFiles.add(entry)
+        addedCount++
+      }
+    }
+    return addedCount
   }
 
   /**
@@ -403,12 +431,9 @@ class GradumChatSession : Disposable {
     val messageId: String = messages[userMessageIndex].messageId
 
     scope?.launch {
-      // The server owns the history, so the bubble goes only once the rewind
-      // is accepted; a turn the server never saw has anything to undo.
       val rewound: Boolean =
-        if (sessionKey != null && projectRoot != null && messageId.isNotBlank())
+        !(sessionKey != null && projectRoot != null && messageId.isNotBlank()) ||
           apiClient.rewindSession(projectRoot, sessionKey, messageId)
-        else true
 
       if (!rewound) {
         notifyRewindFailed()

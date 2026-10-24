@@ -1,6 +1,5 @@
 package gradum.idea.chat.ui.util
 
-import gradum.idea.chat.ui.util.ThumbnailUrlGuard.isPrivateV4
 import java.net.Inet4Address
 import java.net.Inet6Address
 import java.net.InetAddress
@@ -11,7 +10,7 @@ import java.net.URI
 // Gradum is a local agent, the network is its only outbound channel,
 // and every thumbnail URL we fetch is attacker-influenced: a malicious
 // page can publish any URL as its `favicon` field, the result page's
-// own root favicon path is composed from a Tavily-supplied host, and
+// own root favicon path is composed of a Tavily-supplied host, and
 // even a third-party aggregator sees whatever the host string says.
 // The guard sits in front of every socket open and refuses to:
 //

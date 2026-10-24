@@ -1,7 +1,10 @@
 package gradum.idea.editor
 
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.platform.icons.Icon
+import com.intellij.platform.icons.swing.toNewIcon
+import gradum.idea.utils.GradumBundle.message
 
 sealed class AttachedContext {
   abstract val icon: Icon
@@ -9,8 +12,7 @@ sealed class AttachedContext {
 }
 
 data class AttachedFile(
-  val file: VirtualFile,
-  override val icon: Icon
+  val file: VirtualFile, override val icon: Icon
 ) : AttachedContext() {
   override val displayName: String get() = file.name
 }
@@ -57,4 +59,15 @@ data class AttachedImage(
   override val icon: Icon
 ) : AttachedContext() {
   override val displayName: String get() = originalName
+}
+
+data class ErrorEntry(
+  val line: Int, val message: String
+)
+
+data class AttachedFileErrors(
+  val file: VirtualFile, val errors: List<ErrorEntry>
+) : AttachedContext() {
+  override val displayName: String get() = message("gradum.problems.attachment.name", file.name, errors.size)
+  override val icon: Icon get() = AllIcons.General.Error.toNewIcon()
 }

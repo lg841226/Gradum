@@ -1,8 +1,5 @@
 package gradum.idea.chat.ui.util
 
-import gradum.idea.chat.ui.util.FaviconHostCache.Companion.MAX_ENTRIES
-
-
 // Per-host "winning favicon URL" cache.
 //
 // Why

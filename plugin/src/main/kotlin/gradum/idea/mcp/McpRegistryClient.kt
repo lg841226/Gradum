@@ -1,8 +1,6 @@
 package gradum.idea.mcp
 
 import gradum.idea.PluginConfig
-import gradum.idea.mcp.McpRegistryClient.HEDGE_DELAY_MS
-import gradum.idea.mcp.McpRegistryClient.SEARCH_LIMIT
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject

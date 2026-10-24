@@ -64,15 +64,19 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
   }
 
   /**
-   * Wire-shaped file attachment for [sendMessage]. When [startLine] and
-   * [endLine] are present the server reads only that range; [symbolName]
-   * identifies the function declaration shown in the UI.
+   * Wire-shaped file attachment for [sendMessage]. [attachmentText] is the
+   * rendered `<FileAttachment/>` reference tag produced by
+   * [AttachmentRenderer]; the server inserts it verbatim and never parses it.
+   * The remaining fields exist only so the server can store display metadata
+   * for session history.
    */
   data class ApiFileAttachment(
     val path: String,
     val endLine: Int? = null,
     val startLine: Int? = null,
-    val symbolName: String? = null
+    val errorCount: Int? = null,
+    val symbolName: String? = null,
+    val attachmentText: String? = null
   )
 
   /**
@@ -146,14 +150,6 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     response.body()
   }
 
-  /**
-   * Aborts an in-flight `/events` run on the server.
-   *
-   * Parameters:
-   * - runId: The run to stop (the envelope's `runId`).
-   *
-   * Returns A JSON string with the stop status..
-   */
   suspend fun stopSession(runId: String): String = withContext(Dispatchers.IO) {
     val requestBody: JsonObject = buildJsonObject { put("runId", runId) }
 
@@ -542,6 +538,8 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
               fileAttachment.startLine?.let { put("startLine", it) }
               fileAttachment.endLine?.let { put("endLine", it) }
               fileAttachment.symbolName?.let { put("symbolName", it) }
+              fileAttachment.errorCount?.let { put("errorCount", it) }
+              fileAttachment.attachmentText?.let { put("attachmentText", it) }
             })
           }
         }

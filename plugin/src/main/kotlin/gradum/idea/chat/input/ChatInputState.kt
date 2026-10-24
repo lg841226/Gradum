@@ -25,6 +25,13 @@ data class ChatInputState(
   val isMenuVisible: Boolean,
   val showAddMenu: Boolean,
   /**
+   * `true` when the file open in the editor has at least one error-severity
+   * highlight. Drives the `Add File Errors` row in the add-menu popup: when
+   * this is `false` the row stays visible but its text turns grey and the
+   * icon switches to the outline variant.
+   */
+  val currentFileHasErrors: Boolean = false,
+  /**
    * Strength of the reasoning the model should apply on the next turn.
    * Defaults to [ThinkingLevel.MEDIUM] so a brand-new session gets a
    * balanced effort out of the box; the user dials it down to
@@ -68,16 +75,17 @@ data class ChatInputActions(
   val onToggleMenu: () -> Unit,
   val onDismissMenu: () -> Unit,
   val onToggleAddMenu: () -> Unit,
+  val onAddFileErrors: () -> Unit,
   val onDismissAddMenu: () -> Unit,
   val onToggleExpanded: () -> Unit,
   val onFocusChange: (Boolean) -> Unit,
+  val onSelectFile: (VirtualFile) -> Unit,
   val onSelectPermission: (String) -> Unit,
   val onRemoveFile: (AttachedContext) -> Unit,
-  val onSelectModel: (ModelInfo?) -> Unit = {},
-  val onTogglePin: (ModelInfo) -> Unit = {},
   val onRefreshModels: () -> Unit = {},
-  val onSelectFile: (VirtualFile) -> Unit,
-  val onRemovePending: (PendingMessage) -> Unit = {},
+  val onTogglePin: (ModelInfo) -> Unit = {},
   val onPasteAsContext: (String) -> Unit = {},
+  val onSelectModel: (ModelInfo?) -> Unit = {},
+  val onRemovePending: (PendingMessage) -> Unit = {},
   val onSelectThinkingLevel: (ThinkingLevel) -> Unit = {}
 )

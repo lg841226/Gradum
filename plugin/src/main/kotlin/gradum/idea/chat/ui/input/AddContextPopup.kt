@@ -21,7 +21,6 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
-/** Popup menu for adding context files. */
 @Composable
 fun AddContextPopup(
   searchState: TextFieldState,
@@ -80,57 +79,84 @@ fun AddContextPopup(
       }
     }
 
-    val isVisionSupported: Boolean = state.isCurrentModelSupportsVision
-    if (isVisionSupported) {
-      val isLimitReached: Boolean = state.isAttachmentLimitReached
-      val isUploadEnabled: Boolean = !isLimitReached
-      val tooltipText: String? =
-        if (isLimitReached) {
-          message("gradum.image.limit.reached", MAX_ATTACHMENTS)
-        } else null
-
-      selectableItem(
-        selected = false,
-        enabled = isUploadEnabled,
-        onClick = { if (isUploadEnabled) actions.onUploadImage() }
+    val hasFileErrors: Boolean = state.currentFileHasErrors
+    selectableItem(
+      selected = false,
+      enabled = hasFileErrors,
+      onClick = { actions.onAddFileErrors() }
+    ) {
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(
+            horizontal = GradumSpacing.md,
+            vertical = GradumSpacing.xs
+          ),
+        verticalAlignment = Alignment.CenterVertically
       ) {
-        val uploadTint: androidx.compose.ui.graphics.Color =
-          if (isUploadEnabled) JewelTheme.globalColors.text.normal
-          else JewelTheme.globalColors.text.normal.copy(alpha = 0.5f)
-        val row: @Composable () -> Unit = {
-          Column(
-            modifier = Modifier
-              .fillMaxWidth()
-              .padding(
-                horizontal = GradumSpacing.md,
-                vertical = GradumSpacing.xs
-              )
-          ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-              // The platform's image file-type icon is drawn in the action blue;
-              // this menu uses it as an action, so the neutral grey "view as
-              // image" icon in the same visual family is used instead.
-              Icon(
-                key = AllIconsKeys.Actions.ViewAsImage,
-                contentDescription = message("gradum.add.popup.upload.image"),
-                modifier = Modifier.size(GradumSpacing.lrl)
-              )
-              Spacer(modifier = Modifier.width(GradumSpacing.md))
-              Text(text = message("gradum.add.popup.upload.image"), color = uploadTint)
-            }
-            Spacer(modifier = Modifier.height(GradumSpacing.sm))
+        Icon(
+          key =
+            if (hasFileErrors) AllIconsKeys.General.Error
+            else AllIconsKeys.General.InspectionsErrorEmpty,
+          contentDescription = message("gradum.add.popup.file.errors")
+        )
+        Spacer(modifier = Modifier.width(GradumSpacing.md))
+        Text(
+          text = message("gradum.add.popup.file.errors"),
+          color =
+            if (hasFileErrors) JewelTheme.globalColors.text.normal
+            else JewelTheme.globalColors.text.disabled
+        )
+      }
+    }
+
+    val isLimitReached: Boolean = state.isAttachmentLimitReached
+    val isUploadEnabled: Boolean = state.isCurrentModelSupportsVision && !isLimitReached
+    val tooltipText: String? =
+      if (isLimitReached) {
+        message("gradum.image.limit.reached", MAX_ATTACHMENTS)
+      } else null
+
+    selectableItem(
+      selected = false,
+      enabled = isUploadEnabled,
+      onClick = { if (isUploadEnabled) actions.onUploadImage() }
+    ) {
+      val uploadTint: androidx.compose.ui.graphics.Color =
+        if (isUploadEnabled) JewelTheme.globalColors.text.normal
+        else JewelTheme.globalColors.text.disabled
+      val row: @Composable () -> Unit = {
+        Column(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+              horizontal = GradumSpacing.md,
+              vertical = GradumSpacing.xs
+            )
+        ) {
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+              key = AllIconsKeys.Actions.ViewAsImage,
+              contentDescription = message("gradum.add.popup.upload.image"),
+              modifier = Modifier.size(GradumSpacing.lrl)
+            )
+            Spacer(modifier = Modifier.width(GradumSpacing.md))
             Text(
-              color = JewelTheme.globalColors.text.info,
-              text = message("gradum.add.popup.upload.image.hint", MAX_ATTACHMENTS),
-              // Indented past the icon so the hint lines up with the label above.
-              modifier = Modifier.padding(start = GradumSpacing.lrl + GradumSpacing.md)
+              text = message("gradum.add.popup.upload.image"),
+              color = uploadTint
             )
           }
+          Spacer(modifier = Modifier.height(GradumSpacing.sm))
+          Text(
+            color = JewelTheme.globalColors.text.info,
+            text = message("gradum.add.popup.upload.image.hint", MAX_ATTACHMENTS),
+            modifier = Modifier.padding(start = GradumSpacing.lrl + GradumSpacing.md)
+          )
         }
-        if (tooltipText != null) {
-          Tooltip(tooltip = { Text(tooltipText) }) { row() }
-        } else row()
       }
+      if (tooltipText != null) {
+        Tooltip(tooltip = { Text(tooltipText) }) { row() }
+      } else row()
     }
 
     separator()

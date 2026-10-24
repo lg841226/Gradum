@@ -48,20 +48,23 @@ internal fun contextOutputDirectory(configuration: AgentConfiguration): Path {
 }
 
 /**
- * A single user-supplied attachment (currently only `image`) for
- * a chat turn. Agent-side mirror of
- * `gradum.idea.chat.api.GradumApiClient.ApiImageAttachment` and
- * the `AttachmentDto` defined in `gradum.server.Routes`.
+ * A single user-supplied attachment for a chat turn. For `file` attachments
+ * the plugin renders the model-facing reference tag itself and ships it as
+ * [attachmentText]; the server inserts it verbatim and only reads the
+ * remaining fields to build display metadata. The server never parses or
+ * formats the tag.
  */
 data class AttachmentPayload(
   val type: String,
-  val mime: String?,
   val data: String,
+  val mime: String?,
   val filename: String?,
   val path: String? = null,
   val endLine: Int? = null,
   val startLine: Int? = null,
-  val symbolName: String? = null
+  val errorCount: Int? = null,
+  val symbolName: String? = null,
+  val attachmentText: String? = null
 )
 
 /**
@@ -360,10 +363,10 @@ class Agent(
           GradumEventType.RESPONSE.wireName,
           mapOf(
             "content" to content,
-            "promptTokens" to snapshot.promptTokens,
-            "completionTokens" to snapshot.completionTokens,
             "totalTokens" to snapshot.totalTokens,
-            "contextTokens" to snapshot.lastPromptTokens
+            "promptTokens" to snapshot.promptTokens,
+            "contextTokens" to snapshot.lastPromptTokens,
+            "completionTokens" to snapshot.completionTokens
           )
         )
       }

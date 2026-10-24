@@ -125,11 +125,14 @@ data class AttachmentDto(
   /** Base64 payload. */
   val data: String? = null,
   /** Original file name; prompt and transcript hint only. */
+  val filename: String? = null,
   val path: String? = null,
   val endLine: Int? = null,
   val startLine: Int? = null,
-  val filename: String? = null,
-  val symbolName: String? = null
+  val symbolName: String? = null,
+  /** Plugin-rendered model-facing reference tag; inserted verbatim, never parsed. */
+  val attachmentText: String? = null,
+  val errorCount: Int? = null
 )
 
 @Serializable
@@ -443,13 +446,15 @@ fun Application.registerAllRoutes(
             attachments = requestBody.attachments.map { attachment ->
               AttachmentPayload(
                 type = attachment.type,
-                mime = attachment.mime,
                 data = attachment.data.orEmpty(),
+                mime = attachment.mime,
                 filename = attachment.filename,
                 path = attachment.path,
-                startLine = attachment.startLine,
                 endLine = attachment.endLine,
+                startLine = attachment.startLine,
+                errorCount = attachment.errorCount,
                 symbolName = attachment.symbolName,
+                attachmentText = attachment.attachmentText,
               )
             },
           )

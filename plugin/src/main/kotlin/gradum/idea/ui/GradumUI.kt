@@ -8,6 +8,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.intellij.ide.BrowserUtil
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.ScrollType.CENTER
@@ -64,6 +66,11 @@ private val MARKDOWN_EXTENSIONS = setOf(".md", ".markdown", ".mdown", ".mkd", ".
 private val SCENARIO_EXTENSIONS = setOf(".tls", ".tls.xml", ".xml")
 private const val MAX_IMAGE_BYTES: Long = PluginConfig.MAX_IMAGE_UPLOAD_BYTES
 private const val MAX_MARKDOWN_LINES: Int = PluginConfig.MAX_MARKDOWN_LINES
+
+private fun hasCurrentFileErrors(project: Project?, file: VirtualFile?): Boolean {
+  return !(project == null || file == null)
+    && FileErrorsCollector.collectFileErrors(project = project, file = file) != null
+}
 
 private fun truncateToMaxLines(content: String): String {
   val lines = content.lines()
@@ -372,6 +379,12 @@ private fun rememberChatSessionState(
               it.file.path == attachedContext.file.path &&
               it.symbolName == attachedContext.symbolName &&
               it.lineRange == attachedContext.lineRange
+          }
+        }
+
+        is AttachedFileErrors -> {
+          session.attachedFiles.removeAll {
+            it is AttachedFileErrors && it.file.path == attachedContext.file.path
           }
         }
       }
@@ -718,31 +731,55 @@ private fun rememberChatSessionState(
     }
   }
 
+  val onAddFileErrors: () -> Unit = remember(key1 = session, key2 = editorContext, key3 = toolWindow) {
+    {
+      session.showAddMenu = false
+      val hostProject: Project? = toolWindow?.project
+      val currentFile: VirtualFile? = editorContext.currentFile
+      if (hostProject != null && currentFile != null) {
+        val collected: AttachedFileErrors? =
+          FileErrorsCollector.collectFileErrors(project = hostProject, file = currentFile)
+        if (collected != null && session.attachFileErrors(listOf(collected)) == 0) {
+          NotificationGroupManager.getInstance()
+            .getNotificationGroup("Gradum")
+            .createNotification(
+              title = message("gradum.problems.limit.reached", MAX_ATTACHMENTS),
+              content = message("gradum.problems.limit.reached.detail", 1),
+              type = NotificationType.WARNING
+            )
+            .notify(hostProject)
+        }
+      }
+    }
+  }
+
   val inputActions: ChatInputActions = remember(
     onSend, onStop, onUploadImage, onClearText, session,
     attachText, attachText, onSelectFile, onSelectPermission,
-    onRemoveFile, onRemovePending, onSelectModel, onTogglePin, onRefreshModels, onToggleExpanded
+    onRemoveFile, onRemovePending, onSelectModel, onTogglePin, onRefreshModels, onToggleExpanded,
+    onAddFileErrors
   ) {
     ChatInputActions(
       onSend = onSend,
       onStop = onStop,
-      onClearText = onClearText,
-      onTogglePin = onTogglePin,
-      onRemoveFile = onRemoveFile,
-      onSelectFile = onSelectFile,
-      onSelectModel = onSelectModel,
       onUploadImage = onUploadImage,
-      onRefreshModels = onRefreshModels,
-      onRemovePending = onRemovePending,
-      onPasteAsContext = attachText,
-      onToggleExpanded = onToggleExpanded,
-      onSelectPermission = onSelectPermission,
-      onFocusChange = { session.isFocused = it },
-      onSelectThinkingLevel = onSelectThinkingLevel,
+      onClearText = onClearText,
+      onToggleMenu = { session.isMenuVisible = !session.isMenuVisible },
       onDismissMenu = { session.isMenuVisible = false },
-      onDismissAddMenu = { session.showAddMenu = false },
       onToggleAddMenu = { session.showAddMenu = !session.showAddMenu },
-      onToggleMenu = { session.isMenuVisible = !session.isMenuVisible }
+      onAddFileErrors = onAddFileErrors,
+      onDismissAddMenu = { session.showAddMenu = false },
+      onToggleExpanded = onToggleExpanded,
+      onFocusChange = { session.isFocused = it },
+      onSelectFile = onSelectFile,
+      onSelectPermission = onSelectPermission,
+      onRemoveFile = onRemoveFile,
+      onRefreshModels = onRefreshModels,
+      onTogglePin = onTogglePin,
+      onPasteAsContext = attachText,
+      onSelectModel = onSelectModel,
+      onRemovePending = onRemovePending,
+      onSelectThinkingLevel = onSelectThinkingLevel
     )
   }
 
@@ -773,6 +810,8 @@ private fun rememberChatSessionState(
       attachedFiles = session.attachedFiles,
       thinkingLevel = session.thinkingLevel,
       isMenuVisible = session.isMenuVisible,
+      currentFileHasErrors = session.showAddMenu &&
+        hasCurrentFileErrors(project = toolWindow?.project, file = editorContext.currentFile),
       pendingMessages = session.pendingMessages,
       pinnedModels = session.pinnedModels.toList(),
       selectedPermission = session.selectedPermission,

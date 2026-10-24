@@ -10,6 +10,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import kotlin.time.Duration.Companion.milliseconds
 
 private val logger: Logger = LoggerFactory.getLogger("BackgroundScope")
 private val jsonParser: Json = Json { ignoreUnknownKeys = true }
@@ -33,12 +34,11 @@ class BackgroundHandle(
   private val baseUrl: String,
   private val apiKey: String?,
 ) {
-  /** Polls GET /tasks/{taskId} until the task completes, fails, times out, or is cancelled. */
   fun await(pollIntervalMs: Long = 1000L): JobOutcomeDto {
     while (true) {
       val outcome = fetchOutcome()
       if (outcome != null) return outcome
-      runBlocking { delay(pollIntervalMs) }
+      runBlocking { delay(pollIntervalMs.milliseconds) }
     }
   }
 

@@ -16,7 +16,7 @@ fun normalizeCommandOutput(text: String): String =
  */
 fun trimmedOutputLines(text: String): List<String> {
   val lines: List<String> = normalizeCommandOutput(text).split("\n")
-  var start: Int = 0
+  var start = 0
   var end: Int = lines.size
   while (start < end && lines[start].isBlank()) start++
   while (end > start && lines[end - 1].isBlank()) end--

@@ -9,7 +9,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
 import org.slf4j.LoggerFactory
-import java.io.File
 
 private val logger = LoggerFactory.getLogger("ConversationHistory")
 
@@ -92,16 +91,16 @@ class ConversationHistory {
       }
 
       val filePath: String? = attachment.path?.takeIf { it.isNotBlank() }
-      if (filePath == null) {
-        logger.warn("File attachment missing path (symbolName=${attachment.symbolName})")
+      val rendered: String? = attachment.attachmentText?.takeIf { it.isNotBlank() }
+      if (filePath == null || rendered == null) {
+        logger.warn(
+          "File attachment missing path or rendered text " +
+            "(symbolName=${attachment.symbolName}, filename=${attachment.filename})"
+        )
         continue
       }
-      val injected: String = injectFileAttachmentText(
-        filePath = filePath, attachment = attachment
-      )
-      if (injected.isBlank()) continue
 
-      parts.add(mapOf("type" to "text", "text" to injected))
+      parts.add(mapOf("type" to "text", "text" to rendered))
       attachmentMetas.add(
         buildMap {
           put("name", attachment.filename ?: filePath)
@@ -110,6 +109,7 @@ class ConversationHistory {
           attachment.endLine?.let { put("endLine", it) }
           attachment.symbolName?.let { put("symbolName", it) }
           put("path", filePath)
+          attachment.errorCount?.let { put("errorCount", it) }
         }
       )
     }
@@ -224,29 +224,5 @@ class ConversationHistory {
   ): Map<String, Any> {
     return skillInstance?.recordAndCompactHistory(ownMessageIndices, currentResult, messages)
       ?: currentResult
-  }
-}
-
-/**
- * Creates a reference-only FileAttachment tag for the user message.
- *
- * Unlike the previous implementation, this does NOT read file content from disk.
- * The model must call read_file with the given path and lineRange to fetch
- * current content at execution time. This avoids stale inline snapshots when
- * the user edits the file between attachment and model response.
- */
-private fun injectFileAttachmentText(
-  filePath: String, attachment: AttachmentPayload
-): String {
-  val label = attachment.symbolName?.takeIf { it.isNotBlank() } ?: File(filePath).name
-  val rangeLabel =
-    if (attachment.startLine != null && attachment.endLine != null)
-      "${attachment.startLine} ~ ${attachment.endLine}"
-    else ""
-  return buildString {
-    append("<FileAttachment path=\"$filePath\"")
-    if (attachment.symbolName?.isNotBlank() == true) append(" symbol=\"$label\"")
-    if (rangeLabel.isNotBlank()) append(" lineRange=\"$rangeLabel\"")
-    append(" content=\"reference\"/>")
   }
 }

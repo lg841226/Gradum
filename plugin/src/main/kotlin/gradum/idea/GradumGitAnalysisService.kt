@@ -11,8 +11,6 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
-import gradum.idea.GradumGitAnalysisService.handleFailure
-import gradum.idea.GradumGitAnalysisService.isScanCompleted
 import gradum.idea.GradumGitAnalysisService.restoreStateBeforeScan
 import gradum.idea.utils.GradumBundle.message
 import kotlinx.serialization.json.*

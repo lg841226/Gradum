@@ -1,6 +1,5 @@
 package gradum
 
-import gradum.ModelIdentity.Discovery.baseKnownServers
 import gradum.ModelIdentity.Discovery.cloudApiKeyEnvCandidates
 import io.ktor.client.*
 import io.ktor.client.plugins.*

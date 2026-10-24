@@ -104,12 +104,14 @@
 
     <!-- Editor right-click menu: Gradum group with Explain Function action -->
     <actions>
-        <group id="Gradum.EditorPopupMenu" class="com.intellij.openapi.actionSystem.DefaultActionGroup" text="Gradum"
+        <group id="Gradum.EditorPopupMenu" class="com.intellij.openapi.actionSystem.DefaultActionGroup"
+               text="Gradum Actions"
                popup="true">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <action id="Gradum.ExplainFunction" class="gradum.idea.editor.ExplainFunctionAction"
                     text="Explain Function" description="Attach this function to chat and ask for an explanation"/>
         </group>
+
     </actions>
 
 </idea-plugin>

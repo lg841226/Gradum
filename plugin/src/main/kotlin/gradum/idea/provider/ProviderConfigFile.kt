@@ -1,23 +1,9 @@
 package gradum.idea.provider
 
-import gradum.idea.provider.ProviderConfigFile.editConfigFile
 import kotlinx.serialization.json.*
 import java.io.File
 import java.util.*
 
-/**
- * Reads and edits the shared local settings file `~/.gradum/settings.json`.
- *
- * This file is the single source of truth between the plugin (read /
- * write) and the embedded Gradum server (read). The server re-reads it
- * on every model discovery, so plugin edits are picked up without a
- * restart. Provider overrides are stored at the top level of the JSON
- * object using VS Code style dotted keys `<configKey>.baseUrl` /
- * `<configKey>.apiKey` / `<configKey>.allowRemote`; the structured
- * `mcpServers` array is owned by [readMcpServers] / [writeMcpServers];
- * every other key (`server.*`, `llm.*`, `commandFilter.*`, `$schema`,
- * ...) is preserved untouched on write.
- */
 object ProviderConfigFile {
 
   private val prettyJson: Json = Json { prettyPrint = true }
@@ -31,8 +17,6 @@ object ProviderConfigFile {
 
   private val configFile: File
     get() = File(configDir, "settings.json")
-
-  /** Absolute path of the shared settings file, for UI actions that open it in the IDE editor. */
   val settingsFile: File get() = configFile
 
   private val providerDottedKeys: List<String>

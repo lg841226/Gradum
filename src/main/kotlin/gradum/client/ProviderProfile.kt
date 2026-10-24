@@ -175,10 +175,18 @@ fun providerProfile(configure: ProfileScope.() -> Unit): ProviderProfile =
  * - OFF -> `think: false`
  * - ON and supportsThinkingLevels -> `think: "low"/"medium"/"high"`
  * - ON and supportsThinking only -> `think: true`
- * - ON + !supportsThinking -> field omitted entirely
+ * - ON and !supportsThinking -> field omitted entirely
  * - null capabilities (legacy / no probe) -> graded string levels, the
  *   pre-capability behavior
  */
+private fun ollamaEffortString(level: ThinkingLevel): String =
+  when (level) {
+    ThinkingLevel.LOW -> "low"
+    ThinkingLevel.MEDIUM -> "medium"
+    ThinkingLevel.HIGH -> "high"
+    ThinkingLevel.OFF -> "medium"
+  }
+
 val OllamaProfile: ProviderProfile = providerProfile {
   reasoningDelta = "thinking"
   thinking { level, capabilities ->
@@ -187,25 +195,13 @@ val OllamaProfile: ProviderProfile = providerProfile {
       ThinkingLevel.LOW, ThinkingLevel.MEDIUM, ThinkingLevel.HIGH -> {
         if (capabilities == null) {
           // No capability info (test or legacy path): use string levels
-          val levelString: String = when (level) {
-            ThinkingLevel.LOW -> "low"
-            ThinkingLevel.MEDIUM -> "medium"
-            ThinkingLevel.HIGH -> "high"
-            ThinkingLevel.OFF -> "medium"
-          }
-          think(value = levelString)
+          think(value = ollamaEffortString(level))
         } else if (!capabilities.supportsThinking) {
           // Model doesn't support thinking: omit the field entirely
           return@thinking
         } else if (capabilities.supportsThinkingLevels) {
           // Model supports string levels (e.g. gpt-oss)
-          val levelString: String = when (level) {
-            ThinkingLevel.LOW -> "low"
-            ThinkingLevel.MEDIUM -> "medium"
-            ThinkingLevel.HIGH -> "high"
-            ThinkingLevel.OFF -> "medium"
-          }
-          think(value = levelString)
+          think(value = ollamaEffortString(level))
         } else {
           // Model supports thinking but not levels: boolean true
           think(value = true)
@@ -215,13 +211,9 @@ val OllamaProfile: ProviderProfile = providerProfile {
   }
   body { params ->
     options {
-      temperature = params.temperature
       topP = params.topP
+      temperature = params.temperature
       numCtx = params.contextWindow
-      // num_predict is deliberately left unset: Ollama defaults to -1
-      // (model-adaptive), so a configured max_tokens larger than the model's
-      // own output cap is never forwarded and cannot trigger a 400
-      // (e.g. gpt-oss:120b caps output at 131072).
     }
     params.keepAliveMinutes?.let { minutes -> keepAlive = minutes }
   }
