@@ -17,11 +17,14 @@ import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.FileEditorManagerEvent
+import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.fileEditor.TextEditor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
+import com.intellij.util.messages.MessageBusConnection
 import gradum.idea.*
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
@@ -72,6 +75,32 @@ private fun hasCurrentFileErrors(project: Project?, file: VirtualFile?): Boolean
     && FileErrorsCollector.collectFileErrors(project = project, file = file) != null
 }
 
+@Composable
+private fun rememberEditorContext(project: Project?): EditorContext {
+  var editorContext: EditorContext by remember(key1 = project) {
+    mutableStateOf(
+      value = project?.let { EditorUtils.getEditorContext(project = it) } ?: EditorContext.EMPTY
+    )
+  }
+  DisposableEffect(key1 = project) {
+    val connection: MessageBusConnection? = project?.messageBus?.connect()
+    connection?.subscribe(
+      topic = FileEditorManagerListener.FILE_EDITOR_MANAGER,
+      handler = object : FileEditorManagerListener {
+        override fun selectionChanged(event: FileEditorManagerEvent) = refresh()
+        override fun fileOpened(source: FileEditorManager, file: VirtualFile) = refresh()
+        override fun fileClosed(source: FileEditorManager, file: VirtualFile) = refresh()
+
+        private fun refresh() {
+          project.let { editorContext = EditorUtils.getEditorContext(project = it) }
+        }
+      }
+    )
+    onDispose { connection?.disconnect() }
+  }
+  return editorContext
+}
+
 private fun truncateToMaxLines(content: String): String {
   val lines = content.lines()
   return if (lines.size > MAX_MARKDOWN_LINES) {
@@ -87,7 +116,7 @@ private fun sendPlaybackXml(
   coroutineScope: CoroutineScope,
   preserveUserMessage: Boolean = false
 ) {
-  val displayName: String = message("gradum.debug.model.name")
+  val displayName: String = message(key = "gradum.debug.model.name")
   val providerName: String = session.selectedModel?.provider ?: ""
   val serverLabel: String = session.selectedModel?.serverName ?: ""
 
@@ -155,9 +184,7 @@ fun GradumUI(
   session: GradumChatSession,
   inEditorTab: Boolean = false
 ) {
-  val editorContext: EditorContext = toolWindow?.project?.let {
-    EditorUtils.getEditorContext(project = it)
-  } ?: EditorContext.EMPTY
+  val editorContext: EditorContext = rememberEditorContext(project = toolWindow?.project)
   val coroutineScope: CoroutineScope = rememberCoroutineScope()
 
   TabNameEffect(session, toolWindow)

@@ -79,53 +79,35 @@ fun AddContextPopup(
       }
     }
 
-    val hasFileErrors: Boolean = state.currentFileHasErrors
-    selectableItem(
-      selected = false,
-      enabled = hasFileErrors,
-      onClick = { actions.onAddFileErrors() }
-    ) {
-      Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(
-            horizontal = GradumSpacing.md,
-            vertical = GradumSpacing.xs
-          ),
-        verticalAlignment = Alignment.CenterVertically
+    if (state.currentFileHasErrors) {
+      selectableItem(
+        selected = false,
+        onClick = { actions.onAddFileErrors() }
       ) {
-        Icon(
-          key =
-            if (hasFileErrors) AllIconsKeys.General.Error
-            else AllIconsKeys.General.InspectionsErrorEmpty,
-          contentDescription = message("gradum.add.popup.file.errors")
-        )
-        Spacer(modifier = Modifier.width(GradumSpacing.md))
-        Text(
-          text = message("gradum.add.popup.file.errors"),
-          color =
-            if (hasFileErrors) JewelTheme.globalColors.text.normal
-            else JewelTheme.globalColors.text.disabled
-        )
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+              horizontal = GradumSpacing.md,
+              vertical = GradumSpacing.xs
+            ),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Icon(
+            key = AllIconsKeys.Ide.FatalErrorRead,
+            contentDescription = message("gradum.add.popup.file.errors")
+          )
+          Spacer(modifier = Modifier.width(GradumSpacing.md))
+          Text(text = message("gradum.add.popup.file.errors"))
+        }
       }
     }
 
-    val isLimitReached: Boolean = state.isAttachmentLimitReached
-    val isUploadEnabled: Boolean = state.isCurrentModelSupportsVision && !isLimitReached
-    val tooltipText: String? =
-      if (isLimitReached) {
-        message("gradum.image.limit.reached", MAX_ATTACHMENTS)
-      } else null
-
-    selectableItem(
-      selected = false,
-      enabled = isUploadEnabled,
-      onClick = { if (isUploadEnabled) actions.onUploadImage() }
-    ) {
-      val uploadTint: androidx.compose.ui.graphics.Color =
-        if (isUploadEnabled) JewelTheme.globalColors.text.normal
-        else JewelTheme.globalColors.text.disabled
-      val row: @Composable () -> Unit = {
+    if (state.isCurrentModelSupportsVision && !state.isAttachmentLimitReached) {
+      selectableItem(
+        selected = false,
+        onClick = { actions.onUploadImage() }
+      ) {
         Column(
           modifier = Modifier
             .fillMaxWidth()
@@ -141,10 +123,7 @@ fun AddContextPopup(
               modifier = Modifier.size(GradumSpacing.lrl)
             )
             Spacer(modifier = Modifier.width(GradumSpacing.md))
-            Text(
-              text = message("gradum.add.popup.upload.image"),
-              color = uploadTint
-            )
+            Text(text = message("gradum.add.popup.upload.image"))
           }
           Spacer(modifier = Modifier.height(GradumSpacing.sm))
           Text(
@@ -154,9 +133,6 @@ fun AddContextPopup(
           )
         }
       }
-      if (tooltipText != null) {
-        Tooltip(tooltip = { Text(tooltipText) }) { row() }
-      } else row()
     }
 
     separator()
