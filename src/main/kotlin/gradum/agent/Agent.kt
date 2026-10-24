@@ -449,12 +449,6 @@ class Agent(
     return true
   }
 
-  // Debug tool-call playback mode. The developer authors a scenario as
-  // a short <tls> XML block, playing the part of the model, instead
-  // of spending LLM tokens. Every listed call runs through the real
-  // [toolExecutor] pipeline, streams the same tool_call NDJSON events,
-  // then writes a machine-readable recording to
-  // `<projectRoot>/.gradum/recordings/<scenario>.json`.
   private fun playToolCallScenario(toolCallXml: String): Unit {
     val scenario: ToolCallScenario =
       try {

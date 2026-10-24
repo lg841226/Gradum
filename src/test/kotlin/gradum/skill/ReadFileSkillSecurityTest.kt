@@ -183,7 +183,9 @@ class ReadFileSkillSecurityTest {
   fun `YOLO reads an out-of-project file without asking`() {
     // Non-YOLO (no ask capability wired) denies; YOLO treats the path as
     // already authorized and reads it directly, with no ask card.
-    val outside = File(projectRoot.parentFile, "gradum-read-yolo-${System.nanoTime()}.txt")
+    // Placed under the user home so the file never lands in a safe prefix
+    // (`/tmp` on Linux, where the project fixture itself is a temp directory).
+    val outside = File(System.getProperty("user.home"), "gradum-read-yolo-${System.nanoTime()}.txt")
     outside.writeText("outside content\n")
     try {
       val guarded = skill.execute(mapOf("path" to outside.absolutePath), context())

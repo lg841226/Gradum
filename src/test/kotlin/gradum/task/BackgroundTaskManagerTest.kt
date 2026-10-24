@@ -138,10 +138,11 @@ class BackgroundTaskManagerTest {
 
   @Test
   fun `output is truncated to MAX_OUTPUT_CHARS`() {
-    val largeOutput = "x".repeat(1_000_000)
+    // Generates the payload inside the shell: a 1 MB echo argument would
+    // exceed Linux's 128 KiB per-argument exec limit (E2BIG) and never spawn.
     val job = manager.submit(
       sessionId = "s1",
-      command = "echo '$largeOutput'",
+      command = "yes x | head -c 1000000",
       projectRoot = projectRoot.absolutePath,
       timeoutSeconds = 10,
     )
