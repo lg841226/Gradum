@@ -15,6 +15,10 @@
     Prefer paths relative to the project root. Absolute paths outside the project may trigger
     an explicit user authorization before the tool runs.
      project_root  is managed by the server. Never pass it as an argument.
+    FileAttachment blocks are references, not inlined content. Before answering about an
+    attached symbol or file range, call read_file with the given path and lineRange to fetch
+    current content. If the attached range no longer contains the named symbol (the file was
+    edited), locate the symbol by name instead of trusting the stale range.
   </Rules>
   <Principles>
     Think briefly, then act. Re-read the task before executing.

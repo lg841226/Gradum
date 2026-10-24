@@ -9,8 +9,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
 import org.slf4j.LoggerFactory
-import java.nio.file.Path
-import java.nio.file.Paths
+import java.io.File
 
 private val logger = LoggerFactory.getLogger("ConversationHistory")
 
@@ -98,7 +97,7 @@ class ConversationHistory {
         continue
       }
       val injected: String = injectFileAttachmentText(
-        projectRoot = projectRoot, attachment = attachment, filePath = filePath
+        filePath = filePath, attachment = attachment
       )
       if (injected.isBlank()) continue
 
@@ -229,50 +228,25 @@ class ConversationHistory {
 }
 
 /**
- * Reads file attachment content from disk and injects it as text into
- * the user message. When `startLine` /`endLine` are set the range is
- * 1-based and inclusive, matching the wire contract used by the plugin
- * and the semantics of ReadFileSkill.
+ * Creates a reference-only FileAttachment tag for the user message.
+ *
+ * Unlike the previous implementation, this does NOT read file content from disk.
+ * The model must call read_file with the given path and lineRange to fetch
+ * current content at execution time. This avoids stale inline snapshots when
+ * the user edits the file between attachment and model response.
  */
 private fun injectFileAttachmentText(
-  projectRoot: String,
-  attachment: AttachmentPayload,
-  filePath: String
+  filePath: String, attachment: AttachmentPayload
 ): String {
-  return try {
-    val resolvedPath: Path = resolveAttachmentPath(projectRoot = projectRoot, filePath = filePath)
-    val file = resolvedPath.toFile()
-    if (!file.exists() || !file.isFile) return ""
-
-    val allLines = file.readLines(Charsets.UTF_8)
-    val (startLine, endLine, selectedLines) =
-      if (attachment.startLine != null && attachment.endLine != null) {
-        val start = attachment.startLine.coerceAtLeast(1)
-        val end = attachment.endLine.coerceAtLeast(start)
-        val slice = allLines.drop(start - 1).take(end - start + 1)
-        Triple(start, start + slice.size - 1, slice)
-      } else {
-        Triple(1, allLines.size, allLines)
-      }
-
-    val label = attachment.symbolName?.takeIf { it.isNotBlank() } ?: file.name
-    val rangeLabel = if (startLine == endLine) "$startLine" else "$startLine ~ $endLine"
-    buildString {
-      append("<FileAttachment path=\"$filePath\"")
-      append(" symbol=\"$label\"")
-      append(" lines=\"$rangeLabel\">\n")
-      selectedLines.forEachIndexed { index, line ->
-        append("${startLine + index}: $line\n")
-      }
-      append("</FileAttachment>")
-    }
-  } catch (exception: Exception) {
-    logger.warn("Failed to inject file attachment $filePath", exception)
-    ""
+  val label = attachment.symbolName?.takeIf { it.isNotBlank() } ?: File(filePath).name
+  val rangeLabel =
+    if (attachment.startLine != null && attachment.endLine != null)
+      "${attachment.startLine} ~ ${attachment.endLine}"
+    else ""
+  return buildString {
+    append("<FileAttachment path=\"$filePath\"")
+    if (attachment.symbolName?.isNotBlank() == true) append(" symbol=\"$label\"")
+    if (rangeLabel.isNotBlank()) append(" lineRange=\"$rangeLabel\"")
+    append(" content=\"reference\"/>")
   }
-}
-
-private fun resolveAttachmentPath(projectRoot: String, filePath: String): Path {
-  val path = Paths.get(filePath)
-  return if (path.isAbsolute) path.normalize() else Paths.get(projectRoot).resolve(path).normalize()
 }

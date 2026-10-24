@@ -200,7 +200,7 @@ object SessionSnapshotManager {
       .resolve("${absoluteRoot.fileName}-$pathHash")
   }
 
-  /** Creates the snapshot repository once; a plain `git init` with directed env. */
+  // Creates the snapshot repository once; a plain `git init` with directed env.
   private fun ensureSnapshotRepository(projectRoot: String, snapshotGitDirectory: Path) {
     if (Files.exists(snapshotGitDirectory)) return
     Files.createDirectories(snapshotGitDirectory)
@@ -212,7 +212,7 @@ object SessionSnapshotManager {
     logger.info("initialized snapshot store at '{}'", snapshotGitDirectory)
   }
 
-  /** Best-effort garbage collection; unreachable snapshot objects linger otherwise. */
+  // Best-effort garbage collection; unreachable snapshot objects linger otherwise.
   private fun pruneSnapshotStore(projectRoot: String, snapshotGitDirectory: Path) {
     try {
       runGitCommand(projectRoot, snapshotGitDirectory, emptyMap(), "gc", "--prune=14.days")
@@ -225,7 +225,7 @@ object SessionSnapshotManager {
 
   private fun turnRefName(sessionId: String, messageId: String): String = "$TURN_REF_PREFIX/$sessionId/$messageId"
 
-  /** Drops every turn ref of [sessionId]; called when the session itself is deleted. */
+  // Drops every turn ref of [sessionId]; called when the session itself is deleted.
   private fun dropTurnRefs(projectRoot: String, snapshotGitDirectory: Path, sessionId: String) {
     val turnRefList: String = runGitCommand(
       projectRoot, snapshotGitDirectory, emptyMap(), "for-each-ref", "--format=%(refname)", "$TURN_REF_PREFIX/$sessionId/"

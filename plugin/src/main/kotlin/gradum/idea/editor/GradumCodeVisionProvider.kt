@@ -48,6 +48,7 @@ class GradumCodeVisionProvider : CodeVisionProviderBase() {
     explainFunctionAt(editor = editor, offset = element.textRange.startOffset)
   }
 
+  @Suppress("UnstableApiUsage")
   override fun computeForEditor(editor: Editor, file: PsiFile): List<Pair<TextRange, CodeVisionEntry>> {
     if (!acceptsFile(file)) return emptyList()
 

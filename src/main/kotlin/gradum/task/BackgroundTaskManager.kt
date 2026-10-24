@@ -89,16 +89,13 @@ class BackgroundTaskManager(
   }
 
   // Live handle to a running process, used for cancellation
-  private class JobHandle(
-    val process: Process,
-    val descendants: List<ProcessHandle>,
-  )
+  private class JobHandle(val process: Process)
 
   // Mutable job state guarded by the entry's lock
   private class JobEntry(
-    val job: BackgroundJob,
-    val handle: JobHandle?,
     val logFile: File?,
+    val job: BackgroundJob,
+    val handle: JobHandle?
   ) {
     @Volatile
     var status: JobStatus = job.status
@@ -149,7 +146,7 @@ class BackgroundTaskManager(
     logDirectory.toFile().mkdirs()
     val logFile = File(logDirectory.toFile(), "$taskId.log")
 
-    val entry = JobEntry(job = initialJob, handle = null, logFile = logFile)
+    val entry = JobEntry(logFile = logFile, job = initialJob, handle = null)
     jobsByTaskId[taskId] = entry
     taskIdsBySession.computeIfAbsent(sessionId) { CopyOnWriteArrayList() }.add(taskId)
 
@@ -321,7 +318,6 @@ class BackgroundTaskManager(
     return true
   }
 
-  /** Cancels all running jobs belonging to [sessionId]. Returns the number cancelled. */
   fun cancelSession(sessionId: String): Int {
     val taskIds: List<String> = taskIdsBySession[sessionId]?.toList() ?: return 0
     var cancelledCount = 0
@@ -331,11 +327,9 @@ class BackgroundTaskManager(
     return cancelledCount
   }
 
-  /** Returns a snapshot of the job with [taskId], or null if unknown. */
   fun get(taskId: String): BackgroundJob? =
     jobsByTaskId[taskId]?.toSnapshot()
 
-  /** Returns the full outcome (with output) for a terminal task, or null if unknown or still running. */
   fun getOutcome(taskId: String): JobOutcome? {
     val entry: JobEntry = jobsByTaskId[taskId] ?: return null
     if (entry.status == JobStatus.RUNNING) return null
@@ -381,23 +375,5 @@ class BackgroundTaskManager(
       drainedOutcomes.add(outcome)
     }
     return drainedOutcomes
-  }
-
-  /** Removes terminal jobs beyond COMPLETED_JOB_RETENTION_COUNT for [sessionId] */
-  fun pruneSession(sessionId: String) {
-    val taskIds: MutableList<String> = taskIdsBySession[sessionId] ?: return
-    val terminalTaskIds: List<String> = taskIds.filter { taskId ->
-      jobsByTaskId[taskId]?.let { it.status != JobStatus.RUNNING } == true
-    }
-    if (terminalTaskIds.size <= COMPLETED_JOB_RETENTION_COUNT) return
-
-    val toRemove: List<String> = terminalTaskIds
-      .sortedBy { jobsByTaskId[it]?.job?.startedAt ?: 0L }
-      .take(terminalTaskIds.size - COMPLETED_JOB_RETENTION_COUNT)
-
-    for (taskId in toRemove) {
-      jobsByTaskId.remove(taskId)
-      taskIds.remove(taskId)
-    }
   }
 }
