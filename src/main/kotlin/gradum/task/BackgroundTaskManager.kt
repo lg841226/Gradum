@@ -4,6 +4,7 @@ import gradum.GradumConfig
 import kotlinx.coroutines.channels.Channel
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.io.BufferedWriter
 import java.io.File
 import java.nio.file.Path
 import java.util.*
@@ -212,7 +213,7 @@ class BackgroundTaskManager(
     }
   }
 
-  private fun writeLogFile(writer: java.io.BufferedWriter?, stdoutText: String, stderrText: String) {
+  private fun writeLogFile(writer: BufferedWriter?, stdoutText: String, stderrText: String) {
     try {
       writer?.use {
         it.write(stdoutText)

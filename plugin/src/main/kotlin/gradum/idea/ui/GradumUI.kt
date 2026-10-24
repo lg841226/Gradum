@@ -115,6 +115,16 @@ private fun sendPlaybackXml(
   }
 }
 
+/**
+ * Reads a playback scenario from the given [currentFile] and sends it to the server.
+ *
+ * This function handles the file reading process, including potential IO and security
+ * exceptions, before delegating the actual sending logic to [sendPlaybackXml].
+ *
+ * @param session The current chat session to associate the playback with.
+ * @param currentFile The virtual file containing the playback scenario XML.
+ * @param coroutineScope The scope in which the playback request should be launched.
+ */
 private fun sendPlaybackScenario(
   session: GradumChatSession, currentFile: VirtualFile, coroutineScope: CoroutineScope
 ) {
@@ -188,9 +198,6 @@ fun GradumUI(
   }
 }
 
-// Banner shown when the local Gradum runtime could not be reached. The text
-// names the classified cause, so "not started" reads differently from "running
-// but stuck"; a copy entry puts the raw failure diagnostics on the clipboard.
 @Composable
 private fun RuntimeUnreachableBanner(
   runtimeErrorMessage: String,
@@ -236,8 +243,9 @@ private fun RuntimeUnreachableBanner(
           )
         } else {
           Link(
-            text = if (isCopied.value) message("gradum.error.copied")
-            else message("gradum.runtime.copy.error"),
+            text =
+              if (isCopied.value) message("gradum.error.copied")
+              else message("gradum.runtime.copy.error"),
             onClick = {
               if (!isCopied.value && runtimeErrorMessage.isNotBlank()) {
                 copyToClipboard(
@@ -337,14 +345,6 @@ private fun rememberChatSessionState(
     }
   }
 
-  val onSelectPermission: (String) -> Unit = remember(key1 = session) {
-    { permission: String ->
-      session.selectedPermission = permission
-      session.isMenuVisible = false
-      AppearanceSettings.getInstance().update { it.lastPermission = permission }
-    }
-  }
-
   val onRemoveFile: (AttachedContext) -> Unit = remember(key1 = session) {
     { attachedContext: AttachedContext ->
       when (attachedContext) {
@@ -365,7 +365,24 @@ private fun rememberChatSessionState(
             it is AttachedImage && it.id == attachedContext.id
           }
         }
+
+        is AttachedSymbol -> {
+          session.attachedFiles.removeAll {
+            it is AttachedSymbol &&
+              it.file.path == attachedContext.file.path &&
+              it.symbolName == attachedContext.symbolName &&
+              it.lineRange == attachedContext.lineRange
+          }
+        }
       }
+    }
+  }
+
+  val onSelectPermission: (String) -> Unit = remember(key1 = session) {
+    { permission: String ->
+      session.selectedPermission = permission
+      session.isMenuVisible = false
+      AppearanceSettings.getInstance().update { it.lastPermission = permission }
     }
   }
 
@@ -729,6 +746,11 @@ private fun rememberChatSessionState(
     )
   }
 
+  DisposableEffect(Unit) {
+    session.registerSendHandler(onSend)
+    onDispose { session.unregisterSendHandler(onSend) }
+  }
+
   return ChatSessionState(
     messages = session.messages,
     textState = session.textState,
@@ -801,10 +823,10 @@ private fun rememberChatSessionState(
     onRespondToAsk = { sessionId: String, requestId: String, choice: String?, text: String?, cancelled: Boolean ->
       coroutineScope.launch {
         session.apiClient.respondToAsk(
-          sessionId = sessionId,
-          requestId = requestId,
           text = text,
           choice = choice,
+          sessionId = sessionId,
+          requestId = requestId,
           cancelled = cancelled
         )
       }
@@ -815,25 +837,23 @@ private fun rememberChatSessionState(
 }
 
 @Composable
-private fun TabNameEffect(session: GradumChatSession, toolWindow: ToolWindow?) {
+fun TabNameEffect(session: GradumChatSession, toolWindow: ToolWindow?) {
   LaunchedEffect(
     key1 = session.hasSentMessage,
     key2 = session.isSending,
     key3 = session.selectedPermission
   ) {
     val tabContent =
-      toolWindow
-        ?.contentManager
-        ?.contents
-        ?.firstOrNull()
-        ?: return@LaunchedEffect
+      toolWindow?.contentManager?.contents?.firstOrNull() ?: return@LaunchedEffect
 
     if (PermissionMode.isDebugMode(session.selectedPermission)) {
       tabContent.displayName = message(key = "gradum.debug.mode")
       return@LaunchedEffect
     }
 
-    val tabName: String = if (session.hasSentMessage) message("gradum.toolwindow.newchat") else message("gradum.toolwindow.welcome")
+    val tabName: String =
+      if (session.hasSentMessage) message("gradum.toolwindow.newchat")
+      else message("gradum.toolwindow.welcome")
     if (session.isSending) {
       val spinnerFrames: CharArray = charArrayOf(
         '\u280B', '\u2819', '\u2839', '\u2838', '\u283C', '\u2834', '\u2826', '\u2827'
@@ -849,15 +869,8 @@ private fun TabNameEffect(session: GradumChatSession, toolWindow: ToolWindow?) {
   }
 }
 
-// Starts session-owned model polling keyed on the provider settings.
-//
-// Polling intentionally has no dispose-time stop: with the chat open both in
-// the tool window and in an editor tab, one host's teardown would otherwise
-// kill the other host's polling. [GradumChatSession.startModelPolling]
-// replaces the previous jobs on every (re)start, and the session cancels its
-// polling scope when the project closes.
 @Composable
-private fun ModelPollingEffect(session: GradumChatSession, coroutineScope: CoroutineScope) {
+fun ModelPollingEffect(session: GradumChatSession, coroutineScope: CoroutineScope) {
   val settings: ProviderSettings = remember { ProviderSettings.getInstance() }
   val autoDetect: Boolean = settings.snapshot.autoDetectEnabled
   val pollIntervalSeconds: Int = settings.snapshot.pollIntervalSeconds

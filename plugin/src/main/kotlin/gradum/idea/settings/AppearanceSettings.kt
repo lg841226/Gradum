@@ -87,6 +87,8 @@ class AppearanceSettings : PersistentStateComponent<AppearanceSettings.State> {
     var gitEnabled: Boolean = true,
     var lastPermission: String = PermissionMode.READONLY,
     var lastContextEnabled: Boolean = false,
+    var codeVisionExplainEnabled: Boolean = true,
+    var codeVisionCommentsEnabled: Boolean = true,
   )
 
   private val current: MutableState<State> = mutableStateOf(State())

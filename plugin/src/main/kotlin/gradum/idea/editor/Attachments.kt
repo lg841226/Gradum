@@ -15,6 +15,23 @@ data class AttachedFile(
   override val displayName: String get() = file.name
 }
 
+/**
+ * A function or method declaration attached as chat context.
+ *
+ * [lineRange] is 1-based and inclusive, matching the server's
+ * `ReadFileSkill` line-range semantics. The icon is resolved from
+ * the owning file exactly like [AttachedFile] does.
+ */
+data class AttachedSymbol(
+  val file: VirtualFile,
+  val symbolName: String,
+  val lineRange: IntRange
+) : AttachedContext() {
+  override val displayName: String get() = "$symbolName @ ${file.name}"
+
+  override val icon: Icon by lazy { fileIcon(file) }
+}
+
 data class AttachedText(
   val content: String,
   val preview: String

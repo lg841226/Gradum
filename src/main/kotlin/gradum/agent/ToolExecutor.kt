@@ -10,6 +10,7 @@ import gradum.skill.SkillContext
 import gradum.skill.SkillRegistry
 import gradum.skill.ToolDisplay
 import gradum.skill.builtin.getTodoManagerInstance
+import gradum.skill.dsl.PluginConfigTypeError
 import gradum.utils.JsonUtil
 import kotlinx.serialization.json.JsonElement
 import org.slf4j.LoggerFactory
@@ -196,7 +197,7 @@ class ToolExecutor(
           "error" to mapOf("code" to result.code, "message" to result.message)
         )
       }
-    } catch (pluginError: gradum.skill.dsl.PluginConfigTypeError) {
+    } catch (pluginError: PluginConfigTypeError) {
       logger.warn("Skill configuration error: ${pluginError.message}")
       mapOf(
         "success" to false,

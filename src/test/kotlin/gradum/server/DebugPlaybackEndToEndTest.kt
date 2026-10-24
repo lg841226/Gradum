@@ -1,6 +1,7 @@
 package gradum.server
 
 import gradum.server.persistence.SessionStateStore
+import gradum.skill.PendingQuestions
 import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -184,7 +185,7 @@ class DebugPlaybackEndToEndTest {
   fun `session state endpoint reports an open ask card for the session`(): Unit = testApplication {
     val project = temporaryProject()
     val sessionId = "ask-probe-session"
-    val parked = gradum.skill.PendingQuestions()
+    val parked = PendingQuestions()
     val parkedPayload: Map<String, Any> = mapOf("requestId" to "req-1", "title" to "Run it?")
     val blocker = Thread { parked.await(sessionId, "req-1", parkedPayload) }
     blocker.start()

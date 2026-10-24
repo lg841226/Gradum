@@ -172,8 +172,12 @@ private fun MenuScope.buildMenu(
 private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () -> Unit) {
   val iconKey: IconKey? = resolveProviderIcon(model)
   val formatted: FormattedModelName = parseModelName(raw = model.name)
-  val pinTip: String = if (isPinned) message("gradum.model.unpin") else message("gradum.model.pin")
-  val pinIcon: IconKey = if (isPinned) AllIconsKeys.General.PinSelected else AllIconsKeys.General.Pin
+  val pinTip: String =
+    if (isPinned) message("gradum.model.unpin")
+    else message("gradum.model.pin")
+  val pinIcon: IconKey =
+    if (isPinned) AllIconsKeys.General.PinSelected
+    else AllIconsKeys.General.Pin
 
   Row(
     modifier = Modifier

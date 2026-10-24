@@ -2,6 +2,8 @@ package gradum.vcs
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.io.File
+import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
@@ -270,9 +272,9 @@ object SessionSnapshotManager {
       "git", "--git-dir", snapshotGitDirectory.toString(),
       "--work-tree", projectRoot, "apply", "--binary", "--whitespace=nowarn"
     )
-      .directory(java.io.File(projectRoot))
+      .directory(File(projectRoot))
       .start()
-    patchProcess.outputStream.use { processInput: java.io.OutputStream ->
+    patchProcess.outputStream.use { processInput: OutputStream ->
       processInput.write(patchText.toByteArray(Charsets.UTF_8))
     }
     val applyExitCode: Int = patchProcess.waitFor()
@@ -287,7 +289,7 @@ object SessionSnapshotManager {
     val gitProcess: Process = ProcessBuilder(
       "git", "--git-dir", snapshotGitDirectory.toString(), "--work-tree", projectRoot, *gitArguments
     )
-      .directory(java.io.File(projectRoot))
+      .directory(File(projectRoot))
       .apply { environment().putAll(extraEnvironment) }
       .start()
     val standardOutput: String = gitProcess.inputStream.readBytes().toString(Charsets.UTF_8)

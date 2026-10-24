@@ -1,5 +1,6 @@
 package gradum.utils
 
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -373,7 +374,7 @@ class CommandFilterTest {
       } finally {
         directory.toFile().deleteRecursively()
       }
-    } catch (_: java.io.IOException) {
+    } catch (_: IOException) {
       false
     }
   }

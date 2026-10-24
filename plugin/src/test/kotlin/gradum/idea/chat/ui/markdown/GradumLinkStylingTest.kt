@@ -1,4 +1,5 @@
 @file:Suppress("UnstableApiUsage")
+@file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea.chat.ui.markdown
 
@@ -7,6 +8,8 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import org.jetbrains.jewel.foundation.ExperimentalJewelApi
+import org.jetbrains.jewel.ui.component.styling.LinkColors
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -33,18 +36,17 @@ import org.junit.Test
  *  - `inlineCode` is passed through unchanged.
  *  - `emphasis` and `strongEmphasis` are baked-in italic / bold.
  */
-@OptIn(org.jetbrains.jewel.foundation.ExperimentalJewelApi::class)
+@OptIn(ExperimentalJewelApi::class)
 class GradumLinkStylingTest {
 
-  private val linkColors: org.jetbrains.jewel.ui.component.styling.LinkColors =
-    org.jetbrains.jewel.ui.component.styling.LinkColors(
-      content = Color(0xFF3366CC),
-      contentDisabled = Color(0xFF999999),
-      contentFocused = Color(0xFF224488),
-      contentHovered = Color(0xFF4477DD),
-      contentPressed = Color(0xFF112266),
-      contentVisited = Color(0xFF663399),
-    )
+  private val linkColors: LinkColors = LinkColors(
+    content = Color(0xFF3366CC),
+    contentDisabled = Color(0xFF999999),
+    contentFocused = Color(0xFF224488),
+    contentHovered = Color(0xFF4477DD),
+    contentPressed = Color(0xFF112266),
+    contentVisited = Color(0xFF663399),
+  )
 
   @Test
   fun `gradumInlinesStyling wires each LinkColors state into the right InlinesStyling slot`() {

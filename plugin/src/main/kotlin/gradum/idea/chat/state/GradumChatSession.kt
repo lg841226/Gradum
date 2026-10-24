@@ -21,6 +21,7 @@ import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.model.ThinkingLevel
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.editor.AttachedContext
+import gradum.idea.editor.AttachedSymbol
 import gradum.idea.editor.PendingMessage
 import gradum.idea.provider.ProviderCoordinator
 import gradum.idea.provider.ProviderSettings
@@ -93,6 +94,56 @@ class GradumChatSession : Disposable {
   val messages: SnapshotStateList<ChatMessage> = mutableStateListOf()
   val attachedFiles: SnapshotStateList<AttachedContext> = mutableStateListOf()
   val pendingMessages: SnapshotStateList<PendingMessage> = mutableStateListOf()
+
+  /**
+   * Send entry point owned by the currently composed chat UI. The code
+   * vision action and editor menu live outside Compose, so they attach
+   * their symbol here and let the UI drive the existing send path.
+   */
+  private var sendHandler: (() -> Unit)? = null
+  private var sendRequested: Boolean = false
+
+  /**
+   * Registers the UI send callback, replaying a send that arrived while the
+   * chat was still being composed (for example a cold tool window opening).
+   */
+  fun registerSendHandler(handler: () -> Unit) {
+    sendHandler = handler
+    if (sendRequested) {
+      sendRequested = false
+      handler()
+    }
+  }
+
+  fun unregisterSendHandler(handler: () -> Unit) {
+    if (sendHandler === handler) sendHandler = null
+  }
+
+  /**
+   * Attaches [symbol] and asks the chat to explain it.
+   *
+   * An existing draft is kept and the prompt is appended as a new paragraph
+   * instead of overwriting what the user already typed.
+   */
+  fun attachSymbolAndSend(symbol: AttachedSymbol, prompt: String) {
+    val alreadyAttached: Boolean = attachedFiles.any { attached ->
+      attached is AttachedSymbol &&
+        attached.file.path == symbol.file.path &&
+        attached.symbolName == symbol.symbolName &&
+        attached.lineRange == symbol.lineRange
+    }
+    if (!alreadyAttached && attachedFiles.size < MAX_ATTACHMENTS) {
+      attachedFiles.add(symbol)
+    }
+
+    val currentText: String = textState.text.toString()
+    val nextText: String =
+      if (currentText.isBlank()) prompt else currentText.trimEnd() + "\n\n" + prompt
+    textState.edit { replace(0, length, nextText) }
+
+    val handler: (() -> Unit)? = sendHandler
+    if (handler != null) handler() else sendRequested = true
+  }
 
   /**
    * Request ids of ask cards the user has already answered. Held at session
@@ -202,6 +253,7 @@ class GradumChatSession : Disposable {
   fun reset() {
     cleanupSubAgent()
     exitMergeMode()
+    sendRequested = false
     val cancellableJob = currentJob
     currentJob = null
     if (cancellableJob != null) {

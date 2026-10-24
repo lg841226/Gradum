@@ -20,8 +20,10 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.options.Configurable
+import com.intellij.openapi.project.ProjectManager
 import gradum.idea.BuildConfig
 import gradum.idea.chat.ui.chat.copyToClipboard
 import gradum.idea.provider.ProviderConfigFile
@@ -41,6 +43,9 @@ import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 import java.awt.Cursor
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import javax.swing.JComponent
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
@@ -82,6 +87,12 @@ class GradumConfigurable : Configurable, Configurable.NoScroll {
   override fun isModified(): Boolean = appearanceDraft.value != appearance.snapshot
 
   override fun apply() {
+    val prevExplainEnabled = appearance.snapshot.codeVisionExplainEnabled
+    val prevCommentsEnabled = appearance.snapshot.codeVisionCommentsEnabled
+    val newExplainEnabled = appearanceDraft.value.codeVisionExplainEnabled
+    val newCommentsEnabled = appearanceDraft.value.codeVisionCommentsEnabled
+    val codeVisionChanged = prevExplainEnabled != newExplainEnabled || prevCommentsEnabled != newCommentsEnabled
+
     appearance.update {
       it.paragraphDensity = appearanceDraft.value.paragraphDensity
       it.paragraphFontSizeSp = appearanceDraft.value.paragraphFontSizeSp
@@ -103,6 +114,15 @@ class GradumConfigurable : Configurable, Configurable.NoScroll {
       it.gitEnabled = appearanceDraft.value.gitEnabled
       it.rememberPermission = appearanceDraft.value.rememberPermission
       it.rememberContext = appearanceDraft.value.rememberContext
+      it.codeVisionExplainEnabled = appearanceDraft.value.codeVisionExplainEnabled
+      it.codeVisionCommentsEnabled = appearanceDraft.value.codeVisionCommentsEnabled
+    }
+
+    if (codeVisionChanged) {
+      for (project in ProjectManager.getInstance().openProjects) {
+        DaemonCodeAnalyzer.getInstance(project)
+          .restart("Gradum code vision settings changed")
+      }
     }
   }
 
@@ -176,8 +196,8 @@ private fun SettingsPanel(
         Spacer(Modifier.width(GradumSpacing.lg))
         val builtAtText: String = remember {
           val pattern: String = message("gradum.settings.devtools.builtAt.pattern")
-          val formatter = java.time.format.DateTimeFormatter.ofPattern(pattern)
-          formatter.format(java.time.Instant.ofEpochMilli(BuildConfig.buildTimeMillis).atZone(java.time.ZoneId.systemDefault()))
+          val formatter = DateTimeFormatter.ofPattern(pattern)
+          formatter.format(Instant.ofEpochMilli(BuildConfig.buildTimeMillis).atZone(ZoneId.systemDefault()))
         }
         Column(
           verticalArrangement = Arrangement.spacedBy(GradumSpacing.xs),
@@ -270,6 +290,7 @@ private fun SettingsPanel(
         onCheckedChange = { autoOpenInEditor.value = it }
       )
     }
+    EditorSection(appearanceDraft)
     ApiProviderSettings()
     McpServersSettings()
     GroupHeader(
@@ -305,6 +326,34 @@ private fun SettingsPanel(
         style = JewelTheme.typography.labelTextStyle
       )
     }
+  }
+}
+
+@Composable
+private fun EditorSection(draft: MutableState<AppearanceSettings.State>) {
+  val snapshot: AppearanceSettings.State = draft.value
+
+  GroupHeader(text = message("gradum.settings.editor.title"))
+  Column(
+    modifier = Modifier.padding(start = SETTINGS_GROUP_INDENT),
+    verticalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
+  ) {
+    SettingCheckboxRow(
+      enabled = true,
+      label = message("gradum.settings.editor.codevision"),
+      checked = snapshot.codeVisionExplainEnabled,
+      onCheckedChange = { checked: Boolean ->
+        draft.value = draft.value.copy(codeVisionExplainEnabled = checked)
+      }
+    )
+    SettingCheckboxRow(
+      enabled = true,
+      label = message("gradum.settings.editor.codevision.comments"),
+      checked = snapshot.codeVisionCommentsEnabled,
+      onCheckedChange = { checked: Boolean ->
+        draft.value = draft.value.copy(codeVisionCommentsEnabled = checked)
+      }
+    )
   }
 }
 

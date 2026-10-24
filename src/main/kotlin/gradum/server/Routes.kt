@@ -3,12 +3,9 @@ package gradum.server
 import gradum.*
 import gradum.Version
 import gradum.agent.Agent
+import gradum.agent.AttachmentPayload
 import gradum.agent.GradumEventType
-import gradum.client.LmStudioModelCapabilities
-import gradum.client.LmStudioModelCatalog
-import gradum.client.OllamaModelCapabilities
-import gradum.client.OllamaModelCatalog
-import gradum.client.ThinkingLevel
+import gradum.client.*
 import gradum.logging.EventStreamDump
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.server.persistence.*
@@ -29,13 +26,9 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ChannelResult
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -56,7 +49,6 @@ import java.util.concurrent.Executors.newFixedThreadPool
 
 private val logger: Logger = LoggerFactory.getLogger("GradumServerRoutes")
 
-// Cap on buffered NDJSON events per run before the producer drops.
 private const val EVENTS_CHANNEL_CAPACITY: Int = 2048
 
 // One live `/events` run, keyed in `activeSessions` by the run id.
@@ -68,11 +60,9 @@ private data class SessionEntry(
   val sessionId: String? = null,
   val parentRunId: String? = null,
   val childRunIds: MutableSet<String> = ConcurrentHashMap.newKeySet(),
-  // Live `sub_agent:start` payloads, mirrored so a reload can redraw them.
   val subAgents: MutableList<Map<String, Any>> = CopyOnWriteArrayList()
 )
 
-// Sums per-message token usage; `contextTokens` comes from the newest message reporting it.
 private fun aggregateTokenUsage(messages: List<Map<String, Any?>>): Map<String, Any> {
   var totalSum = 0
   var promptSum = 0
@@ -135,7 +125,11 @@ data class AttachmentDto(
   /** Base64 payload. */
   val data: String? = null,
   /** Original file name; prompt and transcript hint only. */
-  val filename: String? = null
+  val path: String? = null,
+  val endLine: Int? = null,
+  val startLine: Int? = null,
+  val filename: String? = null,
+  val symbolName: String? = null
 )
 
 @Serializable
@@ -447,11 +441,15 @@ fun Application.registerAllRoutes(
             loadPreviousContext = requestBody.loadContext,
             displayText = requestBody.displayText.orEmpty(),
             attachments = requestBody.attachments.map { attachment ->
-              gradum.agent.AttachmentPayload(
+              AttachmentPayload(
                 type = attachment.type,
                 mime = attachment.mime,
                 data = attachment.data.orEmpty(),
                 filename = attachment.filename,
+                path = attachment.path,
+                startLine = attachment.startLine,
+                endLine = attachment.endLine,
+                symbolName = attachment.symbolName,
               )
             },
           )

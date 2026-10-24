@@ -8,10 +8,10 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
-
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.Paths
 import kotlin.test.DefaultAsserter.assertTrue
 import kotlin.test.Test
 
@@ -163,7 +163,7 @@ class ReadFileSkillSecurityTest {
 
   @Test
   fun `read_file allows tmp scratch files via safe prefix`() {
-    val tmpFile: Path = java.nio.file.Paths.get("/tmp/gradum-scratch-test.txt")
+    val tmpFile: Path = Paths.get("/tmp/gradum-scratch-test.txt")
     try {
       Files.writeString(tmpFile, "scratch content")
       val result = skill.execute(

@@ -1,4 +1,4 @@
-@file:OptIn(org.jetbrains.jewel.foundation.ExperimentalJewelApi::class)
+@file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea.chat.editor
 
@@ -12,6 +12,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindowManager
 import gradum.idea.createChatComposePanel
 import gradum.idea.utils.GradumBundle.message
+import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.enableNewSwingCompositing
 import java.awt.Component
 import java.awt.Container

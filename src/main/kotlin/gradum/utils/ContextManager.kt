@@ -8,11 +8,12 @@ import gradum.skill.Skill
 import gradum.skill.SkillRegistry
 import gradum.skill.ToolDisplay
 import kotlinx.serialization.json.*
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Path
 
-private val logger: org.slf4j.Logger = LoggerFactory.getLogger("ContextManager")
+private val logger: Logger = LoggerFactory.getLogger("ContextManager")
 private val jsonFormatter: Json = Json { prettyPrint = true }
 
 /**

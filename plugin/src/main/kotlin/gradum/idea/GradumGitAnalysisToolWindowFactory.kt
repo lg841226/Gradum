@@ -23,6 +23,7 @@ import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
 import gradum.idea.chat.ui.markdown.rememberGradumMarkdownStyling
+import gradum.idea.settings.AppearanceSettings
 import gradum.idea.settings.showDataSecurityDialog
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
@@ -50,7 +51,7 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
 
   @Suppress("UnstableApiUsage")
   override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-    val settings = gradum.idea.settings.AppearanceSettings.getInstance()
+    val settings = AppearanceSettings.getInstance()
     if (!settings.snapshot.gitEnabled) {
       toolWindow.isAvailable = false
       return

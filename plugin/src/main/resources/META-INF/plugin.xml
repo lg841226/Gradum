@@ -30,6 +30,8 @@
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.compose</depends>
+    <depends>com.intellij.java</depends>
+    <depends>org.jetbrains.kotlin</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <applicationConfigurable
@@ -89,5 +91,25 @@
             startup. Looked up by id from `McpServersSettings`.
         -->
         <notificationGroup id="Gradum" displayType="BALLOON"/>
+
+        <!-- Code Vision provider: shows "Explain" action above Java/Kotlin functions -->
+        <codeInsight.daemonBoundCodeVisionProvider
+            implementation="gradum.idea.editor.GradumCodeVisionProvider"/>
+
+        <!-- Code Vision provider: shows "Update Comments" action above Java/Kotlin functions -->
+        <codeInsight.daemonBoundCodeVisionProvider
+            implementation="gradum.idea.editor.GradumCommentsCodeVisionProvider"/>
+
     </extensions>
+
+    <!-- Editor right-click menu: Gradum group with Explain Function action -->
+    <actions>
+        <group id="Gradum.EditorPopupMenu" class="com.intellij.openapi.actionSystem.DefaultActionGroup" text="Gradum"
+               popup="true">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <action id="Gradum.ExplainFunction" class="gradum.idea.editor.ExplainFunctionAction"
+                    text="Explain Function" description="Attach this function to chat and ask for an explanation"/>
+        </group>
+    </actions>
+
 </idea-plugin>

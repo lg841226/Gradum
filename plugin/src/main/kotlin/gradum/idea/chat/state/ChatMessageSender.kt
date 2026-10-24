@@ -2,12 +2,9 @@ package gradum.idea.chat.state
 
 import gradum.idea.chat.api.GradumApiClient
 import gradum.idea.chat.model.ChatErrorCode
-import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.model.ModelInfo
-import gradum.idea.editor.AttachedContext
-import gradum.idea.editor.AttachedFile
-import gradum.idea.editor.AttachedImage
-import gradum.idea.editor.AttachedText
+import gradum.idea.chat.model.RenderBlock
+import gradum.idea.editor.*
 import gradum.idea.provider.ProviderKind
 import gradum.idea.provider.ProviderSettings
 import gradum.idea.utils.GradumBundle.message
@@ -45,7 +42,9 @@ internal suspend fun GradumChatSession.sendMessage(
   var streamGapDetected = false
   val modelConfig: Map<String, String> = buildModelConfig()
   val textAttachments: List<AttachedText> = attachments.filterIsInstance<AttachedText>()
-  val attachmentPaths: List<String> = attachments.filterIsInstance<AttachedFile>().map { it.file.path }
+  val fileAttachments: List<AttachedFile> = attachments.filterIsInstance<AttachedFile>()
+  val symbolAttachments: List<AttachedSymbol> = attachments.filterIsInstance<AttachedSymbol>()
+  val attachmentPaths: List<String> = fileAttachments.map { it.file.path } + symbolAttachments.map { it.file.path }
   val prefix: String = buildString {
     if (contextPath.isNotEmpty())
       append("<Context path=\"$contextPath\"/>")
@@ -119,6 +118,22 @@ internal suspend fun GradumChatSession.sendMessage(
           )
         }
 
+    val fileApiAttachments: List<GradumApiClient.ApiFileAttachment> =
+      (attachments.filterIsInstance<AttachedFile>() + attachments.filterIsInstance<AttachedSymbol>())
+        .map { attachment ->
+          when (attachment) {
+            is AttachedSymbol -> GradumApiClient.ApiFileAttachment(
+              path = attachment.file.path,
+              startLine = attachment.lineRange.first,
+              endLine = attachment.lineRange.last,
+              symbolName = attachment.symbolName
+            )
+
+            is AttachedFile -> GradumApiClient.ApiFileAttachment(path = attachment.file.path)
+            else -> throw IllegalArgumentException("Unexpected attachment type: ${attachment.javaClass.simpleName}")
+          }
+        }
+
     apiClient.sendMessage(
       request = GradumApiClient.SendMessageRequest(
         toolMode = toolMode,
@@ -131,7 +146,8 @@ internal suspend fun GradumChatSession.sendMessage(
         modelName = selectedModel?.name,
         projectRoot = project?.basePath,
         thinkingLevel = thinkingLevel.name.lowercase(),
-        imageAttachments = imageAttachments
+        imageAttachments = imageAttachments,
+        fileAttachments = fileApiAttachments
       ),
       onStreamGap = { _, _, _ -> streamGapDetected = true }
     ).catch { exception: Throwable ->

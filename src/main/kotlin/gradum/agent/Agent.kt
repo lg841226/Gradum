@@ -12,10 +12,12 @@ import gradum.mcp.McpToolCatalog
 import gradum.skill.*
 import gradum.skill.builtin.getTodoManagerInstance
 import gradum.skill.dsl.buildXml
+import gradum.task.BackgroundTaskManager
 import gradum.task.JobOutcome
 import gradum.task.JobStatus
 import gradum.utils.ContextManager
 import gradum.utils.JsonUtil
+import gradum.utils.MAX_HISTORY_MESSAGES
 import gradum.utils.trimmedOutputLines
 import gradum.vcs.SessionSnapshotManager
 import kotlinx.coroutines.flow.Flow
@@ -31,12 +33,6 @@ private val logger: Logger = LoggerFactory.getLogger("Agent")
 
 private const val REPEATED_LOOP_REASON: String = "repetitive_loop"
 
-// Resolves the ContextManager output directory for an agent run.
-//
-// Single source of truth for the `.gradum/sessions/<sessionId>/` layout:
-// a non-blank `sessionId` scopes this conversation's context file to its
-// own directory; blank falls back to the legacy single
-// `<projectRoot>/.gradum/context.json` directory.
 internal fun contextOutputDirectory(configuration: AgentConfiguration): Path {
   val sessionKey: String = configuration.sessionId?.trim().orEmpty()
   val projectRootPath: Path = Path.of(configuration.projectRoot)
@@ -61,7 +57,11 @@ data class AttachmentPayload(
   val type: String,
   val mime: String?,
   val data: String,
-  val filename: String?
+  val filename: String?,
+  val path: String? = null,
+  val endLine: Int? = null,
+  val startLine: Int? = null,
+  val symbolName: String? = null
 )
 
 /**
@@ -81,10 +81,8 @@ data class AttachmentPayload(
 class Agent(
   private val configuration: AgentConfiguration,
   private val emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit,
-  private val registerChildSession: ((childSessionId: String, agent: Agent) -> Unit)? = null,
-  // Paired with [registerChildSession]; called when a sub-agent completes
-  // or errors so the session hierarchy stays clean.
   private val unregisterChildSession: ((childSessionId: String) -> Unit)? = null,
+  private val registerChildSession: ((childSessionId: String, agent: Agent) -> Unit)? = null,
   /**
    * Registry that backs the ask_interaction channel. When non-null the
    * session's [SkillContext.scope] is wired so skills can pause for a
@@ -143,7 +141,7 @@ class Agent(
     emitEvent = emitEvent
   )
 
-  private val maxHistoryMessages: Int = gradum.utils.MAX_HISTORY_MESSAGES
+  private val maxHistoryMessages: Int = MAX_HISTORY_MESSAGES
 
   init {
     activeClient =
@@ -174,7 +172,6 @@ class Agent(
     toolExecutor.reset()
 
     val sessionKey: String = configuration.sessionId?.trim().orEmpty()
-    // Server-named turn id, echoed on `session_start` for the plugin's rewind.
     val resolvedMessageId: String =
       messageId?.trim()?.takeIf { it.isNotEmpty() } ?: UUID.randomUUID().toString()
     if (sessionKey.isNotEmpty() && registerChildSession != null)
@@ -216,8 +213,9 @@ class Agent(
     conversationHistory.addUserMessage(
       text = userInput,
       attachments = attachments,
+      displayText = displayText,
       messageId = resolvedMessageId,
-      displayText = displayText
+      projectRoot = configuration.projectRoot
     )
 
     if (toolCallXml != null) {
@@ -454,9 +452,9 @@ class Agent(
   }
 
   // Debug tool-call playback mode. The developer authors a scenario as
-  // a short `<tls>` XML block, playing the part of the model, instead
+  // a short <tls> XML block, playing the part of the model, instead
   // of spending LLM tokens. Every listed call runs through the real
-  // [toolExecutor] pipeline, streams the same `tool_call` NDJSON events,
+  // [toolExecutor] pipeline, streams the same tool_call NDJSON events,
   // then writes a machine-readable recording to
   // `<projectRoot>/.gradum/recordings/<scenario>.json`.
   private fun playToolCallScenario(toolCallXml: String): Unit {
@@ -608,7 +606,7 @@ class Agent(
   // conversation history as tool messages. Called before each model turn to
   // ensure background results are included in the next LLM request.
   private fun injectPendingBackgroundResults() {
-    val manager = gradum.task.BackgroundTaskManager.getInstance() ?: return
+    val manager = BackgroundTaskManager.getInstance() ?: return
     val sessionId = configuration.sessionId ?: return
     val allOutcomes = manager.drainCompletedOutcomes()
 

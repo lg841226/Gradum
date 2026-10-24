@@ -20,10 +20,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.chat.model.ChatMessage
-import gradum.idea.editor.AttachedContext
-import gradum.idea.editor.AttachedFile
-import gradum.idea.editor.AttachedImage
-import gradum.idea.editor.AttachedText
+import gradum.idea.editor.*
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
@@ -33,12 +30,6 @@ import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
-// Maximum height of the user bubble while expanded. Content past this
-// point is reachable via the bubble's internal vertical scroll rather
-// than letting the bubble grow to fill the entire chat panel. At the
-// current typography (16sp regular x 1.5 line-height ≈ 24dp per line)
-// 200dp fits roughly 5 lines of body text: a tight cap, with most
-// longer pastes scrolling internally rather than growing the bubble.
 private val EXPAND_MAX_HEIGHT: Dp = 200.dp
 
 /**
@@ -77,7 +68,7 @@ fun UserChatBubble(
     message.attachments.filterIsInstance<AttachedImage>()
   val fileAttachments: List<AttachedContext> =
     message.attachments.filter {
-      it is AttachedFile || it is AttachedText
+      it is AttachedFile || it is AttachedText || it is AttachedSymbol
     }
 
   Row(

@@ -13,6 +13,7 @@ import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import javax.swing.*
+import javax.swing.text.Document as SwingDocument
 
 private const val MAX_LINES: Int = 5_000
 private const val POLL_INTERVAL_MILLIS: Long = 200L
@@ -163,7 +164,7 @@ class EventStreamMonitor : JFrame("Gradum Event Stream Monitor") {
 
   // Keeps the text area bounded so long-running sessions cannot exhaust memory.
   private fun trimOldLines() {
-    val textDocument: javax.swing.text.Document = outputTextArea.document
+    val textDocument: SwingDocument = outputTextArea.document
     val totalLineCount: Int = outputTextArea.lineCount
     if (totalLineCount <= MAX_LINES) return
 
@@ -210,7 +211,8 @@ class EventStreamMonitor : JFrame("Gradum Event Stream Monitor") {
 
   private fun updateStatus() {
     val enabledHint: String =
-      if (isDumpEnabled) "" else "debug.eventDump is off in settings.json"
+      if (isDumpEnabled) ""
+      else "debug.eventDump is off in settings.json"
     statusLabel.text = "Read ${readPosition.get()} bytes, ${outputTextArea.lineCount} lines, $logFile$enabledHint"
   }
 }

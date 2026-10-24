@@ -1,5 +1,6 @@
 package gradum
 
+import gradum.utils.JsonUtil
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.*
@@ -341,7 +342,7 @@ class ProviderConfigStoreTest {
     assertFalse(File(tempDir, "provider.env").exists())
 
     // Non-provider keys are preserved; provider keys now live in settings.json.
-    val migrated = gradum.utils.JsonUtil.decodeMap(File(tempDir, "settings.json").readText())
+    val migrated = JsonUtil.decodeMap(File(tempDir, "settings.json").readText())
     assertEquals("http://192.168.1.50:11434", migrated["ollama.baseUrl"])
     assertEquals("sk-123", migrated["deepseek.apiKey"])
     assertEquals(true, migrated["lmstudio.allowRemote"])

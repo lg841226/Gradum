@@ -43,7 +43,6 @@ class AskScope(
   private val pendingQuestions: PendingQuestions,
   private val emitEvent: ((eventType: String, eventData: Map<String, Any>) -> Unit)?,
 ) {
-
   fun askInteraction(builder: AskBuilder.() -> Unit): AskResult {
     val request = AskBuilder().apply(builder)
     request.validate()

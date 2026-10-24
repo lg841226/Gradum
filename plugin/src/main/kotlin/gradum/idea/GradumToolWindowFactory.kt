@@ -9,6 +9,7 @@ import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.openapi.wm.ToolWindowManager
 import gradum.idea.chat.editor.openGradumChatInEditor
 import gradum.idea.chat.state.GradumChatSession
+import gradum.idea.settings.AppearanceSettings
 import gradum.idea.utils.GradumBundle.message
 import org.jetbrains.jewel.bridge.addComposeTab
 
@@ -23,7 +24,7 @@ import org.jetbrains.jewel.bridge.addComposeTab
 class GradumToolWindowFactory : ToolWindowFactory {
 
   override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-    val settings = gradum.idea.settings.AppearanceSettings.getInstance()
+    val settings = AppearanceSettings.getInstance()
     if (!settings.snapshot.agentEnabled) {
       toolWindow.isAvailable = false
       return

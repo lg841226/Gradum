@@ -64,6 +64,18 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
   }
 
   /**
+   * Wire-shaped file attachment for [sendMessage]. When [startLine] and
+   * [endLine] are present the server reads only that range; [symbolName]
+   * identifies the function declaration shown in the UI.
+   */
+  data class ApiFileAttachment(
+    val path: String,
+    val endLine: Int? = null,
+    val startLine: Int? = null,
+    val symbolName: String? = null
+  )
+
+  /**
    * Wire-shaped image attachment for [sendMessage]. Mirrors the
    * server-side `AttachmentDto` exactly (the `type` field is
    * `image` for now; the discriminator exists so future
@@ -73,7 +85,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    * The base64 payload in [data] is the original file bytes
    * (no re-encoding) and [mime] is the IANA type derived from
    * the file extension (`image/png`, `image/jpeg`, `image/webp`,
-   * …): the server gets exactly what the user picked.
+   * ...): the server gets exactly what the user picked.
    */
   data class ApiImageAttachment(
     val mime: String,
@@ -98,7 +110,8 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     val promptVariant: String? = null,
     val thinkingLevel: String? = null,
     val modelParams: Map<String, String>? = null,
-    val imageAttachments: List<ApiImageAttachment> = emptyList()
+    val imageAttachments: List<ApiImageAttachment> = emptyList(),
+    val fileAttachments: List<ApiFileAttachment> = emptyList()
   )
 
   private val ndjsonParser: Json = Json {
@@ -512,8 +525,8 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
       if (request.toolCallXml != null) put("toolCallXml", request.toolCallXml)
       if (request.projectRoot != null) put("projectRoot", request.projectRoot)
       if (request.promptVariant != null) put("promptVariant", request.promptVariant)
-      if (request.imageAttachments.isNotEmpty()) {
-        val imageAttachmentsJson: JsonArray = buildJsonArray {
+      if (request.imageAttachments.isNotEmpty() || request.fileAttachments.isNotEmpty()) {
+        val attachmentsJson: JsonArray = buildJsonArray {
           for ((mime: String, data: String, filename: String) in request.imageAttachments) {
             add(buildJsonObject {
               put("type", "image")
@@ -522,8 +535,17 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
               put("filename", filename)
             })
           }
+          for (fileAttachment in request.fileAttachments) {
+            add(buildJsonObject {
+              put("type", "file")
+              put("path", fileAttachment.path)
+              fileAttachment.startLine?.let { put("startLine", it) }
+              fileAttachment.endLine?.let { put("endLine", it) }
+              fileAttachment.symbolName?.let { put("symbolName", it) }
+            })
+          }
         }
-        put(key = "attachments", element = imageAttachmentsJson)
+        put(key = "attachments", element = attachmentsJson)
       }
     }
 
@@ -574,10 +596,6 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     }
   }
 
-  // Compares an event's `seq` with the previous one and logs when part of the
-  // stream was lost. The server reserves a number even for events it had to
-  // drop, so both `gap > 0` and a sequence jump mean the client is missing
-  // events. Returns the sequence to remember for the next event.
   private fun warnOnStreamGap(
     event: JsonObject,
     previousSeq: Long,

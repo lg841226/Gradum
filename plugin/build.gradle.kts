@@ -25,6 +25,8 @@ dependencies {
   intellijPlatform {
     create("IU", "2026.2")
     bundledPlugin("com.intellij.modules.platform")
+    bundledPlugin("com.intellij.java")
+    bundledPlugin("org.jetbrains.kotlin")
     composeUI()
   }
 

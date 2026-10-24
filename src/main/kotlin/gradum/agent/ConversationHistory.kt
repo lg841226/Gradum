@@ -9,6 +9,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
 import org.slf4j.LoggerFactory
+import java.nio.file.Path
+import java.nio.file.Paths
 
 private val logger = LoggerFactory.getLogger("ConversationHistory")
 
@@ -58,39 +60,65 @@ class ConversationHistory {
 
   fun addUserMessage(
     text: String,
-    attachments: List<AttachmentPayload>,
     messageId: String? = null,
-    displayText: String = ""
+    displayText: String = "",
+    projectRoot: String = ".",
+    attachments: List<AttachmentPayload>
   ) {
     val attachmentMetas: MutableList<Map<String, Any>> = mutableListOf()
     val parts = mutableListOf<Map<String, Any>>(
       mapOf("type" to "text", "text" to text)
     )
-    for ((type, mime, data, filename) in attachments) {
-      if (type != "image") {
-        logger.warn("Ignoring unsupported attachment type '$type' (filename=$filename)")
+    for (attachment in attachments) {
+      if (attachment.type != "image" && attachment.type != "file") {
+        logger.warn("Ignoring unsupported attachment type '${attachment.type}' (filename=${attachment.filename})")
         continue
       }
-      parts.add(
-        mapOf(
-          "type" to "image",
-          "data" to data,
-          "mime" to (mime ?: "image/jpeg"),
-          "filename" to (filename ?: "")
+      if (attachment.type == "image") {
+        parts.add(
+          mapOf(
+            "type" to "image",
+            "data" to attachment.data,
+            "mime" to (attachment.mime ?: "image/jpeg"),
+            "filename" to (attachment.filename ?: "")
+          )
         )
+        attachmentMetas.add(
+          mapOf(
+            "name" to (attachment.filename ?: ""),
+            "mime" to (attachment.mime ?: "image/jpeg")
+          )
+        )
+        continue
+      }
+
+      val filePath: String? = attachment.path?.takeIf { it.isNotBlank() }
+      if (filePath == null) {
+        logger.warn("File attachment missing path (symbolName=${attachment.symbolName})")
+        continue
+      }
+      val injected: String = injectFileAttachmentText(
+        projectRoot = projectRoot, attachment = attachment, filePath = filePath
       )
+      if (injected.isBlank()) continue
+
+      parts.add(mapOf("type" to "text", "text" to injected))
       attachmentMetas.add(
-        mapOf(
-          "name" to (filename ?: ""),
-          "mime" to (mime ?: "image/jpeg")
-        )
+        buildMap {
+          put("name", attachment.filename ?: filePath)
+          put("mime", "text/plain")
+          attachment.startLine?.let { put("startLine", it) }
+          attachment.endLine?.let { put("endLine", it) }
+          attachment.symbolName?.let { put("symbolName", it) }
+          put("path", filePath)
+        }
       )
     }
     val userMessage = buildMap {
       if (!messageId.isNullOrBlank()) put("id", messageId)
 
       put("role", "user")
-      put("content", if (attachments.isEmpty()) text else parts)
+      put("content", if (attachmentMetas.isEmpty()) text else parts)
 
       if (displayText.isNotBlank() && displayText != text) put("displayText", displayText)
       if (attachmentMetas.isNotEmpty()) put("attachments", attachmentMetas.toList())
@@ -162,8 +190,6 @@ class ConversationHistory {
       put("role", "tool")
       put("alias", alias)
       put("content", content)
-      // Ollama identifies tool results by order alone; every OpenAI-compatible
-      // provider (OpenAI, DeepSeek, MiniMax, …) requires the paired call id.
       if (provider != Provider.OLLAMA && toolCallId != null)
         put("tool_call_id", toolCallId)
     }
@@ -190,22 +216,63 @@ class ConversationHistory {
     messages.addAll(elements = keepFromEnd)
   }
 
-  /**
-   * Returns the indices of all tool messages with the given [alias].
-   * Used by [ToolExecutor] to identify which history entries to compact.
-   */
   fun toolMessageIndices(alias: String): List<Int> = messages.withIndex()
     .filter { (_, entry) -> entry["role"] == "tool" && entry["alias"] == alias }
     .map { (index, _) -> index }
 
-  /**
-   * Delegates to [Skill.recordAndCompactHistory] with the internal message list.
-   * Returns the processed result (maybe stripped of volatile keys).
-   */
   fun recordAndCompact(
     skillInstance: Skill?, currentResult: Map<String, Any>, ownMessageIndices: List<Int>
   ): Map<String, Any> {
     return skillInstance?.recordAndCompactHistory(ownMessageIndices, currentResult, messages)
       ?: currentResult
   }
+}
+
+/**
+ * Reads file attachment content from disk and injects it as text into
+ * the user message. When `startLine` /`endLine` are set the range is
+ * 1-based and inclusive, matching the wire contract used by the plugin
+ * and the semantics of ReadFileSkill.
+ */
+private fun injectFileAttachmentText(
+  projectRoot: String,
+  attachment: AttachmentPayload,
+  filePath: String
+): String {
+  return try {
+    val resolvedPath: Path = resolveAttachmentPath(projectRoot = projectRoot, filePath = filePath)
+    val file = resolvedPath.toFile()
+    if (!file.exists() || !file.isFile) return ""
+
+    val allLines = file.readLines(Charsets.UTF_8)
+    val (startLine, endLine, selectedLines) =
+      if (attachment.startLine != null && attachment.endLine != null) {
+        val start = attachment.startLine.coerceAtLeast(1)
+        val end = attachment.endLine.coerceAtLeast(start)
+        val slice = allLines.drop(start - 1).take(end - start + 1)
+        Triple(start, start + slice.size - 1, slice)
+      } else {
+        Triple(1, allLines.size, allLines)
+      }
+
+    val label = attachment.symbolName?.takeIf { it.isNotBlank() } ?: file.name
+    val rangeLabel = if (startLine == endLine) "$startLine" else "$startLine ~ $endLine"
+    buildString {
+      append("<FileAttachment path=\"$filePath\"")
+      append(" symbol=\"$label\"")
+      append(" lines=\"$rangeLabel\">\n")
+      selectedLines.forEachIndexed { index, line ->
+        append("${startLine + index}: $line\n")
+      }
+      append("</FileAttachment>")
+    }
+  } catch (exception: Exception) {
+    logger.warn("Failed to inject file attachment $filePath", exception)
+    ""
+  }
+}
+
+private fun resolveAttachmentPath(projectRoot: String, filePath: String): Path {
+  val path = Paths.get(filePath)
+  return if (path.isAbsolute) path.normalize() else Paths.get(projectRoot).resolve(path).normalize()
 }

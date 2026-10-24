@@ -1,5 +1,6 @@
 package gradum.server
 
+import gradum.skill.PendingQuestions
 import gradum.skill.Skill
 import gradum.skill.SkillRegistry
 import gradum.skill.external.ExternalSkillClassLoader
@@ -51,7 +52,7 @@ fun createServerInstance(serverConfiguration: ServerConfiguration): GradumServer
 fun Application.module(
   serverConfiguration: ServerConfiguration,
   pairingCode: String? = null,
-  pendingQuestions: gradum.skill.PendingQuestions = gradum.skill.PendingQuestions()
+  pendingQuestions: PendingQuestions = PendingQuestions()
 ) {
   val pairingState = PairingState(pairingCode ?: PairingState.generatePairingCode())
 
@@ -82,17 +83,6 @@ fun Application.module(
   logger.info("Pairing code (unlock editing from other devices): ${pairingState.code}")
 }
 
-// Installs the Host whitelist and bearer-token check.
-//
-// Runs in the `Plugins` phase, before routing, so an unauthorized call is
-// rejected before any handler body executes. Four kinds of route bypass the
-// token check: `/health` (the build's readiness probe and monitoring),
-// `POST /skills/pair` (the pairing-code exchange that *earns* the token), and
-// reader mode `GET` for the editor page with its static assets plus the
-// two skill-source reads that put code on screen. Everything else, every POST
-// included, still carries the token check below, and since the mutating
-// routes are all POSTs, that is exactly what makes a token-less session
-// read-only.
 private fun Application.installRequestGuard(serverConfiguration: ServerConfiguration) {
   intercept(ApplicationCallPipeline.Plugins) {
     val requestHost: String =
@@ -137,18 +127,12 @@ private fun Application.installRequestGuard(serverConfiguration: ServerConfigura
   }
 }
 
-// Extracts the token from an `Authorization: Bearer <token>` header, or null.
 private fun bearerToken(request: ApplicationRequest): String? {
   val headerValue: String = request.headers[HttpHeaders.Authorization] ?: return null
   if (!headerValue.startsWith(ServerAuth.BEARER_PREFIX)) return null
   return headerValue.removePrefix(ServerAuth.BEARER_PREFIX).trim().takeIf { it.isNotEmpty() }
 }
 
-// Startup log label for one skill: alias(skillName), suffixed with
-// external when the skill class was loaded from ~/.gradum/skills/ by
-// [ExternalSkillClassLoader]. Built-in and MCP skills come from the app
-// classloader, so they stay untagged. Derived from the live classloader
-// instead of a registry snapshot, so hot-reloaded skills keep the tag.
 private fun skillLabel(skill: Skill): String {
   val baseLabel = "${skill.alias}(${skill.skillName})"
   return if (skill.javaClass.classLoader is ExternalSkillClassLoader) "$baseLabel [external]" else baseLabel
