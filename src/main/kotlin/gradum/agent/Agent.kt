@@ -215,10 +215,9 @@ class Agent(
 
     conversationHistory.addUserMessage(
       text = userInput,
-      attachments = attachments,
       displayText = displayText,
-      messageId = resolvedMessageId,
-      projectRoot = configuration.projectRoot
+      attachments = attachments,
+      messageId = resolvedMessageId
     )
 
     if (toolCallXml != null) {

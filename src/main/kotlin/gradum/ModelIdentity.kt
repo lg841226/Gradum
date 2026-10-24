@@ -51,7 +51,7 @@ enum class UnavailableReason {
  * field is only for the discovery probe.
  *
  * [apiKeyEnvVar] is the per-provider environment variable holding the bearer
- * token for this server. When non-null, [Discovery] resolves the key from this
+ * token for this server. When non-null, Discovery resolves the key from this
  * env var first and only falls back to the shared [cloudApiKeyEnvCandidates]
  * list if it is unset/blank. This lets DeepSeek, MiniMax and Zhipu each keep
  * their own key (different vendors, different accounts) without forcing the

@@ -65,7 +65,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
 
   /**
    * Wire-shaped file attachment for [sendMessage]. [attachmentText] is the
-   * rendered `<FileAttachment/>` reference tag produced by
+   * rendered `gradum:` reference tag produced by
    * [AttachmentRenderer]; the server inserts it verbatim and never parses it.
    * The remaining fields exist only so the server can store display metadata
    * for session history.

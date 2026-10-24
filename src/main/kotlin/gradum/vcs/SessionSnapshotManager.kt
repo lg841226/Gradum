@@ -2,8 +2,6 @@ package gradum.vcs
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import java.io.File
-import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
@@ -200,7 +198,7 @@ object SessionSnapshotManager {
       .resolve("${absoluteRoot.fileName}-$pathHash")
   }
 
-  // Creates the snapshot repository once; a plain `git init` with directed env.
+  /** Creates the snapshot repository once; a plain `git init` with directed env. */
   private fun ensureSnapshotRepository(projectRoot: String, snapshotGitDirectory: Path) {
     if (Files.exists(snapshotGitDirectory)) return
     Files.createDirectories(snapshotGitDirectory)
@@ -212,7 +210,7 @@ object SessionSnapshotManager {
     logger.info("initialized snapshot store at '{}'", snapshotGitDirectory)
   }
 
-  // Best-effort garbage collection; unreachable snapshot objects linger otherwise.
+  /** Best-effort garbage collection; unreachable snapshot objects linger otherwise. */
   private fun pruneSnapshotStore(projectRoot: String, snapshotGitDirectory: Path) {
     try {
       runGitCommand(projectRoot, snapshotGitDirectory, emptyMap(), "gc", "--prune=14.days")
@@ -225,7 +223,7 @@ object SessionSnapshotManager {
 
   private fun turnRefName(sessionId: String, messageId: String): String = "$TURN_REF_PREFIX/$sessionId/$messageId"
 
-  // Drops every turn ref of [sessionId]; called when the session itself is deleted.
+  /** Drops every turn ref of [sessionId]; called when the session itself is deleted. */
   private fun dropTurnRefs(projectRoot: String, snapshotGitDirectory: Path, sessionId: String) {
     val turnRefList: String = runGitCommand(
       projectRoot, snapshotGitDirectory, emptyMap(), "for-each-ref", "--format=%(refname)", "$TURN_REF_PREFIX/$sessionId/"
@@ -272,9 +270,9 @@ object SessionSnapshotManager {
       "git", "--git-dir", snapshotGitDirectory.toString(),
       "--work-tree", projectRoot, "apply", "--binary", "--whitespace=nowarn"
     )
-      .directory(File(projectRoot))
+      .directory(java.io.File(projectRoot))
       .start()
-    patchProcess.outputStream.use { processInput: OutputStream ->
+    patchProcess.outputStream.use { processInput: java.io.OutputStream ->
       processInput.write(patchText.toByteArray(Charsets.UTF_8))
     }
     val applyExitCode: Int = patchProcess.waitFor()
@@ -289,7 +287,7 @@ object SessionSnapshotManager {
     val gitProcess: Process = ProcessBuilder(
       "git", "--git-dir", snapshotGitDirectory.toString(), "--work-tree", projectRoot, *gitArguments
     )
-      .directory(File(projectRoot))
+      .directory(java.io.File(projectRoot))
       .apply { environment().putAll(extraEnvironment) }
       .start()
     val standardOutput: String = gitProcess.inputStream.readBytes().toString(Charsets.UTF_8)

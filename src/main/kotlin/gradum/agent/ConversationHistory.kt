@@ -58,9 +58,8 @@ class ConversationHistory {
 
   fun addUserMessage(
     text: String,
-    messageId: String? = null,
     displayText: String = "",
-    projectRoot: String = ".",
+    messageId: String? = null,
     attachments: List<AttachmentPayload>
   ) {
     val attachmentMetas: MutableList<Map<String, Any>> = mutableListOf()

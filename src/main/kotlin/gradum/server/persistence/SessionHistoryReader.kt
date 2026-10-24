@@ -155,6 +155,7 @@ object SessionHistoryReader {
           .associate { (key, value) -> key.toString() to value }
         if (stringKeyed.isEmpty()) "{}" else JsonUtil.encodeMap(input = stringKeyed)
       }
+
       else -> "{}"
     }
   }
@@ -308,16 +309,14 @@ object SessionHistoryReader {
       ?.entries
       ?.associate { (key, entryValue) -> key.toString() to entryValue }
 
-  // User text: display-only view when present (prompt wrappers stripped), else wire content
   private fun userText(message: Map<String, Any?>): String {
     val displayText: Any? = message["displayText"]
     if (displayText is String && displayText.isNotBlank()) return displayText
     return when (val content: Any? = message["content"]) {
       is String -> content
       is List<*> -> content.filterIsInstance<Map<*, *>>()
-        .filter { it["type"] == "text" }
-        .mapNotNull { it["text"] as? String }
-        .joinToString(separator = "\n\n")
+        .firstOrNull { it["type"] == "text" }?.get("text") as? String ?: ""
+
       else -> ""
     }
   }

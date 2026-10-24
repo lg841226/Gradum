@@ -129,11 +129,11 @@ internal suspend fun GradumChatSession.sendMessage(
                 symbolName = attachment.symbolName,
                 endLine = attachment.lineRange.last,
                 startLine = attachment.lineRange.first,
-                attachmentText = AttachmentRenderer.renderFileTag(
+                attachmentText = AttachmentRenderer.renderSymbolTag(
                   path = attachment.file.path,
                   symbolName = attachment.symbolName,
-                  endLine = attachment.lineRange.last,
-                  startLine = attachment.lineRange.first
+                  startLine = attachment.lineRange.first,
+                  endLine = attachment.lineRange.last
                 )
               )
 
@@ -147,9 +147,9 @@ internal suspend fun GradumChatSession.sendMessage(
               GradumApiClient.ApiFileAttachment(
                 path = attachment.file.path,
                 errorCount = attachment.errors.size,
-                attachmentText = AttachmentRenderer.renderFileTag(
+                attachmentText = AttachmentRenderer.renderDiagnosticsTag(
                   path = attachment.file.path,
-                  errorSummary = AttachmentRenderer.renderErrorSummary(errors = attachment.errors)
+                  errors = attachment.errors
                 )
               )
 
