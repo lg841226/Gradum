@@ -582,7 +582,7 @@ object ModelIdentity {
         effective
       }
 
-      logger.info("Probing ${serversToProbe.size} server(s)")
+      logger.debug("Probing ${serversToProbe.size} server(s)")
 
       val currentSnapshots = mutableListOf<ServerSnapshot>()
       val discovered = mutableListOf<ModelEntry>()

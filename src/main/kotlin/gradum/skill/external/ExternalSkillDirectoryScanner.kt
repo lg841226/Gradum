@@ -292,7 +292,7 @@ class ExternalSkillDirectoryScanner(
     }
 
     if (compiledSourceHashes.isNotEmpty()) {
-      logger.info(
+      logger.debug(
         "Restored {} of {} external skill(s) from build cache; recompile skipped",
         compiledSourceHashes.size, sourceFiles.size
       )
@@ -536,7 +536,7 @@ class ExternalSkillDirectoryScanner(
         else -> {
           skillStore.register(registeredSkill)
           externalOwned[skillName] = registeredSkill
-          logger.info("Registered external skill '{}'", skillName)
+          logger.debug("Registered external skill '{}'", skillName)
         }
       }
     }

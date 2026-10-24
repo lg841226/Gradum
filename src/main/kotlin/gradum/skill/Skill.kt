@@ -4,6 +4,7 @@ import gradum.SkillResult
 import gradum.ToolMode
 import gradum.skill.dsl.ParameterLevel
 import gradum.skill.dsl.SchemaBuilder
+import gradum.skill.dsl.SettingsSpec
 import gradum.skill.dsl.SkillParameter
 import gradum.utils.JsonUtil.decodeMap
 import gradum.utils.JsonUtil.encodeMap
@@ -48,6 +49,13 @@ abstract class Skill {
   open val allowedToolModes: Set<ToolMode> = setOf(
     ToolMode.AGENT, ToolMode.EDIT, ToolMode.READ_ONLY
   )
+
+  /**
+   * Shape of the plugin config this skill reads from the settings.json
+   * `plugins.<skillName>` section; null means the skill takes no config.
+   * Consumed via `pluginConfig(context).forSpec(settingsSpec)`.
+   */
+  open val settingsSpec: SettingsSpec? = null
 
   /**
    * Whether this skill may execute under [toolMode].

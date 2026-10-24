@@ -514,6 +514,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
       }
 
       put("loadContext", request.loadContext)
+      if (!request.displayText.isNullOrEmpty()) put("displayText", request.displayText)
 
       if (request.toolMode != null) put("toolMode", request.toolMode)
       if (request.thinkingLevel != null) put("thinkingLevel", request.thinkingLevel)

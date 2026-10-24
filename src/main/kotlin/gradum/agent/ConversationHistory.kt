@@ -118,7 +118,7 @@ class ConversationHistory {
       put("role", "user")
       put("content", if (attachmentMetas.isEmpty()) text else parts)
 
-      if (displayText.isNotBlank() && displayText != text) put("displayText", displayText)
+      if (displayText != text) put("displayText", displayText)
       if (attachmentMetas.isNotEmpty()) put("attachments", attachmentMetas.toList())
     }
     messages.add(userMessage)

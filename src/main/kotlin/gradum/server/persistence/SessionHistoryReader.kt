@@ -311,7 +311,7 @@ object SessionHistoryReader {
 
   private fun userText(message: Map<String, Any?>): String {
     val displayText: Any? = message["displayText"]
-    if (displayText is String && displayText.isNotBlank()) return displayText
+    if (displayText is String) return displayText
     return when (val content: Any? = message["content"]) {
       is String -> content
       is List<*> -> content.filterIsInstance<Map<*, *>>()

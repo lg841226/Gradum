@@ -73,7 +73,13 @@
     }
   },
   "mcpServers": [],
-  "plugins": {},
+  "plugins": {
+    "search_web": {
+      "tavily": {
+        "apiKey": ""
+      }
+    }
+  },
   "ollama.baseUrl": "http://localhost:11434",
   "ollama.apiKey": "",
   "lmstudio.baseUrl": "http://localhost:1234/v1",

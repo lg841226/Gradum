@@ -101,6 +101,15 @@ private fun rememberEditorContext(project: Project?): EditorContext {
   return editorContext
 }
 
+/**
+ * Truncates the given [content] to a maximum number of lines defined by [MAX_MARKDOWN_LINES].
+ *
+ * If the content exceeds the limit, it is truncated and a bold Markdown notice is appended
+ * indicating the truncation and the total original line count.
+ *
+ * @param content The string content to be checked and potentially truncated.
+ * @return The original content if within the limit, otherwise the truncated content with a notice.
+ */
 private fun truncateToMaxLines(content: String): String {
   val lines = content.lines()
   return if (lines.size > MAX_MARKDOWN_LINES) {

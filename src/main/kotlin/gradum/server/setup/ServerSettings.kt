@@ -273,9 +273,7 @@ object ServerSettingsStore {
     val isConfigured: Boolean = root[CONFIGURED_KEY] as? Boolean ?: false
 
     logIssues(issues)
-    if (issues.isEmpty()) {
-      logger.info("Settings OK (host=$host, port=$port)")
-    } else {
+    if (issues.isNotEmpty()) {
       val errorCount: Int = issues.count { it.level == Severity.ERROR }
       val warnCount: Int = issues.count { it.level == Severity.WARN }
       logger.info("Settings fallback ($errorCount error, $warnCount warning); host=$host port=$port")

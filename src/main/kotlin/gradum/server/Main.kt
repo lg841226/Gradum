@@ -60,7 +60,6 @@ private fun initRuntime(): GradumRuntime {
   ExternalSkillHost.scanner = skillScanner
 
   skillScanner.scan()
-  logger.info("Registered {} MCP tool(s) in catalog", McpToolCatalog.toolCount())
 
   val resolvedApiKey: String? =
     ServerSettingsStore.resolveApiKeyFromFile(settings.apiKeyFile)
@@ -76,8 +75,6 @@ private fun initRuntime(): GradumRuntime {
 }
 
 private fun startHttp(arguments: Array<String>) {
-  printStartupBanner()
-
   if (arguments.any { it == "--help" || it == "-h" }) {
     printUsage()
     return
@@ -135,6 +132,13 @@ private fun startHttp(arguments: Array<String>) {
     }
 
   System.setProperty("gradum.server.port", resolvedPort.toString())
+
+  printStartupBanner(
+    hostAddress = settings.host,
+    portNumber = resolvedPort,
+    mcpToolCount = McpToolCatalog.toolCount(),
+    skillCount = SkillRegistry.getAllSkills().size
+  )
 
   if (runtime.resolvedApiKey != null) {
     val keyPreview: String = runtime.resolvedApiKey.take(n = 4) +
@@ -257,17 +261,76 @@ private fun printUsage() {
   )
 }
 
-private fun printStartupBanner() {
-  val workDir: String = abbreviatePath(System.getProperty("user.dir") ?: "?")
+private fun printStartupBanner(hostAddress: String, portNumber: Int, mcpToolCount: Int, skillCount: Int) {
+  val colored: Boolean = supportsAnsiColor()
+  val leftWidth: Int = 37
+  val rightWidth: Int = 46
+  val innerWidth: Int = leftWidth + 1 + rightWidth
+
+  val urlRow: String = "Serving on http://$hostAddress:$portNumber"
+  val workDirRow: String = abbreviatePath(System.getProperty("user.dir") ?: "?")
+
+  val leftRows: List<String> = buildList {
+    add(emphasize(centerText("Welcome back!", leftWidth), colored, ANSI_BOLD))
+    add(" ".repeat(leftWidth))
+    addAll(renderStartupLogo(colored = colored, width = leftWidth))
+    add(" ".repeat(leftWidth))
+    add(emphasize(centerText(urlRow, leftWidth), colored, ANSI_BOLD))
+    add(dim(centerText(workDirRow, leftWidth), colored))
+  }
+
+  val rightRows: List<String> = buildList {
+    add(emphasize(rightCell(" Gradum v${BuildConfig.version}", rightWidth), colored, gradientColor(ratio = 0.1f)))
+    add(dim(rightCell("  MCP tools     $mcpToolCount", rightWidth), colored))
+    add(dim(rightCell("  Skills        $skillCount", rightWidth), colored))
+    add(dim(rightCell("  Settings      ~/.gradum/settings.json", rightWidth), colored))
+    add(" ".repeat(rightWidth))
+    add(emphasize(rightCell(" Getting started", rightWidth), colored, gradientColor(ratio = 0.1f)))
+    add(dim(rightCell("  Run gradum setup to configure a provider", rightWidth), colored))
+  }
+
+  val rowCount: Int = maxOf(leftRows.size, rightRows.size)
+  val topRow: String = "╭" + "─".repeat(innerWidth) + "╮"
+  val bottomRow: String = "╰" + "─".repeat(innerWidth) + "╯"
 
   println()
+  println(paintGradientRow(topRow, colored))
+  for (index in 0 until rowCount) {
+    val left: String = leftRows.getOrElse(index) { " ".repeat(leftWidth) }
+    val right: String = rightRows.getOrElse(index) { " ".repeat(rightWidth) }
+    val bar: String = if (colored) {
+      gradientColor(ratio = index.toFloat() / (rowCount - 1).coerceAtLeast(1)) + "│" + ANSI_RESET
+    } else {
+      "│"
+    }
+    println(bar + left + bar + right + bar)
+  }
+  println(paintGradientRow(bottomRow, colored))
   println()
-  println(renderGradientBanner(BANNER_ART))
-  println()
-  println("  Copyright (c) 2026 Gradum Authors, version ${BuildConfig.version}")
-  println()
-  println("  (Working Directory $workDir)")
-  println()
+}
+
+private fun centerText(text: String, width: Int): String {
+  val clipped: String = if (text.length > width) text.take(width - 1) + "…" else text
+  val padLeft: Int = (width - clipped.length) / 2
+  return " ".repeat(padLeft) + clipped + " ".repeat(width - clipped.length - padLeft)
+}
+
+private fun rightCell(text: String, width: Int): String = text.take(width).padEnd(width)
+
+private fun emphasize(text: String, colored: Boolean, style: String): String =
+  if (colored) ANSI_BOLD + style + text + ANSI_RESET else text
+
+private fun dim(text: String, colored: Boolean): String =
+  if (colored) "\u001B[90m" + text + ANSI_RESET else text
+
+private fun paintGradientRow(text: String, colored: Boolean): String {
+  if (!colored) return text
+  return buildString {
+    text.forEachIndexed { index, glyph ->
+      append(gradientColor(ratio = index.toFloat() / (text.length - 1).coerceAtLeast(1))).append(glyph)
+    }
+    append(ANSI_RESET)
+  }
 }
 
 private fun abbreviatePath(path: String): String {

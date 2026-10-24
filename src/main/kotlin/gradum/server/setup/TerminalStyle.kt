@@ -4,9 +4,10 @@ package gradum.server.setup
 // `setup` wizard. Keeping the palette and the logo here means both surfaces
 // fade across the same blue-to-violet gradient.
 //
-// Colors are 24-bit truecolor and degrade to plain text when the `NO_COLOR`
-// environment variable is set or the process has no console (piped output),
-// so redirected logs stay clean.
+// Colors are 24-bit truecolor and degrade to plain text only when the
+// `NO_COLOR` environment variable is set. Escape codes are still emitted when
+// stdout is not a TTY (e.g. the IntelliJ run console, where System.console()
+// is null but ANSI renders fine).
 internal const val ANSI_BOLD: String = "\u001B[1m"
 internal const val ANSI_RESET: String = "\u001B[0m"
 internal val BANNER_GRADIENT_TO: IntArray = intArrayOf(168, 85, 247)
@@ -21,9 +22,8 @@ internal val BANNER_ART: List<String> = listOf(
   "   ██████  ██   ██  ██    ██ ██████    ██████  ██      ██"
 )
 
-// True when stdout is a real terminal and the user has not opted out of color.
-internal fun supportsAnsiColor(): Boolean =
-  System.getenv("NO_COLOR").isNullOrEmpty() && System.console() != null
+// True unless the user opted out of color with NO_COLOR.
+internal fun supportsAnsiColor(): Boolean = System.getenv("NO_COLOR").isNullOrEmpty()
 
 internal fun renderGradientBanner(art: List<String>, colored: Boolean = true): String {
   val lastColumn: Int = (art.maxOf { line -> line.length } - 1).coerceAtLeast(1)
@@ -37,6 +37,29 @@ internal fun renderGradientBanner(art: List<String>, colored: Boolean = true): S
         else append(gradientColor(column.toFloat() / lastColumn)).append(glyph)
       }
       append(ANSI_RESET)
+    }
+  }
+}
+
+private const val G_GLYPH_WIDTH: Int = 10
+
+internal fun renderStartupLogo(colored: Boolean, width: Int): List<String> {
+  val glyph: List<String> = BANNER_ART.map { line -> line.take(G_GLYPH_WIDTH) }
+  val lastColumn: Int = (glyph.maxOf { line -> line.length } - 1).coerceAtLeast(1)
+
+  return glyph.map { line ->
+    val padLeft: Int = ((width - line.length) / 2).coerceAtLeast(0)
+    val padRight: Int = (width - line.length - padLeft).coerceAtLeast(0)
+    if (!colored) return@map " ".repeat(padLeft) + line + " ".repeat(padRight)
+
+    buildString {
+      append(" ".repeat(padLeft))
+      line.forEachIndexed { column, glyph ->
+        if (glyph == ' ') append(' ')
+        else append(gradientColor(column.toFloat() / lastColumn)).append(glyph)
+      }
+      append(ANSI_RESET)
+      append(" ".repeat(padRight))
     }
   }
 }

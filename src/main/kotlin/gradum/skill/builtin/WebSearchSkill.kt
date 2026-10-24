@@ -2,10 +2,7 @@ package gradum.skill.builtin
 
 import gradum.*
 import gradum.skill.*
-import gradum.skill.dsl.IntConstraints
-import gradum.skill.dsl.SchemaBuilder
-import gradum.skill.dsl.integer
-import gradum.skill.dsl.string
+import gradum.skill.dsl.*
 import io.ktor.client.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*
@@ -42,6 +39,12 @@ class WebSearchSkill : Skill() {
 
   override val historyKeepCount: Int = 3
   override val historyVolatileKeys: List<String> = listOf("results")
+
+  override val settingsSpec: SettingsSpec = settings {
+    settings("tavily") {
+      "apiKey" set ""
+    }
+  }
 
   private val httpClient: HttpClient = HttpClient {
     install(HttpTimeout) {
@@ -99,7 +102,8 @@ class WebSearchSkill : Skill() {
     val searchDepth = (arguments["search_depth"] as? String)?.trim()?.lowercase()
       ?.takeIf { it == "basic" || it == "advanced" } ?: "basic"
 
-    val apiKey = System.getenv("TAVILY_API_KEY")
+    val configuredKey: String = pluginConfig(context).forSpec(settingsSpec).string("tavily", "apiKey")
+    val apiKey: String? = configuredKey.takeIf { it.isNotBlank() } ?: System.getenv("TAVILY_API_KEY")
     if (apiKey.isNullOrBlank())
       return makeFailure(
         code = "SEARCH_FAILED",

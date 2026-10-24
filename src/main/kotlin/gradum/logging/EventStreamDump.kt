@@ -19,7 +19,7 @@ object EventStreamDump {
 
   fun configure(enabled: Boolean) {
     this.enabled = enabled
-    if (enabled) logger.info("Event stream dump enabled -> ${file.toAbsolutePath()}")
+    if (enabled) logger.debug("Event stream dump enabled -> ${file.toAbsolutePath()}")
   }
 
   fun append(ndjsonLine: String) {

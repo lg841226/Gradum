@@ -67,7 +67,7 @@ class ExternalSkillDirectoryWatcher(
     }
     watchThread.start()
     listenerThread = watchThread
-    logger.info(
+    logger.debug(
       "Watching external skills directory {} for hot reload",
       skillScanner.skillsDirectory.absolutePath
     )
