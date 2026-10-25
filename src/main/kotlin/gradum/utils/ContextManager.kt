@@ -273,6 +273,7 @@ class ContextManager(private val outputDirectory: Path) {
             put("role", role)
             put("content", rawContent ?: "")
             message["id"]?.let { put("id", it) }
+            message["ts"]?.let { put("ts", it) }
           }
         )
       }
@@ -328,6 +329,11 @@ class ContextManager(private val outputDirectory: Path) {
       put("role", "tool")
       put("tool_call_id", callId)
       put("content", stubBuilder.toString())
+      toolMessage["alias"]?.let { put("alias", it) }
+      toolMessage["ts"]?.let { put("ts", it) }
+      toolMessage["durationMs"]?.let { put("durationMs", it) }
+      toolMessage["success"]?.let { put("success", it) }
+      toolMessage["displayKind"]?.let { put("displayKind", it) }
     }
   }
 

@@ -60,3 +60,51 @@ fun Modifier.verticalEdgeFade(
       )
     }
 
+/**
+ * Horizontal counterpart of [verticalEdgeFade]: softens the hard left/right
+ * cut of a horizontally scrollable container. A vertical gradient is punched
+ * out of an offscreen layer with [BlendMode.DstOut]; each edge can be
+ * disabled independently via [fadeStart] / [fadeEnd].
+ */
+fun Modifier.horizontalEdgeFade(
+  fadeLength: Dp = GradumSpacing.xl,
+  fadeStart: Boolean = true,
+  fadeEnd: Boolean = true,
+): Modifier =
+  this.graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+    .drawWithContent {
+      drawContent()
+      if (size.width <= 0f) return@drawWithContent
+      if (!fadeStart && !fadeEnd) return@drawWithContent
+      val fadeProgress: Float = (fadeLength.toPx() / size.width).coerceIn(0f, 0.5f)
+      if (fadeProgress <= 0f) return@drawWithContent
+      val stops: List<Pair<Float, Color>> =
+        when {
+          fadeStart && fadeEnd ->
+            listOf(
+              0f to Color.Black,
+              fadeProgress to Color.Transparent,
+              1f - fadeProgress to Color.Transparent,
+              1f to Color.Black
+            )
+
+          fadeStart ->
+            listOf(
+              0f to Color.Black,
+              fadeProgress to Color.Transparent,
+              1f to Color.Transparent
+            )
+
+          else ->
+            listOf(
+              0f to Color.Transparent,
+              1f - fadeProgress to Color.Transparent,
+              1f to Color.Black
+            )
+        }
+      drawRect(
+        brush = Brush.horizontalGradient(*stops.toTypedArray()),
+        blendMode = BlendMode.DstOut
+      )
+    }
+

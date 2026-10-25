@@ -117,6 +117,7 @@ class ConversationHistory {
 
       put("role", "user")
       put("content", if (attachmentMetas.isEmpty()) text else parts)
+      put("ts", System.currentTimeMillis())
 
       if (displayText != text) put("displayText", displayText)
       if (attachmentMetas.isNotEmpty()) put("attachments", attachmentMetas.toList())
@@ -165,6 +166,7 @@ class ConversationHistory {
           put("role", "assistant")
           put("content", content)
           put("modelName", modelName)
+          put("ts", System.currentTimeMillis())
           put("tool_calls", toolCallsList)
           if (thinking.isNotBlank()) put("thinking", thinking)
           tokenUsage?.let { usage -> put("tokenUsage", usage) }
@@ -174,6 +176,7 @@ class ConversationHistory {
           put("content", content)
           put("role", "assistant")
           put("modelName", modelName)
+          put("ts", System.currentTimeMillis())
           if (thinking.isNotBlank()) put("thinking", thinking)
           tokenUsage?.let { usage -> put("tokenUsage", usage) }
         }
@@ -182,14 +185,24 @@ class ConversationHistory {
   }
 
   fun addToolMessage(
-    alias: String, content: String, toolCallId: String?, provider: Provider
+    alias: String,
+    content: String,
+    provider: Provider,
+    toolCallId: String?,
+    durationMs: Long? = null,
+    success: Boolean? = null,
+    displayKind: String? = null
   ) {
     val toolMessage = buildMap {
       put("role", "tool")
       put("alias", alias)
       put("content", content)
+      put("ts", System.currentTimeMillis())
       if (provider != Provider.OLLAMA && toolCallId != null)
         put("tool_call_id", toolCallId)
+      if (displayKind != null) put("displayKind", displayKind)
+      if (durationMs != null) put("durationMs", durationMs)
+      if (success != null) put("success", success)
     }
     messages.add(toolMessage)
   }

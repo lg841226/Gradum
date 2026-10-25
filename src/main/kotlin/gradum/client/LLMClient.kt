@@ -28,7 +28,7 @@ private val logger: Logger = LoggerFactory.getLogger("LLMClient")
 
 private val jsonParser: Json = Json { ignoreUnknownKeys = true }
 
-// Shared across clients to reuse connections instead of building a client per turn.
+/** Shared across clients to reuse connections instead of building a client per turn. */
 private val sharedHttpClient: HttpClient = HttpClient {
   install(HttpTimeout) {
     requestTimeoutMillis = GradumConfig.LLM_REQUEST_TIMEOUT_MS
@@ -44,28 +44,11 @@ private fun JsonObject.optInt(key: String): Int =
 private fun JsonObject.optObject(key: String): JsonObject =
   this[key]?.jsonObject ?: JsonObject(emptyMap())
 
-// Reasoning field names tried in order when a delta does not carry the
-// profile-declared key. LM Studio's OpenAI-compatible surface exposes
-// reasoning under a family-dependent key (`reasoning_content` for
-// DeepSeek-R1, `reasoning` for gpt-oss), so the declared field is only a
-// hint: the first non-empty of declared -> `reasoning_content` ->
-// `reasoning` wins. For profiles that declare `reasoning_content` the
-// behavior is unchanged (the declared field is read first).
-private val REASONING_FIELD_FALLBACKS: List<String> = listOf("reasoning_content", "reasoning")
-
-private fun readReasoningDelta(deltaFields: JsonObject, declaredField: String?): String {
-  val candidateFields: List<String> =
-    (listOfNotNull(declaredField) + REASONING_FIELD_FALLBACKS).distinct()
-  for (fieldName in candidateFields) {
-    val fieldValue: String = deltaFields.optString(key = fieldName)
-    if (fieldValue.isNotEmpty()) return fieldValue
-  }
-  return ""
-}
-
-// Resolve the wire thinking level for a request: the legacy master switch
-// still gates thinking off entirely, [AgentConfiguration.thinkingLevel]
-// only matters while [AgentConfiguration.enableThinking] is true.
+/**
+ * Resolve the wire thinking level for a request: the legacy master switch
+ * still gates thinking off entirely, [AgentConfiguration.thinkingLevel]
+ * only matters while [AgentConfiguration.enableThinking] is true.
+ */
 private fun effectiveThinkingLevel(configuration: AgentConfiguration): ThinkingLevel =
   if (configuration.enableThinking) configuration.thinkingLevel else ThinkingLevel.OFF
 
@@ -78,7 +61,6 @@ data class ToolCallEntry(
 sealed class LLMResponseChunk {
   data class TextContent(val text: String) : LLMResponseChunk()
   data class ReasoningContent(val text: String) : LLMResponseChunk()
-
   data class ErrorMessage(val description: String, val apiStatusCode: Int? = null) : LLMResponseChunk()
   data class ToolCallBatch(val toolCalls: List<ToolCallEntry>) : LLMResponseChunk()
 }
@@ -116,18 +98,20 @@ interface LlmClient : TokenUsageProvider {
   ): Flow<LLMResponseChunk>
 }
 
-// Project a single `Map<String, Any>` message into the wire shape the
-// target LLM backend expects.
-//
-// The conversation history uses an OpenAI-style content-array shape for
-// user messages carrying image attachments. The two backends disagree on
-// the wire format: Ollama collapses text parts into a single `content`
-// string and lifts images into a top-level `images` array; OpenAI keeps
-// the array but re-shapes each image part into `image_url`. Text-only
-// messages pass through untouched.
-//
-// The target is expressed via the canonical [gradum.Provider] enum, not a
-// parallel multimodal vocabulary.
+/**
+ * Project a single `Map<String, Any>` message into the wire shape the
+ * target LLM backend expects.
+ *
+ * The conversation history uses an OpenAI-style content-array shape for
+ * user messages carrying image attachments. The two backends disagree on
+ * the wire format: Ollama collapses text parts into a single `content`
+ * string and lifts images into a top-level `images` array; OpenAI keeps
+ * the array but re-shapes each image part into `image_url`. Text-only
+ * messages pass through untouched.
+ *
+ * The target is expressed via the canonical [gradum.Provider] enum, not a
+ * parallel multimodal vocabulary.
+ */
 private fun projectMessageForBackend(
   message: Map<String, Any>, target: Provider
 ): Map<String, Any> {
@@ -143,109 +127,6 @@ private fun projectMessageForBackend(
     Provider.MINIMAX -> projectToOpenAi(contentParts)
     Provider.LMSTUDIO -> projectToOpenAi(contentParts)
   }
-}
-
-// Projects the internal chat history (chat/completions shape) into the
-// OpenAI Responses API `input` array.
-//
-// Mapping rules:
-// - system/user/assistant messages -> {type: "message", role, content}
-// - assistant.tool_calls -> {type: "function_call", call_id, name, arguments}
-// - tool messages -> {type: "function_call_output", call_id, output}
-//
-// Content arrays (multimodal) are preserved as-is for the Responses API.
-// Bookkeeping fields (modelName, thinking, tokenUsage, attachments, alias)
-// are stripped by [sanitizeMessageForWire] before projection.
-private fun projectHistoryToResponsesInput(
-  messageHistory: List<Map<String, Any>>
-): List<Map<String, Any>> {
-  val inputItems: MutableList<Map<String, Any>> = mutableListOf()
-
-  for (message in messageHistory) {
-    val sanitized = sanitizeMessageForWire(message)
-    val role = sanitized["role"] as? String ?: continue
-
-    when (role) {
-      "system", "user" -> {
-        val contentList: List<Map<String, Any>> =
-          when (val content = sanitized["content"]) {
-            is List<*> -> {
-              content.filterIsInstance<Map<String, Any>>()
-            }
-
-            is String -> {
-              listOf(mapOf("type" to "text", "text" to content))
-            }
-
-            else -> {
-              listOf(mapOf("type" to "text", "text" to content.toString()))
-            }
-          }
-        if (contentList.isNotEmpty()) {
-          inputItems.add(
-            mapOf(
-              "type" to "message",
-              "role" to role,
-              "content" to contentList
-            )
-          )
-        }
-      }
-
-      "assistant" -> {
-        val content = sanitized["content"]
-        val contentList: List<Map<String, Any>> = if (content is List<*>) {
-          content.filterIsInstance<Map<String, Any>>()
-        } else if (content is String) {
-          if (content.isNotEmpty()) listOf(mapOf("type" to "text", "text" to content))
-          else emptyList()
-        } else {
-          emptyList()
-        }
-        if (contentList.isNotEmpty()) {
-          inputItems.add(
-            mapOf(
-              "type" to "message",
-              "role" to "assistant",
-              "content" to contentList
-            )
-          )
-        }
-
-        // Project tool_calls as function_call items
-        (sanitized["tool_calls"] as? List<*>)?.forEach { toolCall ->
-          val tc = toolCall as? Map<String, Any> ?: return@forEach
-          val id = tc["id"] as? String ?: return@forEach
-          val function = tc["function"] as? Map<String, Any> ?: return@forEach
-          val name = function["name"] as? String ?: return@forEach
-          val arguments = function["arguments"] as? String ?: "{}"
-          inputItems.add(
-            mapOf(
-              "type" to "function_call",
-              "call_id" to id,
-              "name" to name,
-              "arguments" to arguments
-            )
-          )
-        }
-      }
-
-      "tool" -> {
-        val toolCallId = sanitized["tool_call_id"] as? String ?: continue
-        val content = sanitized["content"]
-        val output = content as? String ?: content.toString()
-        inputItems.add(
-          mapOf(
-            "type" to "function_call_output",
-            "call_id" to toolCallId,
-            "output" to output
-          )
-        )
-      }
-    }
-  }
-
-  return inputItems
 }
 
 private fun extractContentParts(message: Map<String, Any>): List<Map<String, Any>>? {
@@ -313,11 +194,13 @@ private fun projectHistoryForBackend(
   sanitizeMessageForWire(projectMessageForBackend(message, target))
 }
 
-// Wire-format keys each message role may carry. The in-memory history maps
-// hold extra bookkeeping fields (`modelName`, `thinking`, `tokenUsage`,
-// `attachments`, `alias`) used by persistence and the session transcript;
-// they are stripped here so the request payload stays inside the
-// providers' documented message schema.
+/**
+ * Wire-format keys each message role may carry. The in-memory history maps
+ * hold extra bookkeeping fields (`modelName`, `thinking`, `tokenUsage`,
+ * `attachments`, `alias`) used by persistence and the session transcript;
+ * they are stripped here so the request payload stays inside the
+ * providers' documented message schema.
+ */
 private val WIRE_MESSAGE_KEYS: Map<String, Set<String>> = mapOf(
   "system" to setOf("role", "content"),
   "user" to setOf("role", "content", "images"),
@@ -344,8 +227,6 @@ class OllamaClient(
   override var tokenUsage: TokenUsageSnapshot = TokenUsageSnapshot()
     private set
 
-  private val modelCatalog: OllamaModelCatalog = OllamaModelCatalog(configuration)
-
   override fun sendChat(
     messageHistory: List<Map<String, Any>>, toolDefinitions: List<Map<String, Any>>?
   ): Flow<LLMResponseChunk> = flow {
@@ -360,9 +241,6 @@ class OllamaClient(
       keepAliveMinutes = configuration.keepAliveMinutes
     )
 
-    val modelCapabilities: OllamaModelCapabilities =
-      modelCatalog.capabilitiesFor(modelName = configuration.modelName)
-
     val projectedHistory: List<Map<String, Any>> =
       projectHistoryForBackend(messageHistory, target = Provider.OLLAMA)
 
@@ -373,7 +251,7 @@ class OllamaClient(
     )
 
     requestPayload.putAll(wireProfile.requestFields(params = generationParams))
-    requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel, capabilities = modelCapabilities))
+    requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel))
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
     var lastError: Exception? = null
@@ -498,50 +376,13 @@ class OllamaClient(
 class OpenAICompatibleClient(
   private val configuration: AgentConfiguration,
   private val httpClient: HttpClient = sharedHttpClient,
-  // Seam for tests: reports whether the server exposes /v1/responses.
-  // Production uses the process-wide cached probe.
-  private val responsesEndpointProbe: suspend (String) -> Boolean = ::probeResponsesAvailability,
 ) : LlmClient {
 
   override var tokenUsage: TokenUsageSnapshot = TokenUsageSnapshot()
     private set
 
-  // Picks the wire format for one request. A profile that declares RESPONSES
-  // keeps it only when the server proves /v1/responses support; an LM Studio
-  // build without the endpoint stays on chat/completions.
-  private suspend fun resolveWireFormat(wireProfile: ProviderProfile): WireFormat {
-    if (wireProfile.wireFormat != WireFormat.RESPONSES) return wireProfile.wireFormat
-    if (configuration.provider != Provider.LMSTUDIO) return wireProfile.wireFormat
-    if (responsesEndpointProbe(configuration.baseUrl)) return WireFormat.RESPONSES
-    logger.info(
-      "LM Studio /v1/responses unavailable for {} — falling back to chat/completions",
-      configuration.baseUrl
-    )
-    return WireFormat.CHAT_COMPLETIONS
-  }
-
   override fun sendChat(
     messageHistory: List<Map<String, Any>>, toolDefinitions: List<Map<String, Any>>?
-  ): Flow<LLMResponseChunk> = flow {
-
-    val wireProfile: ProviderProfile = profileFor(configuration.provider)
-
-    when (resolveWireFormat(wireProfile)) {
-      WireFormat.CHAT_COMPLETIONS -> {
-        sendChatCompletions(messageHistory, toolDefinitions, wireProfile).collect { emit(it) }
-      }
-
-      WireFormat.RESPONSES -> {
-        sendResponses(messageHistory, toolDefinitions, wireProfile).collect { emit(it) }
-      }
-    }
-  }
-
-  // Legacy `/v1/chat/completions` path (OpenAI, DeepSeek, MiniMax, LM Studio A-route).
-  private fun sendChatCompletions(
-    messageHistory: List<Map<String, Any>>,
-    toolDefinitions: List<Map<String, Any>>?,
-    wireProfile: ProviderProfile
   ): Flow<LLMResponseChunk> = flow {
 
     val base = configuration.baseUrl.trimEnd('/')
@@ -552,6 +393,7 @@ class OpenAICompatibleClient(
       } else {
         "$base/$path"
       }
+    val wireProfile: ProviderProfile = profileFor(configuration.provider)
     val thinkingLevel: ThinkingLevel = effectiveThinkingLevel(configuration)
     val generationParams = GenerationParams(
       topP = configuration.topPValue,
@@ -570,10 +412,7 @@ class OpenAICompatibleClient(
       "stream_options" to mapOf("include_usage" to true),
     )
     requestPayload.putAll(wireProfile.requestFields(params = generationParams))
-
-    if (wireProfile.wireFormat == WireFormat.CHAT_COMPLETIONS) {
-      requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel, capabilities = null))
-    }
+    requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel))
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
 
@@ -605,101 +444,6 @@ class OpenAICompatibleClient(
 
         val streamedChunks: Flow<LLMResponseChunk> =
           parseServerSentEvents(httpResponse, wireProfile)
-        streamedChunks.collect { chunk ->
-          emittedAnyChunk = true
-          emit(value = chunk)
-        }
-
-        lastError = null
-        break
-
-      } catch (httpClientException: Exception) {
-        if (httpClientException is CancellationException) throw httpClientException
-        if (emittedAnyChunk) throw httpClientException
-
-        lastError = httpClientException
-        if (isTransientError(httpClientException) && attemptIndex < 2)
-          delay(duration = (5_000L * 2.0.pow(x = attemptIndex.toDouble())).toLong().milliseconds)
-        else break
-      }
-    }
-
-    lastError?.let { error ->
-      emit(
-        value = LLMResponseChunk.ErrorMessage(
-          description = formatLlmError(
-            baseUrl = "server",
-            serverName = configuration.baseUrl,
-            runningHint = "Make sure the server is running.",
-            configuration.timeoutSeconds,
-            exception = error
-          )
-        )
-      )
-    }
-  }
-
-  // OpenAI Responses API `/v1/responses` path (LM Studio B-route).
-  // Stateless: each turn sends full `input`, `store=false`, no `previous_response_id`.
-  private fun sendResponses(
-    messageHistory: List<Map<String, Any>>,
-    toolDefinitions: List<Map<String, Any>>?,
-    wireProfile: ProviderProfile
-  ): Flow<LLMResponseChunk> = flow {
-
-    val base = configuration.baseUrl.trimEnd('/')
-    val requestUrl =
-      if (base.endsWith(suffix = "/v1")) "$base/responses"
-      else "$base/v1/responses"
-    val thinkingLevel: ThinkingLevel = effectiveThinkingLevel(configuration)
-    val generationParams = GenerationParams(
-      topP = configuration.topPValue,
-      temperature = configuration.temperatureValue,
-      maxTokens = configuration.maxTokensToGenerate,
-      contextWindow = configuration.contextWindowSize
-    )
-
-    val inputItems: List<Map<String, Any>> = projectHistoryToResponsesInput(messageHistory)
-
-    val requestPayload: MutableMap<String, Any> = mutableMapOf(
-      "model" to configuration.modelName,
-      "input" to inputItems,
-      "store" to false,
-      "stream" to true,
-    )
-    requestPayload.putAll(wireProfile.requestFields(params = generationParams))
-    requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel, capabilities = null))
-
-    toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
-
-    var lastError: Exception? = null
-    var emittedAnyChunk = false
-
-    for (attemptIndex in 0..2) {
-      try {
-        val httpResponse: HttpResponse = httpClient.post(urlString = requestUrl) {
-          contentType(ContentType.Application.Json)
-          setBody(JsonUtil.encodeMap(input = requestPayload))
-
-          configuration.apiKey?.takeIf { it.isNotBlank() }?.let { key ->
-            header("Authorization", "Bearer $key")
-          }
-        }
-
-        if (httpResponse.status.value !in 200..299) {
-          val apiError: LlmApiError = extractApiError(httpResponse)
-          emit(
-            value = LLMResponseChunk.ErrorMessage(
-              description = apiError.message,
-              apiStatusCode = apiError.statusCode
-            )
-          )
-          lastError = null
-          break
-        }
-
-        val streamedChunks: Flow<LLMResponseChunk> =
-          parseResponsesServerSentEvents(httpResponse)
         streamedChunks.collect { chunk ->
           emittedAnyChunk = true
           emit(value = chunk)
@@ -788,18 +532,19 @@ class OpenAICompatibleClient(
       if (contentDelta.isNotEmpty())
         emit(value = LLMResponseChunk.TextContent(contentDelta))
 
-      // Native reasoning surface. Providers disagree on the delta key:
-      // DeepSeek / MiniMax use `reasoning_content`, while LM Studio
-      // families split between `reasoning_content` (DeepSeek-R1) and
-      // `reasoning` (gpt-oss). Read the profile-declared field first and
-      // fall back across the known names, so a single provider request
-      // still surfaces reasoning even when the backend switches dialects.
-      // Surfaced as ReasoningContent so the UI renders it as a
-      // collapsible "thought" block, matching the Ollama backend's
-      // existing `message.thinking` path.
-      val reasoningDelta: String = readReasoningDelta(deltaFields, wireProfile.reasoningDeltaField)
-      if (reasoningDelta.isNotEmpty())
-        emit(value = LLMResponseChunk.ReasoningContent(text = reasoningDelta))
+      /**
+       * Native reasoning surface: DeepSeek and MiniMax both emit
+       * thinking in a separate `reasoning_content` delta on the same
+       * choice, spelled by the provider profile. Surface it as
+       * ReasoningContent so the UI can render it as a collapsible
+       * "thought" block, matching the Ollama backend's existing
+       * `message.thinking` path.
+       */
+      wireProfile.reasoningDeltaField?.let { fieldName ->
+        val reasoningDelta: String = deltaFields.optString(key = fieldName)
+        if (reasoningDelta.isNotEmpty())
+          emit(value = LLMResponseChunk.ReasoningContent(text = reasoningDelta))
+      }
 
       deltaFields["tool_calls"]?.jsonArray?.let { toolCallsArray ->
         accumulateCallDeltas(toolCallsArray, accumulator = accumulatedCalls)
@@ -808,136 +553,6 @@ class OpenAICompatibleClient(
 
     if (accumulatedCalls.isNotEmpty()) {
       val finalCalls: List<ToolCallEntry> = buildCompletedCalls(accumulator = accumulatedCalls)
-      emit(value = LLMResponseChunk.ToolCallBatch(toolCalls = finalCalls))
-    }
-
-    if (!streamCompleted) {
-      emit(
-        value = LLMResponseChunk.ErrorMessage(
-          description = "Response interrupted, the model may have run out of memory. Try reducing the context length in your model settings."
-        )
-      )
-    }
-  }
-
-  // Parses SSE events from the OpenAI Responses API `/v1/responses` endpoint.
-  //
-  // Event types handled (per OpenAI Responses API spec):
-  // - response.created: initial event, can be ignored
-  // - response.output_text.delta: text content delta
-  // - response.output_text.done: final text (we use deltas only)
-  // - response.reasoning.delta: reasoning content delta
-  // - response.reasoning.done: final reasoning (we use deltas only)
-  // - response.function_call_arguments.delta: function call arguments delta
-  // - response.function_call_arguments.done: final arguments (we accumulate deltas)
-  // - response.completed: final event, can be ignored
-  // - response.failed: error event
-  //
-  // Tool calls are assembled from function_call_arguments.delta events,
-  // keyed by call_id which appears in the first delta event.
-  private fun parseResponsesServerSentEvents(
-    httpResponse: HttpResponse
-  ): Flow<LLMResponseChunk> = flow {
-    val accumulatedCalls: MutableMap<String, MutableMap<String, Any>> = mutableMapOf()
-    var streamCompleted = false
-
-    val responseChannel: ByteReadChannel = httpResponse.bodyAsChannel()
-
-    while (!responseChannel.isClosedForRead) {
-      val rawLine: String = responseChannel.readUTF8Line() ?: break
-      if (rawLine.isBlank()) continue
-
-      val eventBody: String =
-        if (rawLine.startsWith(prefix = "data:")) {
-          rawLine.removePrefix("data:").trimStart()
-        } else continue
-
-      if (eventBody.trim() == "[DONE]") {
-        streamCompleted = true
-        break
-      }
-
-      val parsedPayload: JsonObject =
-        try {
-          jsonParser.parseToJsonElement(string = eventBody).jsonObject
-        } catch (jsonParseException: Exception) {
-          logger.debug("Skipping malformed SSE event: ${jsonParseException.message}", jsonParseException)
-          continue
-        }
-
-      // Usage appears in response.completed event
-      (parsedPayload["usage"] as? JsonObject)?.let { usageStats ->
-        tokenUsage = recordTokenUsage(
-          usageStats,
-          currentUsage = tokenUsage,
-          promptField = "input_tokens",
-          completionField = "output_tokens"
-        )
-      }
-
-      val eventType: String = parsedPayload["type"]?.jsonPrimitive?.contentOrNull ?: continue
-
-      when (eventType) {
-        "response.output_text.delta" -> {
-          val delta: String = parsedPayload["delta"]?.jsonPrimitive?.contentOrNull ?: ""
-          if (delta.isNotEmpty())
-            emit(value = LLMResponseChunk.TextContent(delta))
-        }
-
-        "response.reasoning.delta" -> {
-          val delta: String = parsedPayload["delta"]?.jsonPrimitive?.contentOrNull ?: ""
-          if (delta.isNotEmpty())
-            emit(value = LLMResponseChunk.ReasoningContent(text = delta))
-        }
-
-        "response.function_call_arguments.delta" -> {
-          val callId: String = parsedPayload["call_id"]?.jsonPrimitive?.contentOrNull ?: continue
-          val delta: String = parsedPayload["delta"]?.jsonPrimitive?.contentOrNull ?: ""
-          val name: String? = parsedPayload["name"]?.jsonPrimitive?.contentOrNull
-
-          val storedEntry: MutableMap<String, Any> = accumulatedCalls.getOrPut(key = callId) {
-            mutableMapOf(
-              "callId" to callId,
-              "functionName" to name.orEmpty(),
-              "argumentsBuffer" to StringBuilder()
-            )
-          }
-          if (!name.isNullOrBlank()) storedEntry["functionName"] = name
-          if (delta.isNotBlank()) {
-            val argumentsBuffer: StringBuilder = storedEntry["argumentsBuffer"] as? StringBuilder
-              ?: StringBuilder().also { storedEntry["argumentsBuffer"] = it }
-            argumentsBuffer.append(delta)
-          }
-        }
-
-        "response.failed" -> {
-          val errorObj: JsonObject = parsedPayload["error"]?.jsonObject ?: JsonObject(emptyMap())
-          val errorMessage: String = errorObj.optString(key = "message")
-          emit(value = LLMResponseChunk.ErrorMessage(description = errorMessage.takeIf { it.isNotBlank() } ?: "Response failed"))
-        }
-      }
-    }
-
-    if (accumulatedCalls.isNotEmpty()) {
-      val finalCalls: List<ToolCallEntry> = accumulatedCalls.values.map { callData ->
-        val argumentsBuffer: StringBuilder = callData["argumentsBuffer"] as? StringBuilder ?: StringBuilder()
-        val argumentsText: String = argumentsBuffer.toString()
-
-        val parsedArguments: Map<String, JsonElement> =
-          if (argumentsText.isBlank()) emptyMap()
-          else try {
-            jsonParser.parseToJsonElement(string = argumentsText).jsonObject.toMap()
-          } catch (jsonParseException: Exception) {
-            logger.debug("Failed to parse tool-call arguments: ${jsonParseException.message}", jsonParseException)
-            emptyMap()
-          }
-
-        ToolCallEntry(
-          functionName = callData["functionName"] as? String ?: "",
-          callIdentifier = callData["callId"] as? String ?: "",
-          functionArguments = parsedArguments,
-        )
-      }.toList()
       emit(value = LLMResponseChunk.ToolCallBatch(toolCalls = finalCalls))
     }
 
@@ -1010,19 +625,21 @@ class OpenAICompatibleClient(
 private fun isTransientError(exception: Exception): Boolean = exception is IOException
   || exception is TimeoutCancellationException
 
-// A non-2xx answer from the upstream LLM API, with its HTTP status intact.
+/** A non-2xx answer from the upstream LLM API, with its HTTP status intact. */
 private data class LlmApiError(val statusCode: Int, val message: String)
 
-// Pulls the human-readable message out of a non-2xx API response.
-//
-// OpenAI-compatible providers answer errors as
-// `{"error": {"message": "..."}}` (or occasionally `{"error": "..."}`),
-// Zhipu / DeepSeek / MiniMax all follow that shape. Falls back to the
-// raw HTTP status line so the user always sees *something* concrete
-// instead of the generic stream-interrupt message.
+/**
+ * Pulls the human-readable message out of a non-2xx API response.
+ *
+ * OpenAI-compatible providers answer errors as
+ * `{"error": {"message": "..."}}` (or occasionally `{"error": "..."}`),
+ * Zhipu / DeepSeek / MiniMax all follow that shape. Falls back to the
+ * raw HTTP status line so the user always sees *something* concrete
+ * instead of the generic stream-interrupt message.
+ */
 private suspend fun extractApiError(httpResponse: HttpResponse): LlmApiError {
   val statusCode: Int = httpResponse.status.value
-  val statusLine = "HTTP $statusCode ${httpResponse.status.description}"
+  val statusLine: String = "HTTP $statusCode ${httpResponse.status.description}"
   val bodyText: String =
     try {
       httpResponse.bodyAsText()
@@ -1030,29 +647,31 @@ private suspend fun extractApiError(httpResponse: HttpResponse): LlmApiError {
       return LlmApiError(statusCode = statusCode, message = statusLine)
     }
   logger.warn("LLM API error {}: {}", statusLine, bodyText)
-  val errorText: String? =
-    try {
-      val parsed: JsonObject = jsonParser.parseToJsonElement(string = bodyText).jsonObject
-      when (val errorElement: JsonElement? = parsed["error"]) {
-        is JsonObject ->
-          errorElement.optString(key = "message").takeIf { it.isNotBlank() }
-            ?: (errorElement["message"] as? JsonPrimitive)?.contentOrNull
-
-        is JsonPrimitive -> errorElement.contentOrNull
-        else -> null
-      }
-    } catch (_: Exception) {
-      null
+  val errorText: String? = try {
+    val parsed: JsonObject = jsonParser.parseToJsonElement(string = bodyText).jsonObject
+    when (val errorElement: JsonElement? = parsed["error"]) {
+      // OpenAI shape: {"error": {"message": "..."}}
+      is JsonObject ->
+        errorElement.optString(key = "message").takeIf { it.isNotBlank() }
+          ?: (errorElement["message"] as? JsonPrimitive)?.contentOrNull
+      // Ollama shape: {"error": "..."}
+      is JsonPrimitive -> errorElement.contentOrNull
+      else -> null
     }
+  } catch (_: Exception) {
+    null
+  }
   return LlmApiError(
     statusCode = statusCode,
     message = errorText?.takeIf { it.isNotBlank() } ?: statusLine
   )
 }
 
-// Common error formatter shared by every [LlmClient] implementation.
-// The only per-provider differences are the server label and the
-// "is it running?" hint.
+/**
+ * Common error formatter shared by every [LlmClient] implementation.
+ * The only per-provider differences are the server label and the
+ * "is it running?" hint.
+ */
 private fun formatLlmError(
   baseUrl: String,
   serverName: String,
@@ -1070,13 +689,15 @@ private fun formatLlmError(
     else -> "Unexpected error - ${exception.message}"
   }
 
-// Common token-usage accumulator shared by every [LlmClient] implementation.
-//
-// Each provider reports usage under different field names (Ollama:
-// `prompt_eval_count`/`eval_count`; OpenAI: `prompt_tokens`/`completion_tokens`).
-// The `last*` fields keep the raw values of the latest request only, so callers
-// can read the current context window size instead of the cumulative sum.
-// Returns [currentUsage] unchanged when neither field is positive.
+/**
+ * Common token-usage accumulator shared by every [LlmClient] implementation.
+ *
+ * Each provider reports usage under different field names (Ollama:
+ * `prompt_eval_count`/`eval_count`; OpenAI: `prompt_tokens`/`completion_tokens`).
+ * The `last*` fields keep the raw values of the latest request only, so callers
+ * can read the current context window size instead of the cumulative sum.
+ * Returns [currentUsage] unchanged when neither field is positive.
+ */
 private fun recordTokenUsage(
   usageStats: JsonObject, promptField: String, completionField: String, currentUsage: TokenUsageSnapshot
 ): TokenUsageSnapshot {

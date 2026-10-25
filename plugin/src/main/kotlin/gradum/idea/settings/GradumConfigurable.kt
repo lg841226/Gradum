@@ -291,6 +291,7 @@ private fun SettingsPanel(
       )
     }
     EditorSection(appearanceDraft)
+    StatisticsAnalysisSection()
     ApiProviderSettings()
     McpServersSettings()
     GroupHeader(

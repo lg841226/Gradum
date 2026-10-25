@@ -122,7 +122,7 @@ class ToolExecutor(
           "message" to "Aborted by user before execution started"
         ),
       )
-      emitToolResult(functionName, skillInstance, isLastToolCall, processedCall, executionResult, convertedArguments)
+      emitToolResult(functionName, skillInstance, isLastToolCall, processedCall, executionResult, convertedArguments, startedAt)
       logToolCall(functionName, convertedArguments, executionResult, startedAt)
       return executionResult
     }
@@ -144,7 +144,7 @@ class ToolExecutor(
           "message" to "Tool runaway: repeated call $repeatedToolCallCount times, aborting"
         ),
       )
-      emitToolResult(functionName, skillInstance, isLastToolCall, processedCall, executionResult, convertedArguments)
+      emitToolResult(functionName, skillInstance, isLastToolCall, processedCall, executionResult, convertedArguments, startedAt)
       logToolCall(functionName, convertedArguments, executionResult, startedAt)
       sessionManager.abort(reason = "tool_runaway")
       return executionResult
@@ -153,7 +153,7 @@ class ToolExecutor(
     executionResult = executeSkill(skillInstance, functionName, convertedArguments)
 
     emitToolResult(
-      functionName, skillInstance, isLastToolCall, processedCall, executionResult, convertedArguments
+      functionName, skillInstance, isLastToolCall, processedCall, executionResult, convertedArguments, startedAt
     )
     logToolCall(functionName, convertedArguments, executionResult, startedAt)
 
@@ -267,15 +267,14 @@ class ToolExecutor(
     )
   }
 
-  // Emits the post-execution `tool_call` event, appends the result to
-  // conversation history, and handles history compaction.
   private fun emitToolResult(
     functionName: String,
     skillInstance: Skill?,
     isLastToolCall: Boolean = true,
     processedCall: ProcessedToolCall,
     executionResult: Map<String, Any>,
-    convertedArguments: Map<String, Any>
+    convertedArguments: Map<String, Any>,
+    startedAtNanos: Long
   ) {
     val toolAlias: String = skillInstance?.alias ?: functionName
     val ownMessageIndices: List<Int> = conversationHistory.toolMessageIndices(toolAlias)
@@ -283,6 +282,8 @@ class ToolExecutor(
       skillInstance, currentResult = executionResult, ownMessageIndices
     )
     val callSuccess: Boolean = executionResult["success"] as? Boolean ?: false
+    val callDurationMs: Long = (System.nanoTime() - startedAtNanos) / 1_000_000
+    val callDisplayKind: String? = skillInstance?.toolDisplay?.kind?.wireName
 
     val skipEvent: Boolean = skillInstance?.manageOwnEventStream == true
 
@@ -321,7 +322,9 @@ class ToolExecutor(
     val finalResult: String = todoReminder?.let { "$resultString\n\n$it" } ?: resultString
 
     conversationHistory.addToolMessage(
-      toolAlias, content = finalResult, toolCallId = processedCall.callIdentifier, configuration.provider
+      alias = toolAlias, content = finalResult, provider = configuration.provider,
+      toolCallId = processedCall.callIdentifier, displayKind = callDisplayKind,
+      durationMs = callDurationMs, success = callSuccess
     )
   }
 

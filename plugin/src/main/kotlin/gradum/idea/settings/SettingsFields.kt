@@ -15,7 +15,6 @@ import org.jetbrains.jewel.ui.component.TextField
 
 internal const val POLL_FIELD_WIDTH_DP = 70
 internal const val MESSAGE_LOAD_FIELD_WIDTH_DP = 70
-
 internal val SETTINGS_GROUP_INDENT: Dp = GradumSpacing.xl
 
 internal fun formatFontSize(value: Float): String =
@@ -52,11 +51,13 @@ internal fun FontSizeField(
   fun normalizeAndCommit() {
     val rawInput: String = state.text.toString().trim()
     val parsed: Float? = rawInput.toFloatOrNull()
-    val clamped: Float = when {
-      allowAuto && rawInput.isEmpty() -> CODE_BLOCK_FONT_SIZE_AUTO_SP
-      parsed == null -> lastValidFontSize
-      else -> parsed.coerceIn(minSp, maxSp)
-    }
+    val clamped: Float =
+      when {
+        allowAuto && rawInput.isEmpty() -> CODE_BLOCK_FONT_SIZE_AUTO_SP
+        parsed == null -> lastValidFontSize
+        else -> parsed.coerceIn(minSp, maxSp)
+      }
+
     val normalizedText: String = if (allowAuto && clamped <= 0f) "" else formatFontSize(clamped)
     if (state.text.toString() != normalizedText)
       state.edit { replace(start = 0, end = length, normalizedText) }
@@ -109,10 +110,12 @@ internal fun MessageLoadCountField(
   fun normalizeAndCommit() {
     val rawInput: String = state.text.toString().trim()
     val parsed: Int? = rawInput.toIntOrNull()
-    val clamped: Int = when {
-      parsed == null -> lastValidDays
-      else -> parsed.coerceIn(MIN_MESSAGE_LOAD_COUNT, MAX_MESSAGE_LOAD_COUNT)
-    }
+    val clamped: Int =
+      when {
+        parsed == null -> lastValidDays
+        else -> parsed.coerceIn(MIN_MESSAGE_LOAD_COUNT, MAX_MESSAGE_LOAD_COUNT)
+      }
+
     val normalizedText: String = clamped.toString()
     if (state.text.toString() != normalizedText)
       state.edit { replace(start = 0, end = length, normalizedText) }
@@ -137,7 +140,7 @@ internal fun MessageLoadCountField(
       },
     outline = if (!isInputValid) Outline.Error else Outline.None,
     placeholder = {
-      Text(text = "${MIN_MESSAGE_LOAD_COUNT}~${MAX_MESSAGE_LOAD_COUNT}")
+      Text(text = "$MIN_MESSAGE_LOAD_COUNT ~ $MAX_MESSAGE_LOAD_COUNT")
     }
   )
 }
