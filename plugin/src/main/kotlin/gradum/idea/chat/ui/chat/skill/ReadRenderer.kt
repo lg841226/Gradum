@@ -69,11 +69,12 @@ class ReadRenderer : ToolCallRenderer {
     val startLine: Int? = (content.fieldMap["startLine"] as? Number)?.toInt()
     val endLine: Int? = (content.fieldMap["endLine"] as? Number)?.toInt()
     val fileName: String = filePath.substringAfterLast(delimiter = '/')
-    val lineText: String = when {
-      startLine != null && endLine != null -> message("gradum.tool.line.range", startLine, endLine)
-      startLine != null -> message("gradum.tool.line.single", startLine)
-      else -> ""
-    }
+    val lineText: String =
+      when {
+        startLine != null && endLine != null -> message("gradum.tool.line.range", startLine, endLine)
+        startLine != null -> message("gradum.tool.line.single", startLine)
+        else -> ""
+      }
     val textColor = JewelTheme.globalColors.text.normal
     val infoColor = JewelTheme.globalColors.text.info
     val disabledColor = JewelTheme.globalColors.text.disabled

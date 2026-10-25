@@ -180,12 +180,12 @@ object ProviderConfigStore {
     }
   }
 
-  /** Resolves a probe `kind` (`ollama` / `lmstudio`) to its config key. */
-  fun configKeyFor(kind: String): String? = when (kind.lowercase()) {
-    "ollama" -> "ollama"
-    "lmstudio" -> "lmstudio"
-    else -> null
-  }
+  fun configKeyFor(kind: String): String? =
+    when (kind.lowercase()) {
+      "ollama" -> "ollama"
+      "lmstudio" -> "lmstudio"
+      else -> null
+    }
 
   /**
    * Cheap fingerprint of the config file's current content: `mtime:size`.

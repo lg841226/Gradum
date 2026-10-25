@@ -89,7 +89,7 @@ internal class JsonRpcSession(
 
   private fun handleResponse(message: JsonObject) {
     val rpcResponse = json.decodeFromJsonElement(RpcResponse.serializer(), message)
-    val responseId = rpcResponse.id ?: return
+    val responseId: Long = rpcResponse.id?.longOrNull ?: return
     val pendingDeferred = pending[responseId] ?: return
     val rpcError = rpcResponse.error
     if (rpcError != null) {

@@ -513,7 +513,6 @@ class LLMClientTest {
     val client = OpenAICompatibleClient(
       configuration = config(provider = Provider.LMSTUDIO, baseUrl = "http://localhost:1234/v1"),
       HttpClient(engine),
-      responsesEndpointProbe = { false },
     )
 
     val chunks = client.sendChat(
@@ -541,7 +540,6 @@ class LLMClientTest {
     val client = OpenAICompatibleClient(
       configuration = config(provider = Provider.LMSTUDIO, baseUrl = "http://localhost:1234/v1"),
       HttpClient(engine),
-      responsesEndpointProbe = { false },
     )
 
     val chunks = client.sendChat(
@@ -575,7 +573,6 @@ class LLMClientTest {
         thinkingLevel = ThinkingLevel.HIGH,
       ),
       HttpClient(engine),
-      responsesEndpointProbe = { false },
     )
 
     client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))).toList()
@@ -585,46 +582,4 @@ class LLMClientTest {
       "LM Studio ignores reasoning_effort: payload was $requestBody"
     )
   }
-
-  @Test
-  fun `lm studio uses the responses wire and sends reasoning_effort when the probe succeeds`() =
-    runBlocking {
-      var requestedPath = ""
-      var requestBody = ""
-      val engine = MockEngine { request ->
-        requestedPath = request.url.encodedPath
-        requestBody = (request.body as io.ktor.http.content.TextContent).text
-        respond(
-          content = ByteReadChannel(
-            """
-            data: {"type":"response.output_text.delta","delta":"Answer"}
-            data: {"type":"response.completed"}
-            data: [DONE]
-            """.trimIndent()
-          ),
-          headers = headersOf(name = HttpHeaders.ContentType, value = "text/event-stream"),
-        )
-      }
-      val client = OpenAICompatibleClient(
-        configuration = config(
-          provider = Provider.LMSTUDIO,
-          baseUrl = "http://localhost:1234/v1",
-          thinking = true,
-          thinkingLevel = ThinkingLevel.HIGH,
-        ),
-        HttpClient(engine),
-        responsesEndpointProbe = { true },
-      )
-
-      val chunks = client.sendChat(
-        messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))
-      ).toList()
-
-      assertEquals(expected = "/v1/responses", actual = requestedPath)
-      assertTrue(actual = requestBody.contains("\"reasoning_effort\":\"high\""))
-      assertEquals(
-        expected = listOf(LLMResponseChunk.TextContent("Answer")),
-        chunks
-      )
-    }
 }

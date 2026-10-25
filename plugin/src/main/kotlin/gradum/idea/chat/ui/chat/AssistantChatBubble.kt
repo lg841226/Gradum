@@ -6,13 +6,9 @@ package gradum.idea.chat.ui.chat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -199,13 +195,14 @@ fun AssistantChatBubble(
   }
 }
 
-private fun RenderBlock.key(index: Int): String = when (this) {
-  is RenderBlock.Thinking -> "thinking_$index"
-  is RenderBlock.ToolCall -> "tool_${index}_$alias"
-  is RenderBlock.Response -> "response_$index"
-  is RenderBlock.Error -> "error_$index"
-  is RenderBlock.AskInteraction -> "ask_${index}_${requestId}"
-}
+private fun RenderBlock.key(index: Int): String =
+  when (this) {
+    is RenderBlock.Thinking -> "thinking_$index"
+    is RenderBlock.ToolCall -> "tool_${index}_$alias"
+    is RenderBlock.Response -> "response_$index"
+    is RenderBlock.Error -> "error_$index"
+    is RenderBlock.AskInteraction -> "ask_${index}_${requestId}"
+  }
 
 private sealed interface BubbleItem {
   data class Single(val block: RenderBlock, val index: Int) : BubbleItem

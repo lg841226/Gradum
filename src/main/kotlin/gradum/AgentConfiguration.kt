@@ -97,13 +97,14 @@ enum class PromptVariant {
      * Resolve an [AUTO] request to a concrete variant: every cloud provider
      * (OPENAI / DEEPSEEK / MINIMAX) -> CLOUD, local runtimes -> LOCAL.
      */
-    fun resolveAuto(provider: Provider): PromptVariant = when (provider) {
-      Provider.OPENAI -> CLOUD
-      Provider.DEEPSEEK -> CLOUD
-      Provider.MINIMAX -> CLOUD
-      Provider.OLLAMA -> LOCAL
-      Provider.LMSTUDIO -> LOCAL
-    }
+    fun resolveAuto(provider: Provider): PromptVariant =
+      when (provider) {
+        Provider.OPENAI -> CLOUD
+        Provider.DEEPSEEK -> CLOUD
+        Provider.MINIMAX -> CLOUD
+        Provider.OLLAMA -> LOCAL
+        Provider.LMSTUDIO -> LOCAL
+      }
   }
 }
 

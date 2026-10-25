@@ -137,21 +137,23 @@ object ModelIdentity {
   fun parseModelNamesFromBody(providerType: String, body: String): List<String> {
     if (body.isBlank()) return emptyList()
 
-    val responseJson: JsonObject = try {
-      jsonParser.parseToJsonElement(string = body).jsonObject
-    } catch (_: Exception) {
-      return emptyList()
-    }
+    val responseJson: JsonObject =
+      try {
+        jsonParser.parseToJsonElement(string = body).jsonObject
+      } catch (_: Exception) {
+        return emptyList()
+      }
 
-    val modelNames: List<String> = when (providerType) {
-      Provider.OLLAMA.wireType -> responseJson["models"]?.jsonArray?.map {
-        it.jsonObject["name"]?.jsonPrimitive?.contentOrNull ?: ""
-      } ?: emptyList()
+    val modelNames: List<String> =
+      when (providerType) {
+        Provider.OLLAMA.wireType -> responseJson["models"]?.jsonArray?.map {
+          it.jsonObject["name"]?.jsonPrimitive?.contentOrNull ?: ""
+        } ?: emptyList()
 
-      else -> responseJson["data"]?.jsonArray?.map {
-        it.jsonObject["id"]?.jsonPrimitive?.contentOrNull ?: ""
-      } ?: emptyList()
-    }
+        else -> responseJson["data"]?.jsonArray?.map {
+          it.jsonObject["id"]?.jsonPrimitive?.contentOrNull ?: ""
+        } ?: emptyList()
+      }
     return modelNames.filter { it.isNotBlank() }
   }
 

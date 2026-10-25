@@ -67,15 +67,16 @@ private const val WALK_FAILURE_LOG_PREVIEW_CHARS: Int = PluginConfig.WALK_FAILUR
 
 // Returns `true` for CJK ideographs / full-width punctuation (~1.0 font size vs ~0.6 Latin).
 @Suppress("MagicNumber")
-private fun isCjkChar(char: Char): Boolean = when (char.code) {
-  in 0x4E00..0x9FFF,
-  in 0x3400..0x4DBF,
-  in 0xF900..0xFAFF,
-  in 0x3000..0x303F,
-  in 0xFF00..0xFFEF -> true
+private fun isCjkChar(char: Char): Boolean =
+  when (char.code) {
+    in 0x4E00..0x9FFF,
+    in 0x3400..0x4DBF,
+    in 0xF900..0xFAFF,
+    in 0x3000..0x303F,
+    in 0xFF00..0xFFEF -> true
 
-  else -> false
-}
+    else -> false
+  }
 
 // Stateless CommonMark parser with the GFM Strikethrough extension enabled.
 private val commonmarkParser: Parser = Parser.builder()

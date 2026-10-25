@@ -232,25 +232,27 @@ internal enum class AuditGroup(val labelKey: String) {
 }
 
 // Buckets a finding into one of the four [AuditGroup]store by its SXXXX code.
-internal fun auditGroupOf(code: String): AuditGroup = when (code) {
-  "S2005", "S2006", "S2007", "S2008", "S2009", "S2010", "S2013" -> AuditGroup.SUSPECTED_AI_CODE
-  "S1001", "S1002", "S1004", "S2001", "S2002", "S2003", "S2004",
-  "S3001", "S3002", "S3007", "S4001" -> AuditGroup.ENGINEERING_RISK_ISSUES
+internal fun auditGroupOf(code: String): AuditGroup =
+  when (code) {
+    "S2005", "S2006", "S2007", "S2008", "S2009", "S2010", "S2013" -> AuditGroup.SUSPECTED_AI_CODE
+    "S1001", "S1002", "S1004", "S2001", "S2002", "S2003", "S2004",
+    "S3001", "S3002", "S3007", "S4001" -> AuditGroup.ENGINEERING_RISK_ISSUES
 
-  "S1003", "S2011", "S2012", "S3003", "S3004", "S3005", "S3006",
-  "S3008", "S4002" -> AuditGroup.TEAM_PROCESS_WATCH
+    "S1003", "S2011", "S2012", "S3003", "S3004", "S3005", "S3006",
+    "S3008", "S4002" -> AuditGroup.TEAM_PROCESS_WATCH
 
-  else -> AuditGroup.OTHER
-}
+    else -> AuditGroup.OTHER
+  }
 
 // Severity ordering used to sort findings most-severe-first.
-internal fun severityRank(level: String): Int = when (level) {
-  "critical" -> 0
-  "alert" -> 1
-  "watch" -> 2
-  "normal" -> 3
-  else -> 4
-}
+internal fun severityRank(level: String): Int =
+  when (level) {
+    "critical" -> 0
+    "alert" -> 1
+    "watch" -> 2
+    "normal" -> 3
+    else -> 4
+  }
 
 /**
  * Drives the Git history audit end to end.

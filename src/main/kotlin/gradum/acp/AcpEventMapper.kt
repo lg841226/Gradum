@@ -1,16 +1,31 @@
 package gradum.acp
 
 import gradum.agent.GradumEventType
+import gradum.agent.SUB_AGENT_EVENT_PREFIX
 import kotlinx.serialization.json.JsonObject
 
 // Translates Gradum agent events into ACP `session/update` payloads.
 // Pure and stateless: given the event type and its data, it returns the
 // update body (or null when the event maps to no ACP update).
+//
+// Sub-agent events arrive with the `sub_agent:` prefix. ACP has no nested
+// agent concept, so the prefix is stripped and the sub-agent's tool calls map
+// to ordinary tool_call capsules (their call ids are unique, so updates
+// correlate). Sub-agent text/thinking streams are deliberately NOT mapped:
+// they would interleave into the main answer stream, which the plugin UI
+// avoids by folding them inside the delegate capsule.
 internal fun mapGradumEventToAcpUpdate(
   sessionId: String, eventType: String, eventData: Map<String, Any>
 ): JsonObject? {
+  val isSubAgent: Boolean = eventType.startsWith(SUB_AGENT_EVENT_PREFIX)
+  val effectiveType: String = eventType.removePrefix(SUB_AGENT_EVENT_PREFIX)
+  if (isSubAgent && (effectiveType == GradumEventType.RESPONSE.wireName ||
+      effectiveType == GradumEventType.THINKING.wireName)
+  ) {
+    return null
+  }
   val update: JsonObject =
-    when (eventType) {
+    when (effectiveType) {
       GradumEventType.RESPONSE.wireName,
       GradumEventType.THINKING.wireName -> {
         val content: String? = eventData["content"] as? String

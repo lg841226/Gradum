@@ -7,6 +7,7 @@ import gradum.ToolMode
 import gradum.mcp.jsonrpc.RpcError
 import gradum.mcp.jsonrpc.RpcResponse
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -60,7 +61,7 @@ private fun buildOptionValue(modelName: String, serverName: String, providerType
     else "cloud"
 
   val description: String? = serverName.takeIf { it.isNotBlank() }?.let { "The $location model from $it" }
-  return acpOptionValue(modelName, modelDisplayLabel(modelName), description)
+  return acpOptionValue(modelName, modelName, description)
 }
 
 // Wire id for a [ToolMode], derived from the enum name so it stays in sync
@@ -86,7 +87,7 @@ private fun modeDescription(mode: ToolMode): String =
     ToolMode.YOLO -> "Skips all approvals, runs edits and commands directly"
   }
 
-internal fun AcpServer.handleSetConfigOption(requestId: Long, params: JsonObject?): RpcResponse {
+internal fun AcpServer.handleSetConfigOption(requestId: JsonPrimitive, params: JsonObject?): RpcResponse {
   val sessionId: String = params?.get("sessionId")?.jsonPrimitive?.contentOrNull
     ?: return RpcResponse(
       id = requestId,

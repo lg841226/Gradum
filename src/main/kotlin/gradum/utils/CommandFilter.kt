@@ -580,19 +580,21 @@ private fun protectedRuleName(executableName: String): String =
     else -> "$executableName:criticalPath"
   }
 
-private fun protectedBlockDescription(executableName: String, targetPath: String): String = when (executableName) {
-  "rm" -> "Removing critical path '$targetPath' is not allowed"
-  "chmod" -> "Recursive chmod on critical path '$targetPath' is not allowed"
-  "dd" -> "Writing to '$targetPath' is not allowed"
-  else -> "Modifying critical path '$targetPath' is not allowed"
-}
+private fun protectedBlockDescription(executableName: String, targetPath: String): String =
+  when (executableName) {
+    "rm" -> "Removing critical path '$targetPath' is not allowed"
+    "chmod" -> "Recursive chmod on critical path '$targetPath' is not allowed"
+    "dd" -> "Writing to '$targetPath' is not allowed"
+    else -> "Modifying critical path '$targetPath' is not allowed"
+  }
 
-private fun approvalCategory(executableName: String): String = when (executableName) {
-  "rm" -> "rm:delete"
-  "chmod" -> "chmod:recursive"
-  "dd" -> "dd:device-write"
-  else -> "$executableName:modify"
-}
+private fun approvalCategory(executableName: String): String =
+  when (executableName) {
+    "rm" -> "rm:delete"
+    "chmod" -> "chmod:recursive"
+    "dd" -> "dd:device-write"
+    else -> "$executableName:modify"
+  }
 
 private fun hasXargsInvocation(commands: List<SimpleCommand>): Boolean =
   commands.any { command -> command.words.any { executableName(it.value) == "xargs" } }

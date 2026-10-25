@@ -51,35 +51,36 @@ object JsonUtil {
     return fromJsonElement(jsonElement) as Map<String, Any?>
   }
 
-  fun toJsonElement(value: Any?): JsonElement = when (value) {
-    null -> JsonNull
-    is JsonElement -> value
-    is String -> JsonPrimitive(value)
-    is Boolean -> JsonPrimitive(value)
-    is Number -> JsonPrimitive(value)
-    is Map<*, *> -> {
-      buildJsonObject {
-        for ((rawKey, rawValue) in value) {
-          val key: String = rawKey?.toString() ?: continue
-          put(key, toJsonElement(rawValue))
+  fun toJsonElement(value: Any?): JsonElement =
+    when (value) {
+      null -> JsonNull
+      is JsonElement -> value
+      is String -> JsonPrimitive(value)
+      is Boolean -> JsonPrimitive(value)
+      is Number -> JsonPrimitive(value)
+      is Map<*, *> -> {
+        buildJsonObject {
+          for ((rawKey, rawValue) in value) {
+            val key: String = rawKey?.toString() ?: continue
+            put(key, toJsonElement(rawValue))
+          }
         }
       }
-    }
 
-    is Iterable<*> -> buildJsonArray {
-      for (element: Any? in value) {
-        add(toJsonElement(element))
+      is Iterable<*> -> buildJsonArray {
+        for (element: Any? in value) {
+          add(toJsonElement(element))
+        }
       }
-    }
 
-    is Array<*> -> buildJsonArray {
-      for (element: Any? in value) {
-        add(toJsonElement(element))
+      is Array<*> -> buildJsonArray {
+        for (element: Any? in value) {
+          add(toJsonElement(element))
+        }
       }
-    }
 
-    else -> JsonPrimitive(value.toString())
-  }
+      else -> JsonPrimitive(value.toString())
+    }
 
   fun fromJsonElement(value: JsonElement): Any? = when (value) {
     is JsonNull -> null

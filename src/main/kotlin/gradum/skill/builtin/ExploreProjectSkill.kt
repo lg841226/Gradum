@@ -224,10 +224,10 @@ class ExploreProjectSkill : Skill() {
 
     val normalizedConfigFiles: List<Map<String, Any>> = filteredConfigFiles
       .sorted().take(n = filterConfig.limit)
-      .map { filePath: String -> linkedMapOf<String, Any>("path" to filePath, "lines" to 0) }
+      .map { filePath: String -> fileEntry(resolvedPath, filePath) }
     val normalizedOtherFiles: List<Map<String, Any>> = filteredOtherFiles
       .sorted().take(n = filterConfig.limit)
-      .map { filePath: String -> linkedMapOf<String, Any>("path" to filePath, "lines" to 0) }
+      .map { filePath: String -> fileEntry(resolvedPath, filePath) }
 
     return buildOutput(
       scanResult = scanResult,
@@ -384,6 +384,34 @@ private fun countLines(targetFile: File): Int {
     logger.debug("Failed to count lines in ${targetFile.path}: ${readException.message}", readException)
     0
   }
+}
+
+// Binary formats where a "line count" is meaningless; such entries carry no
+// `lines` field at all rather than a fabricated zero.
+private val binaryFileNames: Set<String> = setOf(".DS_Store", "Thumbs.db")
+
+private val binaryExtensions: Set<String> = setOf(
+  "jar", "zip", "tar", "gz", "7z", "rar",
+  "png", "jpg", "jpeg", "gif", "webp", "ico", "icns",
+  "pdf", "so", "dylib", "dll", "bin", "exe", "class",
+  "woff", "woff2", "ttf", "otf", "eot"
+)
+
+private fun isBinaryFile(fileName: String): Boolean {
+  if (fileName in binaryFileNames) return true
+  val fileExtension = fileName.substringAfterLast(delimiter = '.', missingDelimiterValue = "")
+  return fileExtension in binaryExtensions
+}
+
+// Builds one file entry for the config/other lists. Text files carry their
+// real line count; binary files are path-only.
+private fun fileEntry(root: Path, relativePath: String): Map<String, Any> {
+  val entry: MutableMap<String, Any> = linkedMapOf("path" to relativePath)
+  val targetFile: File = root.resolve(relativePath).toFile()
+  if (targetFile.isFile && !isBinaryFile(targetFile.name)) {
+    entry["lines"] = countLines(targetFile)
+  }
+  return entry
 }
 
 private fun formatSize(sizeInBytes: Long): String {

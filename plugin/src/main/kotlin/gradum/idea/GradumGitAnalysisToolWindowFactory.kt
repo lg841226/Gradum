@@ -99,14 +99,15 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
             val qualityBand = GradumGitAnalysisService.qualityBand
             Column(modifier = Modifier.fillMaxSize()) {
               if (qualityBand != null) {
-                val bandLabel = when (qualityBand) {
-                  "Excellent" -> message("gradum.toolwindow.git.analysis.band.excellent")
-                  "Good" -> message("gradum.toolwindow.git.analysis.band.good")
-                  "Fair" -> message("gradum.toolwindow.git.analysis.band.fair")
-                  "Needs Attention" -> message("gradum.toolwindow.git.analysis.band.needs.attention")
-                  "Caution" -> message("gradum.toolwindow.git.analysis.band.caution")
-                  else -> qualityBand
-                }
+                val bandLabel =
+                  when (qualityBand) {
+                    "Excellent" -> message("gradum.toolwindow.git.analysis.band.excellent")
+                    "Good" -> message("gradum.toolwindow.git.analysis.band.good")
+                    "Fair" -> message("gradum.toolwindow.git.analysis.band.fair")
+                    "Needs Attention" -> message("gradum.toolwindow.git.analysis.band.needs.attention")
+                    "Caution" -> message("gradum.toolwindow.git.analysis.band.caution")
+                    else -> qualityBand
+                  }
                 val scanTime = scanCompletedAgo(GradumGitAnalysisService.scanCompletedAt)
                 val bannerText = if (scanTime.isNotBlank()) {
                   message("gradum.toolwindow.git.analysis.banner.complete.with.time", bandLabel, scanTime)

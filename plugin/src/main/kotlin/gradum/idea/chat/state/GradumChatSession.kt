@@ -544,15 +544,16 @@ class GradumChatSession : Disposable {
     }
   }
 
-  private fun classifyFailure(exception: Exception): RuntimeFailureCause = when {
-    exception is ConnectException || exception.cause is ConnectException ->
-      RuntimeFailureCause.NOT_STARTED
+  private fun classifyFailure(exception: Exception): RuntimeFailureCause =
+    when {
+      exception is ConnectException || exception.cause is ConnectException ->
+        RuntimeFailureCause.NOT_STARTED
 
-    exception is SocketTimeoutException || exception.cause is SocketTimeoutException ->
-      RuntimeFailureCause.NOT_RESPONDING
+      exception is SocketTimeoutException || exception.cause is SocketTimeoutException ->
+        RuntimeFailureCause.NOT_RESPONDING
 
-    else -> RuntimeFailureCause.UNREACHABLE
-  }
+      else -> RuntimeFailureCause.UNREACHABLE
+    }
 
   private fun applyModelList(newModels: List<ModelInfo>) {
     val autoFilter: Boolean = ProviderSettings.getInstance().snapshot.ollamaAutoFilter

@@ -51,17 +51,7 @@ class AcpServer(internal val runtime: GradumRuntime) {
   private val frameWriteMutex: Mutex = Mutex()
   internal val pendingQuestions: PendingQuestions = PendingQuestions()
   internal val activeSessions: ConcurrentHashMap<String, AcpSessionState> = ConcurrentHashMap()
-
-  // Whether the connected client opted into terminal auth methods, captured at
-  // `initialize`. `session/new` only answers `auth_required` when the client can
-  // actually run the setup wizard, so the user is never left without a way out.
   internal var clientTerminalAuthEnabled: Boolean = false
-
-  // In-flight agent->client requests (today: `session/request_permission`),
-  // keyed by the outbound id. Outbound ids are negative so they can never
-  // collide with the client's own request ids; [sendClientRequest] parks on
-  // the matching deferred and [completeOutboundRequest] resolves it when the
-  // client's response frame arrives on the read loop.
   private val outboundRequests: ConcurrentHashMap<Long, CompletableDeferred<JsonObject>> =
     ConcurrentHashMap()
   private val outboundIdCounter: AtomicLong = AtomicLong(0L)
@@ -149,8 +139,9 @@ class AcpServer(internal val runtime: GradumRuntime) {
   private suspend fun dispatchFrame(frameLine: String, frameWriter: BufferedWriter) {
     withContext(FrameWriterElement(frameWriter)) {
       val requestObject: JsonObject = rpcJson.parseToJsonElement(frameLine).jsonObject
-      val requestId: Long? = requestObject["id"]?.jsonPrimitive?.longOrNull
+      val requestId: JsonPrimitive? = requestObject["id"]?.jsonPrimitive
       val method: String? = requestObject["method"]?.jsonPrimitive?.contentOrNull
+      logger.info("ACP frame received: method={} id={}", method, requestId)
 
       if (method == null) {
         if (requestId != null && completeOutboundRequest(requestObject)) {
@@ -171,7 +162,7 @@ class AcpServer(internal val runtime: GradumRuntime) {
     }
   }
 
-  private suspend fun handleRequest(requestId: Long, method: String, params: JsonObject?): RpcResponse {
+  private suspend fun handleRequest(requestId: JsonPrimitive, method: String, params: JsonObject?): RpcResponse {
     return when (method) {
       "initialize" -> handleInitialize(requestId, params)
       "session/new" -> handleSessionNew(requestId, params)
@@ -242,7 +233,7 @@ class AcpServer(internal val runtime: GradumRuntime) {
     }
   }
 
-  private fun handleInitialize(requestId: Long, params: JsonObject?): RpcResponse {
+  private fun handleInitialize(requestId: JsonPrimitive, params: JsonObject?): RpcResponse {
     val supportsTerminalAuth: Boolean = clientSupportsTerminalAuth(params)
     clientTerminalAuthEnabled = supportsTerminalAuth
     val initializeResult = acpInitialize {

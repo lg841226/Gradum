@@ -42,11 +42,12 @@ internal fun GradumBanner(
   severity: BannerSeverity = BannerSeverity.Success,
   textStyle: TextStyle = JewelTheme.typography.regular
 ) {
-  val originalStyle = when (severity) {
-    BannerSeverity.Success -> JewelTheme.defaultBannerStyle.success
-    BannerSeverity.Warning -> JewelTheme.defaultBannerStyle.warning
-    BannerSeverity.Error -> JewelTheme.defaultBannerStyle.error
-  }
+  val originalStyle =
+    when (severity) {
+      BannerSeverity.Success -> JewelTheme.defaultBannerStyle.success
+      BannerSeverity.Warning -> JewelTheme.defaultBannerStyle.warning
+      BannerSeverity.Error -> JewelTheme.defaultBannerStyle.error
+    }
   val compactStyle = DefaultBannerStyle(
     colors = BannerColors(
       border = originalStyle.colors.border,

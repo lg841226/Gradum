@@ -29,7 +29,7 @@ private const val AUTH_REQUIRED = -32000
 // a thin stdio loop while session lifecycle, prompt streaming, and
 // cancellation live together here.
 
-internal suspend fun AcpServer.handleSessionNew(requestId: Long, params: JsonObject?): RpcResponse {
+internal suspend fun AcpServer.handleSessionNew(requestId: JsonPrimitive, params: JsonObject?): RpcResponse {
   if (!runtime.settings.isConfigured && clientTerminalAuthEnabled) {
     return RpcResponse(
       id = requestId,
@@ -82,7 +82,7 @@ internal suspend fun AcpServer.handleSessionNew(requestId: Long, params: JsonObj
 // `session/update` notifications before answering; [replaySessionHistory]
 // does that, and the subsequent `session/prompt` reloads the same file into
 // the fresh Agent via `loadPreviousContext`.
-internal suspend fun AcpServer.handleSessionLoad(requestId: Long, params: JsonObject?): RpcResponse {
+internal suspend fun AcpServer.handleSessionLoad(requestId: JsonPrimitive, params: JsonObject?): RpcResponse {
   val sessionId: String = params?.get("sessionId")?.jsonPrimitive?.contentOrNull
     ?: return RpcResponse(
       id = requestId,
@@ -136,11 +136,12 @@ private suspend fun AcpServer.replaySessionHistory(
   )
   var replayed = 0
   for (message in contextManager.loadContext()) {
-    val discriminator: String = when (message["role"]) {
-      "user" -> "user_message_chunk"
-      "assistant" -> "agent_message_chunk"
-      else -> continue
-    }
+    val discriminator: String =
+      when (message["role"]) {
+        "user" -> "user_message_chunk"
+        "assistant" -> "agent_message_chunk"
+        else -> continue
+      }
     val text: String = replayableText(message) ?: continue
     sendNotification(
       frameWriter,
@@ -205,7 +206,7 @@ private fun AcpServer.parseAcpMcpServers(params: JsonObject?, workingDir: String
   }
 }
 
-internal suspend fun AcpServer.handleSessionPrompt(requestId: Long, params: JsonObject?): RpcResponse {
+internal suspend fun AcpServer.handleSessionPrompt(requestId: JsonPrimitive, params: JsonObject?): RpcResponse {
   val sessionId: String = params?.get("sessionId")?.jsonPrimitive?.contentOrNull
     ?: return RpcResponse(
       id = requestId,
@@ -419,7 +420,7 @@ private fun buildPermissionOption(semantics: String): JsonObject? {
   return acpPermissionOption(optionId = meaning.wire, name = optionName, kind = optionKind)
 }
 
-internal fun AcpServer.handleSessionCancelRequest(requestId: Long, params: JsonObject?): RpcResponse {
+internal fun AcpServer.handleSessionCancelRequest(requestId: JsonPrimitive, params: JsonObject?): RpcResponse {
   handleSessionCancel(params)
   return RpcResponse(id = requestId, result = acpEmptyResult())
 }

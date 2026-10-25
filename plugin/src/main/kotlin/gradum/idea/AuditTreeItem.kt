@@ -15,11 +15,12 @@ internal sealed interface AuditTreeItem {
 }
 
 // Status icon shown next to a finding, matching its severity.
-internal fun severityIcon(level: String): IntelliJIconKey = when (level) {
-  "critical" -> AllIconsKeys.General.Error
-  "alert" -> AllIconsKeys.General.Warning
-  else -> AllIconsKeys.General.Information
-}
+internal fun severityIcon(level: String): IntelliJIconKey =
+  when (level) {
+    "critical" -> AllIconsKeys.General.Error
+    "alert" -> AllIconsKeys.General.Warning
+    else -> AllIconsKeys.General.Information
+  }
 
 // Outline version of the severity icon, used for reviewed findings.
 internal fun severityOutlineIcon(level: String): IntelliJIconKey = when (level) {

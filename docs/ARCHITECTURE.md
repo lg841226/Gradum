@@ -800,8 +800,7 @@ flowchart TD
   `/events` route and the ACP session handler use to decide `providerType / baseUrl / apiKey` for a request: (1)
   per-request overrides sent by the client (`config.provider/baseUrl/apiKey`), (2) the `ModelEntry` discovered for
   the requested model (its server URL plus that server's key), (3) the server-wide `llm.*` fallbacks. The model lookup
-  goes through the TTL-cached discovery, so resolving per message never re-probes. `ModelDisplayLabel` formats the
-  resulting provider/model pair for display.
+  goes through the TTL-cached discovery, so resolving per message never re-probes.
 - **Cache invalidation**: `ProviderConfigStore.fingerprint()` derives `"mtime:length"` from `~/.gradum/settings.json`,
   where provider overrides live as VS Code style dotted top-level keys (`ollama.baseUrl`, `lmstudio.apiKey`,
   `zhipu.allowRemote`, ...). The legacy `~/.gradum/provider.env` was migrated into settings.json once on first access.
@@ -945,7 +944,7 @@ flowchart LR
 - **Event mapping** (`AcpEventMapper`): `response -> agent_message_chunk`, `thinking -> agent_thought_chunk`,
   `tool_call_start -> tool call start` (title/kind from the skill's `toolDisplay` metadata); ANSI escape sequences in
   tool output are wrapped in `<pre>` blocks; `error` events surface with their `turn`/`tool` scope.
-- **Config options**: the client sees `model` (select from discovered models, labeled via `ModelDisplayLabel`) and
+- **Config options**: the client sees `model` (select from discovered models, labeled with the raw model name) and
   `mode` (tool mode) options; each change must return the full config, and model changes are broadcast to other
   sessions as `config_option_update`.
 - **Model probe loop**: `AcpServer` re-runs discovery every `MODEL_PROBE_INTERVAL_MS = 1000` ms so newly started local
