@@ -89,7 +89,7 @@ private fun buildToolCallTitle(
       ?: return label
   val clipped: String =
     if (display.length > TITLE_PARAM_MAX) display.take(TITLE_PARAM_MAX) + "…" else display
-  return "$label: $clipped"
+  return "$label $clipped"
 }
 
 private fun humanizeToolName(toolName: String): String =

@@ -32,7 +32,7 @@ class WebSearchSkill : Skill() {
       "documentation, or answers to questions about current events, libraries, or APIs."
 
   override val toolDisplay: ToolDisplay =
-    ToolDisplay(label = "Search web", paramKey = "query", kind = ToolDisplayKind.FETCH)
+    ToolDisplay(label = "Fetch", paramKey = "query", kind = ToolDisplayKind.FETCH)
 
   override val allowedToolModes: Set<ToolMode> =
     setOf(ToolMode.AGENT, ToolMode.EDIT, ToolMode.READ_ONLY)

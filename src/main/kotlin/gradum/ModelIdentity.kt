@@ -157,11 +157,6 @@ object ModelIdentity {
     return modelNames.filter { it.isNotBlank() }
   }
 
-  // Defensive URL-structure check applied by [probeProvider]. Local providers
-  // (Ollama, LM Studio, vLLM, LocalAI) only accept bare `http(s)://host[:port]`
-  // or a `/v1` OpenAI prefix; arbitrary junk paths rejected before any dial.
-  // Cloud providers keep built-in multi-segment base URLs (e.g. `.../api/coding/paas/v4`),
-  // so only their host is validated.
   private fun isWellFormedProviderUrl(kind: String, baseUrl: String): Boolean {
     val parsedUri = runCatching { URI(baseUrl) }.getOrNull() ?: return false
 

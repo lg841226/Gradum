@@ -26,7 +26,7 @@ class TodoSkill : Skill() {
   override val description: String = "Initialize a task list"
 
   override val toolDisplay: ToolDisplay =
-    ToolDisplay(label = "Update todos", paramKey = "task")
+    ToolDisplay(label = "Update Todos", paramKey = "task")
 
   /**
    * Available in AGENT mode only. Task planning drives the agent's
@@ -40,8 +40,8 @@ class TodoSkill : Skill() {
   override val schemaProperties: SchemaBuilder.() -> Unit = {
     stringArray(
       name = "tasks",
-      description = "List of tasks to complete",
       required = true,
+      description = "List of tasks to complete"
     )
   }
 

@@ -26,7 +26,7 @@ private val logger: Logger = LoggerFactory.getLogger("WriteFileSkill")
 
 private const val MAXIMUM_CONTENT_SIZE: Int = GradumConfig.WRITE_MAX_FILE_SIZE
 
-// True when [targetPath] resolves inside a protected system directory, so the
+// True when [targetPath] resolves inside a protected system directory, so to
 // write must be blocked. [ToolMode.YOLO] opts out of this guard entirely: the
 // user asked for no brakes, protected system directories included.
 private fun isBlockedPaths(targetPath: Path, context: SkillContext): Boolean =
@@ -69,12 +69,6 @@ private fun authorizeWrite(filePath: String, projectRoot: String, context: Skill
   }
 }
 
-/**
- * Write text to a file: search-and-replace, or create/overwrite the whole file.
- * Local models edit one file at a time with a single oldString/newString pair.
- * Cloud models can batch multiple edits. Omitting oldString writes the full
- * file content (create or overwrite).
- */
 class WriteFileSkill : Skill() {
 
   override val alias: String = "Written"
@@ -89,13 +83,12 @@ class WriteFileSkill : Skill() {
       "After editing, read the syntaxErrors field and fix any issues."
 
   override val toolDisplay: ToolDisplay =
-    ToolDisplay(label = "Write file", paramKey = "path", kind = ToolDisplayKind.EDIT)
+    ToolDisplay(label = "Write", paramKey = "path", kind = ToolDisplayKind.EDIT)
 
   override val allowedToolModes: Set<ToolMode> = setOf(ToolMode.AGENT, ToolMode.EDIT)
 
   override val historyKeepCount: Int = 5
-  override val historyVolatileKeys: List<String> =
-    listOf("originalContent", "modifiedContent")
+  override val historyVolatileKeys: List<String> = listOf("originalContent", "modifiedContent")
 
   override fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
     return result.filterKeys { it != "originalContent" && it != "modifiedContent" }

@@ -42,7 +42,7 @@ class ExploreProjectSkill : Skill() {
     "Scan project and categorize files. Returns config files, code files (with line counts), and other files."
 
   override val toolDisplay: ToolDisplay =
-    ToolDisplay(label = "Explore project", paramKey = "projectRoot", kind = ToolDisplayKind.OTHER)
+    ToolDisplay(label = "Explore", paramKey = "projectRoot", kind = ToolDisplayKind.OTHER)
 
   override val allowedToolModes: Set<ToolMode> = setOf(
     ToolMode.AGENT, ToolMode.READ_ONLY, ToolMode.EDIT
