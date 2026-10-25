@@ -56,7 +56,7 @@ fun TurnTimeline(
   }
 
   val failedBlockColor = JewelTheme.globalColors.text.error.copy(alpha = 0.8f)
-  val normalBlockColor = JewelTheme.globalColors.outlines.focused.copy(alpha = 0.8f)
+  val normalBlockColor = JewelTheme.globalColors.outlines.focused.copy(alpha = 0.6f)
   val thinkBlockColor = JewelTheme.globalColors.text.disabled.copy(alpha = 0.8f)
   val rulerColor = JewelTheme.globalColors.text.disabled
   val gridColor = JewelTheme.globalColors.borders.normal
@@ -182,6 +182,21 @@ fun TurnTimeline(
                   size = Size(rawW, blockHeightDp.toPx()),
                   cornerRadius = CornerRadius(blockCornerRadius.toPx(), blockCornerRadius.toPx())
                 )
+
+                val durationText = "${event.durationMs}ms"
+                val durationLayout = textMeasurer.measure(durationText, style = labelStyle)
+                val textWidthPx = durationLayout.size.width
+                if (rawW >= textWidthPx + 8.dp.toPx()) {
+                  val textColor = blockColor.copy(alpha = 1f)
+                  drawText(
+                    textLayoutResult = durationLayout,
+                    color = textColor,
+                    topLeft = Offset(
+                      x + (rawW - textWidthPx) / 2f,
+                      yOffset + (blockHeightDp.toPx() - durationLayout.size.height) / 2f
+                    )
+                  )
+                }
               }
             }
           }
@@ -265,10 +280,9 @@ private fun TrackLabel(
   ) {
     Text(
       text = label,
-      style = labelStyle,
       softWrap = false,
-      textAlign = TextAlign.End,
-      color = JewelTheme.globalColors.text.disabled
+      style = labelStyle,
+      textAlign = TextAlign.End
     )
   }
 }
