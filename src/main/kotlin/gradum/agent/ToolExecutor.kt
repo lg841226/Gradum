@@ -322,7 +322,7 @@ class ToolExecutor(
     val finalResult: String = todoReminder?.let { "$resultString\n\n$it" } ?: resultString
 
     conversationHistory.addToolMessage(
-      alias = toolAlias, content = finalResult, provider = configuration.provider,
+      alias = toolAlias, content = finalResult,
       toolCallId = processedCall.callIdentifier, displayKind = callDisplayKind,
       durationMs = callDurationMs, success = callSuccess
     )

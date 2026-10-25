@@ -1,6 +1,8 @@
 package gradum.skill.builtin
 
 import gradum.*
+import gradum.agent.MessageRecord
+import gradum.agent.ToolMessageRecord
 import gradum.skill.*
 import gradum.skill.dsl.IntConstraints
 import gradum.skill.dsl.SchemaBuilder
@@ -64,7 +66,7 @@ class ExploreProjectSkill : Skill() {
   override fun compactHistory(
     callCount: Int,
     ownMessageIndices: List<Int>,
-    conversationHistory: MutableList<Map<String, Any>>
+    conversationHistory: MutableList<MessageRecord>
   ) {
     if (ownMessageIndices.isEmpty()) return
     val dropCount: Int = (ownMessageIndices.size + 1 - historyKeepCount).coerceAtLeast(minimumValue = 0)
@@ -79,14 +81,14 @@ class ExploreProjectSkill : Skill() {
     }
   }
 
-  private fun compactMessageContent(message: Map<String, Any>): Map<String, Any> {
-    val content: String = message["content"] as? String ?: return message
+  private fun compactMessageContent(message: MessageRecord): MessageRecord {
+    val toolMessage: ToolMessageRecord = message as? ToolMessageRecord ?: return message
     val parsed: Map<String, Any?> =
       try {
-        decodeMap(content)
+        decodeMap(toolMessage.content)
       } catch (jsonParseException: Exception) {
         logger.debug("Message content is not a JSON object, leaving as-is: ${jsonParseException.message}", jsonParseException)
-        return message
+        return toolMessage
       }
 
     @Suppress("UNCHECKED_CAST")
@@ -107,7 +109,7 @@ class ExploreProjectSkill : Skill() {
       "other_files" to otherCount
     )
     val reencoded: String = encodeMap(compacted)
-    return message + ("content" to reencoded)
+    return toolMessage.copy(content = reencoded)
   }
 
   override val simpleDescription: String =

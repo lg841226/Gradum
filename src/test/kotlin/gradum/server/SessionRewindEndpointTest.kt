@@ -1,5 +1,8 @@
 package gradum.server
 
+import gradum.agent.MessageRecord
+import gradum.agent.assistantMessage
+import gradum.agent.userMessage
 import gradum.server.persistence.SessionStateStore
 import gradum.utils.ContextManager
 import io.ktor.client.request.*
@@ -9,12 +12,7 @@ import io.ktor.server.testing.*
 import kotlinx.serialization.json.jsonArray
 import java.nio.file.Files
 import java.nio.file.Path
-import kotlin.test.AfterTest
-import kotlin.test.Test
-import kotlin.test.assertContains
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 /**
  * Tests for `POST /session/rewind` now that the sidecar is the authority: a
@@ -37,11 +35,11 @@ class SessionRewindEndpointTest {
     val root: Path = Files.createTempDirectory("gradum-rewind-test")
     tempRoot = root
     val sessionDirectory: Path = root.resolve(".gradum").resolve("sessions").resolve(sessionId)
-    val messages: List<Map<String, Any>> = listOf(
-      mapOf("id" to "m1", "role" to "user", "content" to "first turn"),
-      mapOf("id" to "a1", "role" to "assistant", "content" to "first answer", "modelName" to "qwen3"),
-      mapOf("id" to "m2", "role" to "user", "content" to "second turn"),
-      mapOf("id" to "a2", "role" to "assistant", "content" to "second answer", "modelName" to "qwen3")
+    val messages: List<MessageRecord> = listOf(
+      userMessage { id = "m1"; text = "first turn" },
+      assistantMessage { content = "first answer"; modelName = "qwen3" },
+      userMessage { id = "m2"; text = "second turn" },
+      assistantMessage { content = "second answer"; modelName = "qwen3" }
     )
     assertTrue(ContextManager(sessionDirectory).saveContext(messages, "qwen3"))
     return root.toAbsolutePath().normalize().toString()

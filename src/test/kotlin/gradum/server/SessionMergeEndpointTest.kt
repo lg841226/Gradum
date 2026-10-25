@@ -1,5 +1,9 @@
 package gradum.server
 
+import gradum.agent.MessageRecord
+import gradum.agent.assistantMessage
+import gradum.agent.toStoredMap
+import gradum.agent.userMessage
 import gradum.server.persistence.SessionStateStore
 import gradum.server.persistence.SessionTranscriptWriter
 import io.ktor.client.request.*
@@ -38,11 +42,13 @@ class SessionMergeEndpointTest {
   }
 
   private fun seed(projectRoot: Path, sessionId: String) {
-    val messages: List<Map<String, Any>> = listOf(
-      mapOf("role" to "user", "content" to "$sessionId q", "id" to "$sessionId-u"),
-      mapOf("role" to "assistant", "content" to "$sessionId a", "id" to "$sessionId-a", "modelName" to "test-model")
+    val messages: List<MessageRecord> = listOf(
+      userMessage { id = "$sessionId-u"; text = "$sessionId q" },
+      assistantMessage { content = "$sessionId a"; modelName = "test-model" }
     )
     SessionStateStore.write(projectRoot, sessionId, "test-model", messages)
-    SessionTranscriptWriter.writeTranscript(projectRoot, sessionId, "test-model", messages, title = sessionId)
+    SessionTranscriptWriter.writeTranscript(
+      projectRoot, sessionId, "test-model", messages.map { it.toStoredMap() }, title = sessionId
+    )
   }
 }

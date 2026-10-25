@@ -64,9 +64,9 @@ fun TurnTimeline(
   val sortedEvents = turn.events.sortedBy { it.startMs }
   val thinkSegments = buildList {
     var cursor = turn.turnStartMs
-    for (event in sortedEvents) {
-      if (event.startMs > cursor) add(cursor to event.startMs)
-      if (event.endMs > cursor) cursor = event.endMs
+    for ((endMs, startMs) in sortedEvents) {
+      if (startMs > cursor) add(cursor to startMs)
+      if (endMs > cursor) cursor = endMs
     }
     if (cursor < turn.turnEndMs) add(cursor to turn.turnEndMs)
   }
@@ -173,7 +173,7 @@ fun TurnTimeline(
 
                 val isFailed = event.isFailed
                 val blockColor = if (isFailed) failedBlockColor else normalBlockColor
-                val style = if (isFailed) Stroke(width = 2.dp.toPx()) else Fill
+                val style = if (isFailed) Stroke(width = 1.dp.toPx()) else Fill
 
                 drawRoundRect(
                   style = style,

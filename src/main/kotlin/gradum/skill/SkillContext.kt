@@ -5,6 +5,7 @@ import gradum.Provider
 import gradum.SchemaVariant
 import gradum.ToolMode
 import gradum.agent.Agent
+import gradum.agent.MessageRecord
 
 /**
  * Per-session context handed to every [Skill.execute] call.
@@ -31,7 +32,7 @@ data class SkillContext(
    * Main conversation history (lazy lambda, not a snapshot).
    * Reading during tool execution returns current message list.
    */
-  val conversationHistory: () -> List<Map<String, Any>> = { emptyList() },
+  val conversationHistory: () -> List<MessageRecord> = { emptyList() },
 
   /** Event emitter for current session; skills forward events into same NDJSON stream. */
   val emitEvent: ((eventType: String, eventData: Map<String, Any>) -> Unit)? = null,

@@ -1,9 +1,7 @@
 package gradum.skill.builtin
 
 import gradum.*
-import gradum.agent.Agent
-import gradum.agent.GradumEventType
-import gradum.agent.SUB_AGENT_EVENT_PREFIX
+import gradum.agent.*
 import gradum.skill.Skill
 import gradum.skill.SkillContext
 import gradum.skill.ToolDisplay
@@ -126,7 +124,7 @@ class DelegateSkill : Skill() {
 
   // Extracts the task string from arguments, or null if missing/too short/duplicate of user input.
   private fun validateTask(
-    arguments: Map<String, Any>, conversationHistory: List<Map<String, Any>>
+    arguments: Map<String, Any>, conversationHistory: List<MessageRecord>
   ): String? {
     val task: String = arguments["task"] as? String ?: return null
     if (task.length < MIN_TASK_LENGTH) {
@@ -134,9 +132,9 @@ class DelegateSkill : Skill() {
       return null
     }
 
-    val lastUserInput: String? = conversationHistory.lastOrNull { userMessage ->
-      userMessage["role"] == "user"
-    }?.get("content") as? String
+    val lastUserInput: String? = conversationHistory.lastOrNull { message ->
+      message is UserMessageRecord
+    }?.let { message -> (message as UserMessageRecord).userText() }
 
     lastUserInput?.let { input ->
       val taskTrim = task.trim()
@@ -223,7 +221,8 @@ class DelegateSkill : Skill() {
         subAgent.getResult() ?: "no output"
       }
 
-    val conversationHistory: List<Map<String, Any>> = subAgent.getConversationHistory()
+    val conversationHistory: List<Map<String, Any?>> = subAgent.getConversationHistory()
+      .map { message -> message.toStoredMap() }
 
     emitEvent(
       GradumEventType.SUB_AGENT_SESSION_END.wireName, mapOf(

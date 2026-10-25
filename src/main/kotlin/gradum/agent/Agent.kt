@@ -186,7 +186,7 @@ class Agent(
 
     val contextLoaded: Boolean =
       if (loadPreviousContext) {
-        val loadedMessages: List<Map<String, Any>> = contextManager.loadContext()
+        val loadedMessages: List<MessageRecord> = contextManager.loadContext()
         conversationHistory.addAll(msgs = loadedMessages)
         loadedMessages.isNotEmpty()
       } else false
@@ -277,7 +277,7 @@ class Agent(
       if (result.toolCalls.isNullOrEmpty()) {
         result.responseText?.let { text ->
           conversationHistory.addAssistantMessage(
-            content = text, configuration.modelName, configuration.provider, thinking = result.thinkingText,
+            content = text, configuration.modelName, thinking = result.thinkingText,
             tokenUsage = result.tokenUsage, processedCalls = null
           )
         }
@@ -288,7 +288,6 @@ class Agent(
       conversationHistory.addAssistantMessage(
         content = result.responseText ?: "",
         configuration.modelName,
-        configuration.provider,
         thinking = result.thinkingText,
         tokenUsage = result.tokenUsage,
         processedCalls
@@ -311,7 +310,7 @@ class Agent(
 
   fun getResult(): String? = conversationHistory.getResult()
 
-  fun getConversationHistory(): List<Map<String, Any>> = conversationHistory.toList()
+  fun getConversationHistory(): List<MessageRecord> = conversationHistory.toList()
 
   fun isSessionAborted(): Boolean = sessionManager.isAborted
 
@@ -433,7 +432,7 @@ class Agent(
   ): Boolean {
     responseText?.let { text ->
       conversationHistory.addAssistantMessage(
-        content = text, configuration.modelName, configuration.provider, thinking = thinkingText,
+        content = text, configuration.modelName, thinking = thinkingText,
         tokenUsage = turnTokenUsage, processedCalls = null
       )
     }

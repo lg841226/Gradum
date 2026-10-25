@@ -1,10 +1,10 @@
 package gradum.utils
 
+import gradum.agent.*
 import gradum.mcp.McpToolCatalog
 import gradum.server.persistence.ChatDb
 import gradum.server.persistence.SessionStateStore
 import gradum.server.persistence.SessionTranscriptWriter
-import gradum.skill.Skill
 import gradum.skill.SkillRegistry
 import gradum.skill.ToolDisplay
 import kotlinx.serialization.json.*
@@ -50,7 +50,7 @@ class ContextManager(private val outputDirectory: Path) {
   // another thread could see a stale non-null value after a save
   // has invalidated it.
   @Volatile
-  private var cachedMessages: List<Map<String, Any>>? = null
+  private var cachedMessages: List<MessageRecord>? = null
 
   // Whether to use the H2 database backend instead of the legacy JSON file.
   // Controlled by the system property `-Dgradum.db.path=<path>`.
@@ -58,18 +58,14 @@ class ContextManager(private val outputDirectory: Path) {
 
   private val contextFilePath: Path = outputDirectory.resolve("context.json")
 
-  fun loadContext(): List<Map<String, Any>> = if (useDatabase) {
-    // Database mode: delegate to ChatDb
-    val storedMessages: List<Map<String, Any>> = ChatDb.loadContext(
+  fun loadContext(): List<MessageRecord> = if (useDatabase) {
+    val storedMessages: List<MessageRecord> = ChatDb.loadContext(
       projectRoot = projectRoot, sessionId = sessionId
-    ).mapNotNull { message ->
-      decryptMessageIfNeeded(message = LinkedHashMap(message))
-    }
+    ).mapNotNull { payload -> unsealPayload(payload) }
     logMessageStats(storedMessages)
     cachedMessages = storedMessages
     storedMessages
   } else {
-    // Legacy file mode
     cachedMessages?.let { return it }
 
     val contextFile: File = contextFilePath.toFile()
@@ -82,22 +78,19 @@ class ContextManager(private val outputDirectory: Path) {
       val rawContent: String = contextFile.readText(Charsets.UTF_8)
       val parsedJson: JsonObject = jsonFormatter.parseToJsonElement(rawContent).jsonObject
 
-      val rawMessages: JsonArray = parsedJson["messages"]?.jsonArray ?: run {
+      val rawMessages = parsedJson["messages"]?.jsonArray ?: run {
         logger.warn("Context file has no 'messages' field"); return emptyList()
       }
 
-      var decryptionFailures = 0
-      val decryptedMessages: List<Map<String, Any>> = rawMessages.mapNotNull { element ->
-        val messageMap: MutableMap<String, Any> = parseJsonObject(element.jsonObject)
-        val decrypted: Map<String, Any>? = decryptMessageIfNeeded(messageMap)
-        if (decrypted == null) {
-          decryptionFailures++; null
-        } else decrypted
+      var decodeFailures = 0
+      val decryptedMessages: List<MessageRecord> = rawMessages.mapNotNull { element ->
+        val record: MessageRecord? = unsealPayload(element.toString())
+        if (record == null) {
+          decodeFailures++; null
+        } else record
       }
-      if (decryptionFailures > 0) {
-        logger.warn(
-          "Dropped $decryptionFailures message(s) that failed to decrypt"
-        )
+      if (decodeFailures > 0) {
+        logger.warn("Dropped $decodeFailures message(s) that failed to decode or decrypt")
       }
 
       logMessageStats(decryptedMessages); cachedMessages = decryptedMessages
@@ -108,35 +101,38 @@ class ContextManager(private val outputDirectory: Path) {
     }
   }
 
-  fun saveContext(messages: List<Map<String, Any>>, modelName: String): Boolean {
+  fun saveContext(messages: List<MessageRecord>, modelName: String): Boolean {
     writeDerivedSessionFiles(messages = messages, modelName = modelName)
 
     return if (useDatabase) {
       cachedMessages = null
-      val cleanedMessages: List<Map<String, Any>> = cleanMessageHistory(messages)
-      val serializedMessages: List<Map<String, Any>> = cleanedMessages.map { message ->
-        encryptMessageIfNeeded(message)
-      }
+      val cleanedMessages: List<MessageRecord> = cleanMessageHistory(messages)
+      val sealedMessages: List<MessageRecord> = cleanedMessages.map { message -> sealIfNeeded(message) }
       ChatDb.saveContext(
         sessionId = sessionId,
         modelName = modelName,
         projectRoot = projectRoot,
-        messages = serializedMessages
+        messages = sealedMessages
       )
     } else {
       outputDirectory.toFile().mkdirs()
       cachedMessages = null
 
-      val cleanedMessages: List<Map<String, Any>> = cleanMessageHistory(messages)
+      val cleanedMessages: List<MessageRecord> = cleanMessageHistory(messages)
       val droppedCount: Int = messages.size - cleanedMessages.size
 
-      val serializedMessages: List<Map<String, Any>> = cleanedMessages.map { message ->
-        encryptMessageIfNeeded(message)
-      }
-
-      val contextMap: Map<String, Any> =
-        mapOf("version" to "1", "model" to modelName, "messages" to serializedMessages)
-      val contextJson: String = JsonUtil.encodeMap(contextMap)
+      val sealedMessages: List<MessageRecord> = cleanedMessages.map { message -> sealIfNeeded(message) }
+      val contextJson: String = jsonFormatter.encodeToString(
+        JsonObject.serializer(),
+        buildJsonObject {
+          put("version", "2")
+          put("model", modelName)
+          put(
+            "messages",
+            JsonArray(sealedMessages.map { message -> messageRecordJson.parseToJsonElement(message.encodeJson()) })
+          )
+        }
+      )
 
       try {
         AtomicFiles.write(contextFilePath, contextJson)
@@ -157,14 +153,14 @@ class ContextManager(private val outputDirectory: Path) {
   // `conversation.md` transcript. Both come from the same projection, so they
   // cannot disagree; a failure to write either is logged but never aborts the
   // context save.
-  private fun writeDerivedSessionFiles(messages: List<Map<String, Any>>, modelName: String) {
+  private fun writeDerivedSessionFiles(messages: List<MessageRecord>, modelName: String) {
     val projection: List<Map<String, Any?>> = SessionStateStore.projectionMessages(messages)
     try {
       SessionStateStore.write(
         projectRoot = projectRoot,
         sessionId = sessionId,
         modelName = modelName,
-        messages = projection
+        messages = messages
       )
     } catch (stateException: Exception) {
       logger.warn(
@@ -211,8 +207,10 @@ class ContextManager(private val outputDirectory: Path) {
     rewound
   } else {
     if (messageId.isBlank()) return false
-    val messages: List<Map<String, Any>> = loadContext()
-    val targetIndex: Int = messages.indexOfFirst { it["id"] == messageId }
+    val messages: List<MessageRecord> = loadContext()
+    val targetIndex: Int = messages.indexOfFirst { message ->
+      message is UserMessageRecord && message.id == messageId
+    }
     if (targetIndex < 0) return false
     saveContext(messages.subList(0, targetIndex), modelName = modelName())
   }
@@ -230,7 +228,7 @@ class ContextManager(private val outputDirectory: Path) {
       return try {
         val parsedJson: JsonObject =
           jsonFormatter.parseToJsonElement(contextFile.readText(Charsets.UTF_8)).jsonObject
-        parsedJson["model"]?.jsonPrimitive?.contentOrNull ?: ""
+        parsedJson["model"]?.let { (it as? JsonPrimitive)?.contentOrNull } ?: ""
       } catch (readException: Exception) {
         logger.warn("Failed to read model field: ${readException.message}")
         ""
@@ -248,52 +246,32 @@ class ContextManager(private val outputDirectory: Path) {
   // every request. No message-count truncation happens on this path; the
   // request-side budget (MessageHistoryTruncator) decides how much history
   // is re-sent to the model.
-  private fun cleanMessageHistory(messages: List<Map<String, Any>>): List<Map<String, Any>> {
-    val toolCallsByCallId: Map<String, Map<String, Any>> = collectToolCallsByCallId(messages)
-    val cleanedMessages: MutableList<Map<String, Any>> = mutableListOf()
+  private fun cleanMessageHistory(messages: List<MessageRecord>): List<MessageRecord> {
+    val toolCallsByCallId: Map<String, ToolCallRecord> = messages
+      .filterIsInstance<AssistantMessageRecord>()
+      .flatMap { assistant -> assistant.toolCalls }
+      .filter { call -> !call.callId.isNullOrBlank() }
+      .associateBy { call -> call.callId.orEmpty() }
+
+    val cleanedMessages: MutableList<MessageRecord> = mutableListOf()
 
     for (message in messages) {
-      val role: String = message["role"] as? String ?: ""
-      val rawContent: Any? = message["content"]
-      val content: String = rawContent as? String ?: ""
+      when (message) {
+        is SystemMessageRecord -> continue
 
-      when (role) {
-        "system" -> continue
-
-        "assistant" -> {
-          if (content.isNotBlank() || readListOfMaps(message["tool_calls"]).isNotEmpty()) {
+        is AssistantMessageRecord -> {
+          if (message.content.isNotBlank() || message.toolCalls.isNotEmpty()) {
             cleanedMessages.add(message)
           }
         }
 
-        "tool" -> cleanedMessages.add(buildToolStub(message, toolCallsByCallId))
+        is ToolMessageRecord -> cleanedMessages.add(buildToolStub(message, toolCallsByCallId))
 
-        else -> cleanedMessages.add(
-          buildMap {
-            put("role", role)
-            put("content", rawContent ?: "")
-            message["id"]?.let { put("id", it) }
-            message["ts"]?.let { put("ts", it) }
-          }
-        )
+        is UserMessageRecord -> cleanedMessages.add(message)
+        is SealedMessageRecord -> cleanedMessages.add(message)
       }
     }
     return cleanedMessages
-  }
-
-  // Maps every tool call id to its call entry (`function` name and JSON
-  // arguments), read from the assistant messages, so a tool result can be
-  // reduced to a stub that still names the action it belongs to.
-  private fun collectToolCallsByCallId(messages: List<Map<String, Any>>): Map<String, Map<String, Any>> {
-    val callsByCallId: MutableMap<String, Map<String, Any>> = mutableMapOf()
-    for (message in messages) {
-      if (message["role"] != "assistant") continue
-      for (toolCall: Map<String, Any> in readListOfMaps(message["tool_calls"])) {
-        val callId: String = toolCall["id"] as? String ?: ""
-        if (callId.isNotBlank()) callsByCallId[callId] = toolCall
-      }
-    }
-    return callsByCallId
   }
 
   // Builds the stored stand-in for a tool result: the skill's display label
@@ -301,15 +279,14 @@ class ContextManager(private val outputDirectory: Path) {
   // size. Falls back to the raw function name when the skill (or its
   // display) is unknown. The original output is never persisted.
   private fun buildToolStub(
-    toolMessage: Map<String, Any>,
-    toolCallsByCallId: Map<String, Map<String, Any>>
-  ): Map<String, Any> {
-    val callId: String = toolMessage["tool_call_id"] as? String ?: ""
-    val toolCall: Map<String, Any> = toolCallsByCallId[callId] ?: emptyMap()
-    val function: Map<String, Any> = readStringMap(toolCall["function"])
-    val functionName: String = function["name"] as? String ?: ""
+    toolMessage: ToolMessageRecord,
+    toolCallsByCallId: Map<String, ToolCallRecord>
+  ): ToolMessageRecord {
+    val callId: String = toolMessage.callId.orEmpty()
+    val toolCall: ToolCallRecord? = toolCallsByCallId[callId]
+    val functionName: String = toolCall?.name.orEmpty()
 
-    val skillInstance: Skill? = functionName.takeIf { it.isNotBlank() }?.let {
+    val skillInstance = functionName.takeIf { it.isNotBlank() }?.let {
       SkillRegistry.getSkill(skillName = it) ?: McpToolCatalog.adapterFor(name = it)
     }
     val toolDisplay: ToolDisplay? = skillInstance?.toolDisplay
@@ -317,115 +294,65 @@ class ContextManager(private val outputDirectory: Path) {
 
     val stubBuilder: StringBuilder = StringBuilder("[$displayLabel]")
     val paramKey: String = toolDisplay?.paramKey ?: ""
-    val paramValue: String = readArgumentValue(function["arguments"], paramKey)
+    val paramValue: String = toolCall?.let { call -> readArgumentValue(call.argumentsJson, paramKey) } ?: ""
     if (paramKey.isNotBlank() && paramValue.isNotBlank()) {
       stubBuilder.append(" ").append(paramKey).append("=").append(paramValue)
     }
 
-    val resultSizeKb: Int = (toolMessage["content"] as? String)?.length ?: 0
-    stubBuilder.append(" (result not stored, ").append(resultSizeKb).append(" bytes)")
+    stubBuilder.append(" (result not stored, ").append(toolMessage.content.length).append(" bytes)")
 
-    return buildMap {
-      put("role", "tool")
-      put("tool_call_id", callId)
-      put("content", stubBuilder.toString())
-      toolMessage["alias"]?.let { put("alias", it) }
-      toolMessage["ts"]?.let { put("ts", it) }
-      toolMessage["durationMs"]?.let { put("durationMs", it) }
-      toolMessage["success"]?.let { put("success", it) }
-      toolMessage["displayKind"]?.let { put("displayKind", it) }
-    }
+    return toolMessage.copy(content = stubBuilder.toString())
   }
 
   // Extracts the [paramKey] field from a tool call's JSON `arguments`
   // string, shortened for display. Returns an empty string when anything
   // is missing or unparseable: the stub stays readable either way.
-  private fun readArgumentValue(rawArguments: Any?, paramKey: String): String {
-    if (paramKey.isBlank() || rawArguments !is String) return ""
+  private fun readArgumentValue(rawArguments: String, paramKey: String): String {
+    if (paramKey.isBlank()) return ""
     return try {
-      val parsedArguments: JsonObject = jsonFormatter.parseToJsonElement(rawArguments).jsonObject
-      val rawValue: String = parsedArguments[paramKey]?.jsonPrimitive?.contentOrNull ?: ""
+      val parsedArguments: JsonObject =
+        jsonFormatter.parseToJsonElement(rawArguments).jsonObject
+      val rawValue: String = parsedArguments[paramKey]?.let { (it as? JsonPrimitive)?.contentOrNull } ?: ""
       if (rawValue.length > 120) rawValue.take(120) + "..." else rawValue
     } catch (_: Exception) {
       ""
     }
   }
 
-  // Runtime-safe coercion of a `Any?` value (typically read from a
-  // `Map<String, Any>` produced by [convertJsonElement]) into a
-  // `Map<String, Any>`. Non-`String` keys are dropped, null values
-  // become empty strings. Returns an empty map if the input is not a
-  // map at all.
-  private fun readStringMap(rawMap: Any?): Map<String, Any> {
-    if (rawMap !is Map<*, *>) return emptyMap()
+  // Encrypts user / assistant rows into envelopes; tool rows stay plaintext.
+  private fun sealIfNeeded(message: MessageRecord): MessageRecord {
+    val shouldEncrypt: Boolean = message is UserMessageRecord || message is AssistantMessageRecord
+    if (!shouldEncrypt) return message
 
-    return rawMap
-      .filterKeys { it is String }
-      .mapKeys { it.key as String }
-      .mapValues { it.value ?: "" }
-      .toMap()
+    return SealedMessageRecord(
+      cipher = encryptMessageContent(message.encodeJson()),
+      id = (message as? UserMessageRecord)?.id
+    )
   }
 
-  private fun readListOfMaps(rawList: Any?): List<Map<String, Any>> {
-    if (rawList !is List<*>) return emptyList()
-    val parsedMaps: MutableList<Map<String, Any>> = mutableListOf()
-    for (rawItem: Any? in rawList) {
-      val stringMap: Map<String, Any> = readStringMap(rawItem)
-      if (stringMap.isNotEmpty()) parsedMaps.add(stringMap)
+  // Strict read gate: decodes a stored payload and unwraps an encrypted
+  // envelope. A payload that neither decodes nor decrypts is corruption,
+  // not an empty message; the caller drops the row and logs.
+  private fun unsealPayload(payload: String): MessageRecord? {
+    val record: MessageRecord = decodeMessageRecord(payload) ?: run {
+      logger.warn("Dropped undecodable message payload")
+      return null
     }
-    return parsedMaps
-  }
-
-  private fun parseJsonObject(jsonObject: JsonObject): MutableMap<String, Any> {
-    val parsedMap: MutableMap<String, Any> = mutableMapOf()
-    for ((key: String, jsonElement) in jsonObject) parsedMap[key] = convertJsonElement(jsonElement)
-    return parsedMap
-  }
-
-  private fun convertJsonElement(element: JsonElement): Any {
-    return when (element) {
-      is JsonPrimitive if element.isString -> element.content
-      is JsonPrimitive -> JsonUtil.fromJsonElement(element) ?: element.toString()
-      is JsonArray, is JsonObject -> JsonUtil.fromJsonElement(element) ?: ""
-    }
-  }
-
-  private fun decryptMessageIfNeeded(message: MutableMap<String, Any>): MutableMap<String, Any>? {
-    val isEncrypted: Boolean = message["_encrypted"]?.toString() == "true"
-    val encryptedContent: String = message["content"] as? String ?: ""
-
-    if (!isEncrypted) return message
+    if (record !is SealedMessageRecord) return record
 
     return try {
-      message["content"] = decryptMessageContent(encryptedContent)
-      message.remove("_encrypted")
-      message
+      decodeMessageRecord(decryptMessageContent(record.cipher))
     } catch (decryptException: Exception) {
-      logger.warn("Failed to decrypt message: ${decryptException.message}"); null
+      logger.warn("Failed to decrypt message: ${decryptException.message}")
+      null
     }
   }
 
-  private fun logMessageStats(messages: List<Map<String, Any>>) {
+  private fun logMessageStats(messages: List<MessageRecord>) {
     val roleCounts: Map<String, Int> = messages
-      .mapNotNull { it["role"] as? String }
-      .groupingBy { it }
+      .groupingBy { it.role }
       .eachCount()
 
     logger.info("Context loaded: {} messages {}", messages.size, roleCounts)
-  }
-
-  private fun encryptMessageIfNeeded(message: Map<String, Any>): Map<String, Any> {
-    val role: String = message["role"] as? String ?: ""
-    val contentText: String = message["content"] as? String ?: ""
-    val encryptedContent: String = encryptMessageContent(contentText)
-    val hasContent: Boolean = message["content"] != null
-    val shouldEncrypt: Boolean = role in listOf("user", "assistant") && hasContent
-
-    if (!shouldEncrypt) return message
-
-    return message.toMutableMap().apply {
-      this["content"] = encryptedContent
-      this["_encrypted"] = "true"
-    }
   }
 }

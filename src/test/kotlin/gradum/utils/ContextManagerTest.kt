@@ -1,5 +1,6 @@
 package gradum.utils
 
+import gradum.agent.*
 import gradum.server.persistence.SessionStateStore
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -18,20 +19,16 @@ class ContextManagerTest {
     val sessionDirectory: Path = project.resolve(".gradum").resolve("sessions").resolve("s-1")
     Files.createDirectories(sessionDirectory)
 
-    val messages: List<Map<String, Any>> = listOf(
-      mapOf("role" to "system", "content" to "SECRET SYSTEM PROMPT"),
-      mapOf("id" to "m1", "role" to "user", "content" to "hello there"),
-      mapOf(
-        "id" to "m2",
-        "role" to "assistant",
-        "content" to "hi",
-        "thinking" to "thinking hard",
-        "modelName" to "qwen3",
-        "tool_calls" to listOf(
-          mapOf("id" to "c1", "function" to mapOf("name" to "read_file", "arguments" to "{}"))
-        )
-      ),
-      mapOf("role" to "tool", "tool_call_id" to "c1", "content" to "file body")
+    val messages: List<MessageRecord> = listOf(
+      systemMessage("SECRET SYSTEM PROMPT"),
+      userMessage { id = "m1"; text = "hello there" },
+      assistantMessage {
+        content = "hi"
+        modelName = "qwen3"
+        thinking = "thinking hard"
+        toolCall(name = "read_file", argumentsJson = "{}", callId = "c1")
+      },
+      toolResult { alias = "read_file"; content = "file body"; callId = "c1" }
     )
 
     assertTrue(ContextManager(sessionDirectory).saveContext(messages, "qwen3"))

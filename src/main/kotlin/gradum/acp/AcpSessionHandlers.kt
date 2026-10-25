@@ -137,9 +137,9 @@ private suspend fun AcpServer.replaySessionHistory(
   var replayed = 0
   for (message in contextManager.loadContext()) {
     val discriminator: String =
-      when (message["role"]) {
-        "user" -> "user_message_chunk"
-        "assistant" -> "agent_message_chunk"
+      when (message) {
+        is UserMessageRecord -> "user_message_chunk"
+        is AssistantMessageRecord -> "agent_message_chunk"
         else -> continue
       }
     val text: String = replayableText(message) ?: continue
@@ -156,18 +156,14 @@ private suspend fun AcpServer.replaySessionHistory(
   return replayed
 }
 
-private fun replayableText(message: Map<String, Any>): String? =
-  when (val content = message["content"]) {
-    is String -> content.takeIf { it.isNotBlank() }
-    is List<*> -> content
-      .filterIsInstance<Map<*, *>>()
-      .filter { it["type"] == "text" }
-      .mapNotNull { it["text"]?.toString() }
-      .joinToString("\n")
-      .takeIf { it.isNotBlank() }
-
+private fun replayableText(message: MessageRecord): String? {
+  val content: String? = when (message) {
+    is UserMessageRecord -> message.userText()
+    is AssistantMessageRecord -> message.content
     else -> null
   }
+  return content?.takeIf { it.isNotBlank() }
+}
 
 // Parses the `mcpServers` array ACP clients send on `session/new` into
 // [McpServerConfig]s. A stdio entry carries `command` (plus optional `args`

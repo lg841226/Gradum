@@ -1,5 +1,8 @@
 package gradum.server.persistence
 
+import gradum.agent.MessageRecord
+import gradum.agent.assistantMessage
+import gradum.agent.userMessage
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -73,21 +76,16 @@ class SessionMergerTest {
     assertNull(SessionMerger.merge(projectRoot, listOf("alpha", "missing"), baseTitle = "Merged conversation"))
   }
 
-  private fun turn(userText: String, assistantText: String): List<Map<String, Any>> = listOf(
-    mapOf("role" to "user", "content" to userText, "id" to "$userText-id"),
-    mapOf(
-      "role" to "assistant",
-      "content" to assistantText,
-      "id" to "$assistantText-id",
-      "modelName" to "test-model"
-    )
+  private fun turn(userText: String, assistantText: String): List<MessageRecord> = listOf(
+    userMessage { id = "$userText-id"; text = userText },
+    assistantMessage { content = assistantText; modelName = "test-model" }
   )
 
   // Sidecar via the real writer; a hand-written header so the timestamps are deterministic.
   private fun seedSession(
     projectRoot: Path,
     sessionId: String,
-    messages: List<Map<String, Any>>,
+    messages: List<MessageRecord>,
     updatedAt: Long,
     createdAt: Long = updatedAt,
     title: String = sessionId

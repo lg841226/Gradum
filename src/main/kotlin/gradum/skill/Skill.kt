@@ -2,6 +2,8 @@ package gradum.skill
 
 import gradum.SkillResult
 import gradum.ToolMode
+import gradum.agent.MessageRecord
+import gradum.agent.ToolMessageRecord
 import gradum.skill.dsl.ParameterLevel
 import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.dsl.SettingsSpec
@@ -199,7 +201,7 @@ abstract class Skill {
   fun recordAndCompactHistory(
     ownMessageIndices: List<Int>,
     currentResult: Map<String, Any>,
-    conversationHistory: MutableList<Map<String, Any>>
+    conversationHistory: MutableList<MessageRecord>
   ): Map<String, Any> {
     prepareHistoryCallCount++
     compactHistory(prepareHistoryCallCount, ownMessageIndices, conversationHistory)
@@ -230,7 +232,7 @@ abstract class Skill {
   open fun compactHistory(
     callCount: Int,
     ownMessageIndices: List<Int>,
-    conversationHistory: MutableList<Map<String, Any>>
+    conversationHistory: MutableList<MessageRecord>
   ) {
     if (historyKeepCount == Int.MAX_VALUE || historyVolatileKeys.isEmpty()) return
     if (ownMessageIndices.isEmpty()) return
@@ -247,26 +249,24 @@ abstract class Skill {
     }
   }
 
-  private fun stripVolatileKeys(message: Map<String, Any>): Map<String, Any> {
-    val encodedContent = message["content"] as? String ?: return message
+  private fun stripVolatileKeys(message: MessageRecord): MessageRecord {
+    val toolMessage: ToolMessageRecord = message as? ToolMessageRecord ?: return message
 
     val hasVolatileKey = historyVolatileKeys.any { key ->
-      key in encodedContent
+      key in toolMessage.content
     }
-    if (!hasVolatileKey) return message
+    if (!hasVolatileKey) return toolMessage
 
-    val decodedMap =
+    val decodedMap: Map<String, Any?> =
       try {
-        decodeMap(input = encodedContent)
+        decodeMap(input = toolMessage.content)
       } catch (_: Exception) {
-        return message
+        return toolMessage
       }
 
-    val filteredMap = decodedMap.filterKeys { key ->
+    val filteredContent = encodeMap(input = decodedMap.filterKeys { key ->
       key !in historyVolatileKeys
-    }
-
-    val filteredContent = encodeMap(input = filteredMap)
-    return message + ("content" to filteredContent)
+    })
+    return toolMessage.copy(content = filteredContent)
   }
 }

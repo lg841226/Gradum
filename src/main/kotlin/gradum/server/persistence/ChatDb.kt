@@ -1,7 +1,10 @@
 package gradum.server.persistence
 
+import gradum.agent.MessageRecord
+import gradum.agent.SealedMessageRecord
+import gradum.agent.UserMessageRecord
+import gradum.agent.encodeJson
 import gradum.server.persistence.ChatDb.chainHash
-import gradum.utils.JsonUtil
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
@@ -41,7 +44,7 @@ object ChatDb {
     projectRoot: Path,
     sessionId: String,
     modelName: String,
-    messages: List<Map<String, Any>>
+    messages: List<MessageRecord>
   ): Boolean {
     val activeConnection: Connection = connectionFor(projectRoot)
     val nowMillis: Long = System.currentTimeMillis()
@@ -71,12 +74,12 @@ object ChatDb {
         "INSERT INTO messages (session_id, seq, message_id, role, payload, hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
       ).use { insert ->
         for ((index, message) in messages.withIndex()) {
-          val payload: String = JsonUtil.encodeMap(input = message)
+          val payload: String = message.encodeJson()
           val rowHash: String = chainHash(previousHash, payload)
           insert.setString(1, sessionId)
           insert.setInt(2, index)
-          insert.setString(3, message["id"] as? String)
-          insert.setString(4, message["role"] as? String ?: "")
+          insert.setString(3, messageIdOf(message))
+          insert.setString(4, message.role)
           insert.setString(5, payload)
           insert.setString(6, rowHash)
           insert.setLong(7, nowMillis)
@@ -97,13 +100,21 @@ object ChatDb {
     }
   }
 
+  // The rewind anchor: only user rows carry an id, encrypted rows keep it on the envelope
+  private fun messageIdOf(message: MessageRecord): String? = when (message) {
+    is UserMessageRecord -> message.id
+    is SealedMessageRecord -> message.id
+    else -> null
+  }
+
   /**
    * Loads the stored context of [sessionId] in sequence order, verifying the
    * hash chain along the way. The first row whose hash no longer matches
    * corrupted or edited is dropped together with every row after it, so a
    * broken prefix still resumes and only the damaged tail is lost.
+   * Returns raw payloads; decoding stays with the caller ([ContextManager]).
    */
-  fun loadContext(projectRoot: Path, sessionId: String): List<Map<String, Any>> {
+  fun loadContext(projectRoot: Path, sessionId: String): List<String> {
     val activeConnection: Connection = connectionFor(projectRoot)
 
     activeConnection.prepareStatement(
@@ -111,7 +122,7 @@ object ChatDb {
     ).use { query ->
       query.setString(1, sessionId)
       query.executeQuery().use { rows ->
-        val messages: MutableList<Map<String, Any>> = mutableListOf()
+        val payloads: MutableList<String> = mutableListOf()
         var previousHash = ""
 
         while (rows.next()) {
@@ -124,10 +135,10 @@ object ChatDb {
             )
             break
           }
-          messages.add(decodeMessage(payload))
+          payloads.add(payload)
           previousHash = storedHash
         }
-        return messages
+        return payloads
       }
     }
   }
@@ -276,12 +287,6 @@ object ChatDb {
 
     logger.info("ChatDb initialized at {}", databaseFile)
     return openedConnection
-  }
-
-  private fun decodeMessage(payload: String): MutableMap<String, Any> {
-    @Suppress("UNCHECKED_CAST")
-    val decoded: Map<String, Any> = JsonUtil.decodeMap(input = payload) as Map<String, Any>
-    return LinkedHashMap(decoded)
   }
 
   private fun chainHash(previousHash: String, payload: String): String {

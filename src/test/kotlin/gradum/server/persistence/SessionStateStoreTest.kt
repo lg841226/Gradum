@@ -1,33 +1,25 @@
 package gradum.server.persistence
 
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.int
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import gradum.agent.*
+import kotlinx.serialization.json.*
 import java.nio.file.Files
 import java.nio.file.Path
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 class SessionStateStoreTest {
 
   @Test
   fun `round-trips the rich history without losing UI fields`() {
     val project: Path = Files.createTempDirectory("gradum_state_")
-    val messages: List<Map<String, Any>> = listOf(
-      mapOf("role" to "system", "content" to "you are gradum"),
-      mapOf("id" to "m1", "role" to "user", "content" to "hello"),
-      mapOf(
-        "id" to "m2",
-        "role" to "assistant",
-        "content" to "hi",
-        "thinking" to "weighing the options",
-        "tokenUsage" to mapOf("promptTokens" to 3, "completionTokens" to 9, "totalTokens" to 12)
-      )
+    val messages: List<MessageRecord> = listOf(
+      systemMessage("you are gradum"),
+      userMessage { id = "m1"; text = "hello" },
+      assistantMessage {
+        content = "hi"
+        modelName = "qwen3"
+        thinking = "weighing the options"
+        tokenUsage(promptTokens = 3, completionTokens = 9, totalTokens = 12)
+      }
     )
 
     assertTrue(SessionStateStore.write(project, "s-1", "qwen3", messages))
@@ -51,14 +43,16 @@ class SessionStateStoreTest {
   @Test
   fun `strips base64 image payloads but keeps their metadata`() {
     val project: Path = Files.createTempDirectory("gradum_state_redact_")
-    val messages: List<Map<String, Any>> = listOf(
-      mapOf(
-        "role" to "user",
-        "content" to listOf(
-          mapOf("type" to "text", "text" to "look"),
-          mapOf("type" to "image", "data" to "BASE64PAYLOAD", "mime" to "image/png", "filename" to "a.png")
+    val messages: List<MessageRecord> = listOf(
+      UserMessageRecord(
+        ts = 0L,
+        content = PartsContent(
+          parts = listOf(
+            TextPart(text = "look"),
+            ImagePart(data = "BASE64PAYLOAD", mime = "image/png", filename = "a.png")
+          )
         ),
-        "attachments" to listOf(mapOf("name" to "a.png", "mime" to "image/png"))
+        attachments = listOf(AttachmentMeta(name = "a.png", mime = "image/png"))
       )
     )
 

@@ -11,6 +11,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Instant
 import java.time.ZoneId
@@ -69,17 +70,20 @@ object TurnEventLoader {
       return LoadResult(emptyList(), "Sessions directory not found")
     }
 
-    val sessionDirs = Files.list(sessionsDir)
+    // Ordered by the sidecar's last-modified time, not by directory name:
+    // ACP sessions use UUID names whose lexicographic order carries no
+    // timing, so name-sorting would pin the view to an arbitrary session.
+    val sessionDirs: List<Path> = Files.list(sessionsDir)
       .filter { Files.isDirectory(it) }
-      .map { it.fileName.toString() }
+      .filter { Files.isRegularFile(it.resolve("session-state.json")) }
       .toList()
-      .sortedByDescending { it }
+      .sortedByDescending { Files.getLastModifiedTime(it).toMillis() }
 
     if (sessionDirs.isEmpty()) {
       return LoadResult(emptyList(), "No sessions found")
     }
 
-    val latestSessionId = sessionDirs.first()
+    val latestSessionId: String = sessionDirs.first().fileName.toString()
     val stateFile = sessionsDir.resolve(latestSessionId).resolve("session-state.json")
 
     if (!Files.isRegularFile(stateFile)) {

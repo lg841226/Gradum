@@ -2,6 +2,7 @@ package gradum.client
 
 import gradum.AgentConfiguration
 import gradum.Provider
+import gradum.agent.userMessage
 import io.ktor.client.*
 import io.ktor.client.engine.mock.*
 import io.ktor.http.*
@@ -60,7 +61,7 @@ class LLMClientTest {
     )
 
     val chunks = client.sendChat(
-      messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))
+      messageHistory = listOf(userMessage { text = "hi" })
     ).toList()
 
     assertEquals(
@@ -92,7 +93,7 @@ class LLMClientTest {
     )
 
     val chunks = client.sendChat(
-      messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))
+      messageHistory = listOf(userMessage { text = "hi" })
     ).toList()
 
     assertEquals(
@@ -121,7 +122,7 @@ class LLMClientTest {
     val client = OpenAICompatibleClient(configuration = config(), HttpClient(engine))
 
     val chunks = client.sendChat(
-      messageHistory = listOf(mapOf("role" to "user", "content" to "x"))
+      messageHistory = listOf(userMessage { text = "x" })
     ).toList()
 
     val toolBatches = chunks.filterIsInstance<LLMResponseChunk.ToolCallBatch>()
@@ -168,7 +169,7 @@ class LLMClientTest {
     val client = OpenAICompatibleClient(configuration = config(), HttpClient(engine))
 
     val chunks = client.sendChat(
-      messageHistory = listOf(mapOf("role" to "user", "content" to "x"))
+      messageHistory = listOf(userMessage { text = "x" })
     ).toList()
 
     val toolBatches = chunks.filterIsInstance<LLMResponseChunk.ToolCallBatch>()
@@ -219,7 +220,7 @@ class LLMClientTest {
     val client = OpenAICompatibleClient(configuration = config(), HttpClient(engine))
 
     client.sendChat(
-      messageHistory = listOf(mapOf("role" to "user", "content" to "x"))
+      messageHistory = listOf(userMessage { text = "x" })
     ).toList()
 
     assertEquals(
@@ -257,7 +258,7 @@ class LLMClientTest {
     val client = OpenAICompatibleClient(configuration = config(), HttpClient(engine))
 
     val chunks = client.sendChat(
-      messageHistory = listOf(mapOf("role" to "user", "content" to "x"))
+      messageHistory = listOf(userMessage { text = "x" })
     ).toList()
 
     assertTrue(
@@ -292,7 +293,7 @@ class LLMClientTest {
     )
     val client = OpenAICompatibleClient(configuration = config(), HttpClient(engine))
     val chunks = client.sendChat(
-      messageHistory = listOf(mapOf("role" to "user", "content" to "x"))
+      messageHistory = listOf(userMessage { text = "x" })
     ).toList()
 
     assertTrue(chunks.contains(LLMResponseChunk.TextContent("partial")))
@@ -312,7 +313,7 @@ class LLMClientTest {
     val client = OpenAICompatibleClient(configuration = config(), HttpClient(engine))
 
     val chunks = client.sendChat(
-      messageHistory = listOf(mapOf("role" to "user", "content" to "x"))
+      messageHistory = listOf(userMessage { text = "x" })
     ).toList()
 
     assertTrue(chunks.any { it is LLMResponseChunk.ErrorMessage })
@@ -334,7 +335,7 @@ class LLMClientTest {
     val client = OpenAICompatibleClient(configuration = config(), HttpClient(engine))
 
     val chunks = client.sendChat(
-      messageHistory = listOf(mapOf("role" to "user", "content" to "x"))
+      messageHistory = listOf(userMessage { text = "x" })
     ).toList()
     val error = chunks.filterIsInstance<LLMResponseChunk.ErrorMessage>()
 
@@ -359,7 +360,7 @@ class LLMClientTest {
     val client = OpenAICompatibleClient(configuration = config(), HttpClient(engine))
 
     val chunks = client.sendChat(
-      messageHistory = listOf(mapOf("role" to "user", "content" to "x"))
+      messageHistory = listOf(userMessage { text = "x" })
     ).toList()
     val error = chunks.filterIsInstance<LLMResponseChunk.ErrorMessage>()
 
@@ -382,7 +383,7 @@ class LLMClientTest {
     }
     val client = OpenAICompatibleClient(configuration = config(), HttpClient(engine))
     val chunks = client.sendChat(
-      messageHistory = listOf(mapOf("role" to "user", "content" to "x"))
+      messageHistory = listOf(userMessage { text = "x" })
     ).toList()
 
     assertTrue(actual = chunks.any { it is LLMResponseChunk.ErrorMessage })
@@ -410,7 +411,7 @@ class LLMClientTest {
       HttpClient(engine),
     )
 
-    val chunks = client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))).toList()
+    val chunks = client.sendChat(messageHistory = listOf(userMessage { text = "hi" })).toList()
 
     assertTrue(chunks.contains(LLMResponseChunk.ReasoningContent(text = "hmm")))
     assertTrue(chunks.contains(LLMResponseChunk.TextContent("Answer")))
@@ -451,7 +452,7 @@ class LLMClientTest {
     )
 
     val chunks = client.sendChat(
-      messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))
+      messageHistory = listOf(userMessage { text = "hi" })
     ).toList()
 
     assertTrue(actual = chunks.any { it is LLMResponseChunk.ErrorMessage })
@@ -476,7 +477,7 @@ class LLMClientTest {
       HttpClient(engine),
     )
 
-    client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))).toList()
+    client.sendChat(messageHistory = listOf(userMessage { text = "hi" })).toList()
 
     assertTrue(actual = requestBody.contains("\"keep_alive\":\"2m\""))
   }
@@ -496,7 +497,7 @@ class LLMClientTest {
       HttpClient(engine),
     )
 
-    client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))).toList()
+    client.sendChat(messageHistory = listOf(userMessage { text = "hi" })).toList()
 
     assertTrue(actual = !requestBody.contains("keep_alive"))
   }
@@ -516,7 +517,7 @@ class LLMClientTest {
     )
 
     val chunks = client.sendChat(
-      messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))
+      messageHistory = listOf(userMessage { text = "hi" })
     ).toList()
 
     assertEquals(
@@ -543,7 +544,7 @@ class LLMClientTest {
     )
 
     val chunks = client.sendChat(
-      messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))
+      messageHistory = listOf(userMessage { text = "hi" })
     ).toList()
 
     assertEquals(
@@ -575,7 +576,7 @@ class LLMClientTest {
       HttpClient(engine),
     )
 
-    client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))).toList()
+    client.sendChat(messageHistory = listOf(userMessage { text = "hi" })).toList()
 
     assertTrue(
       actual = !requestBody.contains("reasoning_effort") && !requestBody.contains("think"),

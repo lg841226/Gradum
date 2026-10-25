@@ -2,6 +2,7 @@ package gradum.skill
 
 import gradum.SkillResult
 import gradum.ToolMode
+import gradum.agent.*
 import gradum.skill.dsl.SchemaBuilder
 import gradum.utils.JsonUtil
 import kotlin.test.Test
@@ -55,22 +56,21 @@ class SkillCompactHistoryTest {
   )
 
   private fun appendToolMessage(
-    history: MutableList<Map<String, Any>>, alias: String, payload: Map<String, Any>
+    history: MutableList<MessageRecord>, alias: String, payload: Map<String, Any>
   ) {
     val contentString: String = JsonUtil.encodeMap(payload)
     history.add(
-      mapOf(
-        "role" to "tool",
-        "alias" to alias,
-        "content" to contentString
-      )
+      toolResult {
+        this.alias = alias
+        content = contentString
+      }
     )
   }
 
   @Test
   fun `recordAndCompactHistory returns the current call's content in full on every call`() {
     val skill = ContentSkill(historyKeepCount = 2, historyVolatileKeys = listOf("content"))
-    val history: MutableList<Map<String, Any>> = mutableListOf()
+    val history: MutableList<MessageRecord> = mutableListOf()
     val context = testContext()
 
     for (i in 1..5) {
@@ -78,7 +78,7 @@ class SkillCompactHistoryTest {
       val data: Map<String, Any> = (raw as SkillResult.Success).data
       val ownIndices: List<Int> = history.withIndex()
         .filter { (_, entry) ->
-          (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
+          entry is ToolMessageRecord && entry.alias == skill.alias
         }.map { it.index }
 
       val historyResult: Map<String, Any> = skill.recordAndCompactHistory(ownIndices, data, history)
@@ -97,13 +97,13 @@ class SkillCompactHistoryTest {
   @Test
   fun `default compactHistory strips volatile keys from older messages after historyKeepCount exceeded`() {
     val skill = ContentSkill(historyKeepCount = 2, historyVolatileKeys = listOf("content"))
-    val history: MutableList<Map<String, Any>> = mutableListOf()
+    val history: MutableList<MessageRecord> = mutableListOf()
 
     fun callBody(bodyValue: String) {
       val data: Map<String, Any> = mapOf("content" to bodyValue, "metadata" to "m-$bodyValue")
       val ownIndices: List<Int> = history.withIndex()
         .filter { (_, entry) ->
-          (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
+          entry is ToolMessageRecord && entry.alias == skill.alias
         }.map { it.index }
       val historyResult: Map<String, Any> = skill.recordAndCompactHistory(ownIndices, data, history)
       appendToolMessage(history, skill.alias, historyResult)
@@ -115,7 +115,7 @@ class SkillCompactHistoryTest {
     callBody("body-4")
 
     val parsed: List<Map<String, Any?>> = history.map { msg ->
-      val content: String = msg["content"] as String
+      val content: String = (msg as ToolMessageRecord).content
       JsonUtil.decodeMap(content)
     }
 
@@ -160,13 +160,13 @@ class SkillCompactHistoryTest {
       historyKeepCount = 1,
       historyVolatileKeys = listOf("content", "metadata")
     )
-    val history: MutableList<Map<String, Any>> = mutableListOf()
+    val history: MutableList<MessageRecord> = mutableListOf()
 
     fun callBody(bodyValue: String, metaValue: String) {
       val data: Map<String, Any> = mapOf("content" to bodyValue, "metadata" to metaValue)
       val ownIndices: List<Int> = history.withIndex()
         .filter { (_, entry) ->
-          (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
+          entry is ToolMessageRecord && entry.alias == skill.alias
         }.map { it.index }
       val historyResult: Map<String, Any> = skill.recordAndCompactHistory(ownIndices, data, history)
       appendToolMessage(history, skill.alias, historyResult)
@@ -177,7 +177,7 @@ class SkillCompactHistoryTest {
     callBody("c", "z")
 
     val parsed: List<Map<String, Any?>> = history.map { msg ->
-      val content: String = msg["content"] as String
+      val content: String = (msg as ToolMessageRecord).content
       JsonUtil.decodeMap(content)
     }
 
@@ -203,13 +203,13 @@ class SkillCompactHistoryTest {
       historyKeepCount = Int.MAX_VALUE,
       historyVolatileKeys = listOf("content")
     )
-    val history: MutableList<Map<String, Any>> = mutableListOf()
+    val history: MutableList<MessageRecord> = mutableListOf()
 
     fun callBody(bodyValue: String) {
       val data: Map<String, Any> = mapOf("content" to bodyValue, "metadata" to "m-$bodyValue")
       val ownIndices: List<Int> = history.withIndex()
         .filter { (_, entry) ->
-          (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
+          entry is ToolMessageRecord && entry.alias == skill.alias
         }.map { it.index }
       val historyResult: Map<String, Any> = skill.recordAndCompactHistory(ownIndices, data, history)
       appendToolMessage(history, skill.alias, historyResult)
@@ -218,7 +218,7 @@ class SkillCompactHistoryTest {
     for (i in 1..10) callBody("body-$i")
 
     val parsed: List<Map<String, Any?>> = history.map { msg ->
-      val content: String = msg["content"] as String
+      val content: String = (msg as ToolMessageRecord).content
       JsonUtil.decodeMap(content)
     }
 
@@ -236,13 +236,13 @@ class SkillCompactHistoryTest {
       historyKeepCount = 0,
       historyVolatileKeys = emptyList()
     )
-    val history: MutableList<Map<String, Any>> = mutableListOf()
+    val history: MutableList<MessageRecord> = mutableListOf()
 
     fun callBody(bodyValue: String) {
       val data: Map<String, Any> = mapOf("content" to bodyValue, "metadata" to "m-$bodyValue")
       val ownIndices: List<Int> = history.withIndex()
         .filter { (_, entry) ->
-          (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
+          entry is ToolMessageRecord && entry.alias == skill.alias
         }.map { it.index }
       val historyResult: Map<String, Any> = skill.recordAndCompactHistory(ownIndices, data, history)
       appendToolMessage(history, skill.alias, historyResult)
@@ -253,7 +253,7 @@ class SkillCompactHistoryTest {
     callBody("c")
 
     val parsed: List<Map<String, Any?>> = history.map { msg ->
-      val content: String = msg["content"] as String
+      val content: String = (msg as ToolMessageRecord).content
       JsonUtil.decodeMap(content)
     }
 
@@ -268,7 +268,7 @@ class SkillCompactHistoryTest {
   @Test
   fun `callCount increments by one per recordAndCompactHistory invocation`() {
     val skill = ContentSkill(historyKeepCount = 2, historyVolatileKeys = listOf("content"))
-    val history: MutableList<Map<String, Any>> = mutableListOf()
+    val history: MutableList<MessageRecord> = mutableListOf()
 
     assertEquals(
       0,
@@ -280,7 +280,7 @@ class SkillCompactHistoryTest {
       val data: Map<String, Any> = mapOf("content" to "body-$i", "metadata" to "m-$i")
       val ownIndices: List<Int> = history.withIndex()
         .filter { (_, entry) ->
-          (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
+          entry is ToolMessageRecord && entry.alias == skill.alias
         }.map { it.index }
       val historyResult: Map<String, Any> = skill.recordAndCompactHistory(ownIndices, data, history)
       appendToolMessage(history, skill.alias, historyResult)
@@ -302,20 +302,19 @@ class SkillCompactHistoryTest {
   @Test
   fun `compactHistory leaves untouched messages that are not the skill's own`() {
     val skill = ContentSkill(historyKeepCount = 1, historyVolatileKeys = listOf("content"))
-    val history: MutableList<Map<String, Any>> = mutableListOf(
-      mapOf(
-        "role" to "tool",
-        "alias" to "OtherSkill",
-        "content" to JsonUtil.encodeMap(mapOf("content" to "other-body", "metadata" to "other-m"))
-      ),
-      mapOf("role" to "user", "content" to "hi"),
+    val history: MutableList<MessageRecord> = mutableListOf(
+      toolResult {
+        alias = "OtherSkill"
+        content = JsonUtil.encodeMap(mapOf("content" to "other-body", "metadata" to "other-m"))
+      },
+      userMessage { text = "hi" },
     )
 
     fun callBody(bodyValue: String) {
       val data: Map<String, Any> = mapOf("content" to bodyValue, "metadata" to "m-$bodyValue")
       val ownIndices: List<Int> = history.withIndex()
         .filter { (_, entry) ->
-          (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
+          entry is ToolMessageRecord && entry.alias == skill.alias
         }.map { it.index }
       val historyResult: Map<String, Any> = skill.recordAndCompactHistory(ownIndices, data, history)
       appendToolMessage(history, skill.alias, historyResult)
@@ -324,7 +323,7 @@ class SkillCompactHistoryTest {
     callBody("a")
     callBody("b")
 
-    val otherContent: String = history[0]["content"] as String
+    val otherContent: String = (history[0] as ToolMessageRecord).content
     val otherParsed: Map<String, Any?> = JsonUtil.decodeMap(otherContent)
     assertEquals(
       "other-body", otherParsed["content"],
@@ -332,10 +331,10 @@ class SkillCompactHistoryTest {
     )
     assertEquals(
       "hi",
-      history[1]["content"]
+      (history[1] as UserMessageRecord).userText()
     )
 
-    val ownFirstParsed: Map<String, Any?> = JsonUtil.decodeMap(history[2]["content"] as String)
+    val ownFirstParsed: Map<String, Any?> = JsonUtil.decodeMap((history[2] as ToolMessageRecord).content)
     assertFalse(
       ownFirstParsed.containsKey("content"),
       "skill's own first call should have `content` stripped after second call"
@@ -345,13 +344,13 @@ class SkillCompactHistoryTest {
   @Test
   fun `compactHistory does not over-strip when truncation has removed older own messages`() {
     val skill = ContentSkill(historyKeepCount = 2, historyVolatileKeys = listOf("content"))
-    val history: MutableList<Map<String, Any>> = mutableListOf()
+    val history: MutableList<MessageRecord> = mutableListOf()
 
     fun callBody(bodyValue: String) {
       val data: Map<String, Any> = mapOf("content" to bodyValue, "metadata" to "m-$bodyValue")
       val ownIndices: List<Int> = history.withIndex()
         .filter { (_, entry) ->
-          (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
+          entry is ToolMessageRecord && entry.alias == skill.alias
         }.map { it.index }
       val historyResult: Map<String, Any> = skill.recordAndCompactHistory(ownIndices, data, history)
       appendToolMessage(history, skill.alias, historyResult)
@@ -360,7 +359,7 @@ class SkillCompactHistoryTest {
 
     val ownIndices = history.withIndex()
       .filter { (_, entry) ->
-        (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
+        entry is ToolMessageRecord && entry.alias == skill.alias
       }
     history.removeAt(ownIndices[1].index)
     history.removeAt(ownIndices[0].index)
@@ -368,7 +367,7 @@ class SkillCompactHistoryTest {
     callBody("body-6")
 
     val parsed: List<Map<String, Any?>> = history.map { msg ->
-      val content: String = msg["content"] as String
+      val content: String = (msg as ToolMessageRecord).content
       JsonUtil.decodeMap(content)
     }
 

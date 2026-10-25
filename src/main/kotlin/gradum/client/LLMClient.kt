@@ -3,6 +3,7 @@ package gradum.client
 import gradum.AgentConfiguration
 import gradum.GradumConfig
 import gradum.Provider
+import gradum.agent.*
 import gradum.utils.JsonUtil
 import io.ktor.client.*
 import io.ktor.client.call.*
@@ -93,65 +94,86 @@ interface TokenUsageProvider {
  */
 interface LlmClient : TokenUsageProvider {
   fun sendChat(
-    messageHistory: List<Map<String, Any>>,
+    messageHistory: List<MessageRecord>,
     toolDefinitions: List<Map<String, Any>>? = null
   ): Flow<LLMResponseChunk>
 }
 
 /**
- * Project a single `Map<String, Any>` message into the wire shape the
- * target LLM backend expects.
+ * Projects one typed history record into the wire shape the target LLM
+ * backend expects.
  *
- * The conversation history uses an OpenAI-style content-array shape for
- * user messages carrying image attachments. The two backends disagree on
- * the wire format: Ollama collapses text parts into a single `content`
- * string and lifts images into a top-level `images` array; OpenAI keeps
- * the array but re-shapes each image part into `image_url`. Text-only
- * messages pass through untouched.
- *
- * The target is expressed via the canonical [gradum.Provider] enum, not a
- * parallel multimodal vocabulary.
+ * The record layer is provider-neutral; the two backends disagree on
+ * multimodal user content: Ollama collapses text parts into a single
+ * `content` string and lifts images into a top-level `images` array;
+ * OpenAI-compatible endpoints keep a content array with `image_url` parts.
+ * Tool-call arguments stay a JSON string on the record, rendered as a JSON
+ * object for Ollama and verbatim for OpenAI.
  */
 private fun projectMessageForBackend(
-  message: Map<String, Any>, target: Provider
-): Map<String, Any> {
-  if (message["role"] != "user") return message
+  message: MessageRecord, target: Provider
+): Map<String, Any> = when (message) {
+  is SystemMessageRecord -> mapOf(
+    "role" to message.role, "content" to message.content
+  )
 
-  val contentParts = extractContentParts(message) ?: return message
-  if (contentParts.isEmpty()) return message
+  is UserMessageRecord -> when (val content: MessageContent = message.content) {
+    is PlainContent -> mapOf(
+      "role" to message.role, "content" to content.text
+    )
 
-  return when (target) {
-    Provider.OLLAMA -> projectToOllama(contentParts)
-    Provider.OPENAI -> projectToOpenAi(contentParts)
-    Provider.DEEPSEEK -> projectToOpenAi(contentParts)
-    Provider.MINIMAX -> projectToOpenAi(contentParts)
-    Provider.LMSTUDIO -> projectToOpenAi(contentParts)
+    is PartsContent -> when (target) {
+      Provider.OLLAMA -> projectPartsToOllama(content.parts)
+      else -> projectPartsToOpenAi(content.parts)
+    }
   }
+
+  is AssistantMessageRecord -> buildMap {
+    put("role", message.role)
+    put("content", message.content)
+    if (message.toolCalls.isNotEmpty()) {
+      put(
+        "tool_calls", message.toolCalls.map { call ->
+          if (target == Provider.OLLAMA) {
+            mapOf(
+              "function" to mapOf(
+                "name" to call.name,
+                "arguments" to parseArgumentsObject(call.argumentsJson)
+              )
+            )
+          } else {
+            mapOf(
+              "id" to call.callId.orEmpty(),
+              "type" to "function",
+              "function" to mapOf("name" to call.name, "arguments" to call.argumentsJson)
+            )
+          }
+        }
+      )
+    }
+  }
+
+  is ToolMessageRecord -> buildMap {
+    put("role", message.role)
+    put("content", message.content)
+    if (target != Provider.OLLAMA) put("tool_call_id", message.callId.orEmpty())
+  }
+
+  is SealedMessageRecord -> emptyMap()
 }
 
-private fun extractContentParts(message: Map<String, Any>): List<Map<String, Any>>? {
-  val content: Any? = message["content"]
-  return if (content is List<*>) {
-    content.filterIsInstance<Map<String, Any>>()
-  } else null
-}
-
-private fun projectToOllama(parts: List<Map<String, Any>>): Map<String, Any> {
+private fun projectPartsToOllama(parts: List<ContentPart>): Map<String, Any> {
   val stringBuilder: StringBuilder = StringBuilder()
   val imageDataList: MutableList<String> = mutableListOf()
 
   for (contentPart in parts) {
-    when (contentPart["type"]) {
-      "text" -> {
-        (contentPart["text"] as? String)?.let {
-          if (stringBuilder.isNotEmpty()) stringBuilder.append("\n\n")
-          stringBuilder.append(it)
-        }
+    when (contentPart) {
+      is TextPart -> {
+        if (stringBuilder.isNotEmpty()) stringBuilder.append("\n\n")
+        stringBuilder.append(contentPart.text)
       }
 
-      "image" -> {
-        (contentPart["data"] as? String)?.let { imageDataList.add(it) }
-      }
+      is ImagePart -> imageDataList.add(contentPart.data)
     }
   }
 
@@ -161,58 +183,37 @@ private fun projectToOllama(parts: List<Map<String, Any>>): Map<String, Any> {
   return messageMap
 }
 
-private fun projectToOpenAi(parts: List<Map<String, Any>>): Map<String, Any> {
+private fun projectPartsToOpenAi(parts: List<ContentPart>): Map<String, Any> {
   val projectedContentParts: MutableList<Map<String, Any>> = mutableListOf()
 
-  for (partData in parts) {
-    when (partData["type"]) {
-      "text" -> {
-        (partData["text"] as? String)?.let {
-          projectedContentParts.add(mapOf("type" to "text", "text" to it))
-        }
-      }
+  for (part in parts) {
+    when (part) {
+      is TextPart -> projectedContentParts.add(mapOf("type" to "text", "text" to part.text))
 
-      "image" -> {
-        val base64Data = partData["data"] as? String ?: continue
-        val mimeType = partData["mime"] as? String ?: "image/jpeg"
-        projectedContentParts.add(
-          mapOf(
-            "type" to "image_url",
-            "image_url" to mapOf("url" to "data:$mimeType;base64,$base64Data")
-          )
+      is ImagePart -> projectedContentParts.add(
+        mapOf(
+          "type" to "image_url",
+          "image_url" to mapOf("url" to "data:${part.mime};base64,${part.data}")
         )
-      }
+      )
     }
   }
 
   return mapOf("role" to "user", "content" to projectedContentParts)
 }
 
+private fun parseArgumentsObject(rawArguments: String): Map<String, JsonElement> =
+  try {
+    jsonParser.parseToJsonElement(rawArguments).jsonObject.toMap()
+  } catch (_: Exception) {
+    emptyMap()
+  }
+
 private fun projectHistoryForBackend(
-  messageHistory: List<Map<String, Any>>, target: Provider
-): List<Map<String, Any>> = messageHistory.map { message ->
-  sanitizeMessageForWire(projectMessageForBackend(message, target))
-}
-
-/**
- * Wire-format keys each message role may carry. The in-memory history maps
- * hold extra bookkeeping fields (`modelName`, `thinking`, `tokenUsage`,
- * `attachments`, `alias`) used by persistence and the session transcript;
- * they are stripped here so the request payload stays inside the
- * providers' documented message schema.
- */
-private val WIRE_MESSAGE_KEYS: Map<String, Set<String>> = mapOf(
-  "system" to setOf("role", "content"),
-  "user" to setOf("role", "content", "images"),
-  "assistant" to setOf("role", "content", "tool_calls"),
-  "tool" to setOf("role", "content", "tool_call_id"),
-)
-
-private fun sanitizeMessageForWire(message: Map<String, Any>): Map<String, Any> {
-  val messageRole: String = message["role"] as? String ?: return message
-  val allowedKeys: Set<String> = WIRE_MESSAGE_KEYS[messageRole] ?: return message
-  if (message.keys.all { it in allowedKeys }) return message
-  return message.filterKeys { it in allowedKeys }
+  messageHistory: List<MessageRecord>, target: Provider
+): List<Map<String, Any>> = messageHistory.mapNotNull { message ->
+  val projected: Map<String, Any> = projectMessageForBackend(message, target)
+  if (projected.isEmpty()) null else projected
 }
 
 /**
@@ -228,7 +229,7 @@ class OllamaClient(
     private set
 
   override fun sendChat(
-    messageHistory: List<Map<String, Any>>, toolDefinitions: List<Map<String, Any>>?
+    messageHistory: List<MessageRecord>, toolDefinitions: List<Map<String, Any>>?
   ): Flow<LLMResponseChunk> = flow {
     val requestUrl = "${configuration.baseUrl}/api/chat"
     val wireProfile: ProviderProfile = profileFor(Provider.OLLAMA)
@@ -382,7 +383,7 @@ class OpenAICompatibleClient(
     private set
 
   override fun sendChat(
-    messageHistory: List<Map<String, Any>>, toolDefinitions: List<Map<String, Any>>?
+    messageHistory: List<MessageRecord>, toolDefinitions: List<Map<String, Any>>?
   ): Flow<LLMResponseChunk> = flow {
 
     val base = configuration.baseUrl.trimEnd('/')

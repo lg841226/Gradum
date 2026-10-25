@@ -56,11 +56,11 @@ object SessionMerger {
       .orEmpty()
     val earliestCreatedAt: Long? = sources.map { it.createdAt }.filter { it > 0L }.minOrNull()
 
-    val stateWritten: Boolean = SessionStateStore.write(
+    val stateWritten: Boolean = SessionStateStore.writeRows(
       projectRoot = projectRoot,
       sessionId = newSessionId,
       modelName = modelName,
-      messages = orderedMessages
+      rows = orderedMessages
     )
     if (!stateWritten) return null
     SessionTranscriptWriter.writeTranscript(

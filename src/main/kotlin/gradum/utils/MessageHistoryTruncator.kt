@@ -28,23 +28,23 @@ const val MAX_HISTORY_MESSAGES: Int = gradum.GradumConfig.MAX_HISTORY_MESSAGES
  * recent [maxTurns] messages are returned as a last-resort tail cut.
  * Callers should log a warning when they detect this case.
  */
-fun takeLastTurns(messages: List<Map<String, Any>>, maxTurns: Int): List<Map<String, Any>> {
+fun <T> takeLastTurns(messages: List<T>, maxTurns: Int, roleOf: (T) -> String): List<T> {
   if (messages.isEmpty()) return emptyList()
   if (maxTurns <= 0) return emptyList()
   if (messages.size <= maxTurns) return messages
 
-  val turnsReversed: MutableList<List<Map<String, Any>>> = mutableListOf()
+  val turnsReversed: MutableList<List<T>> = mutableListOf()
   var currentIndex: Int = messages.size
   while (currentIndex > 0) {
-    val turnStartIndex: Int = findTurnStart(messages, currentIndex - 1)
+    val turnStartIndex: Int = findTurnStart(messages, currentIndex - 1, roleOf)
     turnsReversed.add(messages.subList(turnStartIndex, currentIndex))
     currentIndex = turnStartIndex
   }
 
-  val keptMessages: MutableList<Map<String, Any>> = mutableListOf()
+  val keptMessages: MutableList<T> = mutableListOf()
   var usedSlots = 0
   var exhausted = false
-  for (turnMessages: List<Map<String, Any>> in turnsReversed) {
+  for (turnMessages: List<T> in turnsReversed) {
     if (exhausted) break
     if (usedSlots + turnMessages.size > maxTurns) {
       exhausted = true
@@ -69,7 +69,7 @@ fun takeLastTurns(messages: List<Map<String, Any>>, maxTurns: Int): List<Map<Str
 //    of preceding `tool` messages, then include the `assistant`
 //    message that issued those `tool_calls` (it must exist; if not,
 //    the orphan tool messages form their own turn).
-private fun findTurnStart(messages: List<Map<String, Any>>, tailIndex: Int): Int {
+private fun <T> findTurnStart(messages: List<T>, tailIndex: Int, roleOf: (T) -> String): Int {
   val lastRole: String = roleOf(messages[tailIndex])
   if (lastRole == "user") return tailIndex
   if (lastRole == "assistant") return tailIndex
@@ -87,6 +87,3 @@ private fun findTurnStart(messages: List<Map<String, Any>>, tailIndex: Int): Int
   }
   return tailIndex
 }
-
-private fun roleOf(message: Map<String, Any>): String =
-  message["role"] as? String ?: ""
