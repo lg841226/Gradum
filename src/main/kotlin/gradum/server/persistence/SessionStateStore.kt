@@ -108,7 +108,7 @@ object SessionStateStore {
 
   // Replaces each image part's base64 payload with its metadata only
   private fun redactImageParts(row: Map<String, Any?>): Map<String, Any?> {
-    val content: Any? = row["content"] ?: return row
+    val content: Any = row["content"] ?: return row
     if (content !is List<*>) return row
     val redactedParts: List<Any?> = content.map { part: Any? ->
       if (part is Map<*, *> && part["type"] == "image") {

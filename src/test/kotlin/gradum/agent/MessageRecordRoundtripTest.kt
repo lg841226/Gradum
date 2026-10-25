@@ -1,8 +1,6 @@
 package gradum.agent
 
 import gradum.utils.ContextManager
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -20,13 +18,6 @@ class MessageRecordRoundtripTest {
 
   private fun newManager(): ContextManager =
     ContextManager(outputDirectory = tempDir.resolve(".gradum/sessions/roundtrip-test"))
-
-  private fun storedRows(): List<String> {
-    val contextFile: Path = tempDir.resolve(".gradum/sessions/roundtrip-test/context.json")
-    assertTrue(contextFile.toFile().exists(), "context.json must be written")
-    val parsed = kotlinx.serialization.json.Json.parseToJsonElement(contextFile.toFile().readText())
-    return parsed.jsonObject["messages"]!!.jsonArray.map { it.jsonObject.toString() }
-  }
 
   @Test
   fun `plain text rows survive save and load`() {

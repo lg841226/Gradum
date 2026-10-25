@@ -15,7 +15,7 @@ import gradum.agent.MessageRecord
  * provider/model identity used by provider-aware skills to pick schema variants.
  *
  * [agentConfiguration] and [emitEvent] are added for skills that spawn sub-agents
- * (e.g. [DelegateSkill]). [registerChildSession]/[unregisterChildSession] enable
+ * (e.g. [gradum.skill.builtin.DelegateSkill]). [registerChildSession]/[unregisterChildSession] enable
  * skills that spawn sub-agents to register them in the server's session hierarchy,
  * so `POST /stop` on the parent cascades to all child sessions.
  */

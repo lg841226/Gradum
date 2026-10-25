@@ -640,7 +640,7 @@ private data class LlmApiError(val statusCode: Int, val message: String)
  */
 private suspend fun extractApiError(httpResponse: HttpResponse): LlmApiError {
   val statusCode: Int = httpResponse.status.value
-  val statusLine: String = "HTTP $statusCode ${httpResponse.status.description}"
+  val statusLine = "HTTP $statusCode ${httpResponse.status.description}"
   val bodyText: String =
     try {
       httpResponse.bodyAsText()
@@ -648,20 +648,21 @@ private suspend fun extractApiError(httpResponse: HttpResponse): LlmApiError {
       return LlmApiError(statusCode = statusCode, message = statusLine)
     }
   logger.warn("LLM API error {}: {}", statusLine, bodyText)
-  val errorText: String? = try {
-    val parsed: JsonObject = jsonParser.parseToJsonElement(string = bodyText).jsonObject
-    when (val errorElement: JsonElement? = parsed["error"]) {
-      // OpenAI shape: {"error": {"message": "..."}}
-      is JsonObject ->
-        errorElement.optString(key = "message").takeIf { it.isNotBlank() }
-          ?: (errorElement["message"] as? JsonPrimitive)?.contentOrNull
-      // Ollama shape: {"error": "..."}
-      is JsonPrimitive -> errorElement.contentOrNull
-      else -> null
+  val errorText: String? =
+    try {
+      val parsed: JsonObject = jsonParser.parseToJsonElement(string = bodyText).jsonObject
+      when (val errorElement: JsonElement? = parsed["error"]) {
+        // OpenAI shape: {"error": {"message": "..."}}
+        is JsonObject ->
+          errorElement.optString(key = "message").takeIf { it.isNotBlank() }
+            ?: (errorElement["message"] as? JsonPrimitive)?.contentOrNull
+        // Ollama shape: {"error": "..."}
+        is JsonPrimitive -> errorElement.contentOrNull
+        else -> null
+      }
+    } catch (_: Exception) {
+      null
     }
-  } catch (_: Exception) {
-    null
-  }
   return LlmApiError(
     statusCode = statusCode,
     message = errorText?.takeIf { it.isNotBlank() } ?: statusLine
