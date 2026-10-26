@@ -176,13 +176,17 @@ class LmStudioModelCatalog(
       return cachedCapabilities
     }
 
-    val probedCapabilities: Map<String, LmStudioModelCapabilities> = probeCapabilities()
+    // Only a genuine probe result is cached: a failed probe (server down,
+    // timeout) must not poison the cache, so the next call retries.
+    val probedCapabilities: Map<String, LmStudioModelCapabilities> =
+      probeCapabilities() ?: return emptyMap()
     capabilityCache[baseUrl] = probedCapabilities
     return probedCapabilities
   }
 
-  // Performs the actual probe against root-level /api/v1/models
-  private suspend fun probeCapabilities(): Map<String, LmStudioModelCapabilities> {
+  // Performs the actual probe against root-level /api/v1/models.
+  // Returns null when the probe could not produce a trustworthy answer.
+  private suspend fun probeCapabilities(): Map<String, LmStudioModelCapabilities>? {
     return try {
       val requestUrl: String = resolveModelsUrl()
 
@@ -195,7 +199,7 @@ class LmStudioModelCatalog(
           "Capability probe for {} returned HTTP {}: no capabilities",
           baseUrl, response.status.value
         )
-        return emptyMap()
+        return null
       }
 
       val parsedCapabilities: Map<String, LmStudioModelCapabilities> =
@@ -210,10 +214,10 @@ class LmStudioModelCatalog(
       parsedCapabilities
     } catch (probeException: Exception) {
       logger.debug(
-        "Capability probe for {} failed ({}): no capabilities",
+        "Capability probe for {} failed ({}): will retry on next call",
         baseUrl, probeException.message ?: probeException::class.simpleName
       )
-      emptyMap()
+      null
     }
   }
 

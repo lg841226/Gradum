@@ -53,7 +53,7 @@ class AskScope(
     emitEvent?.invoke(GradumEventType.ASK_INTERACTION.wireName, payload)
 
     return when (val result: AskResult = pendingQuestions.await(sessionId, requestId, payload)) {
-
+  
       is AskResult.Case ->
         AskResult.Case(
           id = result.id,

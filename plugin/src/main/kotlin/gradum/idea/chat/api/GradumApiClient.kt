@@ -113,6 +113,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     val displayText: String? = null,
     val promptVariant: String? = null,
     val thinkingLevel: String? = null,
+    val think: Boolean? = null,
     val modelParams: Map<String, String>? = null,
     val imageAttachments: List<ApiImageAttachment> = emptyList(),
     val fileAttachments: List<ApiFileAttachment> = emptyList()
@@ -517,6 +518,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
       if (!request.displayText.isNullOrEmpty()) put("displayText", request.displayText)
       if (request.toolMode != null) put("toolMode", request.toolMode)
       if (request.thinkingLevel != null) put("thinkingLevel", request.thinkingLevel)
+      if (request.think != null) put("think", request.think)
       if (request.sessionId != null) put("sessionId", request.sessionId)
       if (request.toolCallXml != null) put("toolCallXml", request.toolCallXml)
       if (request.projectRoot != null) put("projectRoot", request.projectRoot)

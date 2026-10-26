@@ -4,7 +4,6 @@ import gradum.utils.JsonUtil
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 
-// Raw-history tool name of the delegate skill
 private const val DELEGATE_TOOL_NAME: String = "delegate_task"
 
 /** A user row, as both the transcript and the bubble view read it */
@@ -44,8 +43,8 @@ data class AssistantSpan(
 
 // A folded assistant turn: its bubble (absent when turn would render empty) and next row
 private data class FoldedTurn(
-  val bubble: Map<String, Any?>?,
-  val nextIndex: Int
+  val nextIndex: Int,
+  val bubble: Map<String, Any?>?
 )
 
 /**
@@ -197,7 +196,7 @@ object SessionHistoryReader {
       } else {
         null
       }
-    return FoldedTurn(bubble = bubble, nextIndex = index)
+    return FoldedTurn(nextIndex = index, bubble = bubble)
   }
 
   private fun userBubble(message: Map<String, Any?>): Map<String, Any?> {

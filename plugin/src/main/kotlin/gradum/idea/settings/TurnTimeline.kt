@@ -1,19 +1,21 @@
+@file:OptIn(ExperimentalFoundationApi::class)
+
 package gradum.idea.settings
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -21,9 +23,11 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import gradum.idea.utils.GradumBundle.message
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.HorizontalScrollbar
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.styling.LocalTooltipStyle
 import org.jetbrains.jewel.ui.typography
 
 @Composable
@@ -39,7 +43,7 @@ fun TurnTimeline(
   val blockHeightDp = rowHeight - blockVerticalInset * 2
   val tickStepMs = 100L
   val tickSpacing = 80.dp
-  val thinkLabel = "Thinking"
+  val thinkLabel = message("gradum.settings.statistics.thinking")
 
   val turnDurationMs = turn.durationMs.coerceAtLeast(1)
   val trackAliases = turn.events.map { it.alias }.distinct()
@@ -55,13 +59,14 @@ fun TurnTimeline(
     with(density) { widestPx.toDp() }
   }
 
-  val failedBlockColor = JewelTheme.globalColors.text.error.copy(alpha = 0.8f)
-  val normalBlockColor = JewelTheme.globalColors.outlines.focused.copy(alpha = 0.6f)
-  val thinkBlockColor = JewelTheme.globalColors.text.disabled.copy(alpha = 0.8f)
+  val failedBlockColor = JewelTheme.globalColors.text.error
+  val normalBlockColor = JewelTheme.globalColors.outlines.focused
+  val thinkBlockColor = JewelTheme.globalColors.text.disabled
   val rulerColor = JewelTheme.globalColors.text.disabled
   val gridColor = JewelTheme.globalColors.borders.normal
 
   val sortedEvents = turn.events.sortedBy { it.startMs }
+  var hoveredEvent by remember { mutableStateOf<TurnEventLoader.TurnEvent?>(null) }
   val thinkSegments = buildList {
     var cursor = turn.turnStartMs
     for ((endMs, startMs) in sortedEvents) {
@@ -130,71 +135,104 @@ fun TurnTimeline(
             val eventsInTrack = turn.events.filter { it.alias == alias }
             val tracks = calculateTrackAssignments(eventsInTrack)
 
-            Canvas(
+            val canvasWidthPx = with(density) { trackWidth.toPx() }
+            val hitRegions: List<Pair<TurnEventLoader.TurnEvent, Rect>> = remember(
+              eventsInTrack, tracks, canvasWidthPx, blockHeightDp, blockVerticalInset, turn.turnStartMs, turnDurationMs
+            ) {
+              buildList {
+                for (event in eventsInTrack) {
+                  val trackIndex = tracks[event] ?: continue
+                  val topPx = with(density) { blockVerticalInset.toPx() + trackIndex * (blockHeightDp.toPx() + 2.dp.toPx()) }
+                  val leftPx = (event.startMs - turn.turnStartMs).toFloat() / turnDurationMs * canvasWidthPx
+                  val widthPx = (event.durationMs.toFloat() / turnDurationMs * canvasWidthPx)
+                    .coerceAtLeast(with(density) { minBlockWidth.toPx() })
+                  add(event to Rect(leftPx, topPx, leftPx + widthPx, topPx + with(density) { blockHeightDp.toPx() }))
+                }
+              }
+            }
+
+            TooltipArea(
               modifier = Modifier
                 .width(trackWidth)
                 .height(rowHeight)
-            ) {
-              val canvasWidth = size.width
-              for (tickMs in tickMarksMs) {
-                val gridX = tickMs.toFloat() / turnDurationMs * canvasWidth
-                drawLine(
-                  color = gridColor,
-                  start = Offset(gridX, 0f),
-                  end = Offset(gridX, size.height)
-                )
-              }
-
-              for (event in eventsInTrack) {
-                val trackIndex = tracks[event] ?: 0
-                val yOffset = blockVerticalInset.toPx() + trackIndex * (blockHeightDp.toPx() + 2.dp.toPx())
-
-                val leftPercent = (event.startMs - turn.turnStartMs).toFloat() / turnDurationMs
-                val widthPercent = event.durationMs.toFloat() / turnDurationMs
-
-                val x = leftPercent * canvasWidth
-                val rawW = widthPercent * canvasWidth
-                val minWidthPx = minBlockWidth.toPx()
-
-                if (rawW < minWidthPx) {
-                  val diamondSize = 10.dp.toPx()
-                  val diamondCenter = Offset(x + minWidthPx / 2f, yOffset + diamondSize / 2f)
-                  rotate(degrees = 45f, pivot = diamondCenter) {
-                    drawRoundRect(
-                      style = Stroke(width = 1.dp.toPx()),
-                      size = Size(diamondSize, diamondSize),
-                      color = if (event.isFailed) failedBlockColor else normalBlockColor,
-                      cornerRadius = CornerRadius(blockCornerRadius.toPx(), blockCornerRadius.toPx()),
-                      topLeft = Offset(diamondCenter.x - diamondSize / 2f, diamondCenter.y - diamondSize / 2f)
-                    )
+                .pointerInput(hitRegions) {
+                  awaitPointerEventScope {
+                    while (true) {
+                      val pointerEvent = awaitPointerEvent()
+                      if (pointerEvent.type == PointerEventType.Exit) {
+                        hoveredEvent = null
+                      } else {
+                        val position = pointerEvent.changes.first().position
+                        hoveredEvent = hitRegions
+                          .firstOrNull { (_, rect) -> rect.contains(position) }
+                          ?.first
+                      }
+                    }
                   }
-                  continue
+                },
+              tooltip = {
+                val hovered = hoveredEvent ?: return@TooltipArea
+                val tooltipStyle = LocalTooltipStyle.current
+                val tooltipText =
+                  if (hovered.isFailed) {
+                    message("gradum.timeline.tooltip.failure", hovered.durationMs)
+                  } else {
+                    message("gradum.timeline.tooltip.success", hovered.durationMs)
+                  }
+                Text(text = tooltipText, color = tooltipStyle.colors.content)
+              }
+            ) {
+              Canvas(
+                modifier = Modifier
+                  .width(trackWidth)
+                  .height(rowHeight)
+              ) {
+                val canvasWidth = size.width
+                for (tickMs in tickMarksMs) {
+                  val gridX = tickMs.toFloat() / turnDurationMs * canvasWidth
+                  drawLine(
+                    color = gridColor,
+                    start = Offset(gridX, 0f),
+                    end = Offset(gridX, size.height)
+                  )
                 }
 
-                val isFailed = event.isFailed
-                val blockColor = if (isFailed) failedBlockColor else normalBlockColor
-                val style = if (isFailed) Stroke(width = 1.dp.toPx()) else Fill
+                for (event in eventsInTrack) {
+                  val trackIndex = tracks[event] ?: 0
+                  val yOffset = blockVerticalInset.toPx() + trackIndex * (blockHeightDp.toPx() + 2.dp.toPx())
 
-                drawRoundRect(
-                  style = style,
-                  color = blockColor,
-                  topLeft = Offset(x, yOffset),
-                  size = Size(rawW, blockHeightDp.toPx()),
-                  cornerRadius = CornerRadius(blockCornerRadius.toPx(), blockCornerRadius.toPx())
-                )
+                  val leftPercent = (event.startMs - turn.turnStartMs).toFloat() / turnDurationMs
+                  val widthPercent = event.durationMs.toFloat() / turnDurationMs
 
-                val durationText = "${event.durationMs}ms"
-                val durationLayout = textMeasurer.measure(durationText, style = labelStyle)
-                val textWidthPx = durationLayout.size.width
-                if (rawW >= textWidthPx + 8.dp.toPx()) {
-                  val textColor = blockColor.copy(alpha = 1f)
-                  drawText(
-                    textLayoutResult = durationLayout,
-                    color = textColor,
-                    topLeft = Offset(
-                      x + (rawW - textWidthPx) / 2f,
-                      yOffset + (blockHeightDp.toPx() - durationLayout.size.height) / 2f
-                    )
+                  val x = leftPercent * canvasWidth
+                  val rawW = widthPercent * canvasWidth
+                  val minWidthPx = minBlockWidth.toPx()
+
+                  if (rawW < minWidthPx) {
+                    val diamondSize = 10.dp.toPx()
+                    val diamondCenter = Offset(x + minWidthPx / 2f, yOffset + diamondSize / 2f)
+                    rotate(degrees = 45f, pivot = diamondCenter) {
+                      drawRoundRect(
+                        style = Stroke(width = 1.dp.toPx()),
+                        size = Size(diamondSize, diamondSize),
+                        color = if (event.isFailed) failedBlockColor else normalBlockColor,
+                        cornerRadius = CornerRadius(blockCornerRadius.toPx(), blockCornerRadius.toPx()),
+                        topLeft = Offset(diamondCenter.x - diamondSize / 2f, diamondCenter.y - diamondSize / 2f)
+                      )
+                    }
+                    continue
+                  }
+
+                  val isFailed = event.isFailed
+                  val blockColor = if (isFailed) failedBlockColor else normalBlockColor
+                  val style = if (isFailed) Stroke(width = 1.dp.toPx()) else Fill
+
+                  drawRoundRect(
+                    style = style,
+                    color = blockColor,
+                    topLeft = Offset(x, yOffset),
+                    size = Size(rawW, blockHeightDp.toPx()),
+                    cornerRadius = CornerRadius(blockCornerRadius.toPx(), blockCornerRadius.toPx())
                   )
                 }
               }
@@ -217,13 +255,13 @@ fun TurnTimeline(
             }
             for ((segmentStartMs, segmentEndMs) in thinkSegments) {
               val x = (segmentStartMs - turn.turnStartMs).toFloat() / turnDurationMs * canvasWidth
-              val w = (segmentEndMs - segmentStartMs).toFloat() / turnDurationMs * canvasWidth
-              if (w <= 0f) continue
+              val width = (segmentEndMs - segmentStartMs).toFloat() / turnDurationMs * canvasWidth
+              if (width <= 0f) continue
               drawRoundRect(
                 style = Fill,
                 color = thinkBlockColor,
                 topLeft = Offset(x, blockVerticalInset.toPx()),
-                size = Size(w, blockHeightDp.toPx()),
+                size = Size(width, blockHeightDp.toPx()),
                 cornerRadius = CornerRadius(blockCornerRadius.toPx(), blockCornerRadius.toPx())
               )
             }

@@ -50,6 +50,16 @@ fun ChatInputPanel(
 ) {
   val initialTextLength: Int = remember { textState.text.length }
   var previousTextLength by remember { mutableStateOf(initialTextLength) }
+  var escHintVisible by remember { mutableStateOf(false) }
+
+  LaunchedEffect(escHintVisible) {
+    if (escHintVisible) {
+      delay(2000.milliseconds)
+      escHintVisible = false
+      actions.onEscArmChange(false)
+    }
+  }
+
   LaunchedEffect(textState.text) {
     delay(50.milliseconds)
 
@@ -128,6 +138,20 @@ fun ChatInputPanel(
           .onPreviewKeyEvent { keyEvent ->
             if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
 
+            if (keyEvent.key == Key.Escape) {
+              val stoppable = state.isSending || state.pendingMessages.isNotEmpty()
+              if (!stoppable) return@onPreviewKeyEvent false
+              if (escHintVisible) {
+                escHintVisible = false
+                actions.onEscArmChange(false)
+                actions.onStop()
+              } else {
+                escHintVisible = true
+                actions.onEscArmChange(true)
+              }
+              return@onPreviewKeyEvent true
+            }
+
             val isSubmitKey = keyEvent.key == Key.Enter &&
               (keyEvent.isMetaPressed || keyEvent.isCtrlPressed)
             if (!isSubmitKey) return@onPreviewKeyEvent false
@@ -143,7 +167,13 @@ fun ChatInputPanel(
 
       Spacer(modifier = Modifier.height(GradumSpacing.md))
 
-      ChatToolbar(state = state, actions = actions, isTextNotEmpty = textState.text.isNotBlank(), hasSentMessage = hasSentMessage, selectedPermission = selectedPermission)
+      ChatToolbar(
+        state = state,
+        actions = actions,
+        hasSentMessage = hasSentMessage,
+        selectedPermission = selectedPermission,
+        isTextNotEmpty = textState.text.isNotBlank()
+      )
 
       AttachmentBar(attachedFiles = state.attachedFiles, onRemoveFile = actions.onRemoveFile)
     }

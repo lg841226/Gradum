@@ -815,7 +815,8 @@ private fun rememberChatSessionState(
       onPasteAsContext = attachText,
       onSelectModel = onSelectModel,
       onRemovePending = onRemovePending,
-      onSelectThinkingLevel = onSelectThinkingLevel
+      onSelectThinkingLevel = onSelectThinkingLevel,
+      onEscArmChange = {  }
     )
   }
 

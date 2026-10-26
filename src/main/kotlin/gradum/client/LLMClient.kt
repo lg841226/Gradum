@@ -29,7 +29,6 @@ private val logger: Logger = LoggerFactory.getLogger("LLMClient")
 
 private val jsonParser: Json = Json { ignoreUnknownKeys = true }
 
-/** Shared across clients to reuse connections instead of building a client per turn. */
 private val sharedHttpClient: HttpClient = HttpClient {
   install(HttpTimeout) {
     requestTimeoutMillis = GradumConfig.LLM_REQUEST_TIMEOUT_MS
@@ -252,7 +251,11 @@ class OllamaClient(
     )
 
     requestPayload.putAll(wireProfile.requestFields(params = generationParams))
-    requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel))
+    val capabilities: OllamaModelCapabilities? =
+      if (thinkingLevel != ThinkingLevel.OFF)
+        OllamaModelCatalog(baseUrl = configuration.baseUrl).capabilitiesFor(modelName = configuration.modelName)
+      else null
+    requestPayload.putAll(wireProfile.thinkingFields(level = thinkingLevel, capabilities = capabilities))
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
     var lastError: Exception? = null

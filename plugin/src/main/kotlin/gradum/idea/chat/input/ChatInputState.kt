@@ -24,31 +24,8 @@ data class ChatInputState(
   val isExpanded: Boolean,
   val isMenuVisible: Boolean,
   val showAddMenu: Boolean,
-  /**
-   * `true` when the file open in the editor has at least one error-severity
-   * highlight. Drives the `Add File Errors` row in the add-menu popup: when
-   * this is `false` the row stays visible but its text turns grey and the
-   * icon switches to the outline variant.
-   */
   val currentFileHasErrors: Boolean = false,
-  /**
-   * Strength of the reasoning the model should apply on the next turn.
-   * Defaults to [ThinkingLevel.MEDIUM] so a brand-new session gets a
-   * balanced effort out of the box; the user dials it down to
-   * [ThinkingLevel.LOW] for cheap-and-fast or up to [ThinkingLevel.HIGH]
-   * for refactors and architecture questions.
-   *
-   * The level is sent to the server as a structured field and translated
-   * per provider (Ollama `think`, OpenAI-style `reasoning_effort`). Whether
-   * the selector is shown or enabled follows the selected model's catalog
-   * capability flags (`reasoning` / `reasoningLevels`), see
-   * [gradum.idea.chat.ui.input.ModelSelectorBar].
-   */
   val thinkingLevel: ThinkingLevel = ThinkingLevel.MEDIUM,
-  /**
-   * Tokens currently occupied by the session context, taken from the
-   * latest assistant response; feeds the usage ring in the toolbar.
-   */
   val sessionContextTokens: Int = 0,
 ) {
   /**
@@ -87,5 +64,6 @@ data class ChatInputActions(
   val onPasteAsContext: (String) -> Unit = {},
   val onSelectModel: (ModelInfo?) -> Unit = {},
   val onRemovePending: (PendingMessage) -> Unit = {},
-  val onSelectThinkingLevel: (ThinkingLevel) -> Unit = {}
+  val onSelectThinkingLevel: (ThinkingLevel) -> Unit = {},
+  val onEscArmChange: (Boolean) -> Unit = {}
 )

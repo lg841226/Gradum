@@ -169,6 +169,7 @@ internal suspend fun GradumChatSession.sendMessage(
         modelName = selectedModel?.name,
         projectRoot = project?.basePath,
         thinkingLevel = thinkingLevel.name.lowercase(),
+        think = true,
         imageAttachments = imageAttachments,
         fileAttachments = fileApiAttachments
       ),

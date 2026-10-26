@@ -90,13 +90,17 @@ class OllamaModelCatalog(private val baseUrl: String) {
       return cachedCapabilities
     }
 
-    val probedCapabilities = probeCapabilities(modelName = modelName)
+    // Only a genuine probe result is cached: a failed probe (server down,
+    // timeout) must not poison the cache, so the next call retries.
+    val probedCapabilities: OllamaModelCapabilities =
+      probeCapabilities(modelName = modelName) ?: return FALLBACK_CAPABILITIES
     capabilityCache[cacheKey] = probedCapabilities
     return probedCapabilities
   }
 
-  // Performs the actual probe: version check followed by model capability query
-  private suspend fun probeCapabilities(modelName: String): OllamaModelCapabilities {
+  // Performs the actual probe: version check followed by model capability query.
+  // Returns null when the probe could not produce a trustworthy answer.
+  private suspend fun probeCapabilities(modelName: String): OllamaModelCapabilities? {
     return try {
       probeVersion()
 
@@ -116,7 +120,7 @@ class OllamaModelCatalog(private val baseUrl: String) {
           "Capability probe for {} returned HTTP {}: using fallback",
           modelName, response.status.value
         )
-        return FALLBACK_CAPABILITIES
+        return null
       }
 
       val responseText: String = response.bodyAsText()
@@ -136,10 +140,10 @@ class OllamaModelCatalog(private val baseUrl: String) {
       parsedCapabilities
     } catch (probeException: Exception) {
       logger.debug(
-        "Capability probe for {} failed ({}): using fallback",
+        "Capability probe for {} failed ({}): will retry on next call",
         modelName, probeException.message ?: probeException::class.simpleName
       )
-      FALLBACK_CAPABILITIES
+      null
     }
   }
 

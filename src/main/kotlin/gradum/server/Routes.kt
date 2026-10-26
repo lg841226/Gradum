@@ -108,6 +108,8 @@ data class EventsRequestBody(
   val config: Map<String, String>? = null,
   /** `low` / `medium` / `high`; null or unknown keeps the server default. */
   val thinkingLevel: String? = null,
+  /** Master thinking switch sent by the plugin; null keeps the server default. */
+  val think: Boolean? = null,
   /** Debug tool-call scenario XML (`<tls>`): executes through the real tool pipeline instead of the LLM. */
   val toolCallXml: String? = null,
   /** Absolute path of the IDE-open project; root for every file/process tool this session. */
@@ -344,7 +346,7 @@ fun Application.registerAllRoutes(
       val resolvedProvider: Provider = Provider.fromStringOrDefault(resolvedTarget.providerType)
       val resolvedBaseUrl: String = resolvedTarget.baseUrl
       val thinkingMasterOn: Boolean =
-        configOverrides.think ?: serverConfiguration.defaultThinkEnabled
+        configOverrides.think ?: requestBody.think ?: serverConfiguration.defaultThinkEnabled
 
       val agentConfiguration = AgentConfiguration(
         baseUrl = resolvedBaseUrl,
