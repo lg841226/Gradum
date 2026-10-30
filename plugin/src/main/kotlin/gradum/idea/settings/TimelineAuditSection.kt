@@ -4,15 +4,18 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import gradum.idea.utils.GradumBundle.message
+import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.GroupHeader
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.IconButton
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import org.jetbrains.jewel.ui.typography
 
 @Composable
 fun StatisticsAnalysisSection(modifier: Modifier = Modifier) {
@@ -112,21 +115,56 @@ private fun TimelineContent(
   val turn = turns[currentTurnIndex]
   val totalTurns = turns.size
 
-  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+  // Zoom levels ordered coarse -> fine; index 0 is the most zoomed out.
+  val zoomTickStepsMs = listOf(4000L, 2000L, 200L, 100L, 50L)
+  var zoomIndex by remember { mutableIntStateOf(3) }
+
+  // A very short turn has nothing to gain from the coarsest levels; clamp
+  // zooming out so the timeline always keeps at least 6 ticks of content.
+  val minTicks = 6L
+  val coarsestIndex = zoomTickStepsMs
+    .indexOfFirst { step -> turn.durationMs / step >= minTicks }
+    .let { if (it == -1) zoomTickStepsMs.lastIndex else it }
+
+  Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.ml)) {
     TurnNavigationRow(
-      turn = turn,
       totalCount = totalTurns,
       currentIndex = currentTurnIndex,
+      zoomInEnabled = zoomIndex < zoomTickStepsMs.lastIndex,
+      zoomOutEnabled = zoomIndex > coarsestIndex,
+      onZoomIn = { if (zoomIndex < zoomTickStepsMs.lastIndex) zoomIndex += 1 },
+      onZoomOut = { if (zoomIndex > coarsestIndex) zoomIndex -= 1 },
       onPrevious = {
-        if (currentTurnIndex > 0) onTurnChange(currentTurnIndex - 1)
+        if (currentTurnIndex > 0)
+          onTurnChange(currentTurnIndex - 1)
       },
       onNext = {
-        if (currentTurnIndex < totalTurns - 1) onTurnChange(currentTurnIndex + 1)
+        if (currentTurnIndex < totalTurns - 1)
+          onTurnChange(currentTurnIndex + 1)
       },
     )
 
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.ml)
+    ) {
+      Text(
+        fontWeight = FontWeight.Medium,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.weight(1f),
+        style = JewelTheme.typography.h4TextStyle,
+        text = turn.userMessage.replace("\n", " ").trim()
+      )
+
+      Text(
+        text = TurnEventLoader.formatWallClock(turn.turnStartMs),
+        color = JewelTheme.globalColors.text.info
+      )
+    }
+
     TurnTimeline(
       turn = turn,
+      tickStepMs = zoomTickStepsMs[zoomIndex.coerceAtLeast(coarsestIndex)],
       modifier = Modifier.fillMaxWidth()
     )
   }
@@ -134,16 +172,15 @@ private fun TimelineContent(
 
 @Composable
 private fun TurnNavigationRow(
-  turn: TurnEventLoader.Turn,
   totalCount: Int,
   currentIndex: Int,
+  zoomInEnabled: Boolean,
+  zoomOutEnabled: Boolean,
   onNext: () -> Unit,
-  onPrevious: () -> Unit
+  onPrevious: () -> Unit,
+  onZoomIn: () -> Unit,
+  onZoomOut: () -> Unit
 ) {
-  val userMessage = turn.userMessage.replace("\n", " ").trim()
-  val duration = TurnEventLoader.formatDuration(turn.durationMs)
-  val wallClock = TurnEventLoader.formatWallClock(turn.turnStartMs)
-
   Row(
     modifier = Modifier.fillMaxWidth(),
     verticalAlignment = Alignment.CenterVertically,
@@ -155,7 +192,7 @@ private fun TurnNavigationRow(
       enabled = prevEnabled,
     ) {
       Icon(
-        key = AllIconsKeys.Actions.Back,
+        key = AllIconsKeys.Actions.Play_back,
         contentDescription = message("gradum.settings.statistics.prev")
       )
     }
@@ -168,25 +205,31 @@ private fun TurnNavigationRow(
       enabled = nextEnabled
     ) {
       Icon(
-        key = AllIconsKeys.Actions.Forward,
+        key = AllIconsKeys.Actions.Play_forward,
         contentDescription = message("gradum.settings.statistics.next")
       )
     }
 
     Spacer(modifier = Modifier.weight(1f))
 
-    val summary = message("gradum.settings.statistics.summary", wallClock, duration)
-    Text(
-      maxLines = 1,
-      text = summary,
-      overflow = TextOverflow.Ellipsis
-    )
+    IconButton(
+      onClick = onZoomOut,
+      enabled = zoomOutEnabled
+    ) {
+      Icon(
+        key = AllIconsKeys.General.ZoomOut,
+        contentDescription = message("gradum.settings.statistics.zoom.out")
+      )
+    }
 
-    Text(
-      maxLines = 1,
-      text = userMessage,
-      overflow = TextOverflow.Ellipsis,
-      color = JewelTheme.globalColors.text.info
-    )
+    IconButton(
+      onClick = onZoomIn,
+      enabled = zoomInEnabled
+    ) {
+      Icon(
+        key = AllIconsKeys.General.ZoomIn,
+        contentDescription = message("gradum.settings.statistics.zoom.in")
+      )
+    }
   }
 }

@@ -7,12 +7,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.*
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -32,7 +31,9 @@ import org.jetbrains.jewel.ui.typography
 
 @Composable
 fun TurnTimeline(
-  turn: TurnEventLoader.Turn, modifier: Modifier = Modifier
+  turn: TurnEventLoader.Turn,
+  tickStepMs: Long = 100L,
+  modifier: Modifier = Modifier
 ) {
   val gap = 12.dp
   val rowHeight = 32.dp
@@ -41,7 +42,6 @@ fun TurnTimeline(
   val blockCornerRadius = 2.dp
   val blockVerticalInset = 8.dp
   val blockHeightDp = rowHeight - blockVerticalInset * 2
-  val tickStepMs = 100L
   val tickSpacing = 80.dp
 
   val turnDurationMs = turn.durationMs.coerceAtLeast(1)
@@ -64,8 +64,8 @@ fun TurnTimeline(
 
   var hoveredEvent by remember { mutableStateOf<TurnEventLoader.TurnEvent?>(null) }
 
-  val tickCount = (turnDurationMs / tickStepMs).coerceAtLeast(1)
-  val trackWidth = with(density) { (tickCount * tickSpacing.toPx()).toDp() }
+  val pxPerMs = with(density) { tickSpacing.toPx() } / tickStepMs
+  val trackWidth = with(density) { (turnDurationMs * pxPerMs).toDp() }
   val tickMarksMs = remember(turnDurationMs, tickStepMs) {
     buildList {
       var tickMs = 0L
@@ -101,14 +101,15 @@ fun TurnTimeline(
           ) {
             val canvasWidth = size.width
             for (tickMs in tickMarksMs) {
-              val tickX = tickMs.toFloat() / turnDurationMs * canvasWidth
+              val tickX = tickMs * pxPerMs
               if (tickMs > 0L && tickMs % 1000L == 0L) {
-                drawText(
-                  textMeasurer = textMeasurer,
-                  text = "${tickMs / 1000L}s",
-                  topLeft = Offset(tickX + 4.dp.toPx(), 0f),
+                val layout = textMeasurer.measure(
+                  "${tickMs / 1000L}s",
                   style = labelStyle.copy(color = rulerColor)
                 )
+                if (tickX + 4.dp.toPx() + layout.size.width <= canvasWidth) {
+                  drawText(layout, topLeft = Offset(tickX + 4.dp.toPx(), 0f))
+                }
               }
               drawLine(
                 color = gridColor,
@@ -122,16 +123,15 @@ fun TurnTimeline(
             val eventsInTrack = turn.events.filter { it.alias == alias }
             val tracks = calculateTrackAssignments(eventsInTrack)
 
-            val canvasWidthPx = with(density) { trackWidth.toPx() }
             val hitRegions: List<Pair<TurnEventLoader.TurnEvent, Rect>> = remember(
-              eventsInTrack, tracks, canvasWidthPx, blockHeightDp, blockVerticalInset, turn.turnStartMs, turnDurationMs
+              eventsInTrack, tracks, pxPerMs, blockHeightDp, blockVerticalInset, turn.turnStartMs
             ) {
               buildList {
                 for (event in eventsInTrack) {
                   val trackIndex = tracks[event] ?: continue
                   val topPx = with(density) { blockVerticalInset.toPx() + trackIndex * (blockHeightDp.toPx() + 2.dp.toPx()) }
-                  val leftPx = (event.startMs - turn.turnStartMs).toFloat() / turnDurationMs * canvasWidthPx
-                  val widthPx = (event.durationMs.toFloat() / turnDurationMs * canvasWidthPx)
+                  val leftPx = (event.startMs - turn.turnStartMs) * pxPerMs
+                  val widthPx = (event.durationMs * pxPerMs)
                     .coerceAtLeast(with(density) { minBlockWidth.toPx() })
                   add(event to Rect(leftPx, topPx, leftPx + widthPx, topPx + with(density) { blockHeightDp.toPx() }))
                 }
@@ -176,7 +176,7 @@ fun TurnTimeline(
               ) {
                 val canvasWidth = size.width
                 for (tickMs in tickMarksMs) {
-                  val gridX = tickMs.toFloat() / turnDurationMs * canvasWidth
+                  val gridX = tickMs * pxPerMs
                   drawLine(
                     color = gridColor,
                     start = Offset(gridX, 0f),
@@ -188,16 +188,18 @@ fun TurnTimeline(
                   val trackIndex = tracks[event] ?: 0
                   val yOffset = blockVerticalInset.toPx() + trackIndex * (blockHeightDp.toPx() + 2.dp.toPx())
 
-                  val leftPercent = (event.startMs - turn.turnStartMs).toFloat() / turnDurationMs
-                  val widthPercent = event.durationMs.toFloat() / turnDurationMs
-
-                  val x = leftPercent * canvasWidth
-                  val rawW = widthPercent * canvasWidth
+                  val rawX = (event.startMs - turn.turnStartMs) * pxPerMs
+                  val rawW = event.durationMs * pxPerMs
                   val minWidthPx = minBlockWidth.toPx()
 
                   if (rawW < minWidthPx) {
                     val diamondSize = 10.dp.toPx()
-                    val diamondCenter = Offset(x + minWidthPx / 2f, yOffset + diamondSize / 2f)
+                    val endMarginPx = 16.dp.toPx()
+                    val centerUpperBound = canvasWidth - diamondSize / 2f - endMarginPx
+                    val diamondCenter = Offset(
+                      x = (rawX + minWidthPx / 2f).coerceAtMost(centerUpperBound),
+                      y = yOffset + diamondSize / 2f
+                    )
                     rotate(degrees = 45f, pivot = diamondCenter) {
                       drawRoundRect(
                         style = Stroke(width = 1.dp.toPx()),
@@ -213,14 +215,42 @@ fun TurnTimeline(
                   val isFailed = event.isFailed
                   val blockColor = if (isFailed) failedBlockColor else normalBlockColor
                   val style = if (isFailed) Stroke(width = 1.dp.toPx()) else Fill
+                  val endMarginPx = 16.dp.toPx()
+                  val x = rawX.coerceAtMost(canvasWidth - minWidthPx - endMarginPx)
+                  val blockWidth = rawW.coerceAtLeast(minWidthPx)
+                  val blockHeight = blockHeightDp.toPx()
 
                   drawRoundRect(
                     style = style,
                     color = blockColor,
                     topLeft = Offset(x, yOffset),
-                    size = Size(rawW, blockHeightDp.toPx()),
+                    size = Size(blockWidth, blockHeight),
                     cornerRadius = CornerRadius(blockCornerRadius.toPx(), blockCornerRadius.toPx())
                   )
+
+                  if (isFailed) {
+                    val outline = Path().apply {
+                      addRoundRect(
+                        RoundRect(
+                          rect = Rect(x, yOffset, x + blockWidth, yOffset + blockHeight),
+                          cornerRadius = CornerRadius(blockCornerRadius.toPx(), blockCornerRadius.toPx())
+                        )
+                      )
+                    }
+                    clipPath(outline) {
+                      val hatchStep = 4.dp.toPx()
+                      var hatchX = 0f
+                      while (hatchX < blockWidth + blockHeight) {
+                        drawLine(
+                          color = failedBlockColor,
+                          start = Offset(x + hatchX, yOffset + blockHeight),
+                          end = Offset(x + hatchX - blockHeight, yOffset),
+                          strokeWidth = 1.dp.toPx()
+                        )
+                        hatchX += hatchStep
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -233,14 +263,15 @@ fun TurnTimeline(
           ) {
             val canvasWidth = size.width
             for (tickMs in tickMarksMs) {
-              val tickX = tickMs.toFloat() / turnDurationMs * canvasWidth
+              val tickX = tickMs * pxPerMs
               if (tickMs > 0L) {
-                drawText(
-                  textMeasurer = textMeasurer,
-                  text = "${tickMs}ms",
-                  topLeft = Offset(tickX + 4.dp.toPx(), 0f),
+                val layout = textMeasurer.measure(
+                  "${tickMs}ms",
                   style = labelStyle.copy(color = rulerColor)
                 )
+                if (tickX + 4.dp.toPx() + layout.size.width <= canvasWidth) {
+                  drawText(layout, topLeft = Offset(tickX + 4.dp.toPx(), 0f))
+                }
               }
               drawLine(
                 color = gridColor,

@@ -215,12 +215,4 @@ object TurnEventLoader {
     return DateTimeFormatter.ofPattern("HH:mm:ss", Locale.getDefault())
       .format(Instant.ofEpochMilli(timestampMs).atZone(ZoneId.systemDefault()))
   }
-
-  fun formatDuration(durationMs: Long): String {
-    return if (durationMs < 1000) {
-      "${durationMs}ms"
-    } else {
-      String.format(Locale.getDefault(), "%.1fs", durationMs / 1000.0)
-    }
-  }
 }
