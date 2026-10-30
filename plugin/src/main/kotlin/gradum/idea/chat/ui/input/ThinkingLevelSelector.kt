@@ -17,50 +17,88 @@ import org.jetbrains.jewel.ui.component.PopupMenu
 import org.jetbrains.jewel.ui.component.Text
 
 /**
- * Dropdown for picking a [ThinkingLevel] (Low / Medium / High),
- * rendered next to the model selector in [ModelSelectorBar].
+ * Dropdown for picking the model's thinking strength, rendered next to
+ * the model selector in [ModelSelectorBar].
+ *
+ * Two vocabularies, one control:
+ * - models with graded depth (`supportsLevels = true`) offer
+ *   Low / Medium / High;
+ * - models with a binary switch (`supportsLevels = false`) offer the
+ *   Reasoning / Instant pair, mapped to [ThinkingLevel.MEDIUM] and
+ *   [ThinkingLevel.OFF].
  *
  * Visual contract. Same chevron / `SelectorButton` shape as the
  * model selector and the permission selector, so the three buttons
  * read as a single row at a glance.
  *
  * Selected emphasis. The currently-picked row in the popup is
- * rendered in [FontWeight.Bold]; the other rows are regular weight.
+ * rendered in [FontWeight.SemiBold]; the other rows are regular weight.
  * Keeps the user's choice scannable when the menu is open.
  *
  * Centered rows. All popup rows are horizontally centered. The
- * three level names are short and equal-width-ish, so a centered
- * layout reads as a tidy compact group rather than a left-aligned
- * stack hugging the gutter.
+ * labels are short and equal-width-ish, so a centered layout reads as
+ * a tidy compact group rather than a left-aligned stack hugging the
+ * gutter.
  *
- * Tooltip. The selector button surfaces a one-liner per level
- * ("the model will think lightly / with enhanced reasoning /
- * deeply") so a curious user can hover the closed button to learn
- * what each level does in plain English without opening the menu.
+ * Tooltip. The selector button surfaces a one-liner per option so a
+ * curious user can hover the closed button to learn what the current
+ * choice does in plain English without opening the menu.
  *
  * Capability-gated. The caller hides this selector for models that
- * cannot think at all and passes `enabled = false` (plus a
- * [disabledTooltip]) for thinking models that expose no depth levels:
- * such a model still thinks, so the button stays visible but grayed and
- * its tooltip explains why the level cannot be tuned.
+ * cannot think at all (`reasoning = false`) and passes
+ * `supportsLevels = false` for thinking models that expose no depth
+ * levels, which swaps the menu to the on/off pair.
  */
 @Composable
 fun ThinkingLevelSelector(
-  enabled: Boolean = true,
   selectedLevel: ThinkingLevel,
   modifier: Modifier = Modifier,
-  disabledTooltip: String? = null,
+  supportsLevels: Boolean = true,
   onSelect: (ThinkingLevel) -> Unit
 ) {
   var showMenu by remember { mutableStateOf(false) }
   val dismiss: () -> Unit = { showMenu = false }
 
+  val options: List<ThinkingOption> =
+    if (supportsLevels) {
+      listOf(
+        ThinkingOption(
+          level = ThinkingLevel.LOW,
+          label = message("gradum.thinking.low"),
+          tooltip = message("gradum.thinking.tooltip.low")
+        ),
+        ThinkingOption(
+          level = ThinkingLevel.MEDIUM,
+          label = message("gradum.thinking.medium"),
+          tooltip = message("gradum.thinking.tooltip.medium")
+        ),
+        ThinkingOption(
+          level = ThinkingLevel.HIGH,
+          label = message("gradum.thinking.high"),
+          tooltip = message("gradum.thinking.tooltip.high")
+        )
+      )
+    } else {
+      listOf(
+        ThinkingOption(
+          level = ThinkingLevel.MEDIUM,
+          label = message("gradum.thinking.on"),
+          tooltip = message("gradum.thinking.tooltip.on")
+        ),
+        ThinkingOption(
+          level = ThinkingLevel.OFF,
+          label = message("gradum.thinking.off"),
+          tooltip = message("gradum.thinking.tooltip.off")
+        )
+      )
+    }
+  val selectedOption: ThinkingOption = options.firstOrNull { it.level == selectedLevel } ?: options.first()
+
   Box(modifier = modifier) {
     SelectorButton(
-      isButtonEnabled = enabled,
-      text = thinkingButtonLabel(selectedLevel),
-      onClick = { if (enabled) showMenu = true },
-      contentDescription = if (!enabled && disabledTooltip != null) disabledTooltip else thinkingTooltip(selectedLevel)
+      text = selectedOption.label,
+      onClick = { showMenu = true },
+      contentDescription = selectedOption.tooltip
     )
     if (showMenu) {
       PopupMenu(
@@ -77,17 +115,17 @@ fun ThinkingLevelSelector(
               )
           ) {
             Text(
-              text = message("gradum.thinking.level"),
+              text = message(if (supportsLevels) "gradum.thinking.level" else "gradum.thinking.mode"),
               fontWeight = FontWeight.SemiBold
             )
           }
         }
-        ThinkingLevel.entries.forEach { level ->
+        options.forEach { option ->
           selectableItem(
-            selected = level == selectedLevel,
-            onClick = { onSelect(level); dismiss() }
+            selected = option.level == selectedOption.level,
+            onClick = { onSelect(option.level); dismiss() }
           ) {
-            ThinkingLevelRow(level = level, isSelected = level == selectedLevel)
+            ThinkingLevelRow(label = option.label, isSelected = option.level == selectedOption.level)
           }
         }
       }
@@ -96,10 +134,10 @@ fun ThinkingLevelSelector(
 }
 
 @Composable
-private fun ThinkingLevelRow(level: ThinkingLevel, isSelected: Boolean) {
+private fun ThinkingLevelRow(label: String, isSelected: Boolean) {
   Row {
     Text(
-      text = thinkingLabel(level),
+      text = label,
       textAlign = TextAlign.Center,
       fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
       modifier = Modifier
@@ -109,24 +147,8 @@ private fun ThinkingLevelRow(level: ThinkingLevel, isSelected: Boolean) {
   }
 }
 
-private fun thinkingButtonLabel(level: ThinkingLevel): String = thinkingLabel(level)
-
-// One-liner shown in the closed-button tooltip. Tells the user what
-// the model will *do* with this level, not what the level is named,
-// the level name is already on the button face, the tooltip is the
-// place for the "so what".
-private fun thinkingTooltip(level: ThinkingLevel): String = message(
-  when (level) {
-    ThinkingLevel.LOW -> "gradum.thinking.tooltip.low"
-    ThinkingLevel.MEDIUM -> "gradum.thinking.tooltip.medium"
-    ThinkingLevel.HIGH -> "gradum.thinking.tooltip.high"
-  }
-)
-
-private fun thinkingLabel(level: ThinkingLevel): String = message(
-  when (level) {
-    ThinkingLevel.LOW -> "gradum.thinking.low"
-    ThinkingLevel.MEDIUM -> "gradum.thinking.medium"
-    ThinkingLevel.HIGH -> "gradum.thinking.high"
-  }
+private data class ThinkingOption(
+  val level: ThinkingLevel,
+  val label: String,
+  val tooltip: String
 )

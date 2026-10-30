@@ -20,14 +20,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 
 private const val PROMPT_FAILED = -32603
-
-// ACP "Authentication required": the client should run the advertised auth flow.
 private const val AUTH_REQUIRED = -32000
-
-// `session` request handlers plus the helpers they depend on. These are
-// AcpServer extension functions so the transport class in AcpServer.kt stays
-// a thin stdio loop while session lifecycle, prompt streaming, and
-// cancellation live together here.
 
 internal suspend fun AcpServer.handleSessionNew(requestId: JsonPrimitive, params: JsonObject?): RpcResponse {
   if (!runtime.settings.isConfigured && clientTerminalAuthEnabled) {
@@ -59,7 +52,8 @@ internal suspend fun AcpServer.handleSessionNew(requestId: JsonPrimitive, params
       "Connecting {} client-provided MCP server(s) for session {}",
       clientMcpServers.size, newSessionId
     )
-    runtime.mcpManager.connect(clientMcpServers)
+    val mcpFailures = runtime.mcpManager.connect(clientMcpServers)
+    runtime.mcpManager.reportFailures(mcpFailures)
   }
 
   logger.info("ACP session created: sessionId=$newSessionId projectRoot=$cwd")
@@ -72,16 +66,6 @@ internal suspend fun AcpServer.handleSessionNew(requestId: JsonPrimitive, params
   )
 }
 
-// Resumes a previously persisted session (`session/load`).
-//
-// Conversation history is persisted under
-// `<projectRoot>/.gradum/sessions/<sessionId>/context.json` (see
-// [ContextManager]), keyed by the ACP sessionId, so the same id the client
-// stored is enough to rehydrate both the ACP session state and the agent-side
-// context. The protocol requires replaying the whole conversation as
-// `session/update` notifications before answering; [replaySessionHistory]
-// does that, and the subsequent `session/prompt` reloads the same file into
-// the fresh Agent via `loadPreviousContext`.
 internal suspend fun AcpServer.handleSessionLoad(requestId: JsonPrimitive, params: JsonObject?): RpcResponse {
   val sessionId: String = params?.get("sessionId")?.jsonPrimitive?.contentOrNull
     ?: return RpcResponse(
@@ -102,8 +86,6 @@ internal suspend fun AcpServer.handleSessionLoad(requestId: JsonPrimitive, param
     )
   }
 
-  // Only wire MCP servers on first load: a re-load of an already-active
-  // session would otherwise double-connect the same servers.
   if (isNewSession) {
     val clientMcpServers: List<McpServerConfig> = parseAcpMcpServers(params, workingDir = cwd)
     if (clientMcpServers.isNotEmpty()) {
@@ -111,7 +93,8 @@ internal suspend fun AcpServer.handleSessionLoad(requestId: JsonPrimitive, param
         "Connecting {} client-provided MCP server(s) for loaded session {}",
         clientMcpServers.size, sessionId
       )
-      runtime.mcpManager.connect(clientMcpServers)
+      val mcpFailures = runtime.mcpManager.connect(clientMcpServers)
+      runtime.mcpManager.reportFailures(mcpFailures)
     }
   }
 
@@ -165,12 +148,6 @@ private fun replayableText(message: MessageRecord): String? {
   return content?.takeIf { it.isNotBlank() }
 }
 
-// Parses the `mcpServers` array ACP clients send on `session/new` into
-// [McpServerConfig]s. A stdio entry carries `command` (plus optional `args`
-// and `env`); remote entries (http/sse, i.e. no `command`) are logged and
-// skipped because Gradum only speaks MCP over stdio. [workingDir] is the
-// session's project root, so relative paths in the spawned server resolve
-// against the open project.
 private fun AcpServer.parseAcpMcpServers(params: JsonObject?, workingDir: String): List<McpServerConfig> {
   val servers: JsonArray = params?.get("mcpServers") as? JsonArray ?: return emptyList()
 
@@ -308,15 +285,6 @@ internal suspend fun AcpServer.handleSessionPrompt(requestId: JsonPrimitive, par
   )
 }
 
-// Bridges one skill `ask_interaction` event onto the ACP-native
-// `session/request_permission` request. The ask's declared choices become
-// PermissionOptions (optionId = the semantic wire code), and the client's
-// answer resolves the blocked [gradum.skill.PendingQuestions] entry: a
-// selected option via completeChoice, anything else (canceled, or an ask
-// that exposes no mappable choices) as canceled.
-//
-// Like the ask channel it mirrors, there is deliberately no timeout: the
-// coroutine parks on the client for as long as the client takes to answer.
 private suspend fun AcpServer.bridgeAskInteractionToPermission(
   sessionId: String, frameWriter: BufferedWriter, eventData: Map<String, Any>
 ) {
@@ -381,10 +349,6 @@ private suspend fun AcpServer.bridgeAskInteractionToPermission(
   }
 }
 
-// Human-readable text for a permission prompt, taken from the ask's `details`
-// or `title` wire value. Only `raw` l10n values can be shown (a `key` value is
-// a Gradum-side bundle reference the client cannot resolve), so a key falls
-// through to the next candidate and finally to a generic label.
 private fun askDisplayTitle(eventData: Map<String, Any>): String =
   l10nWireToText(eventData["details"])
     ?: l10nWireToText(eventData["title"])
@@ -396,14 +360,6 @@ private fun l10nWireToText(wireValue: Any?): String? {
   return wireMap["text"]?.toString()?.takeIf { it.isNotBlank() }
 }
 
-// Maps one ask semantic code to its ACP permission option. The ask semantics
-// and [Choice.Meaning] share a single wire vocabulary, so the enum stays the
-// source of truth for both the optionId and the ACP permission kind.
-//
-// The option names are the plugin bundle's generic `gradum.ask.choice.*` copy,
-// with the operation-specific verb dropped so one label fits every ask (read,
-// write, command, MCP call). English is fixed here on purpose: an ACP client is
-// not a Gradum plugin, so it cannot resolve a Gradum bundle key.
 private fun buildPermissionOption(semantics: String): JsonObject? {
   val meaning: Choice.Meaning = Choice.Meaning.entries.firstOrNull { it.wire == semantics }
     ?: return null

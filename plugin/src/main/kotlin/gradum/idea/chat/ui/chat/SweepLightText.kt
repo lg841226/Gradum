@@ -26,19 +26,24 @@ import org.jetbrains.jewel.ui.component.Text
  * - text: The string to render.
  * - modifier: Compose modifier forwarded to the underlying `Text`.
  * - durationMillis: Length of one full left-to-right sweep; default 1200ms.
+ * - style: Optional typography to preserve at the call site. When omitted the
+ *   sweep keeps its original info-color default.
  */
 @Composable
 fun SweepLightText(
   text: String,
   enabled: Boolean = true,
   durationMillis: Int = 1200,
-  modifier: Modifier = Modifier
+  modifier: Modifier = Modifier,
+  style: TextStyle? = null
 ) {
+  val resolvedStyle: TextStyle = style ?: TextStyle(color = JewelTheme.globalColors.text.info)
+
   if (!enabled) {
     Text(
       text = text,
       modifier = modifier,
-      style = TextStyle(color = JewelTheme.globalColors.text.info)
+      style = resolvedStyle
     )
     return
   }
@@ -60,7 +65,7 @@ fun SweepLightText(
   Text(
     text = text,
     modifier = modifier,
-    style = TextStyle(
+    style = resolvedStyle.copy(
       brush = Brush.linearGradient(
         colors = listOf(
           JewelTheme.globalColors.text.info.copy(alpha = 0.4f),

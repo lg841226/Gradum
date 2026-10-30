@@ -44,9 +44,6 @@ fun ModelSelectorBar(
   val supportsThinking: Boolean = selectedModel?.reasoning == true
   val supportsThinkingLevels: Boolean = selectedModel?.reasoningLevels == true
   val showThinkingSelector: Boolean = selectedModel == null || supportsThinking
-  val thinkingDisabledTooltip: String? =
-    if (supportsThinking && !supportsThinkingLevels) message("gradum.thinking.tooltip.unsupported")
-    else null
 
   Row(
     modifier = modifier.fillMaxWidth(),
@@ -81,10 +78,9 @@ fun ModelSelectorBar(
     if (showThinkingSelector) {
       Spacer(modifier = Modifier.width(GradumSpacing.xs))
       ThinkingLevelSelector(
-        enabled = supportsThinkingLevels,
         selectedLevel = thinkingLevel,
-        disabledTooltip = thinkingDisabledTooltip,
         onSelect = onSelectThinkingLevel,
+        supportsLevels = supportsThinkingLevels
       )
     }
     Spacer(modifier = Modifier.weight(1f))

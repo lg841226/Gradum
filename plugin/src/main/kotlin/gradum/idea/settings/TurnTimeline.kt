@@ -43,17 +43,15 @@ fun TurnTimeline(
   val blockHeightDp = rowHeight - blockVerticalInset * 2
   val tickStepMs = 100L
   val tickSpacing = 80.dp
-  val thinkLabel = message("gradum.settings.statistics.thinking")
 
   val turnDurationMs = turn.durationMs.coerceAtLeast(1)
   val trackAliases = turn.events.map { it.alias }.distinct()
-  val trackLabels = trackAliases + thinkLabel
 
   val textMeasurer = rememberTextMeasurer()
   val density = LocalDensity.current
   val labelStyle = JewelTheme.typography.labelTextStyle
-  val labelColumnWidth = remember(trackLabels, textMeasurer, labelStyle) {
-    val widestPx = trackLabels.maxOfOrNull { label ->
+  val labelColumnWidth = remember(trackAliases, textMeasurer, labelStyle) {
+    val widestPx = trackAliases.maxOfOrNull { label ->
       textMeasurer.measure(label, style = labelStyle).size.width
     } ?: 0
     with(density) { widestPx.toDp() }
@@ -61,20 +59,10 @@ fun TurnTimeline(
 
   val failedBlockColor = JewelTheme.globalColors.text.error
   val normalBlockColor = JewelTheme.globalColors.outlines.focused
-  val thinkBlockColor = JewelTheme.globalColors.text.disabled
   val rulerColor = JewelTheme.globalColors.text.disabled
   val gridColor = JewelTheme.globalColors.borders.normal
 
-  val sortedEvents = turn.events.sortedBy { it.startMs }
   var hoveredEvent by remember { mutableStateOf<TurnEventLoader.TurnEvent?>(null) }
-  val thinkSegments = buildList {
-    var cursor = turn.turnStartMs
-    for ((endMs, startMs) in sortedEvents) {
-      if (startMs > cursor) add(cursor to startMs)
-      if (endMs > cursor) cursor = endMs
-    }
-    if (cursor < turn.turnEndMs) add(cursor to turn.turnEndMs)
-  }
 
   val tickCount = (turnDurationMs / tickStepMs).coerceAtLeast(1)
   val trackWidth = with(density) { (tickCount * tickSpacing.toPx()).toDp() }
@@ -96,7 +84,6 @@ fun TurnTimeline(
       for (alias in trackAliases) {
         TrackLabel(alias, labelColumnWidth, rowHeight, labelStyle)
       }
-      TrackLabel(thinkLabel, labelColumnWidth, rowHeight, labelStyle)
       Spacer(modifier = Modifier.height(rulerHeight))
     }
 
@@ -236,34 +223,6 @@ fun TurnTimeline(
                   )
                 }
               }
-            }
-          }
-
-          Canvas(
-            modifier = Modifier
-              .width(trackWidth)
-              .height(rowHeight)
-          ) {
-            val canvasWidth = size.width
-            for (tickMs in tickMarksMs) {
-              val gridX = tickMs.toFloat() / turnDurationMs * canvasWidth
-              drawLine(
-                color = gridColor,
-                start = Offset(gridX, 0f),
-                end = Offset(gridX, size.height)
-              )
-            }
-            for ((segmentStartMs, segmentEndMs) in thinkSegments) {
-              val x = (segmentStartMs - turn.turnStartMs).toFloat() / turnDurationMs * canvasWidth
-              val width = (segmentEndMs - segmentStartMs).toFloat() / turnDurationMs * canvasWidth
-              if (width <= 0f) continue
-              drawRoundRect(
-                style = Fill,
-                color = thinkBlockColor,
-                topLeft = Offset(x, blockVerticalInset.toPx()),
-                size = Size(width, blockHeightDp.toPx()),
-                cornerRadius = CornerRadius(blockCornerRadius.toPx(), blockCornerRadius.toPx())
-              )
             }
           }
 

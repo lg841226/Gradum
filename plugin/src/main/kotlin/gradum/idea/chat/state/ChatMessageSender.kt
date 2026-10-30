@@ -17,8 +17,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Duration.Companion.milliseconds
 
-
-// Adopts the server-named session id and this turn's user-message id.
 internal fun GradumChatSession.applySessionStart(payload: JsonObject?) {
   payload?.get("sessionId")?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
     ?.let { serverSessionId -> activeSessionId = serverSessionId }
@@ -26,7 +24,6 @@ internal fun GradumChatSession.applySessionStart(payload: JsonObject?) {
     ?.let { serverMessageId -> adoptServerMessageId(serverMessageId) }
 }
 
-// Stamps the id on this turn's user message, which `rewind` looks up.
 private fun GradumChatSession.adoptServerMessageId(serverMessageId: String) {
   val userIndex: Int = messages.indexOfLast { it.isUserMessage }
   if (userIndex >= 0 && messages[userIndex].messageId != serverMessageId) {
@@ -120,7 +117,8 @@ internal suspend fun GradumChatSession.sendMessage(
         }
 
     val fileApiAttachments: List<GradumApiClient.ApiFileAttachment> =
-      (attachments.filterIsInstance<AttachedFile>() + attachments.filterIsInstance<AttachedSymbol>() + attachments.filterIsInstance<AttachedFileErrors>())
+      (attachments.filterIsInstance<AttachedFile>() +
+        attachments.filterIsInstance<AttachedSymbol>() + attachments.filterIsInstance<AttachedFileErrors>())
         .map { attachment ->
           when (attachment) {
             is AttachedSymbol ->

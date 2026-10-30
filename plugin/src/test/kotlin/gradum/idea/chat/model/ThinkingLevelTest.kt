@@ -9,10 +9,7 @@ import org.junit.Test
  * is part of the persistent UI state contract (it's stored in
  * `ChatInputState` and surfaced in test fixtures), so unknown future
  * values must degrade to [ThinkingLevel.MEDIUM] (the current default)
- * rather than throwing. The legacy "OFF" name from the previous
- * 3-level-with-off design is also accepted and mapped to LOW so
- * sessions stored by the old build keep their minimum-thinking
- * intent.
+ * rather than throwing.
  */
 class ThinkingLevelTest {
 
@@ -43,21 +40,19 @@ class ThinkingLevelTest {
   }
 
   @Test
-  fun `fromStringOrDefault maps the legacy OFF name to LOW`() {
+  fun `fromStringOrDefault returns OFF for the off state`() {
     assertEquals(
-      ThinkingLevel.LOW,
+      ThinkingLevel.OFF,
       ThinkingLevel.fromStringOrDefault(rawValue = "OFF")
     )
     assertEquals(
-      ThinkingLevel.LOW,
+      ThinkingLevel.OFF,
       ThinkingLevel.fromStringOrDefault(rawValue = "off")
     )
   }
 
   @Test
   fun `fromStringOrDefault falls back to MEDIUM for null blank and unknown`() {
-    // All three shapes must be safe to feed from a deserialized payload;
-    // an old plugin version opening a new session store should never crash.
     assertEquals(
       ThinkingLevel.MEDIUM,
       ThinkingLevel.fromStringOrDefault(rawValue = null)

@@ -739,9 +739,7 @@ private fun rememberChatSessionState(
   }
 
   val onSelectModel: (ModelInfo?) -> Unit = remember(key1 = session) {
-    { model: ModelInfo? ->
-      session.selectedModel = model
-    }
+    { model: ModelInfo? -> session.selectModel(model = model) }
   }
 
   val onTogglePin: (ModelInfo) -> Unit = remember(key1 = session) {

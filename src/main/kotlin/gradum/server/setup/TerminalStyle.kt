@@ -33,29 +33,6 @@ internal fun renderGradientBanner(art: List<String>, colored: Boolean = true): S
   }
 }
 
-private const val G_GLYPH_WIDTH: Int = 10
-
-internal fun renderStartupLogo(colored: Boolean, width: Int): List<String> {
-  val glyph: List<String> = BANNER_ART.map { line -> line.take(G_GLYPH_WIDTH) }
-  val lastColumn: Int = (glyph.maxOf { line -> line.length } - 1).coerceAtLeast(1)
-
-  return glyph.map { line ->
-    val padLeft: Int = ((width - line.length) / 2).coerceAtLeast(0)
-    val padRight: Int = (width - line.length - padLeft).coerceAtLeast(0)
-    if (!colored) return@map " ".repeat(padLeft) + line + " ".repeat(padRight)
-
-    buildString {
-      append(" ".repeat(padLeft))
-      line.forEachIndexed { column, glyph ->
-        if (glyph == ' ') append(' ')
-        else append(gradientColor(column.toFloat() / lastColumn)).append(glyph)
-      }
-      append(ANSI_RESET)
-      append(" ".repeat(padRight))
-    }
-  }
-}
-
 internal fun gradientColor(ratio: Float): String {
   val red: Int = interpolateChannel(BANNER_GRADIENT_FROM[0], BANNER_GRADIENT_TO[0], ratio)
   val blue: Int = interpolateChannel(BANNER_GRADIENT_FROM[2], BANNER_GRADIENT_TO[2], ratio)

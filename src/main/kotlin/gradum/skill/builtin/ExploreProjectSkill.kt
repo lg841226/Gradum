@@ -52,17 +52,6 @@ class ExploreProjectSkill : Skill() {
 
   override val historyKeepCount: Int = 3
 
-  /**
-   * For OLDER explore_project calls, collapse the file lists down to
-   * counts so a long session doesn't have to re-send thousands of
-   * paths every time. The LLM's working set (the last
-   * [historyKeepCount] calls) keeps the full lists because the model
-   * may still refer back to them when planning a follow-up read.
-   *
-   * The current call's full lists are returned by [execute] as-is,
-   * they are not collapsed here, since the LLM needs them in full
-   * to decide what to read next.
-   */
   override fun compactHistory(
     callCount: Int,
     ownMessageIndices: List<Int>,

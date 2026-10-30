@@ -5,6 +5,7 @@ import gradum.GradumRuntime
 import gradum.acp.AcpServer
 import gradum.logging.EventStreamDump
 import gradum.logging.routeAcpLogsToFile
+import gradum.mcp.McpConnectionFailure
 import gradum.mcp.McpConnectionManager
 import gradum.mcp.McpToolCatalog
 import gradum.mcp.McpToolsSkill
@@ -35,7 +36,12 @@ fun main(arguments: Array<String>) {
   }
 }
 
-private fun initRuntime(): GradumRuntime {
+private class StartupRuntime(
+  val runtime: GradumRuntime,
+  val mcpFailures: List<McpConnectionFailure>
+)
+
+private fun initRuntime(): StartupRuntime {
   ServerSettingsStore.releaseDefaultsIfMissing()
   val settings: ServerSettings = ServerSettingsStore.load()
 
@@ -43,11 +49,12 @@ private fun initRuntime(): GradumRuntime {
   EventStreamDump.configure(enabled = settings.debugEventDump)
 
   val mcpManager = McpConnectionManager()
-  if (settings.mcpServers.isNotEmpty()) {
-    runBlocking {
-      mcpManager.connect(settings.mcpServers)
+  val mcpFailures: List<McpConnectionFailure> =
+    if (settings.mcpServers.isNotEmpty()) {
+      runBlocking { mcpManager.connect(settings.mcpServers) }
+    } else {
+      emptyList()
     }
-  }
 
   SkillRegistry.register(McpToolsSkill())
 
@@ -61,12 +68,15 @@ private fun initRuntime(): GradumRuntime {
     ServerSettingsStore.resolveApiKeyFromFile(settings.apiKeyFile)
       ?: ServerConfiguration.resolveDefaultApiKeyFromEnv()
 
-  return GradumRuntime(
-    settings = settings,
-    mcpManager = mcpManager,
-    skillScanner = skillScanner,
-    skillWatcher = skillWatcher,
-    resolvedApiKey = resolvedApiKey
+  return StartupRuntime(
+    runtime = GradumRuntime(
+      settings = settings,
+      mcpManager = mcpManager,
+      skillScanner = skillScanner,
+      skillWatcher = skillWatcher,
+      resolvedApiKey = resolvedApiKey
+    ),
+    mcpFailures = mcpFailures
   )
 }
 
@@ -76,7 +86,8 @@ private fun startHttp(arguments: Array<String>) {
     return
   }
 
-  val runtime = initRuntime()
+  val startup = initRuntime()
+  val runtime = startup.runtime
   val settings = runtime.settings
 
   val exposedToNetwork: Boolean = !ServerAuth.isLoopbackBindHost(settings.host)
@@ -133,8 +144,10 @@ private fun startHttp(arguments: Array<String>) {
     hostAddress = settings.host,
     portNumber = resolvedPort,
     mcpToolCount = McpToolCatalog.toolCount(),
-    skillCount = SkillRegistry.getAllSkills().size
+    skillCount = SkillRegistry.getAllSkills().size,
+    mcpFailureCount = startup.mcpFailures.size
   )
+  runtime.mcpManager.reportFailures(startup.mcpFailures)
 
   if (runtime.resolvedApiKey != null) {
     val keyPreview: String = runtime.resolvedApiKey.take(n = 4) +
@@ -195,8 +208,10 @@ private fun startHttp(arguments: Array<String>) {
 }
 
 private fun startAcp() {
-  val runtime = initRuntime()
+  val startup = initRuntime()
+  val runtime = startup.runtime
   routeAcpLogsToFile()
+  runtime.mcpManager.reportFailures(startup.mcpFailures)
 
   logger.info("Gradum ACP server is starting (stdio JSON-RPC)")
   logger.info("Gradum ACP server has been started, awaiting client frames on stdin")
@@ -257,67 +272,51 @@ private fun printUsage() {
   )
 }
 
-private fun printStartupBanner(hostAddress: String, portNumber: Int, mcpToolCount: Int, skillCount: Int) {
+private fun printStartupBanner(
+  portNumber: Int,
+  skillCount: Int,
+  mcpToolCount: Int,
+  mcpFailureCount: Int,
+  hostAddress: String
+) {
   val colored: Boolean = supportsAnsiColor()
-  val leftWidth = 37
-  val rightWidth = 46
-  val innerWidth: Int = leftWidth + 1 + rightWidth
+  val cellWidth = 46
+  val mcpSummary: String =
+    if (mcpFailureCount == 0) "$mcpToolCount"
+    else "$mcpToolCount ($mcpFailureCount failed)"
 
-  val urlRow = "Serving on http://$hostAddress:$portNumber"
-  val workDirRow: String = abbreviatePath(System.getProperty("user.dir") ?: "?")
-
-  val leftRows: List<String> = buildList {
-    add(emphasize(centerText("Welcome back!", leftWidth), colored, ANSI_BOLD))
-    add(" ".repeat(leftWidth))
-    addAll(renderStartupLogo(colored = colored, width = leftWidth))
-    add(" ".repeat(leftWidth))
-    add(emphasize(centerText(urlRow, leftWidth), colored, ANSI_BOLD))
-    add(dim(centerText(workDirRow, leftWidth), colored))
+  val rows: List<String> = buildList {
+    add(emphasize(rightCell(" Gradum v${BuildConfig.version}", cellWidth), colored, gradientColor(ratio = 0.1f)))
+    add(rightCell("  MCP tools     $mcpSummary", cellWidth))
+    add(rightCell("  Skills        $skillCount", cellWidth))
+    add(rightCell("  Settings      ~/.gradum/settings.json", cellWidth))
+    add(rightCell("  Server        http://$hostAddress:$portNumber", cellWidth))
+    add(" ".repeat(cellWidth))
+    add(emphasize(rightCell(" Getting started", cellWidth), colored, gradientColor(ratio = 0f)))
+    add(rightCell("  Run gradum setup to configure a provider", cellWidth))
   }
 
-  val rightRows: List<String> = buildList {
-    add(emphasize(rightCell(" Gradum v${BuildConfig.version}", rightWidth), colored, gradientColor(ratio = 0.1f)))
-    add(dim(rightCell("  MCP tools     $mcpToolCount", rightWidth), colored))
-    add(dim(rightCell("  Skills        $skillCount", rightWidth), colored))
-    add(dim(rightCell("  Settings      ~/.gradum/settings.json", rightWidth), colored))
-    add(" ".repeat(rightWidth))
-    add(emphasize(rightCell(" Getting started", rightWidth), colored, gradientColor(ratio = 0.1f)))
-    add(dim(rightCell("  Run gradum setup to configure a provider", rightWidth), colored))
-  }
-
-  val rowCount: Int = maxOf(leftRows.size, rightRows.size)
-  val topRow: String = "╭" + "─".repeat(innerWidth) + "╮"
-  val bottomRow: String = "╰" + "─".repeat(innerWidth) + "╯"
+  val topRow: String = "╭" + "─".repeat(cellWidth) + "╮"
+  val bottomRow: String = "╰" + "─".repeat(cellWidth) + "╯"
 
   println()
   println(paintGradientRow(topRow, colored))
-  for (index in 0 until rowCount) {
-    val left: String = leftRows.getOrElse(index) { " ".repeat(leftWidth) }
-    val right: String = rightRows.getOrElse(index) { " ".repeat(rightWidth) }
+  rows.forEachIndexed { index, row ->
     val bar: String = if (colored) {
-      gradientColor(ratio = index.toFloat() / (rowCount - 1).coerceAtLeast(1)) + "│" + ANSI_RESET
+      gradientColor(ratio = index.toFloat() / (rows.size - 1).coerceAtLeast(1)) + "│" + ANSI_RESET
     } else {
       "│"
     }
-    println(bar + left + bar + right + bar)
+    println(bar + row + bar)
   }
   println(paintGradientRow(bottomRow, colored))
   println()
-}
-
-private fun centerText(text: String, width: Int): String {
-  val clipped: String = if (text.length > width) text.take(width - 1) + "..." else text
-  val padLeft: Int = (width - clipped.length) / 2
-  return " ".repeat(padLeft) + clipped + " ".repeat(width - clipped.length - padLeft)
 }
 
 private fun rightCell(text: String, width: Int): String = text.take(width).padEnd(width)
 
 private fun emphasize(text: String, colored: Boolean, style: String): String =
   if (colored) ANSI_BOLD + style + text + ANSI_RESET else text
-
-private fun dim(text: String, colored: Boolean): String =
-  if (colored) "\u001B[90m$text$ANSI_RESET" else text
 
 private fun paintGradientRow(text: String, colored: Boolean): String {
   if (!colored) return text
@@ -326,20 +325,5 @@ private fun paintGradientRow(text: String, colored: Boolean): String {
       append(gradientColor(ratio = index.toFloat() / (text.length - 1).coerceAtLeast(1))).append(glyph)
     }
     append(ANSI_RESET)
-  }
-}
-
-private fun abbreviatePath(path: String): String {
-  val homeDirectory: String = System.getProperty("user.home") ?: return path
-  if (!path.startsWith(prefix = homeDirectory)) return path
-
-  val relativeSegments: List<String> = path.removePrefix(homeDirectory)
-    .split('/', '\\')
-    .filter { it.isNotEmpty() }
-
-  return when {
-    relativeSegments.isEmpty() -> "~"
-    relativeSegments.size == 1 -> "~/${relativeSegments.first()}"
-    else -> "~/${relativeSegments.takeLast(n = 2).joinToString(separator = "/")}"
   }
 }

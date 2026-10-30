@@ -4,25 +4,31 @@ package gradum.idea.chat.ui.chat
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import gradum.idea.chat.ui.common.verticalEdgeFade
 import gradum.idea.chat.ui.markdown.GradumMarkdown
 import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumSpacing
+import kotlinx.coroutines.delay
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.VerticalScrollbar
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import java.util.*
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Collapsible thinking indicator for assistant messages.
@@ -31,39 +37,37 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  * muted-gray palette so the whole block reads as ephemeral context
  * rather than a finished reply.
  *
- * Shows "Thinking" label when collapsed, full thinking content when expanded.
- * Uses animated visibility for expand/collapse transitions.
- *
- *   response block follows this thinking block.
- *   links inside the reasoning block. Same signature as the
- *   response-block renderer so the host (a chat bubble) only has
- *   to wire one handler.
+ * While the block is live the label sweeps and counts up ("Thought for
+ * X.X s"); once [isTaskComplete] flips it freezes at the measured duration.
+ * Blocks that were already finished when first composed (history reload,
+ * session switch) have no client-side start time and fall back to the plain
+ * "Thought" label.
  *
  * Parameters:
  * - thinking: The accumulated thinking content from the LLM.
- * - isTaskComplete: When true, collapses the thinking content.
- * - hasResponseAfter: When true, auto-collapses because a
- * - onUrlClick: Forwarded to the Markdown renderer for inline
+ * - isTaskComplete: When true, the block has stopped streaming: the sweep
+ *   stops and the elapsed time freezes.
+ * - startCollapsed: Whether the body starts folded.
+ * - onUrlClick: Forwarded to the Markdown renderer for inline links.
  */
 @Composable
 fun ThinkingIndicator(
   thinking: String,
   modifier: Modifier = Modifier,
+  clock: ThinkingClock? = null,
   isTaskComplete: Boolean = false,
   startCollapsed: Boolean = false,
-  hasResponseAfter: Boolean = false,
   onUrlClick: (String) -> Unit = {}
 ) {
   if (thinking.isBlank()) return
   var isExpanded: Boolean by remember { mutableStateOf(value = !startCollapsed) }
 
-  val window = remember(thinking) {
-    val all = thinking.trim()
-    if (all.length <= PREVIEW_WINDOW) all else all.takeLast(PREVIEW_WINDOW)
-  }
-
-  val previewStyle = rememberGradumParagraphTextStyle().copy(
+  val thinkingStyle = rememberGradumParagraphTextStyle().copy(
     color = LocalGlobalColors.current.text.info
+  )
+  val labelStyle: TextStyle = rememberGradumParagraphTextStyle().copy(
+    fontFeatureSettings = "tnum",
+    fontWeight = FontWeight.Medium
   )
 
   Column(modifier = modifier.fillMaxWidth()) {
@@ -76,28 +80,7 @@ fun ThinkingIndicator(
         contentDescription = null,
         key = AllIconsKeys.Nodes.Related
       )
-      Text(
-        text = message("gradum.thinking"),
-        fontWeight = FontWeight.Medium
-      )
-      if (!isExpanded && window.isNotEmpty()) {
-        val scrollState = rememberScrollState()
-        LaunchedEffect(window) {
-          scrollState.animateScrollTo(scrollState.maxValue)
-        }
-        Row(
-          modifier = Modifier
-            .weight(1f)
-            .horizontalScroll(scrollState)
-        ) {
-          Text(
-            text = window,
-            style = previewStyle,
-            maxLines = 1,
-            softWrap = false
-          )
-        }
-      }
+      ThinkingHeaderLabel(isTaskComplete = isTaskComplete, style = labelStyle, clock = clock)
       Icon(
         contentDescription = null,
         key =
@@ -125,7 +108,8 @@ fun ThinkingIndicator(
           GradumMarkdown(text = thinking) {
             thinkingMode = true
             animationEnabled = false
-            paragraphStyle = previewStyle
+            this.onUrlClick = onUrlClick
+            paragraphStyle = thinkingStyle
           }
         }
         if (capHeight) {
@@ -141,10 +125,95 @@ fun ThinkingIndicator(
   }
 }
 
-private const val PREVIEW_WINDOW = 400
 
-// Expanded content beyond this length gets a capped height with a scrollbar.
+@Composable
+private fun ThinkingHeaderLabel(
+  isTaskComplete: Boolean, style: TextStyle, clock: ThinkingClock? = null
+) {
+  val elapsedMs: Long? = rememberThinkingElapsedMs(isComplete = isTaskComplete, clock = clock)
+  val label: String =
+    if (elapsedMs != null)
+      message(
+        key = "gradum.thinking.duration",
+        String.format(Locale.ROOT, "%.1f", elapsedMs / 1000.0)
+      )
+    else
+      message("gradum.thinking")
+
+  val labelContent: @Composable () -> Unit = {
+    if (isTaskComplete) {
+      Text(text = label, style = style)
+    } else {
+      SweepLightText(text = label, style = style)
+    }
+  }
+
+  val textMeasurer = rememberTextMeasurer()
+  val density = LocalDensity.current
+  val template: String = remember { message("gradum.thinking.duration", "00.0") }
+  val minLabelWidth: Dp = remember(template, style, density) {
+    with(density) {
+      textMeasurer.measure(text = template, style = style).size.width.toDp()
+    }
+  }
+
+  if (elapsedMs == null) {
+    labelContent()
+  } else {
+    Box(modifier = Modifier.widthIn(min = minLabelWidth)) {
+      labelContent()
+    }
+  }
+}
+
+/**
+ * Client-side stopwatch for one thinking block.
+ *
+ * Hoisted above collapsible containers (a group body is disposed on
+ * collapse) so a measured duration survives folding: the caller keeps one
+ * clock per thinking block and hands it back on re-expansion. A clock that
+ * was never started yields no duration, so history blocks keep the plain
+ * "Thought" label.
+ */
+class ThinkingClock {
+  var startedAtMs: Long = -1L
+    private set
+  var finishedAtMs: Long = -1L
+    private set
+
+  fun start() {
+    if (startedAtMs < 0L) startedAtMs = System.currentTimeMillis()
+  }
+
+  fun finish() {
+    if (startedAtMs < 0L) return
+    if (finishedAtMs < 0L) finishedAtMs = System.currentTimeMillis()
+  }
+}
+
+@Composable
+private fun rememberThinkingElapsedMs(isComplete: Boolean, clock: ThinkingClock?): Long? {
+  if (clock == null) return null
+  var nowMs: Long by remember { mutableStateOf(value = System.currentTimeMillis()) }
+
+  LaunchedEffect(key1 = isComplete) {
+    if (isComplete) {
+      clock.finish()
+    } else {
+      clock.start()
+      while (true) {
+        nowMs = System.currentTimeMillis()
+        delay(100.milliseconds)
+      }
+    }
+  }
+
+  return when {
+    clock.startedAtMs < 0L -> null
+    clock.finishedAtMs >= 0L -> clock.finishedAtMs - clock.startedAtMs
+    else -> (nowMs - clock.startedAtMs).coerceAtLeast(minimumValue = 0L)
+  }
+}
+
 private const val PREVIEW_MAX_CHARS = 600
-
-// Max height of the expanded thinking block once it exceeds [PREVIEW_MAX_CHARS].
 private val THINKING_MAX_HEIGHT = 300.dp

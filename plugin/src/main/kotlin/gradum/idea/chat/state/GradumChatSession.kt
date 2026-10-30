@@ -180,7 +180,6 @@ class GradumChatSession : Disposable {
    */
   val dismissedAskRequestIds: MutableState<Set<String>> = mutableStateOf(emptySet())
 
-  /** Marks an ask card [requestId] as answered so it is removed everywhere. */
   fun dismissAsk(requestId: String) {
     dismissedAskRequestIds.value += requestId
   }
@@ -190,6 +189,12 @@ class GradumChatSession : Disposable {
   val thinkingLevel: ThinkingLevel get() = _thinkingLevel.value
   fun setThinkingLevel(level: ThinkingLevel) {
     if (level != _thinkingLevel.value) _thinkingLevel.value = level
+  }
+
+  fun selectModel(model: ModelInfo?) {
+    selectedModel = model
+    if (model?.reasoningLevels == true && _thinkingLevel.value == ThinkingLevel.OFF)
+      _thinkingLevel.value = ThinkingLevel.MEDIUM
   }
 
   var isSending: Boolean by mutableStateOf(false)
@@ -571,17 +576,17 @@ class GradumChatSession : Disposable {
     modelsLoaded = true
 
     if (models.isEmpty()) {
-      selectedModel = null
+      selectModel(null)
       pinnedModels.clear(); return
     }
 
     val selectedEntry: ModelInfo? = selectedModel
 
     when {
-      selectedEntry == null -> selectedModel = models.first()
+      selectedEntry == null -> selectModel(models.first())
       models.none {
         selectedEntry.sameAs(other = it)
-      } -> selectedModel = models.first()
+      } -> selectModel(models.first())
     }
 
     pinnedModels.removeAll { pinned: ModelInfo ->
