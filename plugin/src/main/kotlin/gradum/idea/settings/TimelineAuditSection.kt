@@ -10,11 +10,9 @@ import androidx.compose.ui.unit.dp
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.GroupHeader
-import org.jetbrains.jewel.ui.component.Icon
-import org.jetbrains.jewel.ui.component.IconButton
-import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import org.jetbrains.jewel.ui.theme.badgeStyle
 import org.jetbrains.jewel.ui.typography
 
 @Composable
@@ -35,7 +33,44 @@ fun StatisticsAnalysisSection(modifier: Modifier = Modifier) {
     }
   }
 
-  GroupHeader(text = message("gradum.settings.statistics.title"))
+  val result: TurnEventLoader.LoadResult? = loadResult
+  if (isLoading) {
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      GroupHeader(
+        text = message("gradum.settings.statistics.title"),
+        modifier = Modifier.weight(1f)
+      )
+      Badge(style = JewelTheme.badgeStyle.graySecondary) {
+        Text(text = message("gradum.settings.statistics.beta"))
+      }
+    }
+    Box(
+      modifier = modifier
+        .fillMaxWidth()
+        .padding(start = SETTINGS_GROUP_INDENT),
+      contentAlignment = Alignment.Center
+    ) {
+      CircularProgressIndicator(modifier = Modifier.size(16.dp))
+    }
+    return
+  }
+  if (result == null || result.error != null || result.turns.isEmpty()) return
+
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    GroupHeader(
+      text = message("gradum.settings.statistics.title"),
+      modifier = Modifier.weight(1f)
+    )
+    Badge(style = JewelTheme.badgeStyle.graySecondary) {
+      Text(text = message("gradum.settings.statistics.beta"))
+    }
+  }
 
   Column(
     modifier = modifier
@@ -43,65 +78,12 @@ fun StatisticsAnalysisSection(modifier: Modifier = Modifier) {
       .padding(start = SETTINGS_GROUP_INDENT),
     verticalArrangement = Arrangement.spacedBy(12.dp)
   ) {
-    if (isLoading) {
-      LoadingState()
-    } else {
-      loadResult?.let { result ->
-        when {
-          result.error != null -> ErrorState(result.error)
-          result.turns.isEmpty() -> EmptyState()
-          else ->
-            TimelineContent(
-              turns = result.turns,
-              currentTurnIndex = currentTurnIndex,
-              onTurnChange = { newIndex ->
-                currentTurnIndex = newIndex
-              },
-            )
-        }
-      }
-    }
-  }
-}
-
-@Composable
-private fun LoadingState() {
-  Row(
-    modifier = Modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.Center,
-    verticalAlignment = Alignment.CenterVertically
-  ) {
-    Text(
-      text = message("gradum.settings.statistics.loading"),
-      color = JewelTheme.globalColors.text.info
-    )
-  }
-}
-
-@Composable
-private fun ErrorState(error: String) {
-  Row(
-    modifier = Modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.Center,
-    verticalAlignment = Alignment.CenterVertically
-  ) {
-    Text(
-      text = message("gradum.settings.statistics.error", error),
-      color = JewelTheme.globalColors.text.error,
-    )
-  }
-}
-
-@Composable
-private fun EmptyState() {
-  Row(
-    modifier = Modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.Center,
-    verticalAlignment = Alignment.CenterVertically
-  ) {
-    Text(
-      color = JewelTheme.globalColors.text.info,
-      text = message("gradum.settings.statistics.empty")
+    TimelineContent(
+      turns = result.turns,
+      currentTurnIndex = currentTurnIndex,
+      onTurnChange = { newIndex ->
+        currentTurnIndex = newIndex
+      },
     )
   }
 }
@@ -115,12 +97,9 @@ private fun TimelineContent(
   val turn = turns[currentTurnIndex]
   val totalTurns = turns.size
 
-  // Zoom levels ordered coarse -> fine; index 0 is the most zoomed out.
   val zoomTickStepsMs = listOf(4000L, 2000L, 200L, 100L, 50L)
   var zoomIndex by remember { mutableIntStateOf(3) }
 
-  // A very short turn has nothing to gain from the coarsest levels; clamp
-  // zooming out so the timeline always keeps at least 6 ticks of content.
   val minTicks = 6L
   val coarsestIndex = zoomTickStepsMs
     .indexOfFirst { step -> turn.durationMs / step >= minTicks }
@@ -177,14 +156,14 @@ private fun TurnNavigationRow(
   zoomInEnabled: Boolean,
   zoomOutEnabled: Boolean,
   onNext: () -> Unit,
-  onPrevious: () -> Unit,
   onZoomIn: () -> Unit,
-  onZoomOut: () -> Unit
+  onZoomOut: () -> Unit,
+  onPrevious: () -> Unit
 ) {
   Row(
     modifier = Modifier.fillMaxWidth(),
     verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(8.dp)
+    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md)
   ) {
     val prevEnabled = currentIndex > 0
     IconButton(

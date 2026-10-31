@@ -6,6 +6,14 @@
     <idea-version since-build="251.2"/>
 
     <change-notes><![CDATA[
+        <h3>1.0.5</h3>
+        <ul>
+            <li>Server-authoritative session state: the chat view renders from the server projection with rewind, merge, and delete done server-side.</li>
+            <li>Per-turn timeline visualization with tool status indicators, thinking clock, zoom levels, and failure hatching.</li>
+            <li>Thinking mode rework: capability probing gates thinking levels; LM Studio is a first-class provider with reasoning tiers.</li>
+            <li>MCP decoupled behind the ExternalToolProvider interface; JSON-RPC transport moved to a standalone package.</li>
+            <li>Background task management, file error attachments, and code vision for Java/Kotlin functions.</li>
+        </ul>
         <h3>1.0.4</h3>
         <ul>
             <li>Improved runtime unreachable banner with classified cause and one click installation link.</li>

@@ -6,15 +6,13 @@ import gradum.acp.AcpServer
 import gradum.agent.ExternalToolRegistry
 import gradum.logging.EventStreamDump
 import gradum.logging.routeAcpLogsToFile
-import gradum.mcp.McpConnectionFailure
-import gradum.mcp.McpConnectionManager
-import gradum.mcp.McpToolCatalog
-import gradum.mcp.McpToolsSkill
+import gradum.mcp.*
 import gradum.server.setup.*
 import gradum.skill.SkillRegistry
 import gradum.skill.external.ExternalSkillDirectoryScanner
 import gradum.skill.external.ExternalSkillDirectoryWatcher
 import gradum.skill.external.ExternalSkillHost
+import gradum.tools.EventStreamMonitor
 import gradum.utils.CommandFilterRuntime
 import kotlinx.coroutines.runBlocking
 import org.slf4j.Logger
@@ -88,6 +86,16 @@ private fun startHttp(arguments: Array<String>) {
     return
   }
 
+  // The HTTP server speaks through the debug window's "Server Log" tab; the
+  // terminal stays silent. Falls back to the console when no GUI exists.
+  val monitor: EventStreamMonitor? = EventStreamMonitor.openForServer()
+  val lineSink: (String) -> Unit =
+    if (monitor != null) {
+      { text: String -> monitor.serverLogSink("I", text) }
+    } else {
+      ::println
+    }
+
   val startup = initRuntime()
   val runtime = startup.runtime
   val settings = runtime.settings
@@ -129,9 +137,14 @@ private fun startHttp(arguments: Array<String>) {
   val resolvedPort: Int =
     if (settings.autoDetectPort) {
       run {
-        val detectedPort = findAvailablePort(startPort = settings.port)
-        checkNotNull(detectedPort) {
-          "No available port in range ${settings.port} ~ ${settings.port + 10}; aborting server start"
+        val detectedPort: Int? = findAvailablePort(startPort = settings.port)
+        if (detectedPort == null) {
+          logger.error(
+            "No available port in range ${settings.port} ~ ${settings.port + 10}; aborting server start"
+          )
+          runtime.skillWatcher.close()
+          runtime.mcpManager.close()
+          return
         }
         logger.info("Using auto-detected port: $detectedPort")
         detectedPort
@@ -147,7 +160,9 @@ private fun startHttp(arguments: Array<String>) {
     portNumber = resolvedPort,
     mcpToolCount = McpToolCatalog.toolCount(),
     skillCount = SkillRegistry.getAllSkills().size,
-    mcpFailureCount = startup.mcpFailures.size
+    mcpFailureCount = startup.mcpFailures.size,
+    lineSink = lineSink,
+    colored = monitor == null
   )
   runtime.mcpManager.reportFailures(startup.mcpFailures)
 
@@ -279,9 +294,10 @@ private fun printStartupBanner(
   skillCount: Int,
   mcpToolCount: Int,
   mcpFailureCount: Int,
-  hostAddress: String
+  hostAddress: String,
+  lineSink: (String) -> Unit,
+  colored: Boolean
 ) {
-  val colored: Boolean = supportsAnsiColor()
   val cellWidth = 46
   val mcpSummary: String =
     if (mcpFailureCount == 0) "$mcpToolCount"
@@ -301,18 +317,18 @@ private fun printStartupBanner(
   val topRow: String = "╭" + "─".repeat(cellWidth) + "╮"
   val bottomRow: String = "╰" + "─".repeat(cellWidth) + "╯"
 
-  println()
-  println(paintGradientRow(topRow, colored))
+  lineSink("")
+  lineSink(paintGradientRow(topRow, colored))
   rows.forEachIndexed { index, row ->
     val bar: String = if (colored) {
       gradientColor(ratio = index.toFloat() / (rows.size - 1).coerceAtLeast(1)) + "│" + ANSI_RESET
     } else {
       "│"
     }
-    println(bar + row + bar)
+    lineSink(bar + row + bar)
   }
-  println(paintGradientRow(bottomRow, colored))
-  println()
+  lineSink(paintGradientRow(bottomRow, colored))
+  lineSink("")
 }
 
 private fun rightCell(text: String, width: Int): String = text.take(width).padEnd(width)

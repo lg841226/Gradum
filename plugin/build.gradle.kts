@@ -10,7 +10,12 @@ plugins {
 }
 
 group = "com.gradum.idea"
-version = "1.0.4"
+version = "1.0.5"
+
+changelog {
+  path = rootDir.resolve("CHANGELOG.md").path
+  version = providers.gradleProperty("gradum.version").getOrElse("1.0.5")
+}
 
 val gitStatsVersion: String = "1.1.0"
 
@@ -136,16 +141,6 @@ intellijPlatform {
   pluginConfiguration {
     name = "Gradum"
     version = "${project.version}"
-    changeNotes = """
-      <h3>1.0.3</h3>
-      <ul>
-        <li>Chat with Ollama and any OpenAI-compatible server.</li>
-        <li>Agentic tool calling: file, search, and process tools.</li>
-        <li>Project-aware context with per-session history.</li>
-        <li>MCP server support.</li>
-        <li>Git history analysis tool window.</li>
-      </ul>
-    """.trimIndent()
   }
 }
 

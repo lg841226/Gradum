@@ -117,6 +117,7 @@ dependencies {
   implementation("org.xerial:sqlite-jdbc:3.50.3.0")
   implementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.3.0")
   implementation("ch.qos.logback:logback-classic:1.6.3")
+  implementation("com.formdev:flatlaf:3.7.2")
   testImplementation("io.ktor:ktor-server-test-host-jvm:3.0.3")
   testImplementation("io.ktor:ktor-server-test-host:3.0.3")
   testImplementation("io.ktor:ktor-client-mock:3.0.3")

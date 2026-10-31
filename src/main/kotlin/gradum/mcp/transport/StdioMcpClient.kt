@@ -1,26 +1,19 @@
 package gradum.mcp.transport
 
+import gradum.jsonrpc.FrameCodec
 import gradum.jsonrpc.JsonRpcSession
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import java.io.File
 import java.util.concurrent.TimeUnit
 
-// Spawns an MCP server as a child process and bridges its stdin/stdout to a
-// [JsonRpcSession]. This is the stdio transport: the reader coroutine drains
-// the child's stdout bytes, frames them, and feeds each decoded message to
-// the session; [session] writes request frames back to the child's stdin.
-//
-// The child's stderr is deliberately kept separate (never merged into
-// stdout) so it cannot corrupt the newline-delimited frame stream.
-//
-// start() spawns the child process and the background reader. Safe to call
-// once.
+
 internal class StdioMcpClient(
   private val command: List<String>,
   private val workingDir: File? = null,
-  private val env: Map<String, String> = emptyMap(),
+  private val env: Map<String, String> = emptyMap()
 ) : AutoCloseable {
 
   private val frameCodec = FrameCodec()
@@ -31,26 +24,26 @@ internal class StdioMcpClient(
     private set
 
   fun start() {
-    check(process == null) { "MCP transport already started" }
+    check(this@StdioMcpClient.process == null) { "MCP transport already started" }
 
     val builder = ProcessBuilder(command)
     builder.directory(workingDir)
     builder.environment().putAll(env)
 
-    val proc = builder.start()
-    process = proc
+    val process = builder.start()
+    this@StdioMcpClient.process = process
 
     session = JsonRpcSession(
       sendFrame = { bytes ->
-        proc.outputStream.write(bytes)
-        proc.outputStream.flush()
+        process.outputStream.write(bytes)
+        process.outputStream.flush()
       },
     )
 
     val jobScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     scope = jobScope
     jobScope.launch {
-      frameCodec.frames(stdoutBytes(proc)).collect { message ->
+      frameCodec.frames(stdoutBytes(process)).collect { message ->
         session.handleFrame(message)
       }
     }
@@ -64,7 +57,7 @@ internal class StdioMcpClient(
       if (read == -1) break
       emit(chunk.copyOf(read))
     }
-  }
+  }.flowOn(Dispatchers.IO)
 
   override fun close() {
     scope?.cancel()

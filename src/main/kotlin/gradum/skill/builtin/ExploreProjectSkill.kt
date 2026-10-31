@@ -28,15 +28,7 @@ private const val DEFAULT_DEPTH: Int = GradumConfig.EXPLORE_DEFAULT_DEPTH
 private const val DEFAULT_LIMIT: Int = GradumConfig.EXPLORE_DEFAULT_LIMIT
 private const val MAXIMUM_CHILDREN_PER_DIRECTORY: Int = GradumConfig.EXPLORE_MAX_CHILDREN
 
-/**
- * Scans a project directory tree and returns a flat categorized summary:
- * - config_files: project configuration files
- * - code_files: source code files with line counts
- * - other_files: miscellaneous files
- *
- * Build artifacts and dependency directories are skipped.
- * The first call returns detailed lists; subsequent calls return counts only.
- */
+
 class ExploreProjectSkill : Skill() {
   override val alias: String = "Explored"
   override val skillName: String = "explore_project"

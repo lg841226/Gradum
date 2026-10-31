@@ -133,61 +133,64 @@ class McpToolsRenderer : ToolCallRenderer {
         )
       }
 
-      AnimatedVisibility(visible = isExpanded) {
-        val capHeight: Boolean = total > MCP_LIST_SCROLL_THRESHOLD
-        Box(
-          modifier = Modifier
-            .fillMaxWidth()
-            .then(
-              if (capHeight) Modifier.heightIn(max = MCP_LIST_MAX_HEIGHT_DP)
-              else Modifier
-            )
-            .then(
-              if (capHeight) Modifier.verticalEdgeFade(fadeLength = MCP_LIST_EDGE_FADE_DP)
-              else Modifier
-            )
-        ) {
-          val scrollState = rememberScrollState()
-          Column(
+      val hasListContent: Boolean = groups.isNotEmpty() || tools.isNotEmpty()
+      if (hasListContent) {
+        AnimatedVisibility(visible = isExpanded) {
+          val capHeight: Boolean = total > MCP_LIST_SCROLL_THRESHOLD
+          Box(
             modifier = Modifier
               .fillMaxWidth()
-              .then(if (capHeight) Modifier.verticalScroll(scrollState) else Modifier)
-              .padding(start = GradumSpacing.md),
-            verticalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+              .then(
+                if (capHeight) Modifier.heightIn(max = MCP_LIST_MAX_HEIGHT_DP)
+                else Modifier
+              )
+              .then(
+                if (capHeight) Modifier.verticalEdgeFade(fadeLength = MCP_LIST_EDGE_FADE_DP)
+                else Modifier
+              )
           ) {
-            Spacer(modifier = Modifier.height(GradumSpacing.sml))
-            if (groups.isNotEmpty()) {
-              groups.forEach { group ->
-                val groupName: String = (group["group"] as? String).orEmpty()
+            val scrollState = rememberScrollState()
+            Column(
+              modifier = Modifier
+                .fillMaxWidth()
+                .then(if (capHeight) Modifier.verticalScroll(scrollState) else Modifier)
+                .padding(start = GradumSpacing.md),
+              verticalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+            ) {
+              Spacer(modifier = Modifier.height(GradumSpacing.sml))
+              if (groups.isNotEmpty()) {
+                groups.forEach { group ->
+                  val groupName: String = (group["group"] as? String).orEmpty()
 
-                @Suppress("UNCHECKED_CAST")
-                val groupTools: List<Map<String, Any>> =
-                  (group["tools"] as? List<Map<String, Any>>) ?: emptyList()
-                if (groupName.isNotBlank()) {
-                  Text(
-                    text = groupName,
-                    style = bodyStyle,
-                    color = disabledColor,
-                    fontWeight = FontWeight.Medium
-                  )
+                  @Suppress("UNCHECKED_CAST")
+                  val groupTools: List<Map<String, Any>> =
+                    (group["tools"] as? List<Map<String, Any>>) ?: emptyList()
+                  if (groupName.isNotBlank()) {
+                    Text(
+                      text = groupName,
+                      style = bodyStyle,
+                      color = disabledColor,
+                      fontWeight = FontWeight.Medium
+                    )
+                  }
+                  groupTools.forEach { tool ->
+                    ToolRow(infoColor, textColor, bodyStyle, tool)
+                  }
                 }
-                groupTools.forEach { tool ->
+              } else if (tools.isNotEmpty()) {
+                tools.forEach { tool ->
                   ToolRow(infoColor, textColor, bodyStyle, tool)
                 }
               }
-            } else if (tools.isNotEmpty()) {
-              tools.forEach { tool ->
-                ToolRow(infoColor, textColor, bodyStyle, tool)
-              }
             }
-          }
-          if (capHeight) {
-            VerticalScrollbar(
-              scrollState = scrollState,
-              modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight()
-            )
+            if (capHeight) {
+              VerticalScrollbar(
+                scrollState = scrollState,
+                modifier = Modifier
+                  .align(Alignment.CenterEnd)
+                  .fillMaxHeight()
+              )
+            }
           }
         }
       }

@@ -28,7 +28,6 @@ import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry
 import gradum.idea.chat.ui.chat.skill.spi.parseJsonResult
-import gradum.idea.chat.ui.common.formatTokenCount
 import gradum.idea.chat.ui.common.verticalEdgeFade
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.chat.ui.input.formatModelName
@@ -46,7 +45,6 @@ import org.jetbrains.jewel.ui.typography
 
 private const val PHASE_FADE_IN_MS: Int = 300
 
-/** Everything [AssistantChatBubble] reads besides the message itself. */
 data class BubbleState(
   val sendingPhase: String = "",
   val isLoading: Boolean = false,
@@ -195,9 +193,7 @@ fun AssistantChatBubble(
         hasContentBefore = true
         TokenStatusRow(
           isLoading = true,
-          sendingPhase = sendingPhase,
-          totalTokenCount = message.tokenUsage?.totalTokens ?: 0,
-          contextTokenCount = message.tokenUsage?.contextTokens ?: 0
+          sendingPhase = sendingPhase
         )
       }
 
@@ -299,8 +295,6 @@ private fun ProcessGroupSection(
   }
 
   val headerStyle = rememberGradumParagraphTextStyle()
-  // One stopwatch per thinking block, hoisted above the collapsible body so
-  // the measured duration survives the fold/unfold disposal cycle.
   val thinkingClocks: MutableMap<Int, ThinkingClock> = remember { mutableMapOf() }
 
   Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.lg)) {
@@ -494,30 +488,16 @@ fun ToolCallBlock(
 @Composable
 private fun TokenStatusRow(
   isLoading: Boolean,
-  sendingPhase: String,
-  totalTokenCount: Int = 0,
-  contextTokenCount: Int = 0
+  sendingPhase: String
 ) {
-  val tokenText: String =
-    when {
-      contextTokenCount > 0 ->
-        "$sendingPhase & ${message("gradum.tokens.used", formatTokenCount(contextTokenCount))}"
-
-      totalTokenCount > 0 ->
-        "$sendingPhase & ${message("gradum.tokens.used", formatTokenCount(totalTokenCount))}"
-
-      else -> sendingPhase.ifEmpty { "..." }
-    }
-
   val fadeAlpha = remember { Animatable(initialValue = 1f) }
   var displayText: String by remember { mutableStateOf(value = sendingPhase) }
   var previousText: String by remember { mutableStateOf(value = sendingPhase) }
 
-  LaunchedEffect(key1 = sendingPhase, key2 = tokenText) {
-    val newText: String = tokenText.ifEmpty { sendingPhase }
-    if (newText != previousText) {
-      displayText = newText
-      previousText = newText
+  LaunchedEffect(key1 = sendingPhase) {
+    if (sendingPhase != previousText) {
+      displayText = sendingPhase
+      previousText = sendingPhase
       fadeAlpha.snapTo(targetValue = 0f)
       fadeAlpha.animateTo(
         targetValue = 1f,
@@ -532,29 +512,13 @@ private fun TokenStatusRow(
   ) {
     if (isLoading) CircularProgressIndicator(modifier = Modifier.size(16.dp))
 
-    val tokenTextContent: @Composable () -> Unit = {
-      SweepLightText(
-        text = displayText,
-        enabled = isLoading,
-        modifier = Modifier.graphicsLayer {
-          this.alpha = fadeAlpha.value
-        }
-      )
-    }
-    if (contextTokenCount > 0 && totalTokenCount > 0) {
-      Tooltip(
-        tooltip = {
-          Text(
-            text = message(
-              "gradum.tokens.total.tooltip",
-              formatTokenCount(totalTokenCount)
-            )
-          )
-        }
-      ) { tokenTextContent() }
-    } else {
-      tokenTextContent()
-    }
+    SweepLightText(
+      text = displayText,
+      enabled = isLoading,
+      modifier = Modifier.graphicsLayer {
+        this.alpha = fadeAlpha.value
+      }
+    )
   }
 }
 

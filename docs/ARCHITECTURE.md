@@ -6,7 +6,7 @@
 
 | Field              | Value                                                                              |
 |--------------------|------------------------------------------------------------------------------------|
-| **Version**        | Server 1.0.2 / Plugin 1.0.4                                                        |
+| **Version**        | Server 1.0.5 / Plugin 1.0.5                                                        |
 | **Status**         | Active Development                                                                 |
 | **Language**       | Kotlin 2.3.0 (JVM 21; plugin JVM 25)                                               |
 | **HTTP Framework** | Ktor 3.0.3 and Netty                                                               |
@@ -1937,7 +1937,7 @@ Notable chat features: message minimap for quick navigation (`ChatMinimap.kt`), 
 copyable diagnostics (`RuntimeUnreachableBanner` in `GradumUI.kt`, driven by `GradumChatSession.runtimeUnreachable`),
 capped thinking preview with edge fade + scrollbar (`ThinkingIndicator.kt`), model selector with live provider
 discovery, permission mode selector, attachments, and a Markdown pipeline (tables, footnotes, LaTeX, task lists).
-Version: **1.0.3** (the server reports 1.0.2).
+Version: **1.0.5** (server and plugin in lockstep).
 
 ### 8.2 Module Dependencies
 
@@ -2042,7 +2042,7 @@ to third-party plugins at all, so they ship too.
 | Compose for Desktop        | Maven `composeUI()` and vendored jars | UI framework (shipped in plugin)                  |
 | Jewel                      | vendored jars                         | IntelliJ-themed UI components (shipped in plugin) |
 | kotlinx-serialization-json | 1.7.3                                 | JSON parsing for API responses                    |
-| Gradum Server (runtime)    | 1.0.2                                 | AI agent backend (HTTP + ACP)                     |
+| Gradum Server (runtime)    | 1.0.5                                 | AI agent backend (HTTP + ACP)                     |
 
 ### 8.6 Git Analysis Tool Window Subsystem
 

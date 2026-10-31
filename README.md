@@ -7,7 +7,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/License-MIT-brightgreen?style=flat" alt="MIT License"/>
   <img src="https://img.shields.io/badge/Language-Kotlin-7F52FF?style=flat&logo=kotlin&logoColor=white" alt="Kotlin"/>
-  <img src="https://img.shields.io/badge/Release-v1.0.2-6f42c1?style=flat" alt="v1.0.2"/>
+  <img src="https://img.shields.io/badge/Release-v1.0.5-6f42c1?style=flat" alt="v1.0.5"/>
   <img src="https://github.com/lg841226/Gradum/actions/workflows/ci.yml/badge.svg" alt="CI build"/>
 </p>
 
@@ -68,7 +68,7 @@ includes its own runtime; no Java installation is required.
 Run the configuration wizard once:
 
 ```bash
-java -jar gradum@1.0.2.jar setup    # first run: pick provider, key, base URL
+java -jar gradum@1.0.5.jar setup    # first run: pick provider, key, base URL
 ```
 
 The wizard writes your choices to `~/.gradum/settings.json` (and generates `settings.schema.json` for editor
@@ -84,8 +84,8 @@ The runtime offers three entry points:
 | `acp`    | ACP stdio server for IDE agent clients                               |
 
 ```bash
-java -jar gradum@1.0.2.jar --help   # usage, configuration overview, endpoint list
-java -jar gradum@1.0.2.jar acp      # Agent Client Protocol over stdin/stdout
+java -jar gradum@1.0.5.jar --help   # usage, configuration overview, endpoint list
+java -jar gradum@1.0.5.jar acp      # Agent Client Protocol over stdin/stdout
 ```
 
 Once the server is running, open `GET /skills/editor` in a browser to use the skill editor.
@@ -157,7 +157,7 @@ The `search_web` skill uses the [Tavily Search API](https://tavily.com); set `TA
 tier includes 1,000 calls per month). Every other skill works without a key.
 
 Provider base URLs and API keys live in `~/.gradum/settings.json`; the recommended way to write them is
-`java -jar gradum@1.0.2.jar setup` or the plugin's settings page. Environment variables work as a fallback
+`java -jar gradum@1.0.5.jar setup` or the plugin's settings page. Environment variables work as a fallback
 for cloud keys:
 
 ```bash
@@ -188,7 +188,7 @@ the task involves, presents edits for your review before they land, and asks bef
 
 Other capabilities include streaming responses, thinking previews, tool call indicators, rich Markdown
 rendering, dark and light themes, file and image attachments, and one-click sending of the file you are
-editing. The plugin is built with Kotlin and Jewel, runs entirely locally, and is at version 1.0.3.
+editing. The plugin is built with Kotlin and Jewel, runs entirely locally, and is at version 1.0.5.
 
 ## Security
 
@@ -250,4 +250,4 @@ MIT License, see [LICENSE](LICENSE)
 
 ## Gradum Version
 
-Server 1.0.2, Plugin 1.0.4
+Server 1.0.5, Plugin 1.0.5

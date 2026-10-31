@@ -3,6 +3,7 @@ package gradum.mcp
 import gradum.ToolMode
 import gradum.agent.ExternalToolProvider
 import gradum.mcp.McpToolCatalog.OTHER_GROUP
+import gradum.skill.Skill
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -54,7 +55,7 @@ object McpToolCatalog : ExternalToolProvider {
   override fun toolCount(): Int = adaptersByTool.size
 
   // Returns the full-schema adapter for [name], or null when not registered.
-  override fun adapterFor(name: String): McpSkillAdapter? = adaptersByTool[name]
+  override fun adapterFor(name: String): Skill? = adaptersByTool[name]
 
   /**
    * Returns the full OpenAI function schema for every name in [names] that
