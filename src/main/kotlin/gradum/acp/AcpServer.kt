@@ -3,11 +3,11 @@ package gradum.acp
 import gradum.BuildConfig
 import gradum.GradumRuntime
 import gradum.ModelIdentity
-import gradum.mcp.jsonrpc.RpcError
-import gradum.mcp.jsonrpc.RpcNotification
-import gradum.mcp.jsonrpc.RpcRequest
-import gradum.mcp.jsonrpc.RpcResponse
-import gradum.mcp.transport.FrameCodec
+import gradum.jsonrpc.FrameCodec
+import gradum.jsonrpc.RpcError
+import gradum.jsonrpc.RpcNotification
+import gradum.jsonrpc.RpcRequest
+import gradum.jsonrpc.RpcResponse
 import gradum.skill.PendingQuestions
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex

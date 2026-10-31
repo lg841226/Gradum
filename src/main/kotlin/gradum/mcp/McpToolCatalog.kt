@@ -1,6 +1,7 @@
 package gradum.mcp
 
 import gradum.ToolMode
+import gradum.agent.ExternalToolProvider
 import gradum.mcp.McpToolCatalog.OTHER_GROUP
 import java.util.concurrent.ConcurrentHashMap
 
@@ -36,7 +37,7 @@ data class McpToolGroup(
  * [gradum.skill.SkillContext.materializedMcpTools] set. Definitions live here
  * (server-lifetime), but visibility lives in the per-session set.
  */
-object McpToolCatalog {
+object McpToolCatalog : ExternalToolProvider {
 
   private val adaptersByTool: MutableMap<String, McpSkillAdapter> = ConcurrentHashMap()
 
@@ -50,10 +51,10 @@ object McpToolCatalog {
   }
 
   /** Number of registered MCP tools. */
-  fun toolCount(): Int = adaptersByTool.size
+  override fun toolCount(): Int = adaptersByTool.size
 
   // Returns the full-schema adapter for [name], or null when not registered.
-  internal fun adapterFor(name: String): McpSkillAdapter? = adaptersByTool[name]
+  override fun adapterFor(name: String): McpSkillAdapter? = adaptersByTool[name]
 
   /**
    * Returns the full OpenAI function schema for every name in [names] that
@@ -61,7 +62,7 @@ object McpToolCatalog {
    * [gradum.agent.Agent] to add a session's materialized tools to the model's
    * tool list.
    */
-  fun fullSchemas(names: Set<String>, toolMode: ToolMode): List<Map<String, Any>> =
+  override fun fullSchemas(names: Set<String>, toolMode: ToolMode): List<Map<String, Any>> =
     names.mapNotNull { adaptersByTool[it] }
       .filter { adapter -> adapter.allows(toolMode) }
       .sortedBy { adapter -> adapter.skillName }

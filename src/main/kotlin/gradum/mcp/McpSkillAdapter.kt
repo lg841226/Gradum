@@ -4,7 +4,7 @@ import gradum.SkillResult
 import gradum.ToolMode
 import gradum.makeFailure
 import gradum.makeSuccess
-import gradum.mcp.jsonrpc.RpcException
+import gradum.jsonrpc.RpcException
 import gradum.skill.*
 import gradum.skill.dsl.SchemaBuilder
 import gradum.utils.JsonUtil

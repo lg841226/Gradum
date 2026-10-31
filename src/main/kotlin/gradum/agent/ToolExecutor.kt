@@ -4,7 +4,7 @@ import gradum.AgentConfiguration
 import gradum.ErrorCode
 import gradum.SkillResult
 import gradum.client.ToolCallEntry
-import gradum.mcp.McpToolCatalog
+import gradum.agent.ExternalToolRegistry
 import gradum.skill.Skill
 import gradum.skill.SkillContext
 import gradum.skill.SkillRegistry
@@ -103,7 +103,7 @@ class ToolExecutor(
 
     val skillInstance: Skill? =
       SkillRegistry.getSkill(skillName = functionName)
-        ?: McpToolCatalog.adapterFor(functionName)
+        ?: ExternalToolRegistry.provider?.adapterFor(name = functionName)
           ?.takeIf { functionName in skillContext.materializedMcpTools }
     val toolAlias: String = skillInstance?.alias ?: functionName
 

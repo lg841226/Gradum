@@ -1,7 +1,6 @@
 package gradum.utils
 
 import gradum.agent.*
-import gradum.mcp.McpToolCatalog
 import gradum.server.persistence.ChatDb
 import gradum.server.persistence.SessionStateStore
 import gradum.server.persistence.SessionTranscriptWriter
@@ -287,7 +286,7 @@ class ContextManager(private val outputDirectory: Path) {
     val functionName: String = toolCall?.name.orEmpty()
 
     val skillInstance = functionName.takeIf { it.isNotBlank() }?.let {
-      SkillRegistry.getSkill(skillName = it) ?: McpToolCatalog.adapterFor(name = it)
+      SkillRegistry.getSkill(skillName = it) ?: ExternalToolRegistry.provider?.adapterFor(name = it)
     }
     val toolDisplay: ToolDisplay? = skillInstance?.toolDisplay
     val displayLabel: String = toolDisplay?.label?.takeIf { it.isNotBlank() } ?: functionName.ifBlank { "tool" }

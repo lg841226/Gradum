@@ -3,6 +3,7 @@ package gradum.server
 import gradum.BuildConfig
 import gradum.GradumRuntime
 import gradum.acp.AcpServer
+import gradum.agent.ExternalToolRegistry
 import gradum.logging.EventStreamDump
 import gradum.logging.routeAcpLogsToFile
 import gradum.mcp.McpConnectionFailure
@@ -51,10 +52,11 @@ private fun initRuntime(): StartupRuntime {
   val mcpManager = McpConnectionManager()
   val mcpFailures: List<McpConnectionFailure> =
     if (settings.mcpServers.isNotEmpty()) {
-      runBlocking { mcpManager.connect(settings.mcpServers) }
+      runBlocking { mcpManager.connect(McpServerConfig.configsFromRaw(settings.mcpServers)) }
     } else {
       emptyList()
     }
+  ExternalToolRegistry.provider = McpToolCatalog
 
   SkillRegistry.register(McpToolsSkill())
 

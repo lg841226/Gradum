@@ -7,8 +7,8 @@ import gradum.Provider
 import gradum.agent.*
 import gradum.client.ThinkingLevel
 import gradum.mcp.McpServerConfig
-import gradum.mcp.jsonrpc.RpcError
-import gradum.mcp.jsonrpc.RpcResponse
+import gradum.jsonrpc.RpcError
+import gradum.jsonrpc.RpcResponse
 import gradum.skill.Choice
 import gradum.utils.ContextManager
 import kotlinx.coroutines.*

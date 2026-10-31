@@ -4,8 +4,8 @@ import gradum.ModelEntry
 import gradum.ModelIdentity
 import gradum.Provider
 import gradum.ToolMode
-import gradum.mcp.jsonrpc.RpcError
-import gradum.mcp.jsonrpc.RpcResponse
+import gradum.jsonrpc.RpcError
+import gradum.jsonrpc.RpcResponse
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull

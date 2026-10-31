@@ -1,4 +1,4 @@
-package gradum.mcp.transport
+package gradum.jsonrpc
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow

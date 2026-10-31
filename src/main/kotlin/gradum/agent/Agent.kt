@@ -8,7 +8,6 @@ import gradum.Provider
 import gradum.Version
 import gradum.client.*
 import gradum.debug.*
-import gradum.mcp.McpToolCatalog
 import gradum.skill.*
 import gradum.skill.builtin.getTodoManagerInstance
 import gradum.skill.dsl.buildXml
@@ -333,7 +332,8 @@ class Agent(
       modelName = configuration.modelName
     )
     val materialized: List<Map<String, Any>> =
-      McpToolCatalog.fullSchemas(skillContext.materializedMcpTools.names, configuration.toolMode)
+      ExternalToolRegistry.provider?.fullSchemas(skillContext.materializedMcpTools.names, configuration.toolMode)
+        ?: emptyList()
     return base + materialized
   }
 

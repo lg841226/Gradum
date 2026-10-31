@@ -22,7 +22,35 @@ data class McpServerConfig(
   val command: List<String>,
   val workingDir: String? = null,
   val env: Map<String, String> = emptyMap()
-)
+) {
+  companion object {
+
+    /**
+     * Converts the raw, shape-validated `mcpServers` entries stored in
+     * [gradum.server.setup.ServerSettings] into typed configs. Entries
+     * missing `name` or `command` are skipped, mirroring the settings
+     * validation.
+     */
+    fun configsFromRaw(rawServers: List<Map<String, Any>>): List<McpServerConfig> =
+      rawServers.mapNotNull { entry ->
+        val name: String = entry["name"] as? String ?: return@mapNotNull null
+        val command: List<String> =
+          (entry["command"] as? List<*> ?: return@mapNotNull null).filterIsInstance<String>()
+        if (command.isEmpty()) return@mapNotNull null
+        McpServerConfig(
+          name = name,
+          command = command,
+          workingDir = (entry["workingDir"] as? String)?.takeIf { it.isNotBlank() },
+          env = (entry["env"] as? Map<*, *>)
+            ?.filterKeys { it is String }
+            ?.mapKeys { it.key as String }
+            ?.filterValues { it is String }
+            ?.mapValues { it.value as String }
+            ?: emptyMap()
+        )
+      }
+  }
+}
 
 /**
  * Owns the live connections to all configured MCP servers. [connect] starts

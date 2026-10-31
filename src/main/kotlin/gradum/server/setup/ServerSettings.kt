@@ -1,7 +1,6 @@
 package gradum.server.setup
 
 import gradum.AgentConfiguration
-import gradum.mcp.McpServerConfig
 import gradum.server.ServerConfiguration
 import gradum.utils.CommandFilterConfig
 import gradum.utils.JsonUtil
@@ -47,8 +46,15 @@ data class ServerSettings(
    * [gradum.logging.EventStreamDump]). Debug aid, off by default.
    */
   val debugEventDump: Boolean,
-  /** Configured MCP stdio servers whose tools are exposed as skills; empty when the user configures nothing. */
-  val mcpServers: List<McpServerConfig>,
+  /**
+   * Raw `mcpServers` entries from settings.json: one map per server with at
+   * least `name` (string) and `command` (string array), optional `workingDir`
+   * and `env`. Shape-validated here but left untyped so the server core does
+   * not depend on the MCP module; the provider converts them via
+   * [gradum.mcp.McpConnectionManager.configsFromRaw]. Empty when the user
+   * configures nothing.
+   */
+  val mcpServers: List<Map<String, Any>>,
   /**
    * Per-skill plugin config (`plugins.<skillName>`), read by skills through
    * the settings DSL in `gradum.skill.dsl`. Values are raw JSON (numbers,
@@ -268,7 +274,7 @@ object ServerSettingsStore {
     }
 
     val commandFilter: CommandFilterConfig = parseCommandFilter(sectionRaw = root["commandFilter"], issues = issues)
-    val mcpServers: List<McpServerConfig> = parseMcpServers(sectionRaw = root["mcpServers"], issues = issues)
+    val mcpServers: List<Map<String, Any>> = parseMcpServers(sectionRaw = root["mcpServers"], issues = issues)
     val plugins: Map<String, Map<String, Any?>> = parsePlugins(sectionRaw = root["plugins"], issues = issues)
     val isConfigured: Boolean = root[CONFIGURED_KEY] as? Boolean ?: false
 
@@ -435,11 +441,11 @@ object ServerSettingsStore {
   private fun stringListOrNull(jsonValue: Any?): List<String>? =
     if (jsonValue is List<*>) jsonValue.filterIsInstance<String>().takeIf { it.size == jsonValue.size } else null
 
-  // Parses the optional top-level `mcpServers` array into [McpServerConfig]s.
-  // Each entry must be an object with a non-blank `name` and a non-empty
-  // `command` string array; malformed entries are logged and skipped so one
-  // bad server never blocks the rest from registering.
-  private fun parseMcpServers(sectionRaw: Any?, issues: MutableList<ValidationIssue>): List<McpServerConfig> {
+  // Validates the optional top-level `mcpServers` array and returns the raw
+  // entry maps. Each entry must be an object with a non-blank `name` and a
+  // non-empty `command` string array; malformed entries are logged and
+  // skipped so one bad server never blocks the rest from registering.
+  private fun parseMcpServers(sectionRaw: Any?, issues: MutableList<ValidationIssue>): List<Map<String, Any>> {
     if (sectionRaw == null) return emptyList()
     if (sectionRaw !is List<*>) {
       issues += ValidationIssue(
@@ -450,7 +456,7 @@ object ServerSettingsStore {
       return emptyList()
     }
 
-    val servers = mutableListOf<McpServerConfig>()
+    val servers = mutableListOf<Map<String, Any>>()
     for ((index, entry) in sectionRaw.withIndex()) {
       if (entry !is Map<*, *>) {
         issues += ValidationIssue(
@@ -482,15 +488,9 @@ object ServerSettingsStore {
         continue
       }
 
-      val workingDir: String? = (entry["workingDir"] as? String)?.takeIf { it.isNotBlank() }
-      val env: Map<String, String> = parseMcpEnv(
-        sectionRaw = entry["env"], key = "mcpServers[$index].env", issues = issues
-      )
-      servers.add(
-        McpServerConfig(
-          name = name, command = command, workingDir = workingDir, env = env
-        )
-      )
+      parseMcpEnv(sectionRaw = entry["env"], key = "mcpServers[$index].env", issues = issues)
+      @Suppress("UNCHECKED_CAST")
+      servers.add(entry as Map<String, Any>)
     }
     return servers
   }

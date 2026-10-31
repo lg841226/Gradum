@@ -1,6 +1,6 @@
 package gradum.mcp.transport
 
-import gradum.mcp.jsonrpc.JsonRpcSession
+import gradum.jsonrpc.JsonRpcSession
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow

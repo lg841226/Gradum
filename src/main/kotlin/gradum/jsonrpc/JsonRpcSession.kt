@@ -1,6 +1,5 @@
-package gradum.mcp.jsonrpc
+package gradum.jsonrpc
 
-import gradum.mcp.transport.FrameCodec
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.encodeToString

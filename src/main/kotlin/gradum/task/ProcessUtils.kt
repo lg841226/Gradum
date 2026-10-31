@@ -12,10 +12,12 @@ import java.util.concurrent.Future
 private val logger: Logger = LoggerFactory.getLogger("ProcessUtils")
 
 // Shared reader pool for stdout/stderr draining that happens before waitFor.
+// Virtual threads: the pool tasks block on child-process pipes, so each drain
+// gets a cheap virtual thread instead of a pooled platform thread.
 private val processStreamReaderPool: ExecutorService =
-  Executors.newCachedThreadPool { runnable ->
-    Thread(runnable, "gradum-process-stream").apply { isDaemon = true }
-  }
+  Executors.newThreadPerTaskExecutor(
+    Thread.ofVirtual().name("gradum-process-stream-", 0).factory()
+  )
 
 /**
  * Enumerates all descendants of [process] and returns them. This must be

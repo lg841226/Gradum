@@ -1,4 +1,4 @@
-package gradum.mcp.jsonrpc
+package gradum.jsonrpc
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
