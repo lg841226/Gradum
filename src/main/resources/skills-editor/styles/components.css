@@ -135,6 +135,107 @@
     height: calc(var(--menubar-height) - var(--space-1));
 }
 
+/* The widget stands down with the developer mode; its own display would
+   out-rank the global hidden guard, so it is restated here. */
+.run-widget[hidden] {
+    display: none;
+}
+
+/* Same for bar buttons hidden outright, such as the split and minimap toggles
+   on devices where the panels float. */
+.menubar .btn[hidden] {
+    display: none;
+}
+
+/* The agent side's breadcrumb: repository, a hairline slash, then the session
+   mark and title. The mark keeps the icon button size so the spinner swap
+   never shifts the text, and reuses the busy spin. */
+.agent-widget-repo {
+    font-size: var(--font-size-ui);
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.agent-widget-sep {
+    color: var(--text-dim);
+}
+
+/* The mark rides one collapse: an idle mark folds to no width at all (and
+   cancels the flex gap it would hold open), a working mark grows to its icon
+   box, so the row breathes open and shut instead of snapping. The icon sits a
+   step under the text's cap height, so it never reads taller than its
+   neighbours. */
+.agent-widget-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    max-width: 0;
+    overflow: hidden;
+    /* Cancels the flex gap the folded mark would otherwise leave behind. */
+    margin-left: calc(-1 * var(--space-2));
+    transition: max-width 220ms var(--ease-standard),
+    margin 220ms var(--ease-standard);
+}
+
+.agent-widget-mark.is-busy,
+.agent-widget-mark.is-done {
+    max-width: 14px;
+    margin-left: 0;
+}
+
+.agent-widget-mark .icon {
+    width: 14px;
+    height: 14px;
+    opacity: 0;
+    transform: scale(0.5);
+    transition: opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.agent-widget-mark.is-busy .icon {
+    opacity: 1;
+    transform: none;
+    animation: spin 1s linear infinite;
+    transform-origin: center;
+}
+
+.agent-widget-mark.is-done .icon {
+    opacity: 1;
+    transform: none;
+    animation: mark-pop 420ms cubic-bezier(.34, 1.56, .64, 1);
+}
+
+.agent-widget-mark.is-leaving .icon {
+    opacity: 0;
+    transform: scale(0.5);
+}
+
+@keyframes mark-pop {
+    0% {
+        transform: scale(0.4);
+    }
+    55% {
+        transform: scale(1.18);
+    }
+    78% {
+        transform: scale(0.96);
+    }
+    100% {
+        transform: none;
+    }
+}
+
+.agent-widget-name {
+    font-size: var(--font-size-ui);
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 16em;
+}
+
 /* The label and the actions are two zones, not one run of siblings: a hairline
    rule and the wider gap keep the actions from reading as part of the name. */
 .run-widget-actions {

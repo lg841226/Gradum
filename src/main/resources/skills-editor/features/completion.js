@@ -1,4 +1,4 @@
-import {escapeHtml} from "../core/dom.js";
+import {escapeText, isSafeToken} from "../core/safety.js";
 import {copy} from "../ui/copy.js";
 import {icons} from "../ui/icons.js";
 import {API_SYMBOLS, SNIPPETS} from "../data/apiSymbols.js";
@@ -263,7 +263,7 @@ export function createCompletion({
     const {item, match} = entry;
     const selectedClass = index === selected ? " is-selected" : "";
     const detail = item.detail
-      ? `<span class="completion-detail">${escapeHtml(item.detail)}</span>`
+      ? `<span class="completion-detail">${escapeText(item.detail)}</span>`
       : "";
     return (
       `<div class="completion-row${selectedClass}" role="option"`
@@ -277,13 +277,14 @@ export function createCompletion({
   }
 
   function kindMark(kind) {
-    if (kind === "kw") {
+    const safeKind = isSafeToken(kind) ? kind : "word";
+    if (safeKind === "kw") {
       return `<span class="completion-kind completion-kind-kw"`
         + ` aria-hidden="true">K</span>`;
     }
-    const path = icons[`completion-${kind}`] || icons["completion-word"];
+    const path = icons[`completion-${safeKind}`] || icons["completion-word"];
     return (
-      `<svg class="icon completion-icon completion-kind-${kind}" width="16" height="16"`
+      `<svg class="icon completion-icon completion-kind-${safeKind}" width="16" height="16"`
       + ' viewBox="0 0 16 16" fill="none" aria-hidden="true">'
       + path
       + "</svg>"
@@ -297,12 +298,12 @@ export function createCompletion({
     let previous = 0;
     for (const index of matched) {
       if (index > previous) {
-        html += escapeHtml(label.slice(previous, index));
+        html += escapeText(label.slice(previous, index));
       }
-      html += `<span class="match">${escapeHtml(label[index])}</span>`;
+      html += `<span class="match">${escapeText(label[index])}</span>`;
       previous = index + 1;
     }
-    return html + escapeHtml(label.slice(previous));
+    return html + escapeText(label.slice(previous));
   }
 
   function updateSelection() {

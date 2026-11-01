@@ -69,7 +69,7 @@ class EventStreamMonitor : JFrame("Gradum Runtime Window") {
 
     outputTextArea.lineWrap = false
     outputTextArea.isEditable = false
-    outputTextArea.font = gradum.runtime.MONOSPACE_UI_FONT
+    outputTextArea.font = MONOSPACE_UI_FONT
 
     val eventStreamPane = JPanel(BorderLayout()).apply {
       add(buildToolbar(), BorderLayout.NORTH)
@@ -330,10 +330,9 @@ class EventStreamMonitor : JFrame("Gradum Runtime Window") {
 /** Must run before any component is created. */
 private fun installFlatLaf() {
   try {
-    // FlatLaf has no "follow system theme" switch; probe macOS dark mode ourselves.
     val laf = if (isMacDarkModeEnabled()) FlatDarkLaf() else FlatLightLaf()
     UIManager.setLookAndFeel(laf)
-    UIManager.put("defaultFont", gradum.runtime.MONOSPACE_UI_FONT)
+    UIManager.put("defaultFont", MONOSPACE_UI_FONT)
   } catch (_: Exception) {
   }
 }

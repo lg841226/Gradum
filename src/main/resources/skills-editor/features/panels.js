@@ -2,6 +2,7 @@ import {createIconButton} from "../ui/components/button.js";
 import {createPanel} from "../ui/components/panel.js";
 import {createTab} from "../ui/components/tab.js";
 import {copy} from "../ui/copy.js";
+import {isFloatLayout} from "./floatPanels.js";
 
 export function mountPanels(store, {canvas}) {
   const panel = createPanel();
@@ -58,7 +59,9 @@ export function mountPanels(store, {canvas}) {
   }
 
   const apply = (state) => {
-    const hidden = state.collapsed || state.autoBottom;
+    // Afloat the bottom window takes no editor room, so only the user's own
+    // toggle hides it; the size-driven auto step-aside stays desktop-only.
+    const hidden = state.collapsed || (!isFloatLayout() && state.autoBottom);
 
     canvas.classList.toggle("bottom-hidden", hidden);
     canvas.style.setProperty("--bottom-height", `${state.bottomHeight}px`);

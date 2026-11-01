@@ -193,7 +193,7 @@ private fun sqliteNativePlatformsToKeep(): Set<String> {
 
 private fun stripForeignSqliteNatives(jarFile: File) {
   val keepPlatforms: Set<String> = sqliteNativePlatformsToKeep()
-  val tempFile: File = File(jarFile.parentFile, "${jarFile.name}.stripped")
+  val tempFile = File(jarFile.parentFile, "${jarFile.name}.stripped")
   ZipInputStream(jarFile.inputStream().buffered()).use { input ->
     ZipOutputStream(tempFile.outputStream().buffered()).use { output ->
       var entry: ZipEntry? = input.nextEntry

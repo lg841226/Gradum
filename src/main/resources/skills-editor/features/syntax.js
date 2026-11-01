@@ -1,4 +1,4 @@
-import {escapeHtml} from "../core/dom.js";
+import {escapeText} from "../core/safety.js";
 
 // The syntax overlay's tokenizer: one pattern run over the buffer labels
 // every run as a comment, string, number, keyword or name for the highlight
@@ -72,7 +72,7 @@ export function tokenize(text) {
 // added here are never themselves boxed and an entity's ASCII characters are
 // left alone: only the glyphs the file actually holds are wrapped.
 export function markGlyphs(text) {
-  return escapeHtml(text).replace(
+  return escapeText(text).replace(
     /[^\x00-\x7F]+/g,
     (run) => `<span class="glyph-box">${run}</span>`,
   );

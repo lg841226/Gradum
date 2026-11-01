@@ -24,17 +24,57 @@ export const copy = {
 
   control: {
     all: "All",
-    assistant: "Assistant",
+    developer: "Developer",
+    agent: "Agent",
     editor: "Editor",
     output: "Console",
     explorer: "Explorer",
     problems: "Problems",
+    session: "Session",
+  },
+
+  agent: {
+    untitled: "New session",
   },
 
   theme: {
     dark: "Dark",
     light: "Light",
     tooltip: "Change theme",
+  },
+
+  chat: {
+    placeholder: "Ask a question, or hand off a task for this project",
+    model: "Model",
+    runtimeDefault: "Runtime Default",
+    noModels: "No models available",
+    permissions: "Permissions",
+    stop: "Stop",
+    send: "Send",
+    thinking: "Thinking",
+    working: "Working Process",
+    thoughtFor: (seconds) => `Thought for ${seconds.toFixed(1)}s`,
+    thoughtNoTime: "Thought",
+    answered: (label) => `Answered: ${label}`,
+    answerFailed: (message) => `Could not answer: ${message}`,
+    askTitle: "Gradum needs your input",
+    answerPlaceholder: "Type your answer",
+    rootMissing:
+      "Set the project root in the status bar first: the absolute path of the " +
+      "directory Gradum should work in. Sessions and file tools are rooted there.",
+    sendFailed: (message) => `Send failed: ${message}`,
+    loadFailed: (message) => `Could not load session: ${message}`,
+    choices: {
+      allow_once: "Allow once",
+      allow_always: "Allow always",
+      reject: "Reject",
+    },
+    modes: {
+      read_only: {label: "Read Permissions", info: "Read, explore and run diagnostics"},
+      edit: {label: "Edit Permissions", info: "Edit files and code by hand"},
+      agent: {label: "Full Agent Mode", info: "Reads, writes, executes complex tasks"},
+      yolo: {label: "Full Access", info: "Skips all approvals, runs edits and commands directly"},
+    },
   },
 
   tooltip: {
@@ -57,6 +97,8 @@ export const copy = {
     noSkill: "No opened skill",
     invalidName: "Invalid name",
     unreachable: "Server not responding",
+    unauthorized: "Server rejected the request: the editor token is missing or has expired.",
+    loadFailed: (name, detail) => `Could not open ${name}: ${detail}`,
     nameTaken: (name) => `${name} already exists`,
   },
 

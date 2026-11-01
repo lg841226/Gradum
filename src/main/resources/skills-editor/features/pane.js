@@ -1,9 +1,12 @@
 import {codeMetrics, displayColumns, FALLBACK_METRICS} from "../core/dom.js";
 import {activeDoc} from "../core/store.js";
 import {createTabStrip} from "../ui/components/tab.js";
-import {bracketDepth, changedLines, indentWidth, matchPairs} from "./analysis.js";
+import {bracketDepth} from "./analysis.js";
 import {createCompletion} from "./completion.js";
-import {markGlyphs, tokenize} from "./syntax.js";
+import {createCaretLayer} from "./pane/caret.js";
+import {createHighlightLayer} from "./pane/highlight.js";
+import {createMeasure} from "./pane/measure.js";
+import {createSelectionLayer} from "./pane/selection.js";
 import {
   deleteRanges,
   insertText,
@@ -17,24 +20,14 @@ import {
 } from "./multicursor.js";
 import {recordEdit, redo as redoHistory, seedHistory, undo as undoHistory} from "./history.js";
 
-// One blink clock for every caret in the document: the off-toggle lands on
-// the root, so all carets flip in the same frame and the phases can never
-// drift apart. A caret move restarts the clock, so a moved set comes back up
-// solid the way a lone caret settles.
-let blinkTimer = null;
-
-function restartBlink() {
-  document.documentElement.classList.remove("caret-blink-off");
-  clearInterval(blinkTimer);
-  blinkTimer = setInterval(() => {
-    document.documentElement.classList.toggle("caret-blink-off");
-  }, 500);
-}
-
 // One code surface: the gutter, the syntax overlay, the marker layer, the drawn
 // caret, and the textarea that owns the real caret and selection. Two of these
 // are mounted side by side to show the same buffer twice: each keeps its own
 // tab strip, scroll, selection and caret, and redraws only its own overlay.
+//
+// The surface itself is assembled here; the three drawing layers live under
+// features/pane/ and are handed the elements and accessors they need, so none
+// of them reaches for a second source of truth.
 export function createCodePane(store, {onInput, onFocus, onRun}) {
   const root = document.createElement("div");
   root.className = "code-pane";
@@ -88,56 +81,15 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     Object.assign(metrics, codeMetrics(highlight));
   }
 
-  // The caret and the squiggles are drawn, not laid out by the text layer, so
-  // their horizontal offsets are read back off the highlight overlay (the very
-  // glyphs on screen) instead of being predicted from a font. Neither counting
-  // columns nor measuring with a canvas survives a fallback: a CJK glyph is
-  // drawn by whatever font the stack falls through to, and its advance is
-  // whatever that font says, which the model has no way to know. A Range over
-  // the line's own text nodes answers exactly, and because the range is read
-  // after the overlay has been scrolled it already carries the horizontal
-  // scroll. Reading a rect does not dirty layout the way a style write would,
-  // so a scroll frame stays cheap.
+  const measure = createMeasure({highlightCode});
 
-  // The text node and offset that `index` (in UTF-16 units, matching the text
-  // layer) falls on within a rendered line.
-  function textPositionAt(lineNode, index) {
-    let remaining = index;
-    const walker = document.createTreeWalker(lineNode, NodeFilter.SHOW_TEXT);
-
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      if (remaining <= node.data.length) {
-        return {node, offset: remaining};
-      }
-      remaining -= node.data.length;
-    }
-    return null;
-  }
-
-  // Width, in pixels, of the first `charCount` characters of the rendered line,
-  // measured from the line's own left edge. Tabs, wide glyphs and fallback runs
-  // are all handled by the layout engine, so the number matches the glyphs.
-  function advance(lineNumber, charCount) {
-    if (charCount <= 0) {
-      return 0;
-    }
-    const lineNode = highlightCode.querySelector(`.line[data-line="${lineNumber}"]`);
-    if (!lineNode) {
-      return 0;
-    }
-    const position = textPositionAt(lineNode, charCount);
-    if (!position) {
-      return 0;
-    }
-
-    const range = document.createRange();
-    range.setStart(lineNode, 0);
-    range.setEnd(position.node, position.offset);
-
-    const rangeEnd = range.getBoundingClientRect().right;
-    const lineStart = lineNode.getBoundingClientRect().left;
-    return Math.max(0, rangeEnd - lineStart);
-  }
+  const highlightLayer = createHighlightLayer({
+    store,
+    highlightCode,
+    gutterInner,
+    getText: () => source.value,
+    getActiveOffset: () => source.selectionStart,
+  });
 
   // The textarea can only ever hold one real range, so the caret list is the
   // truth and cursors[0] is the entry written back into it: drawing, editing
@@ -147,8 +99,8 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
   let composing = false;
 
   // Writing the list to the textarea is the only way the platform can learn
-  // about the primary range. The reverse read must not mistake that echo for
-  // a user action (the low and high edges compare equal), so the anchors
+  // about the primary range. The reverse read must not mistake that echo for a
+  // user action (the low and high edges compare equal), so the anchors
   // behind them, and every caret after them, survive the round trip.
   function writeCursors() {
     const first = cursors[0];
@@ -172,138 +124,6 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     cursors = [{anchor: start, head: end}];
   }
 
-  function setCursors(next) {
-    cursors = normalize(next, source.value);
-    writeCursors();
-    updateSelection();
-    updateActiveLine();
-    updateCaret();
-  }
-
-  let bands = [];
-  let matches = [];
-
-  function clearSelection() {
-    for (const band of bands) {
-      band.remove();
-    }
-    bands = [];
-    for (const box of matches) {
-      box.remove();
-    }
-    matches = [];
-  }
-
-  // The band is drawn per line from the same measured offsets the caret uses,
-  // so it lines up with the glyphs rather than the line box. A selection that
-  // runs past a line's end simply stops there: the band is the selected
-  // characters, and a line break holds no characters of its own. Each range
-  // gets its own child span, not a pseudo-element, because several carets
-  // can share a line and a line owns only one ::before. The span stays empty,
-  // so the TreeWalker that places the caret never sees it. The bracket pair
-  // each collapsed caret touches is boxed the same way, in the same pass: the
-  // line HTML it draws on is rebuilt by every re-highlight, so both live or
-  // die together here.
-  function updateSelection() {
-    clearSelection();
-
-    const text = source.value;
-    for (const cursor of cursors) {
-      const start = Math.min(cursor.anchor, cursor.head);
-      const end = Math.max(cursor.anchor, cursor.head);
-      if (end <= start) {
-        continue;
-      }
-
-      const head = text.slice(0, start).split("\n");
-      let lineNumber = head.length;
-      let lineStart = start - head[head.length - 1].length;
-
-      while (lineStart < end) {
-        let lineEnd = text.indexOf("\n", lineStart);
-        if (lineEnd === -1) {
-          lineEnd = text.length;
-        }
-
-        const from = Math.max(start, lineStart) - lineStart;
-        const to = Math.min(end, lineEnd) - lineStart;
-        const lineNode = highlightCode.querySelector(`.line[data-line="${lineNumber}"]`);
-        if (lineNode && to > from) {
-          const left = advance(lineNumber, from);
-          const band = document.createElement("span");
-          band.className = "band";
-          band.style.left = `${left}px`;
-          band.style.width = `${advance(lineNumber, to) - left}px`;
-          lineNode.appendChild(band);
-          bands.push(band);
-        }
-
-        lineStart = lineEnd + 1;
-        lineNumber += 1;
-      }
-    }
-
-    for (const [open, close] of matchPairs(text, cursors)) {
-      drawMatch(text, open);
-      drawMatch(text, close);
-    }
-
-    // Where two boxes meet (an empty pair reads as one merged block), their
-    // facing borders would double into a seam, so those two edges come off and
-    // only the outer frame remains. Boxes are compared by measured position
-    // rather than by drawing order, because the drawing follows the pairs and
-    // a nested pair draws its outer end first.
-    const byLine = new Map();
-    for (const box of matches) {
-      const siblings = byLine.get(box.parentElement);
-      if (siblings) {
-        siblings.push(box);
-      } else {
-        byLine.set(box.parentElement, [box]);
-      }
-    }
-    for (const siblings of byLine.values()) {
-      siblings.sort((a, b) => parseFloat(a.style.left) - parseFloat(b.style.left));
-      for (let i = 1; i < siblings.length; i++) {
-        const left = siblings[i - 1];
-        const right = siblings[i];
-        const leftEdge = parseFloat(left.style.left) + parseFloat(left.style.width);
-        const gap = leftEdge - parseFloat(right.style.left);
-        if (Math.abs(gap) < 0.5) {
-          left.style.borderRightWidth = "0";
-          right.style.borderLeftWidth = "0";
-        }
-      }
-    }
-  }
-
-  // One end of a matched pair: a child of the line it sits on, positioned
-  // from the same advance the band uses, so it scrolls with the content and
-  // rests under the glyphs.
-  function drawMatch(text, offset) {
-    const before = text.slice(0, offset);
-    const row = before.split("\n");
-    const lineNumber = row.length;
-    const column = row[row.length - 1].length;
-    const lineNode = highlightCode.querySelector(`.line[data-line="${lineNumber}"]`);
-    if (!lineNode) {
-      return;
-    }
-
-    const left = advance(lineNumber, column);
-    const right = advance(lineNumber, column + 1);
-    if (right <= left) {
-      return;
-    }
-
-    const box = document.createElement("span");
-    box.className = "match";
-    box.style.left = `${left}px`;
-    box.style.width = `${right - left}px`;
-    lineNode.appendChild(box);
-    matches.push(box);
-  }
-
   // macOS elastic overscroll can report a negative offset for a moment when a
   // fast scroll hits the top. The text layer cannot follow it, so the overlays
   // clamp and hold still instead of bouncing against the text.
@@ -314,6 +134,51 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     };
   }
 
+  let completion = null;
+
+  const selectionLayer = createSelectionLayer({
+    source,
+    highlightCode,
+    advance: measure.advance,
+  });
+
+  const caretLayer = createCaretLayer({
+    store,
+    source,
+    code,
+    highlightCode,
+    metrics,
+    advance: measure.advance,
+    getScroll: scrollOffset,
+    getCursors: () => cursors,
+    initialCaret: caret,
+    onCaretMove: () => completion?.onCaretMove(),
+  });
+
+  function updateSelection() {
+    selectionLayer.render(cursors);
+  }
+
+  function updateCaret() {
+    caretLayer.update();
+  }
+
+  function updateActiveLine() {
+    highlightLayer.updateActiveLine();
+  }
+
+  function renderHighlight(text) {
+    highlightLayer.render(text);
+  }
+
+  function setCursors(next) {
+    cursors = normalize(next, source.value);
+    writeCursors();
+    updateSelection();
+    updateActiveLine();
+    updateCaret();
+  }
+
   function syncScroll() {
     const {left, top} = scrollOffset();
     highlight.scrollTop = top;
@@ -321,250 +186,6 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     gutterInner.style.transform = `translateY(${-top}px)`;
     markers.style.transform = `translate(${-left}px, ${-top}px)`;
     updateCaret();
-  }
-
-  let publishedCursor = null;
-  let publishedCount = 0;
-  let publishedSelection = null;
-  let publishedWidth = 4;
-
-  // Drawn carets, pooled: one per collapsed cursor, grown on demand and
-  // hidden, never destroyed, when the list shrinks. The first entry is the
-  // caret element mounted with the pane.
-  const carets = [caret];
-  const drawnOffsets = [-1];
-
-  // Placement for one caret at one buffer offset, from the same measurements
-  // the overlay and squiggles use: the line comes from the text before the
-  // offset, the horizontal edge from a Range over the rendered line, the
-  // vertical from the line box the pane already trusts.
-  function caretPosition(offset) {
-    const before = source.value.slice(0, offset);
-    const lineIndex = before.split("\n").length - 1;
-    const linePrefix = before.slice(before.lastIndexOf("\n") + 1);
-    const lineNode = highlightCode.querySelector(`.line[data-line="${lineIndex + 1}"]`);
-    const {top} = scrollOffset();
-
-    let x = 0;
-    if (lineNode) {
-      const lineLeft = lineNode.getBoundingClientRect().left;
-      const codeLeft = code.getBoundingClientRect().left;
-      x = Math.round(lineLeft + advance(lineIndex + 1, linePrefix.length) - codeLeft);
-    }
-    const y = Math.round(metrics.padTop + lineIndex * metrics.lineHeight - top);
-    return {x, y};
-  }
-
-  // The native caret can drift against the syntax overlay because the two
-  // layers round their fractional line boxes apart, so it is hidden and these
-  // carets are drawn from the same metrics the overlay and squiggles use.
-  function updateCaret() {
-    const before = source.value.slice(0, source.selectionStart);
-    const lineIndex = before.split("\n").length - 1;
-    const linePrefix = before.slice(before.lastIndexOf("\n") + 1);
-    const column = displayColumns(linePrefix);
-    const focused = document.activeElement === source;
-
-    // The status bar reads the caret position from the store, so every caret
-    // move publishes it, but only for the pane the user is actually in, so the
-    // readout follows the focused view rather than whichever pane drew last.
-    // The selection rides along in the same patch: the strip appends its length
-    // in characters and newlines while a range is selected. The position is the
-    // primary range (cursors[0], the one the textarea mirrors), so a screen of
-    // carets still reports the one the platform calls home.
-    if (focused) {
-      const position = {line: lineIndex + 1, column: column + 1};
-      const changed = !publishedCursor
-        || publishedCursor.line !== position.line
-        || publishedCursor.column !== position.column;
-      if (changed) {
-        publishedCursor = position;
-      }
-
-      const start = source.selectionStart;
-      const end = source.selectionEnd;
-      const selectionChanged = !publishedSelection
-        || publishedSelection.start !== start
-        || publishedSelection.end !== end;
-      if (selectionChanged) {
-        publishedSelection = {start, end};
-      }
-
-      // The strip swaps the position for the caret count while the list holds
-      // more than one, so the headcount rides the same patch.
-      const countChanged = publishedCount !== cursors.length;
-      if (countChanged) {
-        publishedCount = cursors.length;
-      }
-
-      if (changed || selectionChanged || countChanged) {
-        const patch = {};
-        if (changed) {
-          patch.cursor = position;
-        }
-        if (countChanged) {
-          patch.cursorCount = publishedCount;
-        }
-        if (selectionChanged) {
-          const selected = source.value.slice(start, end);
-          patch.selection = start === end ? null : {
-            characters: selected.length,
-            newlines: selected.split("\n").length - 1,
-          };
-        }
-        store.setState(patch);
-      }
-    }
-
-    // The file's indent unit belongs to the text, not the caret, so it is
-    // published whenever the buffer reads a different width, and only then,
-    // since the strip has no use for the same number twice. Focus does not
-    // enter into it: the strip reports the open document even with the pane
-    // clicked away.
-    const width = indentWidth(source.value);
-    if (width !== publishedWidth) {
-      publishedWidth = width;
-      store.setState({indent: width});
-    }
-
-    // Which carets are drawable right now: focused, editable, on screen. Only
-    // collapsed cursors take a bar: a range shows as its band instead. Each
-    // entry also says whether it is a shadow: everything past the primary, the
-    // one the textarea mirrors, gets dressed in the accent blue.
-    const wanted = [];
-    const drawable = focused && !source.readOnly && !code.hidden;
-    if (drawable) {
-      for (let index = 0; index < cursors.length; index++) {
-        const cursor = cursors[index];
-        if (cursor.anchor === cursor.head) {
-          wanted.push({offset: cursor.head, shadow: index > 0});
-        }
-      }
-    }
-
-    while (carets.length < wanted.length) {
-      const extra = document.createElement("div");
-      extra.className = "caret";
-      code.appendChild(extra);
-      carets.push(extra);
-      drawnOffsets.push(-1);
-    }
-
-    let blinkChanged = false;
-    for (let index = 0; index < carets.length; index++) {
-      const element = carets[index];
-      const entry = wanted[index];
-      if (!entry) {
-        element.classList.remove("is-visible");
-        drawnOffsets[index] = -1;
-        continue;
-      }
-
-      const {x, y} = caretPosition(entry.offset);
-      element.style.transform = `translate(${x}px, ${y}px)`;
-      element.classList.toggle("is-shadow", entry.shadow);
-      element.classList.add("is-visible");
-
-      // Nudge the shared clock only when a caret changes position, never on a
-      // scroll frame: a forced reflow here would make the gutter lag the
-      // native scroll, and the whole set comes back up solid together.
-      if (drawnOffsets[index] !== entry.offset) {
-        drawnOffsets[index] = entry.offset;
-        blinkChanged = true;
-      }
-    }
-    if (blinkChanged) {
-      restartBlink();
-    }
-
-    // The completion list rides the caret's coattails: every caret draw
-    // revalidates it, so a click, an undo or the other pane's edit dismisses
-    // or refreshes the popup in the same frame the caret moves, while the
-    // keystroke that may *raise* it answers only from the input, never from
-    // this echo.
-    completion.onCaretMove();
-  }
-
-  function lineNumberAt(offset) {
-    return source.value.slice(0, offset).split("\n").length;
-  }
-
-  function updateActiveLine() {
-    const line = lineNumberAt(source.selectionStart);
-
-    const previousCode = highlightCode.querySelector(".line.active");
-    if (previousCode) {
-      previousCode.classList.remove("active");
-    }
-    const previousGutter = gutterInner.querySelector(".gutter-line.active");
-    if (previousGutter) {
-      previousGutter.classList.remove("active");
-    }
-
-    const codeLine = highlightCode.querySelector(`.line[data-line="${line}"]`);
-    if (codeLine) {
-      codeLine.classList.add("active");
-    }
-    const gutterLine = gutterInner.querySelector(`.gutter-line[data-line="${line}"]`);
-    if (gutterLine) {
-      gutterLine.classList.add("active");
-    }
-  }
-
-  function renderHighlight(text) {
-    const lines = [];
-    let line = "";
-
-    for (const token of tokenize(text)) {
-      token.text.split("\n").forEach((part, index) => {
-        if (index > 0) {
-          lines.push(line);
-          line = "";
-        }
-        if (!part) {
-          return;
-        }
-        if (token.cls) {
-          line += `<span class="${token.cls}">${markGlyphs(part)}</span>`;
-        } else {
-          line += markGlyphs(part);
-        }
-      });
-    }
-    lines.push(line);
-
-    // The gutter wears a bar over every run of lines the buffer has changed
-    // since the baseline: computed here because this is the one place the
-    // gutter's markup is rebuilt: opening, typing and deploying all land in
-    // it, and a bar survives none of them by accident. Consecutive lines are
-    // fused into one element, so a block of changes is one pill with a round
-    // tip at each end instead of a stack of chips.
-    const doc = activeDoc(store.getState());
-    const marked = doc && doc.baseline != null ? changedLines(text, doc.baseline) : [];
-    const runs = [];
-    for (const line of marked) {
-      const last = runs[runs.length - 1];
-      if (last && line === last.end + 1) {
-        last.end = line;
-      } else {
-        runs.push({start: line, end: line});
-      }
-    }
-
-    const codeLineHtml = (content, index) =>
-      `<span class="line" data-line="${index + 1}">${content}</span>`;
-    const gutterLineHtml = (_content, index) =>
-      `<span class="gutter-line" data-line="${index + 1}">${index + 1}</span>`;
-    const runHtml = runs.map(({start, end}) => {
-      const span = end - start + 1;
-      const top = `calc(var(--space-3) + ${start - 1} * var(--line-height-code) + 4px)`;
-      const height = `calc(${span} * var(--line-height-code) - 8px)`;
-      return `<span class="changed-run" style="top: ${top}; height: ${height};"></span>`;
-    });
-
-    highlightCode.innerHTML = lines.map(codeLineHtml).join("");
-    gutterInner.innerHTML = lines.map(gutterLineHtml).join("") + runHtml.join("");
-    updateActiveLine();
   }
 
   function setSourceVisible(visible) {
@@ -625,7 +246,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     tabStrip,
     highlightCode,
     loadDoc,
-    advance,
+    advance: measure.advance,
     adoptText,
     syncScroll,
     updateCaret,
@@ -723,7 +344,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     let high = end - start;
     while (low < high) {
       const middle = Math.floor((low + high + 1) / 2);
-      if (advance(lineNumber, middle) <= target) {
+      if (measure.advance(lineNumber, middle) <= target) {
         low = middle;
       } else {
         high = middle - 1;
@@ -768,11 +389,11 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
   // textarea, code box and edit path, and driven from the three events below:
   // the input (may raise it), the committed edit (may only refresh it) and
   // the caret draw (may refresh or dismiss it).
-  const completion = createCompletion({
+  completion = createCompletion({
     source,
     code,
     store,
-    caretPosition,
+    caretPosition: caretLayer.position,
     metrics,
     getCursors: () => cursors,
     commit: commitEdit,

@@ -7,7 +7,14 @@ body {
     height: 100%;
 }
 
+/* App-shell lockdown: a fixed body of exactly the screen's size. The window
+   itself can never scroll, so a raised touch keyboard cannot drag the page
+   out of view or leave the viewport half-restored when it folds away — the
+   two mobile blank-space culprits. Inner scrolling stays with the message
+   column, the panels and the editor, which scroll their own boxes. */
 body {
+    position: fixed;
+    inset: 0;
     margin: 0;
     overflow: hidden;
     color: var(--text);
@@ -55,4 +62,34 @@ textarea {
 
 .is-dragging {
     user-select: none;
+}
+
+/* The app's own scrollbar, stated once for every scroll surface: a slim
+   translucent thumb on an invisible track, firming up as the pointer lands.
+   The standard properties carry Firefox and current Chromium; the
+   -webkit rules below are the fallback for older Chromium builds. Areas
+   that hide the bar outright (tab strip, completion list, the editor under
+   its minimap) keep their own scrollbar-width: none, which out-ranks these. */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scroll-thumb) transparent;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--scroll-thumb);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--scroll-thumb-hover);
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+    background: transparent;
 }

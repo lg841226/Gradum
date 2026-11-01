@@ -1,4 +1,5 @@
 import {findDoc, findDocByName, withDoc} from "../core/store.js";
+import {HttpError} from "../data/http.js";
 import {loadSkill} from "../data/skillsApi.js";
 import {createTextField} from "../ui/components/field.js";
 import {renderTabStrip} from "../ui/components/tab.js";
@@ -49,22 +50,39 @@ export function mountTabs(store, {strips}) {
     return `NewSkill${index}.kt`;
   }
 
-  async function open(name) {
-    const existing = findDocByName(store.getState(), name);
-    if (existing) {
-      activate(existing.id);
+  // A click on a loading file joins the request already in flight instead of
+  // posting a second one: both would otherwise race to add a document and the
+  // loser would leave a duplicate tab behind.
+  const loading = new Map();
+
+  async function loadDoc(name) {
+    let remote;
+    try {
+      remote = await loadSkill(name);
+    } catch (error) {
+      // Never fall back to the template here: an unauthorized or failed read
+      // would open a blank document over a real skill on the next deploy.
+      if (error instanceof HttpError) {
+        const text = error.status === 401 || error.status === 403
+          ? copy.status.unauthorized
+          : copy.status.loadFailed(name, error.detail);
+        store.setState({status: {text, tone: "error"}});
+      } else {
+        store.setState({status: {text: copy.status.unreachable, tone: "error"}});
+      }
       return;
     }
 
-    let remote = null;
-    try {
-      remote = await loadSkill(name);
-    } catch (_error) {
-      // The server is down: open the template and surface the reason instead of
-      // dropping the open request.
-      store.setState({status: {text: copy.status.unreachable, tone: "error"}});
+    // A rename or another opener may have created the tab while the source was
+    // in flight; reuse it rather than adding a second document of that name.
+    const current = findDocByName(store.getState(), name);
+    if (current) {
+      activate(current.id);
+      return;
     }
 
+    // 404 is the only answer that means "this skill does not exist yet", so
+    // it opens an empty starter; every other failure returned above.
     const source = remote === null ? starter : remote;
     addDoc({
       id: store.getState().nextId,
@@ -74,6 +92,28 @@ export function mountTabs(store, {strips}) {
       dirty: false,
       diagnostics: [],
     });
+  }
+
+  async function open(name) {
+    const existing = findDocByName(store.getState(), name);
+    if (existing) {
+      activate(existing.id);
+      return;
+    }
+
+    const pending = loading.get(name);
+    if (pending) {
+      await pending;
+      return;
+    }
+
+    const task = loadDoc(name);
+    loading.set(name, task);
+    try {
+      await task;
+    } finally {
+      loading.delete(name);
+    }
   }
 
   function create() {

@@ -59,10 +59,11 @@ class JsonRpcSessionTest {
   }
 
   @Test
-  fun `times out when no response arrives`() = runBlocking {
-    val session = JsonRpcSession(sendFrame = {})
-    assertFailsWith<TimeoutCancellationException> {
-      session.call("tools/list", timeoutMillis = 50)
+  fun `times out when no response arrives`(): Unit =
+    runBlocking {
+      val session = JsonRpcSession(sendFrame = {})
+      assertFailsWith<TimeoutCancellationException> {
+        session.call("tools/list", timeoutMillis = 50)
+      }
     }
-  }
 }

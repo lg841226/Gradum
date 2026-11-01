@@ -2,43 +2,53 @@ import {createButton, createIconButton} from "../ui/components/button.js";
 import {createIcon} from "../ui/components/icon.js";
 import {copy} from "../ui/copy.js";
 import {createTheme} from "../core/theme.js";
+import {isFloatLayout} from "./floatPanels.js";
 
-// The view menu: the three views as plain text in a bar across the top, the way
-// a desktop window lists its menus. The menu owns the selected view; Problems
-// and Console also drive the bottom tool window, while Explorer toggles the rail
-// the way the platform toggles a tool window from its own bar button. The run
-// widget sits in the middle and names the skill it would run.
+// The view menu: a two-position mode switch leads the bar — Developer is the
+// editor workspace, Agent hands the cell to the assistant overlay — and the
+// view entries sit to its right, the same menu as before. The run widget sits
+// in the middle and names the skill it would run.
 export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
   const bar = document.createElement("nav");
   bar.className = "menubar";
 
+  const modes = [
+    {
+      name: "developer",
+      label: copy.control.developer,
+      select: () => ({chatOpen: false}),
+    },
+    {
+      name: "agent",
+      label: copy.control.agent,
+      select: () => ({chatOpen: true}),
+    },
+  ];
+
+  // Each view names the modes it belongs to, so the menu is a per-mode list
+  // rather than one shared row: the entries only appear while that mode holds
+  // the switch. The agent mode gains its own entries as its features grow.
   const views = [
     {
       name: "explorer",
       label: copy.control.explorer,
       mnemonic: 0,
+      modes: ["developer"],
       select: (state) => ({view: "explorer", railCollapsed: !state.railCollapsed}),
     },
     {
       name: "problems",
       label: copy.control.problems,
       mnemonic: 0,
+      modes: ["developer"],
       select: () => ({view: "problems", panel: "problems", collapsed: false}),
     },
     {
       name: "output",
       label: copy.control.output,
       mnemonic: 0,
+      modes: ["developer"],
       select: () => ({view: "output", panel: "output", collapsed: false}),
-    },
-    // The assistant is an overlay view of its own: it takes the editor's cell
-    // while open and hands it back on the second click, leaving the rest of
-    // the layout untouched.
-    {
-      name: "assistant",
-      label: copy.control.assistant,
-      mnemonic: 0,
-      select: (state) => ({chatOpen: !state.chatOpen}),
     },
     // Two layout presets close the list: the editor alone, and everything back.
     // Editor skips its first letter: the E already belongs to Explorer, so its
@@ -48,18 +58,30 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
       name: "editor",
       label: copy.control.editor,
       mnemonic: 1,
+      modes: ["developer"],
       select: () => ({view: "editor", railCollapsed: true, collapsed: true}),
     },
     {
       name: "all",
       label: copy.control.all,
       mnemonic: 0,
+      modes: ["developer"],
       select: () => ({view: "all", railCollapsed: false, collapsed: false}),
+    },
+    {
+      name: "session",
+      label: copy.control.session,
+      mnemonic: 0,
+      modes: ["agent"],
+      select: (state) => ({view: "session", railCollapsed: !state.railCollapsed}),
     },
   ];
 
+  const modesGroup = document.createElement("div");
+  modesGroup.className = "menubar-group menubar-modes";
+
   const viewsGroup = document.createElement("div");
-  viewsGroup.className = "menubar-group";
+  viewsGroup.className = "menubar-group menubar-views";
 
   // The brand leads the bar, the way a desktop window titles itself before
   // listing its menus.
@@ -77,15 +99,46 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
   brandName.textContent = copy.brand.name;
   brand.append(logo, brandName);
 
+  const modeItems = modes.map((mode) => {
+    const button = createButton({
+      label: mode.label,
+      variant: "menu",
+      onClick: () => {
+        store.setState(mode.select(store.getState()));
+        closeNav();
+      },
+    });
+    modesGroup.appendChild(button);
+    return {name: mode.name, button};
+  });
+
   const items = views.map((view) => {
     const button = createButton({
       label: view.label,
       variant: "menu",
-      onClick: () => store.setState(view.select(store.getState())),
+      onClick: () => {
+        store.setState(view.select(store.getState()));
+        closeNav();
+      },
     });
     underlineMnemonic(button, view.mnemonic);
     viewsGroup.appendChild(button);
-    return {name: view.name, button};
+    return {name: view.name, button, modes: view.modes};
+  });
+
+  // Touch devices have no hover and no room for a menu bar, so the entries
+  // gather behind a hamburger: tapping it drops the views as one vertical
+  // island under the bar, and a selection (or a tap anywhere else) closes it.
+  const closeNav = () => bar.classList.remove("nav-open");
+
+  const navToggle = createIconButton({
+    icon: "menu",
+    tooltip: "Menu",
+    onClick: () => bar.classList.toggle("nav-open"),
+  });
+  navToggle.classList.add("menubar-nav-toggle");
+  document.addEventListener("click", (event) => {
+    if (bar.classList.contains("nav-open") && !bar.contains(event.target)) closeNav();
   });
 
   const widget = document.createElement("div");
@@ -118,6 +171,28 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
 
   widget.append(createIcon({name: "kotlin"}), widgetName, actions);
 
+  // The agent mode answers with its own widget: a breadcrumb of the repository
+  // the session runs against, then the run mark with its title. The mark is
+  // empty while idle: it spins while a run streams, lifts a check when the run
+  // lands, and folds away again a moment later.
+  const agentWidget = document.createElement("div");
+  agentWidget.className = "run-widget agent-widget";
+
+  const agentRepo = document.createElement("span");
+  agentRepo.className = "agent-widget-repo";
+
+  const agentSep = document.createElement("span");
+  agentSep.className = "agent-widget-sep";
+  agentSep.append(createIcon({name: "chevrons"}));
+
+  const agentMark = document.createElement("span");
+  agentMark.className = "agent-widget-mark";
+
+  const agentName = document.createElement("span");
+  agentName.className = "agent-widget-name";
+
+  agentWidget.append(agentRepo, agentSep, agentMark, agentName);
+
   const leftGroup = document.createElement("div");
   leftGroup.className = "menubar-group menubar-left";
   leftGroup.append(brand, viewsGroup);
@@ -135,33 +210,41 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
   // right, the other stacks it below. They share the one split the editor keeps,
   // so the pressed one is always the direction in force. The minimap toggle
   // leads them: it folds the overview strip away and grows it back, and it is
-  // pressed while the strip is in view.
+  // pressed while the strip is in view. Afloat there is no room worth splitting
+  // and no width for an overview strip, so the three stay desktop-only.
   const minimapButton = createIconButton({
     icon: "minimap",
     tooltip: copy.tooltip.hideMinimap,
     onClick: () => store.setState({minimapHidden: !store.getState().minimapHidden}),
   });
+  minimapButton.hidden = isFloatLayout();
 
   const splitButton = createIconButton({
     icon: "split",
     tooltip: copy.tooltip.split,
     onClick: () => onToggleSplit?.("right"),
   });
+  splitButton.hidden = isFloatLayout();
 
   const splitDownButton = createIconButton({
     icon: "split-down",
     tooltip: copy.tooltip.splitDown,
     onClick: () => onToggleSplit?.("down"),
   });
+  splitDownButton.hidden = isFloatLayout();
 
+  // The mode switch trails the bar's icon toggles, closing the right group at
+  // its far end.
   const rightGroup = document.createElement("div");
   rightGroup.className = "menubar-group menubar-right";
-  rightGroup.append(minimapButton, splitButton, splitDownButton, themeButton);
+  rightGroup.append(minimapButton, splitButton, splitDownButton, themeButton, modesGroup);
 
-  bar.append(leftGroup, widget, rightGroup);
+  bar.append(navToggle, leftGroup, widget, agentWidget, rightGroup);
   canvas.appendChild(bar);
 
   let busyKey = null;
+  let agentBusyShown = false;
+  let markTimer = null;
 
   // The bar folds its view entries away as the room shrinks, rather than at
   // fixed breakpoints: it measures once how much space everything else needs,
@@ -171,36 +254,40 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
   let measured = false;
   let entryWidths = [];
   let entryGap = 0;
-  let leftGap = 0;
 
   // Read with every entry still unfolded, so the numbers are their natural
   // size. The entries never shrink: the stylesheet holds them at their content
   // width, so nothing is squeezed while this runs.
   function measure() {
     bar.classList.add("is-measuring");
-    entryWidths = items.map((item) => item.button.offsetWidth);
+    entryWidths = items.map((item) => item.button.hidden ? 0 : item.button.offsetWidth);
     bar.classList.remove("is-measuring");
 
     // Gaps are read rather than assumed, so a change to the spacing tokens needs
     // no matching change here.
     entryGap = parseFloat(getComputedStyle(viewsGroup).columnGap) || 0;
-    leftGap = parseFloat(getComputedStyle(leftGroup).columnGap) || 0;
     items.forEach((item, index) => {
-      item.button.style.setProperty("--menu-entry-width", `${entryWidths[index]}px`);
+      if (!item.button.hidden) {
+        item.button.style.setProperty("--menu-entry-width", `${entryWidths[index]}px`);
+      }
     });
     measured = true;
   }
 
   function layout() {
-    // The entries' room is whatever the left track got, less the brand that leads
-    // it. The track is an equal share of the space either side of the widget: it
-    // does not depend on the entries' own widths: so this is stable and the fold
-    // cannot oscillate.
-    const room = leftGroup.clientWidth - brand.offsetWidth - leftGap;
+    // The entries' room is whatever the left track got, less the brand that
+    // leads it. The track is an equal share of the space either side of the
+    // widget: it does not depend on the entries' own widths: so this is stable
+    // and the fold cannot oscillate. Entries hidden by the mode switch cost
+    // nothing and never fold.
+    const room = leftGroup.clientWidth - brand.offsetWidth;
     let used = 0;
     let folding = false;
 
     const folded = items.map((item, index) => {
+      if (item.button.hidden) {
+        return false;
+      }
       const cost = entryWidths[index] + (index > 0 ? entryGap : 0);
       const shouldFold = !folding && index > 0 && used + cost > room;
       if (shouldFold) {
@@ -209,23 +296,81 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
       if (!folding) {
         used += cost;
       }
-      return folding;
+      return shouldFold;
     });
     items.forEach((item, index) => item.button.classList.toggle("is-folded", folded[index]));
   }
 
-  // The menu tracks its own selected view, so selecting Explorer moves the
-  // highlight without touching the bottom tool window. The widget names the
-  // skill it would run, the way the platform run widget names its configuration.
+  // The switch mirrors the chat overlay flag, so selecting a segment moves the
+  // highlight and the assistant answers in the same render. The widget names
+  // the skill it would run, the way the platform run widget names its
+  // configuration.
   const render = (state) => {
-    canvas.classList.toggle("rail-collapsed", state.railCollapsed || state.autoRail);
+    // Afloat the rail takes no editor room, so the size-driven auto step-aside
+    // no longer applies and only the user's own toggle decides.
+    canvas.classList.toggle(
+      "rail-collapsed",
+      state.railCollapsed || (!isFloatLayout() && state.autoRail));
+    // The switch's pressed segment mirrors the overlay flag: Agent while the
+    // assistant holds the cell, Developer once it hands it back. Each view
+    // entry only exists in the modes that name it, so the menu swaps with the
+    // switch; the pressed entry tracks the selected view.
+    const activeMode = state.chatOpen === true ? "agent" : "developer";
+    for (const item of modeItems) {
+      item.button.setAttribute("aria-pressed", item.name === activeMode ? "true" : "false");
+    }
     for (const item of items) {
-      // The assistant entry tracks its own overlay flag; every other entry
-      // tracks the selected view.
-      const pressed = item.name === "assistant"
-        ? state.chatOpen === true
-        : item.name === state.view;
-      item.button.setAttribute("aria-pressed", pressed ? "true" : "false");
+      item.button.hidden = !item.modes.includes(activeMode);
+      item.button.setAttribute(
+        "aria-pressed",
+        item.name === state.view && !item.button.hidden ? "true" : "false",
+      );
+    }
+
+    // The two widgets trade the middle of the bar with the mode: build and run
+    // name a skill on the developer side; the agent side names the repository
+    // and the session, its mark spinning while a run streams.
+    widget.hidden = activeMode === "agent";
+    agentWidget.hidden = activeMode !== "agent";
+
+    const repo = state.projectRoot ? basename(state.projectRoot) : "";
+    if (agentRepo.textContent !== repo) {
+      agentRepo.textContent = repo;
+    }
+    agentRepo.hidden = !repo;
+    agentSep.hidden = !repo;
+
+    // The mark is a small state machine keyed to the run: the busy edge swaps
+    // in the spinning loader, the settle edge lifts the check and schedules
+    // its exit, and an idle mark carries no icon at all.
+    const busy = state.chatBusy === true;
+    if (busy !== agentBusyShown) {
+      agentBusyShown = busy;
+      clearTimeout(markTimer);
+      if (busy) {
+        agentMark.classList.remove("is-done", "is-leaving");
+        agentMark.classList.add("is-busy");
+        agentMark.replaceChildren(createIcon({name: "spinner"}));
+      } else {
+        agentMark.classList.remove("is-busy");
+        agentMark.classList.add("is-done");
+        agentMark.replaceChildren(createIcon({name: "check"}));
+        markTimer = setTimeout(() => {
+          agentMark.classList.add("is-leaving");
+          markTimer = setTimeout(() => {
+            // Past the fade, the classes drop and the box folds shut on its
+            // own width transition.
+            agentMark.classList.remove("is-done", "is-leaving");
+            agentMark.replaceChildren();
+          }, 180);
+        }, 2400);
+      }
+    }
+
+    const session = (state.sessions ?? []).find((item) => item.id === state.activeSession);
+    const sessionLabel = session?.title ?? copy.agent.untitled;
+    if (agentName.textContent !== sessionLabel) {
+      agentName.textContent = sessionLabel;
     }
 
     const activeName = state.docs.find((doc) => doc.id === state.activeId)?.name ?? "";
@@ -325,6 +470,12 @@ function underlineMnemonic(button, index) {
   mark.className = "mnemonic";
   mark.textContent = text.slice(index, index + 1);
   span.replaceChildren(text.slice(0, index), mark, text.slice(index + 1));
+}
+
+// The agent widget names the repository the session runs against, so only the
+// root's last segment shows: "/Users/me/Gradum" reads as "Gradum".
+function basename(path) {
+  return path.split("/").filter(Boolean).pop() ?? path;
 }
 
 // "HelloSkill.kt" reads as "Hello" in the widget: the file icon already says it

@@ -159,11 +159,16 @@ object ServerAuth {
   fun isLoopbackBindHost(host: String): Boolean =
     host.trim().lowercase() in ALLOWED_HOST_NAMES
 
+  private val VIRTUAL_INTERFACE_NAMES: Regex =
+    Regex("^(vmnet|vmenet|utun|awdl|llw|anpi|ap\\d|bridge|docker|veth|vnic|virbr|tap|tun)")
+
   /**
    * Addresses this machine answers on: the ones a LAN client puts in its
    * `Host` header once the server binds past loopback. Loopback is skipped
-   * (it is already in [ALLOWED_HOST_NAMES]) and so is the link-local range,
-   * whose zone-qualified IPv6 forms never appear in a browser's Host line.
+   * (it is already in [ALLOWED_HOST_NAMES]), so is the link-local range,
+   * whose zone-qualified IPv6 forms never appear in a browser's Host line,
+   * and so are known virtual interfaces, whose addresses are unreachable
+   * from other devices.
    */
   fun localAddresses(): List<String> {
     val addresses: MutableList<String> = mutableListOf()
@@ -171,6 +176,7 @@ object ServerAuth {
       val interfaces = NetworkInterface.getNetworkInterfaces() ?: return addresses
       for (networkInterface in interfaces) {
         if (!networkInterface.isUp) continue
+        if (VIRTUAL_INTERFACE_NAMES.containsMatchIn(networkInterface.name.lowercase())) continue
         for (address in networkInterface.inetAddresses) {
           if (address.isLoopbackAddress || address.isLinkLocalAddress) continue
           val literal: String = address.hostAddress?.substringBefore('%')?.lowercase() ?: continue

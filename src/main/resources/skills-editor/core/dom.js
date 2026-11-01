@@ -5,12 +5,6 @@ export function clear(node) {
   return node;
 }
 
-const HTML_ESCAPES = {"&": "&amp;", "<": "&lt;", ">": "&gt;"};
-
-export function escapeHtml(value) {
-  return String(value).replace(/[&<>]/g, (char) => HTML_ESCAPES[char]);
-}
-
 export function formatTime(date = new Date()) {
   return date.toLocaleTimeString();
 }

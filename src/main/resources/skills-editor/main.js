@@ -12,10 +12,13 @@ import {mountMenubar} from "./features/menubar.js";
 import {mountMinimap} from "./features/minimap.js";
 import {mountSplitters} from "./features/splitter.js";
 import {mountStatusBar} from "./features/statusbar.js";
-import {mountAssistant} from "./features/assistant.js";
+import {mountFloatPanels} from "./features/floatPanels.js";
+import {mountAssistant} from "./features/assistant/index.js";
 import {mountTooltip} from "./ui/components/tooltip.js";
 import {mountDiagnostics} from "./features/diagnostics.js";
 import {createLayoutWriter, loadLayout} from "./core/persistence.js";
+import {STORAGE_KEYS} from "./core/storageKeys.js";
+import {readStorage} from "./core/storage.js";
 
 const DEFAULT_SKILL = "HelloSkill.kt";
 
@@ -42,15 +45,11 @@ const store = createStore({
   busyTask: null,
   activeId: null,
   chatOpen: false,
+  chatBusy: false,
   sessions: [],
   activeSession: null,
-  projectRoot: (() => {
-    try {
-      return localStorage.getItem("legatus.projectRoot") ?? "";
-    } catch (_error) {
-      return "";
-    }
-  })(),
+  chatTabs: [],
+  projectRoot: readStorage(STORAGE_KEYS.projectRoot, ""),
   autoRail: false,
   collapsed: false,
   autoBottom: false,
@@ -103,6 +102,7 @@ try {
     onCreate: () => (store.getState().chatOpen ? assistant.newChat() : tabs.create()),
     onOpenSession: (id) => assistant.openSession(id),
   });
+  mountFloatPanels(store, {canvas});
 
   mountDiagnostics(store, {body: panels.problemsBody, editor});
   mountConsole(store, {body: panels.outputBody});
@@ -131,7 +131,11 @@ try {
 
     if (event.key === "n") {
       event.preventDefault();
-      tabs.create();
+      if (store.getState().chatOpen) {
+        assistant.newChat();
+      } else {
+        tabs.create();
+      }
     } else if (event.key === "w") {
       event.preventDefault();
       tabs.closeActive();
@@ -143,6 +147,19 @@ try {
       panels.show("output");
     }
   });
+
+  // Touch keyboards: raising the keyboard shrinks the visual viewport and the
+  // browser scrolls the window to reach the focused input; lowering it grows
+  // the viewport back but leaves that offset behind, showing blank space past
+  // the canvas. The layout is app-fixed, so the window never scrolls by
+  // design — pin it back to the origin whenever it drifts.
+  const pinScroll = () => {
+    if (window.scrollY !== 0 || window.scrollX !== 0) {
+      window.scrollTo(0, 0);
+    }
+  };
+  window.visualViewport?.addEventListener("resize", pinScroll);
+  window.addEventListener("scroll", pinScroll, {passive: true});
 
   store.setState({
     log: [...store.getState().log, {time: formatTime(), message: copy.log.ready(), tone: null}],

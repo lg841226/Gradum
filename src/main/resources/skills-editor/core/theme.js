@@ -1,23 +1,20 @@
 // Single source of truth for the editor's color theme.
 //
 // The preference is either "light" or "dark" and is persisted under
-// [STORAGE_KEY]. The resolved value is written to <HTML data-theme> so the CSS
-// only switches on the two concrete palettes in tokens.css.
+// STORAGE_KEYS.theme. The resolved value is written to <HTML data-theme> so the
+// CSS only switches on the two concrete palettes in tokens.css.
 //
-// index.html repeats [STORAGE_KEY] in its pre-paint script so the first frame
-// is already themed; keep the two literals in sync.
+// index.html repeats the key in its pre-paint script so the first frame is
+// already themed; that is the one literal outside core/storageKeys.js.
 
-export const STORAGE_KEY = "gradum.skillsEditor.theme";
+import {STORAGE_KEYS} from "./storageKeys.js";
+import {readStorage, writeStorage} from "./storage.js";
 
 const PREFERENCES = ["light", "dark"];
 
 function readPreference() {
-  try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    return PREFERENCES.includes(stored) ? stored : "dark";
-  } catch (storageError) {
-    return "dark";
-  }
+  const stored = readStorage(STORAGE_KEYS.theme, "dark");
+  return PREFERENCES.includes(stored) ? stored : "dark";
 }
 
 export function createTheme() {
@@ -40,11 +37,7 @@ export function createTheme() {
     resolved: () => preference,
     cycle() {
       preference = PREFERENCES[(PREFERENCES.indexOf(preference) + 1) % PREFERENCES.length];
-      try {
-        window.localStorage.setItem(STORAGE_KEY, preference);
-      } catch (storageError) {
-        // A failed write only costs persistence, not the in-session switch.
-      }
+      writeStorage(STORAGE_KEYS.theme, preference);
       apply();
       notify();
     },

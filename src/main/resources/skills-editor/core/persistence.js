@@ -8,11 +8,12 @@
 //
 // Only choices are kept. The size-driven overrides (autoRail / autoBottom) are
 // recomputed from the window on every boot, and the documents come back from the
-// server, so neither belongs here. The theme has its own key in core/theme.js,
-// because it has to be applied before the first paint; this one is read while the
-// store is being built.
+// server, so neither belongs here. The theme has its own key in
+// core/storageKeys.js, because it has to be applied before the first paint;
+// this one is read while the store is being built.
 
-export const STORAGE_KEY = "gradum.skillsEditor.layout";
+import {STORAGE_KEYS} from "./storageKeys.js";
+import {readJsonStorage, writeStorage} from "./storage.js";
 
 const LAYOUT_KEYS = {
   view: "string",
@@ -50,12 +51,8 @@ function pickLayout(source) {
 // The patch to spread over the store's defaults at boot. Anything missing or
 // unreadable simply leaves the default in place.
 export function loadLayout() {
-  try {
-    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "null");
-    return stored && typeof stored === "object" ? pickLayout(stored) : {};
-  } catch (storageError) {
-    return {};
-  }
+  const stored = readJsonStorage(STORAGE_KEYS.layout, null);
+  return stored && typeof stored === "object" ? pickLayout(stored) : {};
 }
 
 // The store subscriber that writes the layout back. It compares against what it
@@ -80,10 +77,6 @@ export function createLayoutWriter() {
       return;
     }
     lastWritten = serialized;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, serialized);
-    } catch (storageError) {
-
-    }
+    writeStorage(STORAGE_KEYS.layout, serialized);
   };
 }

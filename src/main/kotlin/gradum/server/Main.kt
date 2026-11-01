@@ -18,6 +18,7 @@ import kotlinx.coroutines.runBlocking
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.net.BindException
+import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.UnknownHostException
 
@@ -190,22 +191,20 @@ private fun startHttp(arguments: Array<String>) {
 
   val server: GradumServer = createServerInstance(serverConfiguration)
 
-  val editorPath = "/skills/editor?${ServerAuth.TOKEN_QUERY_PARAM}=$authToken"
+  // One product, one entry: /skills/editor is a legacy alias of /legatus
+  // (both answer through respondWorkspacePage), so only /legatus is printed.
   val legatusPath = "/legatus?${ServerAuth.TOKEN_QUERY_PARAM}=$authToken"
-  if (exposedToNetwork) {
-    logger.info("Skill editor (this machine): http://localhost:$resolvedPort$editorPath")
-    logger.info("Gradum Legatus (this machine): http://localhost:$resolvedPort$legatusPath")
-    for (address in ServerAuth.localAddresses()) {
-      val urlHost: String = if (address.contains(':')) "[$address]" else address
-      logger.info("Skill editor (LAN): http://$urlHost:$resolvedPort$editorPath")
-      logger.info("Gradum Legatus (LAN): http://$urlHost:$resolvedPort/legatus")
+  logger.info("Gradum Legatus (this machine): http://localhost:$resolvedPort$legatusPath")
+  val lanAddresses: List<String> = ServerAuth.localAddresses()
+  val primaryLan: String? = preferredLanAddress(lanAddresses)
+  if (primaryLan != null) {
+    if (!exposedToNetwork) {
+      logger.info(
+        "The LAN links below answer remote clients once \"allowRemote\": true is set in ~/.gradum/settings.json"
+      )
     }
-  } else {
-    val editorHost: String =
-      if (settings.host.contains(':')) "[${settings.host}]"
-      else settings.host
-    logger.info("Skill editor: http://$editorHost:$resolvedPort$editorPath")
-    logger.info("Gradum Legatus: http://$editorHost:$resolvedPort$legatusPath")
+    val primaryHost: String = if (primaryLan.contains(':')) "[$primaryLan]" else primaryLan
+    logger.info("Gradum Legatus (LAN): http://$primaryHost:$resolvedPort$legatusPath")
   }
 
   Runtime.getRuntime().addShutdownHook(Thread {
@@ -334,6 +333,30 @@ private fun printStartupBanner(
 }
 
 private fun rightCell(text: String, width: Int): String = text.take(width).padEnd(width)
+
+// Picks the LAN address most likely to reach this machine from another
+// device. A UDP "connection" to a public address has no packets on the wire
+// but the OS picks the default-route interface for it, which is the one a
+// phone on the same Wi-Fi can answer; virtual adapters (vmnet and friends)
+// never carry the default route. Falls back to site-local IPv4 heuristics.
+private fun preferredLanAddress(addresses: List<String>): String? {
+  val outbound: String? = try {
+    DatagramSocket().use { socket: DatagramSocket ->
+      socket.connect(InetAddress.getByName("8.8.8.8"), 53)
+      socket.localAddress.hostAddress?.takeUnless { it.isEmpty() }
+    }
+  } catch (_: Exception) {
+    null
+  }?.takeIf { candidate -> candidate in addresses }
+  if (outbound != null) return outbound
+
+  val ipv4: List<String> = addresses.filter { !it.contains(':') }
+  return ipv4.firstOrNull { it.startsWith("192.168.") && !it.endsWith(".1") }
+    ?: ipv4.firstOrNull { it.startsWith("192.168.") }
+    ?: ipv4.firstOrNull { it.startsWith("10.") }
+    ?: ipv4.firstOrNull()
+    ?: addresses.firstOrNull()
+}
 
 private fun emphasize(text: String, colored: Boolean, style: String): String =
   if (colored) ANSI_BOLD + style + text + ANSI_RESET else text

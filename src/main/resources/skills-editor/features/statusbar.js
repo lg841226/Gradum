@@ -138,9 +138,20 @@ export function mountStatusBar(store, {canvas}) {
 
   const render = (state) => {
     const doc = activeDoc(state);
+    const chat = state.chatOpen === true;
 
-    left.hidden = !doc && !state.chatOpen;
-    rootInput.hidden = !state.chatOpen;
+    // The agent mode owns the strip: the counts and the editor-facing values
+    // describe the developer workspace, so they leave with it and only the
+    // project root stays. The strip reads the mode from the store, so nothing
+    // outside this render couples the two features.
+    left.hidden = !doc && !chat;
+    errors.item.hidden = chat;
+    warnings.item.hidden = chat;
+    rootInput.hidden = !chat;
+    position.hidden = chat;
+    indent.hidden = chat;
+    lineEnding.hidden = chat;
+    encoding.hidden = chat;
     if (rootInput.value !== shorten(state.projectRoot) && document.activeElement !== rootInput) {
       rootInput.value = shorten(state.projectRoot);
     }

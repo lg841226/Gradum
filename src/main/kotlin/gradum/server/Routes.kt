@@ -1243,6 +1243,9 @@ fun Application.registerAllRoutes(
         )
         return@get
       }
+      // Editor assets iterate rapidly during development; revalidate each time
+      // so a rebuilt bundle is picked up without a hard refresh.
+      call.response.header(HttpHeaders.CacheControl, "no-cache")
       call.respondText(text = body, contentType = contentType)
     }
 

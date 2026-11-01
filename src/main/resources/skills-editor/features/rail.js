@@ -52,7 +52,13 @@ export function mountRail(store, {canvas, onOpen, onCreate, onOpenSession}) {
 
     const activeName = state.docs.find((doc) => doc.id === state.activeId)?.name ?? null;
     const next = chat
-      ? JSON.stringify(["chat", state.sessions, state.activeSession, state.projectRoot, state.treeCollapsed])
+      ? JSON.stringify([
+        "chat",
+        state.sessions,
+        state.activeSession,
+        state.projectRoot,
+        state.treeCollapsed,
+      ])
       : JSON.stringify([
         "skills",
         [...new Set([...state.files, ...state.docs.map((doc) => doc.name)])],
@@ -70,7 +76,7 @@ export function mountRail(store, {canvas, onOpen, onCreate, onOpenSession}) {
     if (chat) {
       // The session tree mirrors the skill tree exactly: a folder root row
       // with its twisty, then one icon row per session, built from the same
-      // list components. The fold state is shared with the skill tree — it is
+      // list components. The fold state is shared with the skill tree: it is
       // the same panel, one tree at a time.
       const branch = document.createElement("div");
       branch.className = "tree-children";
@@ -90,14 +96,6 @@ export function mountRail(store, {canvas, onOpen, onCreate, onOpenSession}) {
         onToggle: () => store.setState({treeCollapsed: !store.getState().treeCollapsed}),
         children: branch,
       }));
-      if (state.sessions.length === 0) {
-        const hint = document.createElement("div");
-        hint.className = "list-hint";
-        hint.textContent = state.projectRoot
-          ? "No sessions yet."
-          : "Set a project root in the status bar below.";
-        list.appendChild(hint);
-      }
       return;
     }
 

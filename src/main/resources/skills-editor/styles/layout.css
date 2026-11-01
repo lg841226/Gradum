@@ -13,7 +13,10 @@ html.is-booting * {
 }
 
 .canvas {
-    height: 100vh;
+    /* Inherited from the fixed body (base.css): exactly the screen, never the
+       keyboard-shrunk viewport, so no blank band is left below the canvas when
+       the touch keyboard folds away. */
+    height: 100%;
     padding: var(--island-gap);
     display: grid;
     grid-template-columns:
@@ -47,18 +50,12 @@ html.is-booting * {
     color: var(--text-dim);
 }
 
-/* Both bottom pages (Problems and Output) keep scrolling but drop their
-   bar, the way the completion list does: the rows and the panel's own padding
-   do the framing. */
+/* Both bottom pages (Problems and Output) scroll under the app-wide scrollbar
+   (base.css); the rows and the panel's own padding do the framing. */
 .panel-body {
     flex: 1 1 auto;
     min-height: 0;
     overflow: auto;
-    scrollbar-width: none;
-}
-
-.panel-body::-webkit-scrollbar {
-    display: none;
 }
 
 /* View menu: the views as plain text in a bar across the top, the way a desktop
@@ -129,6 +126,37 @@ html.is-booting * {
     white-space: nowrap;
 }
 
+/* The Developer/Agent switch, matched to the reference: a solid light-gray
+   fully rounded track; the pressed segment lifts as an opaque white chip with
+   a faint drop shadow and no border, reading as a slider floating on the
+   track; the unpressed segments keep no background of their own and dim to
+   the track. Segments share one width so the row reads evenly spaced. */
+.menubar .menubar-modes {
+    padding: 2px;
+    background: var(--bg-raised);
+    border-radius: 999px;
+}
+
+.menubar .menubar-modes .btn[data-variant="menu"] {
+    flex: 1 1 0;
+    justify-content: center;
+    min-width: 60px;
+    height: auto;
+    padding: 2px var(--space-3);
+    border-radius: 999px;
+}
+
+.menubar .menubar-modes .btn[data-variant="menu"][aria-pressed="true"] {
+    background: var(--bg-popup);
+    box-shadow: 0 1px 3px rgb(9 13 24 / 22%);
+}
+
+/* A mode-filtered entry leaves the menu entirely; the button's own display
+   would out-rank the global hidden guard, so it is restated here. */
+.menubar .btn[data-variant="menu"][hidden] {
+    display: none;
+}
+
 /* A menu entry folds shut on its own rather than vanishing at a breakpoint:
    the width cap runs to zero while the padding, the gap it holds open and its
    opacity follow, so the entries to its left slide over as it goes. The cap
@@ -163,6 +191,140 @@ html.is-booting * {
    ever get), so a fold cap never clips a label. */
 .menubar.is-measuring .btn[data-variant="menu"] {
     font-weight: var(--weight-semibold);
+}
+
+/* Touch nav: the hamburger sits ahead of the brand and only exists on devices
+   without hover (there the entries live behind it). A tap drops the views as
+   one vertical island hanging from the bar; the run widget and the right
+   toggles stay on the bar, since they are icons and already fit. The trigger
+   is any of: no hover, a coarse pointer, or a narrow viewport — many mobile
+   browsers claim hover:hover, so no single check catches them all. */
+.menubar-nav-toggle {
+    display: none;
+}
+
+@media (hover: none), (pointer: coarse), (max-width: 720px) {
+    .menubar {
+        position: relative;
+    }
+
+    .menubar-nav-toggle {
+        display: inline-flex;
+    }
+
+    .menubar .menubar-views {
+        top: 100%;
+        left: var(--space-2);
+        z-index: 20;
+        display: none;
+        position: absolute;
+        width: max-content;
+        min-width: 180px;
+        max-width: calc(100% - 2 * var(--space-2));
+        padding: var(--space-2);
+        flex-direction: column;
+        align-items: stretch;
+        background: var(--bg-popup);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-island);
+        box-shadow: var(--shadow-popup);
+    }
+
+    .menubar.nav-open .menubar-views {
+        display: flex;
+    }
+
+    /* Full-width rows overwrite the desktop fold caps, so every entry reads
+       whole in the column; the fold classes the desktop layout keeps writing
+       as the bar measures itself are voided here, since the column owns the
+       entries' width. */
+    .menubar .menubar-views .btn[data-variant="menu"] {
+        max-width: none;
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .menubar .menubar-views .btn[data-variant="menu"].is-folded {
+        opacity: 1;
+        margin-left: 0;
+        max-width: none;
+        padding-left: revert;
+        padding-right: revert;
+        pointer-events: auto;
+    }
+
+    /* Header actions (rail toggles, the assistant button) have no hover to
+       reveal them, so they rest visible. */
+    .panel-header .panel-actions {
+        opacity: 1;
+    }
+
+    /* Touch layout: the side panels leave the grid and float as windows
+       dragged by their header and resized from the corner grip. The bottom
+       row and the gap above it both drop to zero: with the panel afloat the
+       two gap rows would otherwise stack into a doubled blank strip between
+       the editor and the status bar. */
+    .canvas {
+        grid-template-columns: 0 0 1fr;
+        grid-template-rows:
+            var(--menubar-height) var(--island-gap)
+            1fr 0 0
+            var(--island-gap) var(--statusbar-height);
+    }
+
+    .splitter-v,
+    .splitter-h {
+        display: none;
+    }
+
+    .rail,
+    .bottom {
+        position: fixed;
+        z-index: 40;
+        left: var(--float-x, 12px);
+        top: var(--float-y, 64px);
+        width: var(--float-w, min(320px, calc(100vw - 24px)));
+        height: var(--float-h, min(46vh, 420px));
+        overflow: hidden;
+        /* The island fill is translucent by design: as grid islands it lies on
+           the same-colored canvas and reads solid. Afloat over editor content
+           it would show the text through, so windows take the opaque popup
+           fill instead. */
+        background: var(--bg-popup);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-island);
+        box-shadow: var(--shadow-popup);
+    }
+
+    .rail.is-dragging,
+    .bottom.is-dragging {
+        border-color: var(--accent);
+        box-shadow: 0 12px 32px var(--glow);
+    }
+
+    .rail .panel-header,
+    .bottom .panel-header {
+        touch-action: none;
+        cursor: grab;
+    }
+
+    .float-resize {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        z-index: 2;
+        width: 18px;
+        height: 18px;
+        cursor: nwse-resize;
+        touch-action: none;
+    }
+}
+
+/* Desktop keeps the plain menu bar: no hamburger, hover-revealed actions. */
+@media (hover: hover) and (pointer: fine) and (min-width: 721px) {
+    .menubar-nav-toggle {
+        display: none !important;
+    }
 }
 
 /* The rail and its splitter span from the editor row to the bottom tool window,
@@ -218,6 +380,8 @@ html.is-booting * {
     cursor: pointer;
     align-items: center;
     white-space: nowrap;
+    min-width: 0;
+    overflow: hidden;
     padding: 0 var(--space-2);
     font-variant-numeric: tabular-nums;
     border-radius: var(--radius-control);
@@ -234,6 +398,14 @@ html.is-booting * {
 /* An empty item still paints its hit area, which would leave a blank chip
    hovering with nothing in it while no document is open. */
 .statusbar-item:empty {
+    display: none;
+}
+
+/* The items and the left group are flex boxes, so their own display rule
+   would beat the UA's [hidden] style; the guard keeps the attribute honest
+   for the render logic that toggles it. */
+.statusbar .statusbar-left[hidden],
+.statusbar-item[hidden] {
     display: none;
 }
 

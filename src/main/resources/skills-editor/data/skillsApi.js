@@ -1,39 +1,38 @@
 // All server communication lives here so features never touch fetch directly.
 
+import {HttpError, parseJson, readErrorDetail, requestJson} from "./http.js";
+
 export async function listSkills() {
-  const response = await fetch("/skills/sources");
-  const payload = await response.json();
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-
-  return (payload && payload.sources) || [];
+  const payload = await requestJson("/skills/sources");
+  return payload?.sources ?? [];
 }
 
 // Returns the source of a skill, or null when the server has no such skill.
-// A malformed body is treated the same as a missing skill, so callers only have
-// to guard against a network failure, which still rejects.
+// Every other failure rejects: a 401 or a 500 must never look like an empty
+// file, because the editor would then offer to deploy that emptiness over the
+// real skill on disk.
 export async function loadSkill(name) {
-  const response = await fetch(`/skills/source?name=${encodeURIComponent(name)}`);
+  const url = `/skills/source?name=${encodeURIComponent(name)}`;
+  const response = await fetch(url);
+  if (response.status === 404) {
+    return null;
+  }
   if (!response.ok) {
-    return null;
+    throw new HttpError(response.status, await readErrorDetail(response), url);
   }
 
+  let payload;
   try {
-    const payload = await response.json();
-    if (!payload) {
-      return null;
-    }
-    return payload.source || "";
+    payload = await response.json();
   } catch (_error) {
-    return null;
+    throw new Error(`Malformed skill response for ${name}`);
   }
-
+  return payload?.source ?? "";
 }
 
 // Both actions post one skill source and read back the same compile result; only
 // the endpoint differs, and the server decides what to do with the source.
+// The body is returned even on failure: the compile diagnostic is the payload.
 async function postSkill(path, name, source) {
   const response = await fetch(path, {
     method: "POST",
@@ -41,15 +40,7 @@ async function postSkill(path, name, source) {
     body: JSON.stringify({name, source}),
   });
   const raw = await response.text();
-  let body = null;
-
-  try {
-    body = raw ? JSON.parse(raw) : null;
-  } catch (_error) {
-    body = null;
-  }
-
-  return {ok: response.ok, status: response.status, body, raw};
+  return {ok: response.ok, status: response.status, body: parseJson(raw), raw};
 }
 
 // Writes the source into the skills directory and reloads the registry, so the

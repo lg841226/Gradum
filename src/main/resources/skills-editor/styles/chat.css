@@ -1,17 +1,12 @@
-/* Assistant island styles: the Gradum chat. Everything is scoped under
-   .assistant (the island) or .assistant-rail (the rail section), so none of
-   the class names — bubble, block, composer, session — can collide with the
-   editor's own. Values come from the shared token table. */
+/* Assistant island: the Gradum chat. Scoped under .assistant / .assistant-rail. */
 
 .assistant {
-    --composer-max: 710px;
+    --composer-max: 700px;
+    font-family: Inter, var(--font-ui), system-ui;
     min-height: 0;
+    position: relative;
 }
 
-/* While the assistant is open it takes the editor's cell, and the editor,
-   the bottom tool window and their splitter stand down. The bottom rows also
-   collapse, so the chat fills the full height between the menubar and the
-   status strip. */
 .canvas.chat-open .editor,
 .canvas.chat-open .bottom,
 .canvas.chat-open .splitter-h {
@@ -24,24 +19,17 @@
         1fr 0 0 var(--island-gap) var(--statusbar-height);
 }
 
-/* ---------- rail sessions (rendered by the shared rail while chat is open) ---------- */
 
-/* Rows reuse .list-item; only the quiet hint and the row's delete button need
-   anything of their own. The delete button shrinks to the row height. */
 .rail .list-hint {
     padding: var(--space-1) var(--space-2);
     color: var(--text-mute);
     font-size: var(--font-size-small);
 }
 
-/* Session glyphs read at the tree root's dim tone, matching the folder icon
-   they nest under; the row label keeps the list item's own color. */
 .rail .list-item > .icon {
     color: var(--text-dim);
 }
 
-/* Hover and selection share the same pale-blue wash, the way the platform's
-   project tree reads: pointing at a row already announces it. */
 .rail .list-item:hover {
     background: var(--accent-selection);
 }
@@ -56,12 +44,8 @@
     visibility: visible;
 }
 
-/* ---------- status bar: the assistant's project root ---------- */
+/* ---------- status bar: project root ---------- */
 
-/* The shared .text-field control. The strip's left group flexes across the
-   free stretch of the bar so the field inside it has room to grow — a long
-   absolute path stays fully readable — and its text sits at the dim tone the
-   strip's other values use. */
 .statusbar .statusbar-left {
     flex: 1 1 auto;
     min-width: 0;
@@ -78,69 +62,48 @@
     color: var(--text-mute);
 }
 
-/* ---------- empty state ---------- */
-
-/* With nothing in the transcript the island drops its column: the brand mark
-   and the composer travel to the middle as one group, and the first send
-   sends the composer down to its resting place at the bottom. The state is
-   an island class (assistant.js), not an attribute selector. */
-.assistant.is-empty {
-    justify-content: center;
+/* Chat tabs reuse the editor's tab strip. The strip only exists once a second
+   chat is open, so a single conversation reads as before; with more, it rows
+   across the island's top under the same tab language as the editor. */
+.assistant .tab-strip {
+    flex: 0 0 auto;
+    height: auto;
+    padding: var(--space-2) var(--space-2) 0;
+    overflow-x: auto;
 }
 
-.assistant.is-empty .messages {
+.assistant .tab-strip[hidden] {
     display: none;
 }
-
-.assistant.is-empty .composer {
-    margin-top: var(--space-6);
-}
-
-.assistant .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-2);
-    text-align: center;
-}
-
-/* The brand mark: a filled gradient sprite, not a stroke icon, so it lives
-   outside the 16px createIcon grid and sizes here. */
-.assistant .empty-logo {
-    width: 36px;
-    height: 36px;
-    margin-bottom: var(--space-2);
-}
-
-.assistant .empty-title {
-    margin: 0;
-    font-size: 20px;
-    font-weight: var(--weight-semibold);
-    color: var(--text);
-}
-
-.assistant .empty-hint {
-    margin: 0;
-    font-size: var(--font-size-small);
-    color: var(--text-mute);
-}
-
-/* ---------- messages ---------- */
 
 .assistant .messages {
     flex: 1 1 auto;
     overflow-y: auto;
-    padding: var(--space-4);
+    /* Full-bleed column: the scrollbar rides the island edge while the
+       700px conversation column is pushed in from both sides. The bottom
+       reserve tracks the floating composer's live height, so the newest
+       bubble scrolls clear of it instead of parking underneath. */
+    padding: var(--space-4) max(var(--space-4), calc((100% - var(--composer-max)) / 2))
+    calc(var(--composer-h, 96px) + var(--space-6));
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    gap: var(--space-4);
     min-height: 0;
+    width: 100%;
 }
 
 .assistant .messages > * {
-    max-width: var(--composer-max);
     width: 100%;
-    margin: 0 auto;
+    margin: 0;
+}
+
+/* Virtual blank after the last message: half a composer's height of empty
+   column the scroll can pull the newest bubble up into, so it never parks
+   flush against the composer when reading the end of a long exchange. */
+.assistant .messages::after {
+    content: "";
+    flex: none;
+    height: calc(var(--composer-h, 96px) * .5);
 }
 
 .assistant .bubble {
@@ -152,20 +115,209 @@
 }
 
 .assistant .bubble-user {
-    align-self: flex-end;
     width: auto;
-    max-width: calc(var(--composer-max) * .8);
+    max-width: 80%;
     margin: 0 0 0 auto;
-    background: var(--accent-selection);
-    border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    background: var(--bg-island);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-island);
 }
 
-/* The agent speaks in the open: no box, just the column. Only its blocks
-   (thinking, tool results) carry surfaces. */
 .assistant .bubble-agent {
     background: transparent;
     border: none;
     padding: 0 var(--space-1);
+}
+
+/* ---------- agent markdown ---------- */
+
+/* Bold reads one step below the browser's 700 default: the UI stack lands on
+   Segoe UI on Windows, whose full bold at small sizes outweighs the same
+   weight on macOS, so the semibold the rest of the interface uses keeps the
+   emphasis without the heaviness. */
+.assistant strong {
+    font-weight: var(--weight-semibold);
+}
+
+.assistant .bubble-agent > * {
+    margin: 0 0 var(--space-2);
+}
+
+.assistant .bubble-agent > :last-child {
+    margin-bottom: 0;
+}
+
+.assistant .md-h1,
+.assistant .md-h2,
+.assistant .md-h3,
+.assistant .md-h4,
+.assistant .md-h5,
+.assistant .md-h6 {
+    font-weight: var(--weight-semibold);
+    line-height: 1.4;
+}
+
+.assistant .md-h1 { font-size: 1.25em; }
+.assistant .md-h2 { font-size: 1.15em; }
+.assistant .md-h3,
+.assistant .md-h4,
+.assistant .md-h5,
+.assistant .md-h6 { font-size: 1.05em; }
+
+.assistant .md-list {
+    margin: 0 0 var(--space-2);
+    padding-left: 1.4em;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.assistant .md-list .md-list {
+    margin-bottom: 0;
+}
+
+.assistant .md-code {
+    /* Bare code: no fill, no frame, no header. The block reads as indented
+       mono text inside the message, nothing more. */
+    margin: 0 0 var(--space-2);
+    padding: 0;
+    background: none;
+    border: none;
+    font-family: var(--font-mono), monospace;
+    font-size: var(--font-size-small);
+    line-height: 1.5;
+    color: var(--text-dim);
+}
+
+.assistant .md-code code {
+    display: block;
+    padding: var(--space-2) var(--space-3);
+    white-space: pre;
+    overflow-x: auto;
+}
+
+.assistant .md-code-inline {
+    padding: 0 4px;
+    background: var(--bg-canvas);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: var(--font-mono), monospace;
+    font-size: .92em;
+    color: var(--text);
+}
+
+.assistant .md-link {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.assistant .md-link:hover {
+    text-decoration: underline;
+}
+
+.assistant .md-quote {
+    margin: 0 0 var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border-left: 3px solid var(--border-strong);
+    color: var(--text-dim);
+}
+
+.assistant .md-quote > :last-child {
+    margin-bottom: 0;
+}
+
+.assistant .md-hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: var(--space-3) 0;
+}
+
+.assistant .md-task {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+}
+
+.assistant .md-task-box {
+    flex: 0 0 auto;
+    width: 13px;
+    height: 13px;
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+    position: relative;
+    top: 1px;
+}
+
+.assistant .md-task-box[data-checked="true"]::after {
+    content: "";
+    position: absolute;
+    inset: 2px 3px 3px 2px;
+    border-left: 1.5px solid var(--accent);
+    border-bottom: 1.5px solid var(--accent);
+    transform: rotate(-45deg);
+}
+
+.assistant del {
+    color: var(--text-mute);
+}
+
+.assistant .md-table-wrap {
+    overflow-x: auto;
+    margin: 0 0 var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+}
+
+.assistant .md-table-wrap table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-small);
+}
+
+.assistant .md-table-wrap th,
+.assistant .md-table-wrap td {
+    padding: var(--space-1) var(--space-2);
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.assistant .md-table-wrap th {
+    background: var(--bg-raised);
+    font-weight: var(--weight-medium);
+    color: var(--text-dim);
+}
+
+.assistant .md-table-wrap tr:last-child td {
+    border-bottom: none;
+}
+
+/* The sweep, mirroring the plugin's SweepLightText: a low-high-low alpha
+   band crosses the glyphs once per 1200ms while a state label is live
+   (thinking, tool group, pending status). Never applied to response body. */
+.assistant .sweep-text {
+    background: linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--text-dim) 40%, transparent) 0%,
+        color-mix(in srgb, var(--text) 90%, transparent) 50%,
+        color-mix(in srgb, var(--text-dim) 40%, transparent) 100%
+    );
+    background-size: 200% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: md-sweep 1.2s linear infinite;
+}
+
+@keyframes md-sweep {
+    from { background-position: 100% 0; }
+    to { background-position: -100% 0; }
+}
+
+/* Pre-content status row inside the assistant bubble (the plugin's
+   TokenStatusRow): visible from the send moment, gone once content lands.
+   No color here: the sweep owns it (transparent glyphs, gradient fill). */
+.assistant .pending-status {
+    font-weight: 500;
 }
 
 .assistant .bubble-error {
@@ -174,55 +326,137 @@
     color: #f2b8b5;
 }
 
-/* Collapsible blocks: thinking, tool results. */
-
-.assistant details.block {
-    background: color-mix(in srgb, var(--bg-raised) 45%, transparent);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-island);
-}
-
-.assistant details.block > summary {
-    padding: var(--space-2) var(--space-3);
+/* Thinking block, mirroring the plugin's ThinkingIndicator: an unboxed
+   header row (nodes/related icon + elapsed-time label + chevron) over a
+   muted-gray markdown body. */
+.assistant details.thinking > summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) 0;
     cursor: pointer;
     color: var(--text-dim);
-    font-size: var(--font-size-small);
     user-select: none;
     list-style: none;
 }
 
-.assistant details.block > summary::before {
-    content: "\25B8 ";
+.assistant details.thinking > summary > svg:first-child {
     color: var(--text-mute);
+    flex: none;
 }
 
-.assistant details.block[open] > summary::before {
-    content: "\25BE ";
+.assistant .thinking-label {
+    font-weight: 500;
+    font-feature-settings: "tnum";
+}
+
+/* While the seconds tick the label keeps a running width, so the chevron
+   beside it does not jitter; once done the width follows the final text. */
+.assistant .thinking:not([data-done="true"]) .thinking-label {
+    min-width: 96px;
+}
+
+.assistant details.thinking > summary > svg:last-child {
     color: var(--text-mute);
+    flex: none;
+    transition: transform var(--motion-fast) ease;
 }
 
-.assistant details.block > summary:hover {
-    color: var(--text);
+.assistant details.thinking:not([open]) > summary > svg:last-child {
+    transform: rotate(-90deg);
 }
 
-.assistant .block-body {
-    padding: 0 var(--space-3) var(--space-2);
-    white-space: pre-wrap;
-    word-break: break-word;
-    font-family: var(--font-mono), monospace;
-    font-size: var(--font-size-small);
-    line-height: 1.5;
+.assistant .thinking-body {
+    padding: var(--space-1) 0 var(--space-2);
     color: var(--text-dim);
-    max-height: 320px;
+    line-height: 1.6;
+}
+
+.assistant .thinking-body > * {
+    margin: 0 0 var(--space-2);
+}
+
+.assistant .thinking-body > :first-child {
+    margin-top: 0;
+}
+
+.assistant .thinking-body > :last-child {
+    margin-bottom: 0;
+}
+
+.assistant details.thinking[data-capped] .thinking-body {
+    max-height: 300px;
     overflow-y: auto;
 }
 
-.assistant details.block[data-failed] > summary {
-    color: var(--error);
+/* Thinking is prose for reading, not code for inspecting: nothing inside may
+   start a sideways scrollbar, long tokens and fenced code wrap instead. */
+.assistant .thinking-body {
+    overflow-x: hidden;
 }
 
-/* Ask card: the one island that asks for the user's hand, so it gets the
-   accent outline the editor reserves for focused dialogs. */
+.assistant .thinking-body pre code {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Working Process group, mirroring the plugin's ProcessGroupSection: a
+   chevron + sweeping header row over an indented body of thinking blocks
+   and tool capsules. */
+.assistant details.tool-group > summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) 0;
+    cursor: pointer;
+    color: var(--text);
+    user-select: none;
+    list-style: none;
+}
+
+.assistant details.tool-group > summary > svg {
+    color: var(--text-mute);
+    flex: none;
+    transition: transform var(--motion-fast) ease;
+}
+
+.assistant details.tool-group:not([open]) > summary > svg {
+    transform: rotate(-90deg);
+}
+
+.assistant .tool-group-label {
+    font-weight: 500;
+}
+
+.assistant .tool-group-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-2) 0 var(--space-2) var(--space-4);
+}
+
+/* One tool call, the plugin's ToolCallCapsule: a single row of icon,
+   medium-weight label, and (on failure) an error tint. */
+.assistant .tool-capsule {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.assistant .tool-capsule > svg {
+    color: var(--text-mute);
+    flex: none;
+}
+
+.assistant .tool-capsule-label {
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.assistant .tool-capsule[data-failed] .tool-capsule-label {
+    color: var(--error);
+}
 
 .assistant .ask-card {
     display: flex;
@@ -312,25 +546,72 @@
     border-color: var(--accent);
 }
 
-/* ---------- composer ---------- */
-
-/* One raised card at the bottom of the island: the input above, a quiet foot
-   below carrying the model chip on the left and the run controls on the right.
-   The card owns the focus ring, so the input itself stays frameless. */
 .assistant .composer {
-    flex: 0 0 auto;
+    /* The composer is the topmost layer: it floats over the bottom edge of
+       the island and the message column scrolls beneath it. */
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 10;
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
-    width: 100%;
-    max-width: var(--composer-max);
+    width: min(calc(100% - 2 * var(--space-4)), var(--composer-max));
     margin: 0 auto var(--space-6);
     padding: var(--space-2);
-    background: var(--bg-popup);
+    /* Frosted glass, carried by a ::before layer rather than the composer
+       itself: an element with backdrop-filter is a backdrop root for its
+       descendants, which would strip the popovers' own frost, while a
+       pseudo-element has none. */
+    background: transparent;
     border: 1px solid var(--border);
     border-radius: 16px;
-    box-shadow: var(--shadow-popup);
+    box-shadow: 0 2px 8px rgb(9 13 24 / 6%);
     transition: border-color var(--motion-fast) var(--ease-standard);
+}
+
+.assistant .composer::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: color-mix(in srgb, var(--bg-popup) 72%, transparent);
+    backdrop-filter: blur(20px) saturate(1.2);
+    -webkit-backdrop-filter: blur(20px) saturate(1.2);
+    border-radius: inherit;
+}
+
+.assistant .composer-scroll-bottom {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + var(--space-3));
+    z-index: 11;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--bg-popup) 72%, transparent);
+    backdrop-filter: blur(20px) saturate(1.2);
+    -webkit-backdrop-filter: blur(20px) saturate(1.2);
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgb(9 13 24 / 6%);
+    /* Replay on every unhide, since display:none restarts animations. */
+    animation: scroll-bottom-in var(--motion-slow) var(--ease-standard);
+}
+
+.assistant .composer-scroll-bottom:hover {
+    border-color: var(--border-strong);
+}
+
+@keyframes scroll-bottom-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px) scale(0.9);
+    }
+}
+
+.assistant .composer-scroll-bottom[hidden] {
+    display: none;
 }
 
 .assistant .composer:hover {
@@ -343,8 +624,6 @@
 
 .assistant .composer-input {
     resize: none;
-    /* The chip's label sits one --space-2 inside the chip; the placeholder
-       matches that line so input and chip share a left edge. */
     padding: var(--space-1) 0 var(--space-1) var(--space-2);
     font: inherit;
     line-height: 1.45;
@@ -355,8 +634,6 @@
     outline: none;
     min-height: 56px;
     max-height: 240px;
-    scrollbar-width: thin;
-    scrollbar-color: var(--scroll-thumb) transparent;
 }
 
 .assistant .composer-input::selection {
@@ -374,35 +651,34 @@
     gap: var(--space-2);
 }
 
-/* The two pill chips share the platform's pill recipe; they sit together as
-   one left group with a tighter inner gap than the foot's, and the group's
-   auto margin pushes the run controls to the foot's right edge. */
 .assistant .chip-group {
     display: flex;
     align-items: center;
     gap: 2px;
     margin-right: auto;
+    min-width: 0;
 }
 
 .assistant .model-chip,
 .assistant .perm-chip {
+    min-width: 0;
+    flex: 0 1 auto;
     max-width: 320px;
     height: 24px;
     padding: 0 var(--space-2);
     border-radius: 999px;
+    overflow: hidden;
     font-size: var(--font-size-small);
     color: var(--text-dim);
 }
 
-/* A chip's chevron turns upward while its menu stands open, easing between
-   the two states at the shared fast-motion pace. */
-.assistant .model-chip .icon,
-.assistant .perm-chip .icon {
+.assistant .model-chip .icon:last-child,
+.assistant .perm-chip .icon:last-child {
     transition: transform var(--motion-fast) var(--ease-standard);
 }
 
-.assistant .model-chip[data-open] .icon,
-.assistant .perm-chip[data-open] .icon {
+.assistant .model-chip[data-open] .icon:last-child,
+.assistant .perm-chip[data-open] .icon:last-child {
     transform: rotate(180deg);
 }
 
@@ -413,8 +689,6 @@
     text-overflow: ellipsis;
 }
 
-/* The picker's popup: the completion surface's glass recipe, opened upward
-   from the chip because the composer sits on the island's floor. */
 .assistant .model-menu,
 .assistant .perm-menu {
     position: absolute;
@@ -439,12 +713,13 @@
 .assistant .model-menu-list {
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
     padding: var(--space-1);
 }
 
-/* The permission rows carry the plugin's two-line copy — mode name over its
-   info sentence — so the single-row height gives way to the pair. */
+.assistant .model-menu-list > :not(:last-child) {
+    margin-bottom: var(--space-1);
+}
+
 .assistant .perm-item {
     height: auto;
     flex-direction: column;
@@ -463,21 +738,6 @@
     line-height: 1.35;
 }
 
-.assistant .chat-status {
-    font-size: var(--font-size-small);
-    color: var(--text-mute);
-}
-
-/* A resting chat says nothing; only streaming and failures earn words. */
-.assistant .chat-status[data-tone="idle"] {
-    display: none;
-}
-
-.assistant .chat-status[data-tone="error"] {
-    color: var(--error);
-}
-
-/* The round run mark — send at rest, stop in flight — at the foot's right edge. */
 .assistant .composer-send {
     flex: 0 0 auto;
     display: inline-flex;
@@ -497,7 +757,7 @@
 }
 
 .assistant .composer-send:disabled {
-    opacity: 0.4;
+    opacity: .5;
     cursor: default;
 }
 
@@ -508,9 +768,4 @@
 
 .assistant .composer-send:active {
     background: var(--bg-raised);
-}
-
-.assistant .composer-send:disabled {
-    opacity: .5;
-    cursor: default;
 }
