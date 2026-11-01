@@ -183,8 +183,6 @@ export function createPermissionPicker({onOtherOpen} = {}) {
 
   list.replaceChildren(
     ...PERMISSION_MODES.map((mode) => {
-      // The plugin's menu rows read as two lines: the mode's name over its
-      // info sentence, so the picker explains the surface it switches to.
       const row = document.createElement("div");
       row.className = "list-item perm-item";
       row.setAttribute("role", "treeitem");

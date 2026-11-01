@@ -50,12 +50,12 @@ function lineMarkup(text) {
 }
 
 export function createHighlightLayer({
-  store,
-  highlightCode,
-  gutterInner,
-  getText,
-  getActiveOffset,
-}) {
+                                       store,
+                                       highlightCode,
+                                       gutterInner,
+                                       getText,
+                                       getActiveOffset,
+                                     }) {
   function updateActiveLine() {
     const line = getText().slice(0, getActiveOffset()).split("\n").length;
 

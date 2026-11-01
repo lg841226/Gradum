@@ -55,8 +55,6 @@ export function createThinkingBlock({startedAt}) {
       element.dataset.done = "true";
       stop();
       label.classList.remove("sweep-text");
-      // Replayed transcripts carry no duration; a negative value means the
-      // block retires as a plain "Thought" rather than a fabricated 0.0s.
       label.textContent = milliseconds > 0
         ? copy.chat.thoughtFor(milliseconds / 1000)
         : copy.chat.thoughtNoTime;

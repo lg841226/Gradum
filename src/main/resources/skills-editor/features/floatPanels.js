@@ -10,6 +10,7 @@ const FLOAT_QUERY = "(hover: none), (pointer: coarse)";
 export function isFloatLayout() {
   return window.matchMedia(FLOAT_QUERY).matches;
 }
+
 const MIN_W = 220;
 const MIN_H = 160;
 const EDGE = 8;

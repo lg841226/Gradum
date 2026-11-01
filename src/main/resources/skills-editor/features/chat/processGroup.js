@@ -53,9 +53,6 @@ export function createProcessGroup({onToggle} = {}) {
   body.className = "tool-group-body";
   element.append(summary, body);
 
-  // Only the live group reports a toggle: clicking a settled group folds it
-  // open or shut, but that choice belongs to the DOM, not to the turn that is
-  // still running (and may have its own group by then).
   summary.addEventListener("click", () => {
     if (element.dataset.live === "true") {
       onToggle?.();

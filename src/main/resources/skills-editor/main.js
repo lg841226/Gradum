@@ -13,7 +13,7 @@ import {mountMinimap} from "./features/minimap.js";
 import {mountSplitters} from "./features/splitter.js";
 import {mountStatusBar} from "./features/statusbar.js";
 import {mountFloatPanels} from "./features/floatPanels.js";
-import {mountAssistant} from "./features/assistant/index.js";
+import {mountAssistant} from "./features/assistant";
 import {mountTooltip} from "./ui/components/tooltip.js";
 import {mountDiagnostics} from "./features/diagnostics.js";
 import {createLayoutWriter, loadLayout} from "./core/persistence.js";
@@ -31,35 +31,35 @@ const store = createStore({
   docs: [],
   files: [],
   nextId: 1,
+  indent: 4,
   focusToken: 0,
+  cursorCount: 1,
   sourceRevision: 0,
   cursor: {line: 1, column: 1},
-  cursorCount: 1,
-  indent: 4,
-  selection: null,
-  minimapHidden: false,
-  status: {text: "", tone: "neutral"},
   view: "problems",
   panel: "problems",
+  status: {text: "", tone: "neutral"},
   busy: false,
   busyTask: null,
   activeId: null,
   chatOpen: false,
   chatBusy: false,
+  selection: null,
+  minimapHidden: false,
   sessions: [],
-  activeSession: null,
   chatTabs: [],
-  projectRoot: readStorage(STORAGE_KEYS.projectRoot, ""),
+  split: false,
   autoRail: false,
   collapsed: false,
   autoBottom: false,
+  activeSession: null,
   railCollapsed: false,
   treeCollapsed: false,
   railWidth: 208,
-  bottomHeight: 200,
-  split: false,
-  splitDirection: "right",
   splitRatio: 0.5,
+  bottomHeight: 200,
+  splitDirection: "right",
+  projectRoot: readStorage(STORAGE_KEYS.projectRoot, ""),
   ...loadLayout(),
   authed: readerMark === null,
   reader: readerMark !== null,
@@ -147,12 +147,6 @@ try {
       panels.show("output");
     }
   });
-
-  // Touch keyboards: raising the keyboard shrinks the visual viewport and the
-  // browser scrolls the window to reach the focused input; lowering it grows
-  // the viewport back but leaves that offset behind, showing blank space past
-  // the canvas. The layout is app-fixed, so the window never scrolls by
-  // design — pin it back to the origin whenever it drifts.
   const pinScroll = () => {
     if (window.scrollY !== 0 || window.scrollX !== 0) {
       window.scrollTo(0, 0);

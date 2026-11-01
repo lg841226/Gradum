@@ -1,16 +1,8 @@
 // Wire access for the assistant (Gradum Legatus). Every call relies on the
 // auth cookie the pairing flow set; none of them handles the token directly.
 
-import {HttpError, ensureOk, readErrorDetail, requestJson} from "./http.js";
+import {ensureOk, HttpError, requestJson} from "./http.js";
 import {createNdjsonParser} from "./ndjson.js";
-
-export async function pairCode(code) {
-  return requestJson("/skills/pair", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({code}),
-  });
-}
 
 export async function listSessions(projectRoot) {
   return requestJson(`/sessions?projectRoot=${encodeURIComponent(projectRoot)}`);

@@ -4,7 +4,7 @@
 // last frame is delivered even when the server wrote no trailing line break.
 // JSON decoding and frame handling are separate failures: a bad line is
 // reported as a parse error, while a handler failure is the caller's problem
-// and is allowed to propagate rather than be labelled as undecodable.
+// and is allowed to propagate rather than be labeled as undecodable.
 
 export function createNdjsonParser({onFrame, onParseError} = {}) {
   let pending = "";

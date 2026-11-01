@@ -40,12 +40,6 @@ export async function requestJson(url, init) {
   return response.json();
 }
 
-export async function requestOk(url, init) {
-  const response = await fetch(url, init);
-  await ensureOk(response, url);
-  return response;
-}
-
 export function parseJson(text) {
   if (!text) {
     return null;

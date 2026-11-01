@@ -8,10 +8,6 @@
 import {respond} from "../../data/legatusApi.js";
 import {copy} from "../../ui/copy.js";
 
-/**
- * Flattens an L10nText wire value into plain text: `raw` carries the copy,
- * a `key` can only be resolved by the plugin, so its bundle key stands in.
- */
 export function l10nText(value) {
   if (typeof value === "string") return value;
   if (!value) return "";

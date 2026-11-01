@@ -62,10 +62,85 @@
     color: var(--text-mute);
 }
 
-/* Chat tabs reuse the editor's tab strip. The strip only exists once a second
-   chat is open, so a single conversation reads as before; with more, it rows
-   across the island's top under the same tab language as the editor. */
-.assistant .tab-strip {
+/* The pane body mirrors the editor's .editor-body: a fixed pair of chat panes
+   with the divider between them, the right one folded until the split is on. */
+.assistant .chat-columns {
+    flex: 1 1 auto;
+    display: flex;
+    min-height: 0;
+    min-width: 0;
+    position: relative;
+}
+
+/* A chat pane is one column of the split: its own tab strip above its own
+   message column and composer. The right pane is mounted from the start and
+   folded away here rather than added on demand, so both panes can be measured
+   and drawn at any time - the editor's .code-pane[data-pane="right"] again. */
+.assistant .chat-pane {
+    position: relative;
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+}
+
+.assistant .chat-pane[data-pane="right"] {
+    opacity: 0;
+    flex-grow: 0;
+    flex-basis: 0;
+    overflow: hidden;
+    visibility: hidden;
+    transition: flex-basis var(--motion-fast) var(--ease-standard),
+    flex-grow var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard),
+    visibility var(--motion-fast) var(--ease-standard);
+}
+
+/* Both panes grow from a zero basis, so they divide the body by their grow
+   factors alone and the pair always fills it. Dragging the divider only
+   rewrites --split-ratio, which both of these read. */
+.assistant .chat-columns.is-split .chat-pane[data-pane="right"] {
+    opacity: 1;
+    flex-basis: 0;
+    visibility: visible;
+    flex-grow: calc(1 - var(--split-ratio, 0.5));
+}
+
+.assistant .chat-columns.is-split .chat-pane[data-pane="left"] {
+    flex-grow: var(--split-ratio, 0.5);
+}
+
+/* The split runs left to right by default; the "down" direction stacks the two
+   panes instead. Only the axis the flex lines are laid on turns. */
+.assistant .chat-columns.is-split-down {
+    flex-direction: column;
+}
+
+.assistant .chat-columns.is-split-down .chat-pane {
+    min-height: 0;
+}
+
+/* The hairline between the two panes, drawn only while the split is on, and
+   the handle that re-shares the body when it is dragged. The base look and the
+   grab strip come from the editor's .pane-divider; only the per-axis cursor
+   and the drawn state are restated for the chat body. */
+.assistant .chat-columns.is-split-down .pane-divider {
+    cursor: row-resize;
+}
+
+.assistant .chat-columns.is-split-down .pane-divider::after {
+    inset: -3px 0;
+}
+
+.assistant .chat-columns.is-split .pane-divider {
+    flex-basis: 1px;
+    visibility: visible;
+}
+
+/* Each pane lists the open chats at its own top, the way a split editor group
+   keeps its own tab bar. */
+.assistant .chat-pane .tab-strip {
     flex: 0 0 auto;
     height: auto;
     padding: var(--space-2) var(--space-2) 0;
@@ -79,12 +154,7 @@
 .assistant .messages {
     flex: 1 1 auto;
     overflow-y: auto;
-    /* Full-bleed column: the scrollbar rides the island edge while the
-       700px conversation column is pushed in from both sides. The bottom
-       reserve tracks the floating composer's live height, so the newest
-       bubble scrolls clear of it instead of parking underneath. */
-    padding: var(--space-4) max(var(--space-4), calc((100% - var(--composer-max)) / 2))
-    calc(var(--composer-h, 96px) + var(--space-6));
+    padding: var(--space-4) max(var(--space-4), calc((100% - var(--composer-max)) / 2)) calc(var(--composer-h, 96px) + var(--space-6));
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
@@ -157,12 +227,20 @@
     line-height: 1.4;
 }
 
-.assistant .md-h1 { font-size: 1.25em; }
-.assistant .md-h2 { font-size: 1.15em; }
+.assistant .md-h1 {
+    font-size: 1.25em;
+}
+
+.assistant .md-h2 {
+    font-size: 1.15em;
+}
+
 .assistant .md-h3,
 .assistant .md-h4,
 .assistant .md-h5,
-.assistant .md-h6 { font-size: 1.05em; }
+.assistant .md-h6 {
+    font-size: 1.05em;
+}
 
 .assistant .md-list {
     margin: 0 0 var(--space-2);
@@ -296,10 +374,10 @@
    (thinking, tool group, pending status). Never applied to response body. */
 .assistant .sweep-text {
     background: linear-gradient(
-        90deg,
-        color-mix(in srgb, var(--text-dim) 40%, transparent) 0%,
-        color-mix(in srgb, var(--text) 90%, transparent) 50%,
-        color-mix(in srgb, var(--text-dim) 40%, transparent) 100%
+            90deg,
+            color-mix(in srgb, var(--text-dim) 40%, transparent) 0%,
+            color-mix(in srgb, var(--text) 90%, transparent) 50%,
+            color-mix(in srgb, var(--text-dim) 40%, transparent) 100%
     );
     background-size: 200% 100%;
     background-clip: text;
@@ -309,8 +387,12 @@
 }
 
 @keyframes md-sweep {
-    from { background-position: 100% 0; }
-    to { background-position: -100% 0; }
+    from {
+        background-position: 100% 0;
+    }
+    to {
+        background-position: -100% 0;
+    }
 }
 
 /* Pre-content status row inside the assistant bubble (the plugin's

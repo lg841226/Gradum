@@ -23,17 +23,17 @@ function restartBlink() {
 }
 
 export function createCaretLayer({
-  store,
-  source,
-  code,
-  highlightCode,
-  metrics,
-  advance,
-  getScroll,
-  getCursors,
-  initialCaret,
-  onCaretMove,
-}) {
+                                   store,
+                                   source,
+                                   code,
+                                   highlightCode,
+                                   metrics,
+                                   advance,
+                                   getScroll,
+                                   getCursors,
+                                   initialCaret,
+                                   onCaretMove,
+                                 }) {
   let publishedCursor = null;
   let publishedCount = 0;
   let publishedSelection = null;

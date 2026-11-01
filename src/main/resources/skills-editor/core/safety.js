@@ -16,8 +16,6 @@ export function escapeText(value) {
   return String(value).replace(/[&<>"']/g, (char) => TEXT_ESCAPES[char]);
 }
 
-// Only the schemes a chat link may travel on. A relative path, an absolute
-// path and a fragment carry no scheme and pass through unchanged.
 const SAFE_SCHEMES = new Set(["http:", "https:", "mailto:"]);
 
 // Returns the href to use, or null when the value could execute script. The
@@ -27,8 +25,7 @@ export function safeUrl(raw) {
   if (!value) {
     return null;
   }
-  // A control character can split or disguise a scheme; no legitimate link
-  // needs one.
+
   if (/[\u0000-\u001f\u007f]/.test(value)) {
     return null;
   }

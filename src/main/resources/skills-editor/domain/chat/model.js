@@ -184,10 +184,6 @@ export function createChatModel() {
       return [{type: "notice", text}];
     },
 
-    // Cold-loads a stored transcript (the server's folded bubbles) by
-    // re-playing the regular effects: one user row, then per assistant turn a
-    // settled process group with its finished thinking, tool capsules and
-    // closed response bubble. No node reference survives into live streaming.
     loadHistory(bubbles, now = Date.now()) {
       state = idleState();
       const out = [{type: "reset"}];
@@ -197,10 +193,8 @@ export function createChatModel() {
           continue;
         }
         const blocks = Array.isArray(bubble.blocks) ? bubble.blocks : [];
-        // The transcript stores one thinking block per streamed segment, so a
-        // single deliberation arrives as several neighbours. Merge the runs:
-        // the reader wants one block per train of thought, not one per chunk.
         const merged = [];
+
         for (const block of blocks) {
           const last = merged[merged.length - 1];
           if (block.type === "thinking" && last?.type === "thinking") {
@@ -215,11 +209,10 @@ export function createChatModel() {
           state.group = {live: true, userToggled: false, tools: []};
           out.push({type: "group:start"});
         }
+
         for (const block of merged) {
           if (block.type === "thinking") {
             const text = typeof block.content === "string" ? block.content : "";
-            // The transcript keeps no duration, so the block retires with a
-            // plain "Thought" label instead of a fabricated 0.0s.
             state.thinking = {startedAt: now, text, done: true, elapsed: 0};
             out.push(
               {type: "thinking:start", startedAt: now},
@@ -241,6 +234,7 @@ export function createChatModel() {
             out.push({type: "agent:close"});
           }
         }
+
         if (grouped) {
           state.group = {...state.group, live: false};
           out.push({type: "group:settle", collapse: true});
