@@ -105,6 +105,26 @@ export const icons = {
     + 'C1.5 3.08099 2.08955 2.5 2.75 2.5H6.03823C6.16847 2.5 6.29357 2.55082 6.38691 2.64164'
     + 'L8.15132 4.35836Z" stroke-width="1" stroke-linejoin="miter"/>',
 
+  // The Gradum chat bubble, copied from the plugin's chat-mode icon
+  // (icons/chat-mode/chat-mode.svg) — the same glyph GradumIcons.Chat draws
+  // for session lists. Its fixed #6C707E stroke becomes currentColor so the
+  // tree rows dim and highlight with the theme like every other icon here.
+  session: '<path d="M4 2.5H12C12.8284 2.5 13.5 3.17157 13.5 4V13.96L9.3125 10.6094C9.22384'
+    + ' 10.5384 9.11354 10.5 9 10.5H4C3.17157 10.5 2.5 9.82843 2.5 9V4C2.5 3.17157 3.17157'
+    + ' 2.5 4 2.5Z" stroke-width="1" stroke-linejoin="round"/>',
+
+  // The plugin's send mark (icons/send/send_dark.svg), its #CED0D6 stroke
+  // rewritten to currentColor like the rest of the set.
+  send: '<path d="M9.5 8H3.5L2.5 14.5L14.5 8L2.5 1.5L3.192 6" stroke-width="1"'
+    + ' stroke-linecap="round" stroke-linejoin="round"/>',
+
+  // The platform's run-halt mark: expui/run/stop.svg, the icon the plugin's
+  // chat toolbar shows via AllIconsKeys.Run.Stop. Its red stroke reads as
+  // currentColor here; the pale fill is dropped so the glyph stays an
+  // outlined rounded square, same geometry on the 16px grid.
+  stop: '<rect x="2.5" y="2.5" width="11" height="11" rx="1.5"'
+    + ' stroke-width="1"/>',
+
   // expui/status/error_dark.svg
   error: '<circle cx="8" cy="8" r="7" fill="#DB5C5C" stroke="none"/>'
     + '<path d="M9 5C9 4.44772 8.55228 4 8 4C7.44772 4 7 4.44772 7 5V7.5C7 8.05229 7.44772 8.5'

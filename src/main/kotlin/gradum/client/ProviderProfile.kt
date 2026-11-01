@@ -291,7 +291,9 @@ val MiniMaxProfile: ProviderProfile = providerProfile {
  * LM Studio: prefers the `/v1/responses` wire, where the level is sent as
  * `reasoning_effort` and omitted at OFF. If the server lacks that endpoint
  * the client downgrades to `/v1/chat/completions` and sends no thinking
- * field. Sampler knobs mirror [OpenAiProfile].
+ * field (the client gates thinking fields by the profile's declared wire
+ * format, so the downgraded path stays clean). Sampler knobs mirror
+ * [OpenAiProfile].
  */
 val LmStudioProfile: ProviderProfile = providerProfile {
   wireFormat = WireFormat.RESPONSES

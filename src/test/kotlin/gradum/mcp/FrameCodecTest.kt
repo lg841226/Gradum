@@ -1,6 +1,6 @@
 package gradum.mcp
 
-import gradum.mcp.transport.FrameCodec
+import gradum.jsonrpc.FrameCodec
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking

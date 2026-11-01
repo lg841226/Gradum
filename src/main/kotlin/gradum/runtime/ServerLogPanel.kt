@@ -1,4 +1,4 @@
-package gradum.logging
+package gradum.runtime
 
 import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.encoder.PatternLayoutEncoder
@@ -58,9 +58,10 @@ class ServerLogPanel : JPanel(BorderLayout()) {
       addActionListener { rerender() }
     }
 
-  private val autoScrollToggle: JToggleButton = JToggleButton("Auto-scroll", true).apply {
-    isFocusable = false
-  }
+  private val autoScrollToggle: JToggleButton =
+    JToggleButton("Auto scroll", true).apply {
+      isFocusable = false
+    }
 
   private val searchField: JTextField = JTextField(16)
 

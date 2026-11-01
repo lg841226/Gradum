@@ -2,6 +2,9 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URI
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 
 plugins {
   kotlin("jvm") version "2.3.0"
@@ -94,7 +97,7 @@ tasks.named<JavaExec>("run") {
 tasks.register<JavaExec>("eventMonitor") {
   group = "gradum"
   description = "Open the Swing monitor that pretty-prints the debug NDJSON event dump"
-  mainClass.set("gradum.tools.EventStreamMonitorKt")
+  mainClass.set("gradum.runtime.EventStreamMonitorKt")
   classpath = sourceSets["main"].runtimeClasspath
   jvmArgs("-Dfile.encoding=UTF-8")
 }
@@ -167,63 +170,48 @@ private fun selfContainedServerExecutable(appName: String, destDir: File): File 
 }
 
 /**
- * On macOS, replaces the jpackage launcher with a bash launcher that opens a
- * fresh Terminal window to run the real Java server. Double-clicking the .app
- * would otherwise start a headless process whose logs go nowhere; the wrapper
- * keeps the logs visible in an actual terminal.
- *
- * The jpackage-built binary is renamed to `<name>Bin` and left untouched; the
- * wrapper keeps the original `<name>` (which `CFBundleExecutable` points at),
- * so LaunchServices still finds it.
+ * On macOS the packaged app opens the Swing Runtime Window on start, which
+ * shows the server logs — no Terminal wrapper is needed to keep logs visible.
  */
-private fun wrapMacAppForTerminalLaunch(launcher: File) {
-  val realBinary = File(launcher.parentFile, "${launcher.name}Bin")
-  if (!realBinary.exists()) launcher.renameTo(realBinary)
 
-  val appDirectory = File(launcher.parentFile.parentFile, "app")
-  val oldConfig = File(appDirectory, "${launcher.name}.cfg")
-  val newConfig = File(appDirectory, "${realBinary.name}.cfg")
-  if (oldConfig.isFile && !newConfig.exists()) oldConfig.renameTo(newConfig)
-
-  val script: String = $$"""
-    |#!/bin/bash
-    |# Launch the Java server inside a fresh Terminal window so logs are visible.
-    |self_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-    |/usr/bin/osascript <<GRADUM_APPLESCRIPT
-    |set serverPath to "$self_dir/$${launcher.name}Bin"
-    |tell application "Terminal"
-    |  do script (quoted form of serverPath)
-    |  activate
-    |end tell
-    |GRADUM_APPLESCRIPT
-    |
-    |""".trimMargin()
-
-  launcher.writeText(script)
-  launcher.setExecutable(true, false)
-  logger.lifecycle("Wrapped ${launcher.name} to launch ${realBinary.name} inside Terminal on double-click")
-}
+private val SQLITE_NATIVE_PREFIX = "org/sqlite/native/"
 
 /**
- * Re-signs the generated .app with an ad-hoc signature after the terminal
- * wrapper replaced its main executable. jpackage's original seal does not
- * survive that swap, leaving the bundle unsigned, which makes macOS show a
- * prohibition badge in Finder. An ad-hoc signature (no certificate) is enough
- * for local trust and restores normal Finder display without blocking the
- * double click Terminal launch.
+ * sqlite-jdbc bundles a native library for every OS/arch it supports
+ * (Linux, Linux-Musl, Linux-Android, FreeBSD, Windows, Mac). jpackage cannot
+ * cross-compile, so each package targets one OS anyway: rewrite the staged
+ * fat jar in place and drop the natives of every other platform (~10 MB).
  */
-private fun adhocSignMacApp(appDir: File) {
-  try {
-    val exitCode: Int =
-      ProcessBuilder("/usr/bin/codesign", "--force", "--deep", "-s", "-", appDir.absolutePath)
-        .inheritIO()
-        .start()
-        .waitFor()
-    if (exitCode == 0) logger.lifecycle("Ad-hoc signed ${appDir.name} for local launch")
-    else logger.warn("Ad-hoc signing exited with code $exitCode")
-  } catch (exception: Exception) {
-    logger.warn("Ad-hoc signing failed: ${exception.message}")
+private fun sqliteNativePlatformsToKeep(): Set<String> {
+  val osName: String = System.getProperty("os.name").lowercase()
+  return when {
+    osName.contains("mac") -> setOf("Mac")
+    osName.contains("win") -> setOf("Windows")
+    else -> setOf("Linux", "Linux-Musl")
   }
+}
+
+private fun stripForeignSqliteNatives(jarFile: File) {
+  val keepPlatforms: Set<String> = sqliteNativePlatformsToKeep()
+  val tempFile: File = File(jarFile.parentFile, "${jarFile.name}.stripped")
+  ZipInputStream(jarFile.inputStream().buffered()).use { input ->
+    ZipOutputStream(tempFile.outputStream().buffered()).use { output ->
+      var entry: ZipEntry? = input.nextEntry
+      while (entry != null) {
+        val platformSegment: String = entry.name.removePrefix(SQLITE_NATIVE_PREFIX).substringBefore('/', missingDelimiterValue = "")
+        val isForeignNative: Boolean =
+          entry.name.startsWith(SQLITE_NATIVE_PREFIX) && platformSegment.isNotEmpty() && platformSegment !in keepPlatforms
+        if (!isForeignNative) {
+          output.putNextEntry(ZipEntry(entry))
+          if (!entry.isDirectory) input.copyTo(output)
+          output.closeEntry()
+        }
+        entry = input.nextEntry
+      }
+    }
+  }
+  jarFile.delete()
+  tempFile.renameTo(jarFile)
 }
 
 private fun waitForServerHealth(baseUrl: String, timeoutSeconds: Long) {
@@ -266,9 +254,6 @@ tasks.register("buildMinimalRuntime") {
   group = "distribution"
   description = "Build a minimal JVM runtime (jlink) containing only the server's required modules"
   dependsOn("buildFatJar")
-  // The module set is computed inside the action, so it cannot be declared as an
-  // input. Force a re-run: a stale runtime silently drops modules that are only
-  // loaded reflectively (e.g. jdk.zipfs used by SkillRegistry's jar scan).
   outputs.upToDateWhen { false }
   outputs.dir(serverMinimalRuntimeDir)
   doLast {
@@ -277,9 +262,7 @@ tasks.register("buildMinimalRuntime") {
       runAndCapture(
         listOf("$javaHome/bin/jdeps", "--ignore-missing-deps", "--print-module-deps", serverFatJarFile.absolutePath)
       ).replace(Regex("\\s"), "")
-    // jdeps misses service-provider modules loaded reflectively: SkillRegistry
-    // opens the fat jar via FileSystems.newFileSystem, which needs jdk.zipfs.
-    // Without it the classpath scan silently finds no skills in the packaged app.
+
     val requiredModules: String =
       if ("jdk.zipfs" in modules.split(",")) modules else "$modules,jdk.zipfs"
     serverMinimalRuntimeDir.deleteRecursively()
@@ -331,6 +314,8 @@ tasks.register("serverPackage", Exec::class.java) {
   doFirst {
     stagingDir.mkdirs()
     serverFatJarFile.copyTo(packagedFatJar, overwrite = true)
+    stripForeignSqliteNatives(packagedFatJar)
+    logger.lifecycle("Staged fat jar with target-OS sqlite natives only: ${packagedFatJar.length() / 1024 / 1024} MB")
 
     destDir.deleteRecursively()
 
@@ -377,10 +362,6 @@ tasks.register("serverPackage", Exec::class.java) {
     val executable: File = selfContainedServerExecutable(appName, destDir)
     logger.lifecycle("Self-contained server executable: ${executable.absolutePath}")
     logger.lifecycle("Run it on a machine WITHOUT Java installed; it carries its own JVM.")
-    if (System.getProperty("os.name").lowercase().contains("mac")) {
-      wrapMacAppForTerminalLaunch(executable)
-      adhocSignMacApp(destDir.resolve("$appName.app"))
-    }
   }
 }
 

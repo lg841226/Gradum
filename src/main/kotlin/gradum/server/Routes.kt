@@ -6,6 +6,8 @@ import gradum.agent.Agent
 import gradum.agent.AttachmentPayload
 import gradum.agent.GradumEventType
 import gradum.client.*
+import gradum.legatus.legatusRoutes
+import gradum.legatus.respondWorkspacePage
 import gradum.logging.EventStreamDump
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.server.persistence.*
@@ -51,10 +53,6 @@ private val logger: Logger = LoggerFactory.getLogger("GradumServerRoutes")
 
 private const val EVENTS_CHANNEL_CAPACITY: Int = 2048
 
-// One live `/events` run, keyed in `activeSessions` by the run id.
-//
-// A run belongs to a [sessionId] (the durable session) and may have child
-// runs (sub-agents), which is why the parent link is a run id.
 private data class SessionEntry(
   val agent: Agent,
   val sessionId: String? = null,
@@ -290,6 +288,8 @@ fun Application.registerAllRoutes(
   )
 
   routing {
+    legatusRoutes(serverConfiguration = serverConfiguration)
+
     post("/events") {
       val requestBody: EventsRequestBody = call.receive<EventsRequestBody>()
       val runId: String = UUID.randomUUID().toString()
@@ -581,6 +581,20 @@ fun Application.registerAllRoutes(
     }
 
     post("/session/delete") {
+      // Deletion is a managing action: remote readers never get it. With a
+      // token configured, only a request carrying the auth cookie may delete.
+      val authToken: String? = serverConfiguration.authToken?.takeIf { it.isNotEmpty() }
+      if (authToken != null &&
+        !ServerAuth.tokenMatches(call.request.cookies[ServerAuth.TOKEN_COOKIE_NAME], authToken)
+      ) {
+        call.respondText(
+          status = HttpStatusCode.Unauthorized,
+          contentType = ContentType.Application.Json,
+          text = JsonUtil.encodeMap(mapOf("error" to "unauthorized")),
+        )
+        return@post
+      }
+
       val requestBody = call.receive<DeleteSessionRequestBody>()
       val rawProjectRoot: String = requestBody.projectRoot
       if (rawProjectRoot.isBlank()) {
@@ -626,7 +640,8 @@ fun Application.registerAllRoutes(
         return@post
       }
 
-      SessionSnapshotManager.revertSnapshot(
+      // Deleting a session only drops its snapshot refs; the worktree must stay as-is.
+      SessionSnapshotManager.discardSnapshot(
         sessionId = sessionKey,
         projectRoot = projectRootPath.toString()
       )
@@ -1194,36 +1209,11 @@ fun Application.registerAllRoutes(
       }
 
       if (call.request.queryParameters["lock"] == "1") {
-        call.response.header(HttpHeaders.CacheControl, "no-store")
-        call.respondText(
-          text = editorHtml.replaceFirst("<html", "<html data-reader"),
-          contentType = ContentType.Text.Html,
-        )
+        call.respondWorkspacePage(editorHtml, serverConfiguration, forceReaderMarker = true)
         return@get
       }
 
-      val authToken: String? = serverConfiguration.authToken?.takeIf { it.isNotEmpty() }
-      if (authToken != null) {
-        val queryToken: String? = call.request.queryParameters[ServerAuth.TOKEN_QUERY_PARAM]
-        val cookieToken: String? = call.request.cookies[ServerAuth.TOKEN_COOKIE_NAME]
-
-        if (ServerAuth.tokenMatches(queryToken, authToken)) {
-          call.response.header(HttpHeaders.SetCookie, ServerAuth.authCookieHeader(authToken))
-        } else if (!ServerAuth.tokenMatches(cookieToken, authToken)) {
-          val marker =
-            if (queryToken != null) " data-reader=\"invalid\""
-            else " data-reader"
-
-          call.response.header(HttpHeaders.CacheControl, "no-store")
-          call.respondText(
-            text = editorHtml.replaceFirst("<html", "<html$marker"),
-            contentType = ContentType.Text.Html,
-          )
-          return@get
-        }
-      }
-      call.response.header(HttpHeaders.CacheControl, "no-store")
-      call.respondText(text = editorHtml, contentType = ContentType.Text.Html)
+      call.respondWorkspacePage(editorHtml, serverConfiguration)
     }
 
     get("/skills/editor/{asset...}") {

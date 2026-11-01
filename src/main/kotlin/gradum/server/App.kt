@@ -25,11 +25,8 @@ private const val HEALTH_PATH: String = "/health"
 // Editor page route; it decides full access vs. reader mode (see Routes.kt).
 private const val EDITOR_PAGE_PATH: String = "/skills/editor"
 
-// The GET routes a token-less session may read so the editor can show code:
-// the skill-source list and a single skill's source. Everything else: every
-// POST included: keeps demanding the token, which is what makes that session
-// read-only.
-private val READER_PATHS: Set<String> = setOf("/skills/sources", "/skills/source")
+// Legatus page route; it decides full app vs. pairing view (see LegatusRoutes.kt).
+private const val LEGATUS_PAGE_PATH: String = "/legatus"
 
 typealias GradumServer = EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>
 
@@ -108,15 +105,18 @@ private fun Application.installRequestGuard(serverConfiguration: ServerConfigura
       if (requestPath == EDITOR_PAGE_PATH || requestPath.startsWith("$EDITOR_PAGE_PATH/")) {
         return@intercept
       }
-      if (requestPath in READER_PATHS) return@intercept
+      if (requestPath == LEGATUS_PAGE_PATH || requestPath.startsWith("$LEGATUS_PAGE_PATH/")) {
+        return@intercept
+      }
     }
 
-    val candidateToken: String? =
-      bearerToken(call.request)
-        ?: call.request.cookies[ServerAuth.TOKEN_COOKIE_NAME]
-        ?: call.request.queryParameters[ServerAuth.TOKEN_QUERY_PARAM]
-
-    if (!ServerAuth.tokenMatches(candidateToken, authToken)) {
+    val candidates: List<String?> = listOf(
+      bearerToken(call.request),
+      call.request.cookies[ServerAuth.TOKEN_COOKIE_NAME],
+      call.request.queryParameters[ServerAuth.TOKEN_QUERY_PARAM]
+    )
+    val authorized: Boolean = candidates.any { ServerAuth.tokenMatches(it, authToken) }
+    if (!authorized) {
       call.respondText(
         status = HttpStatusCode.Unauthorized,
         contentType = ContentType.Application.Json,

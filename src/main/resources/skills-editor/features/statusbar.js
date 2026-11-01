@@ -43,23 +43,34 @@ export function mountStatusBar(store, {canvas}) {
   const errors = createCount({tone: "error", icon: "error-outline"});
   const warnings = createCount({tone: "warning", icon: "warning-outline"});
 
+  const home = document.documentElement.dataset.home || "";
+  const shorten = (path) =>
+    home && path.startsWith(home) ? `~${path.slice(home.length)}` : path;
+  const expand = (path) =>
+    path === "~" || path.startsWith("~/")
+      ? home + path.slice(1)
+      : path;
+
+  const rootInput = document.createElement("input");
+  rootInput.className = "text-field statusbar-root";
+  rootInput.spellcheck = false;
+
+  rootInput.placeholder = copy.statusBar.projectRoot;
+  rootInput.hidden = true;
+  rootInput.addEventListener("change", () => {
+    store.setState({projectRoot: expand(rootInput.value.trim())});
+  });
+
   const left = document.createElement("div");
   left.className = "statusbar-left";
-  left.append(errors.item, warnings.item);
+  left.append(errors.item, warnings.item, rootInput);
 
   const position = document.createElement("span");
   position.className = "statusbar-item";
 
-  // The file's indent unit, in spaces: a property of the whole buffer (how
-  // wide one level is written), read from the editor and held steady while
-  // the caret moves, with the default four for a file that indents nothing.
   const indent = document.createElement("span");
   indent.className = "statusbar-item";
 
-  // Line ending and encoding. Both hold fixed text for now because nothing on
-  // the document carries either one yet, and neither is wired to a click: this
-  // is the space and the hit area they will take. The hover tips come from the
-  // copy, read by the document-wide [data-tooltip] bubble.
   const lineEnding = document.createElement("span");
   lineEnding.className = "statusbar-item";
   lineEnding.dataset.tooltip = copy.statusBar.lineEndingTip;
@@ -67,8 +78,6 @@ export function mountStatusBar(store, {canvas}) {
   encoding.className = "statusbar-item";
   encoding.dataset.tooltip = copy.statusBar.encodingTip;
 
-  // Every reported value sits at the right end, leaving the left one for counts
-  // and connection state.
   const right = document.createElement("div");
   right.className = "statusbar-right";
   right.append(position, indent, lineEnding, encoding);
@@ -76,12 +85,6 @@ export function mountStatusBar(store, {canvas}) {
   bar.append(left, right);
   canvas.appendChild(bar);
 
-  // The reader switch rides the far right end of the strip. A click flips the
-  // local view when the session carries a token, and opens the unlock dialog
-  // when it does not: a token-less session can never unlock itself by
-  // clicking, which is the whole point of reader mode. How that dialog
-  // unlocks follows the page's host: the token itself on this machine, the
-  // five-character pairing code everywhere else.
   const lock = document.createElement("button");
   lock.type = "button";
   lock.className = "statusbar-item statusbar-lock";
@@ -129,10 +132,6 @@ export function mountStatusBar(store, {canvas}) {
   store.subscribe(renderLock);
   renderLock(store.getState());
 
-  // A token was typed and still missed, so the page came back marked invalid:
-  // say so above the field instead of reopening the dialog as if nothing had
-  // happened. The marker can only come from a ?token= attempt, so the dialog
-  // reopens in token mode wherever the page was opened from.
   if (document.documentElement.getAttribute("data-reader") === "invalid") {
     unlock.show(copy.unlock.invalid, "token");
   }
@@ -140,17 +139,29 @@ export function mountStatusBar(store, {canvas}) {
   const render = (state) => {
     const doc = activeDoc(state);
 
-    // With no document open there is nothing to count, so the pair goes with it
-    // rather than reporting a brace of zeroes for a file that is not there.
-    left.hidden = !doc;
-    const diagnostics = (doc && doc.diagnostics) || [];
+    left.hidden = !doc && !state.chatOpen;
+    rootInput.hidden = !state.chatOpen;
+    if (rootInput.value !== shorten(state.projectRoot) && document.activeElement !== rootInput) {
+      rootInput.value = shorten(state.projectRoot);
+    }
+
+    if (!doc) {
+      position.textContent = "";
+      position.removeAttribute("aria-label");
+      position.removeAttribute("data-tooltip");
+      indent.textContent = "";
+      indent.removeAttribute("aria-label");
+      indent.removeAttribute("data-tooltip");
+      lineEnding.textContent = "";
+      encoding.textContent = "";
+      return;
+    }
+    const diagnostics = doc.diagnostics || [];
     const errorTotal = diagnostics.filter((item) => item.severity === "error").length;
     const warningTotal = diagnostics.filter((item) => item.severity === "warning").length;
     updateCount(errors, errorTotal, copy.statusBar.errors(errorTotal));
     updateCount(warnings, warningTotal, copy.statusBar.warnings(warningTotal));
 
-    // The picks describe the open document, so they clear with it, the way the
-    // caret readout does.
     lineEnding.textContent = doc ? copy.statusBar.lineEnding : "";
     encoding.textContent = doc ? copy.statusBar.encoding : "";
     if (!doc) {
@@ -163,8 +174,7 @@ export function mountStatusBar(store, {canvas}) {
       return;
     }
 
-    const indentText = copy.statusBar.indent(state.indent);
-    indent.textContent = indentText;
+    indent.textContent = copy.statusBar.indent(state.indent);
     const indentLabel = copy.statusBar.indentLabel(state.indent);
     indent.setAttribute("aria-label", indentLabel);
     indent.dataset.tooltip = indentLabel;
@@ -183,8 +193,7 @@ export function mountStatusBar(store, {canvas}) {
       "aria-label",
       (multiple ? lead : copy.statusBar.positionLabel(line, column)) + summary,
     );
-    // The tip follows the caret, so it always spells out the readout the
-    // strip currently shows.
+
     position.dataset.tooltip =
       (multiple ? lead : copy.statusBar.positionTip(line, column)) + summary;
   };

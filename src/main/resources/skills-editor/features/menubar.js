@@ -31,6 +31,15 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
       mnemonic: 0,
       select: () => ({view: "output", panel: "output", collapsed: false}),
     },
+    // The assistant is an overlay view of its own: it takes the editor's cell
+    // while open and hands it back on the second click, leaving the rest of
+    // the layout untouched.
+    {
+      name: "assistant",
+      label: copy.control.assistant,
+      mnemonic: 0,
+      select: (state) => ({chatOpen: !state.chatOpen}),
+    },
     // Two layout presets close the list: the editor alone, and everything back.
     // Editor skips its first letter: the E already belongs to Explorer, so its
     // access key falls to the next letter, the way a desktop menu resolves a
@@ -211,7 +220,12 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
   const render = (state) => {
     canvas.classList.toggle("rail-collapsed", state.railCollapsed || state.autoRail);
     for (const item of items) {
-      item.button.setAttribute("aria-pressed", item.name === state.view ? "true" : "false");
+      // The assistant entry tracks its own overlay flag; every other entry
+      // tracks the selected view.
+      const pressed = item.name === "assistant"
+        ? state.chatOpen === true
+        : item.name === state.view;
+      item.button.setAttribute("aria-pressed", pressed ? "true" : "false");
     }
 
     const activeName = state.docs.find((doc) => doc.id === state.activeId)?.name ?? "";

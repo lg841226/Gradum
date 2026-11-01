@@ -1,5 +1,6 @@
 package gradum.mcp.jsonrpc
 
+import gradum.jsonrpc.JsonRpcSession
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

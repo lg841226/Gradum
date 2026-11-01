@@ -116,6 +116,23 @@ object SessionSnapshotManager {
   }
 
   /**
+   * Deletes a session without touching the worktree: drops the session ref,
+   * every turn ref of the session, and prunes the store. Used when the user
+   * deletes a session: removing the record must not roll user files back.
+   */
+  fun discardSnapshot(projectRoot: String, sessionId: String) {
+    if (sessionId.isBlank()) return
+    try {
+      val snapshotGitDirectory: Path = snapshotStoreDirectory(projectRoot)
+      runGitCommand(projectRoot, snapshotGitDirectory, emptyMap(), "update-ref", "-d", sessionRefName(sessionId))
+      dropTurnRefs(projectRoot, snapshotGitDirectory, sessionId)
+      pruneSnapshotStore(projectRoot, snapshotGitDirectory)
+    } catch (cleanupException: Exception) {
+      logger.warn("snapshot cleanup failed for session '{}': {}", sessionId, cleanupException.message)
+    }
+  }
+
+  /**
    * Replays the worktree back to the session-start snapshot of [sessionId],
    * drops the session ref plus every turn ref of the session, and prunes the
    * store. A missing ref counts as success ("nothing to revert"). On failure
@@ -152,7 +169,6 @@ object SessionSnapshotManager {
     }
   }
 
-  /** Shared reverse-patch replay behind [revertSnapshot] and [revertTurnSnapshot]. */
   private fun revertToRef(
     projectRoot: String, snapshotGitDirectory: Path, snapshotRef: String, snapshotLabel: String
   ) {
@@ -204,13 +220,12 @@ object SessionSnapshotManager {
     Files.createDirectories(snapshotGitDirectory)
     val initEnvironment: Map<String, String> = mapOf(
       "GIT_DIR" to snapshotGitDirectory.toString(),
-      "GIT_WORK_TREE" to Path.of(projectRoot).toAbsolutePath().normalize().toString(),
+      "GIT_WORK_TREE" to Path.of(projectRoot).toAbsolutePath().normalize().toString()
     )
     runGitChecked(projectRoot, snapshotGitDirectory, initEnvironment, "init")
     logger.info("initialized snapshot store at '{}'", snapshotGitDirectory)
   }
 
-  /** Best-effort garbage collection; unreachable snapshot objects linger otherwise. */
   private fun pruneSnapshotStore(projectRoot: String, snapshotGitDirectory: Path) {
     try {
       runGitCommand(projectRoot, snapshotGitDirectory, emptyMap(), "gc", "--prune=14.days")
@@ -223,7 +238,6 @@ object SessionSnapshotManager {
 
   private fun turnRefName(sessionId: String, messageId: String): String = "$TURN_REF_PREFIX/$sessionId/$messageId"
 
-  /** Drops every turn ref of [sessionId]; called when the session itself is deleted. */
   private fun dropTurnRefs(projectRoot: String, snapshotGitDirectory: Path, sessionId: String) {
     val turnRefList: String = runGitCommand(
       projectRoot, snapshotGitDirectory, emptyMap(), "for-each-ref", "--format=%(refname)", "$TURN_REF_PREFIX/$sessionId/"
@@ -247,7 +261,6 @@ object SessionSnapshotManager {
     return mapOf("GIT_INDEX_FILE" to tempIndexFile.toString())
   }
 
-  /** Author/committer identity so commit-tree works without user-level git config. */
   private fun authorEnvironment(): Map<String, String> = mapOf(
     "GIT_AUTHOR_NAME" to "Gradum",
     "GIT_COMMITTER_NAME" to "Gradum",

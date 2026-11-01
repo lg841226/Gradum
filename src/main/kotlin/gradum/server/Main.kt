@@ -7,12 +7,12 @@ import gradum.agent.ExternalToolRegistry
 import gradum.logging.EventStreamDump
 import gradum.logging.routeAcpLogsToFile
 import gradum.mcp.*
+import gradum.runtime.EventStreamMonitor
 import gradum.server.setup.*
 import gradum.skill.SkillRegistry
 import gradum.skill.external.ExternalSkillDirectoryScanner
 import gradum.skill.external.ExternalSkillDirectoryWatcher
 import gradum.skill.external.ExternalSkillHost
-import gradum.tools.EventStreamMonitor
 import gradum.utils.CommandFilterRuntime
 import kotlinx.coroutines.runBlocking
 import org.slf4j.Logger
@@ -86,8 +86,6 @@ private fun startHttp(arguments: Array<String>) {
     return
   }
 
-  // The HTTP server speaks through the debug window's "Server Log" tab; the
-  // terminal stays silent. Falls back to the console when no GUI exists.
   val monitor: EventStreamMonitor? = EventStreamMonitor.openForServer()
   val lineSink: (String) -> Unit =
     if (monitor != null) {
@@ -193,17 +191,21 @@ private fun startHttp(arguments: Array<String>) {
   val server: GradumServer = createServerInstance(serverConfiguration)
 
   val editorPath = "/skills/editor?${ServerAuth.TOKEN_QUERY_PARAM}=$authToken"
+  val legatusPath = "/legatus?${ServerAuth.TOKEN_QUERY_PARAM}=$authToken"
   if (exposedToNetwork) {
     logger.info("Skill editor (this machine): http://localhost:$resolvedPort$editorPath")
+    logger.info("Gradum Legatus (this machine): http://localhost:$resolvedPort$legatusPath")
     for (address in ServerAuth.localAddresses()) {
       val urlHost: String = if (address.contains(':')) "[$address]" else address
       logger.info("Skill editor (LAN): http://$urlHost:$resolvedPort$editorPath")
+      logger.info("Gradum Legatus (LAN): http://$urlHost:$resolvedPort/legatus")
     }
   } else {
     val editorHost: String =
       if (settings.host.contains(':')) "[${settings.host}]"
       else settings.host
     logger.info("Skill editor: http://$editorHost:$resolvedPort$editorPath")
+    logger.info("Gradum Legatus: http://$editorHost:$resolvedPort$legatusPath")
   }
 
   Runtime.getRuntime().addShutdownHook(Thread {

@@ -80,10 +80,10 @@ class ServerSettingsStoreTest {
 
     assertEquals(1, settings.mcpServers.size)
     val server = settings.mcpServers.single()
-    assertEquals("fs", server.name)
-    assertEquals(listOf("npx", "-y", "server-filesystem", "/tmp"), server.command)
-    assertEquals("/tmp", server.workingDir)
-    assertEquals(mapOf("FOO" to "bar"), server.env)
+    assertEquals("fs", server["name"])
+    assertEquals(listOf("npx", "-y", "server-filesystem", "/tmp"), server["command"])
+    assertEquals("/tmp", server["workingDir"])
+    assertEquals(mapOf("FOO" to "bar"), server["env"])
   }
 
   @Test

@@ -1,10 +1,8 @@
-package gradum.tools
+package gradum.runtime
 
 import com.formdev.flatlaf.FlatDarkLaf
 import com.formdev.flatlaf.FlatLightLaf
 import gradum.logging.EventStreamDump
-import gradum.logging.ServerLogPanel
-import gradum.logging.routeServerLogsTo
 import gradum.server.setup.ServerSettingsStore
 import gradum.utils.JsonUtil
 import org.slf4j.LoggerFactory
@@ -71,7 +69,7 @@ class EventStreamMonitor : JFrame("Gradum Runtime Window") {
 
     outputTextArea.lineWrap = false
     outputTextArea.isEditable = false
-    outputTextArea.font = gradum.logging.MONOSPACE_UI_FONT
+    outputTextArea.font = gradum.runtime.MONOSPACE_UI_FONT
 
     val eventStreamPane = JPanel(BorderLayout()).apply {
       add(buildToolbar(), BorderLayout.NORTH)
@@ -335,7 +333,7 @@ private fun installFlatLaf() {
     // FlatLaf has no "follow system theme" switch; probe macOS dark mode ourselves.
     val laf = if (isMacDarkModeEnabled()) FlatDarkLaf() else FlatLightLaf()
     UIManager.setLookAndFeel(laf)
-    UIManager.put("defaultFont", gradum.logging.MONOSPACE_UI_FONT)
+    UIManager.put("defaultFont", gradum.runtime.MONOSPACE_UI_FONT)
   } catch (_: Exception) {
   }
 }

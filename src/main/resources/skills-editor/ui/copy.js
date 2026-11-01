@@ -24,6 +24,7 @@ export const copy = {
 
   control: {
     all: "All",
+    assistant: "Assistant",
     editor: "Editor",
     output: "Console",
     explorer: "Explorer",
@@ -42,6 +43,7 @@ export const copy = {
     expandTree: "Expand",
     run: "Run and install",
     newSkill: "Create skill",
+    newChat: "New chat",
     unsplit: "Unsplit editor",
     split: "Split editor right",
     splitDown: "Split editor down",
@@ -61,6 +63,8 @@ export const copy = {
   rail: {
     root: "skills",
     title: "Skill Explorer",
+    sessions: "Sessions",
+    sessionsRoot: "sessions",
   },
 
   bottom: {
@@ -80,6 +84,7 @@ export const copy = {
     lineEnding: "LF",
     encoding: "UTF-8",
     label: "Status bar",
+    projectRoot: "Project working directory",
     encodingTip: "Text stored as UTF-8",
     lineEndingTip: "Lines end with LF (\\n)",
     lockedTip: "Make the skill file editable",

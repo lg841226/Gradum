@@ -12,6 +12,7 @@ import {mountMenubar} from "./features/menubar.js";
 import {mountMinimap} from "./features/minimap.js";
 import {mountSplitters} from "./features/splitter.js";
 import {mountStatusBar} from "./features/statusbar.js";
+import {mountAssistant} from "./features/assistant.js";
 import {mountTooltip} from "./ui/components/tooltip.js";
 import {mountDiagnostics} from "./features/diagnostics.js";
 import {createLayoutWriter, loadLayout} from "./core/persistence.js";
@@ -20,9 +21,6 @@ const DEFAULT_SKILL = "HelloSkill.kt";
 
 const canvas = document.getElementById("canvas");
 
-// The server marks the page it served without a token session. That mark makes
-// the workspace boot locked: reader mode on, no token to flip with. The same
-// switch exists for a token session, where it is a local view choice only.
 const readerMark = document.documentElement.getAttribute("data-reader");
 
 const store = createStore({
@@ -43,6 +41,16 @@ const store = createStore({
   busy: false,
   busyTask: null,
   activeId: null,
+  chatOpen: false,
+  sessions: [],
+  activeSession: null,
+  projectRoot: (() => {
+    try {
+      return localStorage.getItem("legatus.projectRoot") ?? "";
+    } catch (_error) {
+      return "";
+    }
+  })(),
   autoRail: false,
   collapsed: false,
   autoBottom: false,
@@ -87,10 +95,13 @@ try {
       },
     ],
   });
+
+  const assistant = mountAssistant(store, {canvas});
   const rail = mountRail(store, {
     canvas,
     onOpen: (name) => void tabs.open(name),
-    onCreate: () => tabs.create(),
+    onCreate: () => (store.getState().chatOpen ? assistant.newChat() : tabs.create()),
+    onOpenSession: (id) => assistant.openSession(id),
   });
 
   mountDiagnostics(store, {body: panels.problemsBody, editor});
@@ -143,13 +154,8 @@ try {
       // The rail stays empty until the server becomes reachable.
     });
 
-  // The file that held the focus comes back with the layout; a first visit,
-  // or storage with nothing in it, starts on the default skill instead.
   void tabs.open(store.getState().openFile || DEFAULT_SKILL);
 
-  // Everything above has run synchronously, so the restored layout is already in
-  // the grid. Two frames let the browser paint that first frame with animation
-  // suppressed, and only then is the guard lifted so later changes animate.
   requestAnimationFrame(() => {
     requestAnimationFrame(() => document.documentElement.classList.remove("is-booting"));
   });

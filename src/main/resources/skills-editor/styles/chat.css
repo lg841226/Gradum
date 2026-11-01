@@ -1,0 +1,516 @@
+/* Assistant island styles: the Gradum chat. Everything is scoped under
+   .assistant (the island) or .assistant-rail (the rail section), so none of
+   the class names — bubble, block, composer, session — can collide with the
+   editor's own. Values come from the shared token table. */
+
+.assistant {
+    --composer-max: 710px;
+    min-height: 0;
+}
+
+/* While the assistant is open it takes the editor's cell, and the editor,
+   the bottom tool window and their splitter stand down. The bottom rows also
+   collapse, so the chat fills the full height between the menubar and the
+   status strip. */
+.canvas.chat-open .editor,
+.canvas.chat-open .bottom,
+.canvas.chat-open .splitter-h {
+    display: none;
+}
+
+.canvas.chat-open {
+    grid-template-rows:
+        var(--menubar-height) var(--island-gap)
+        1fr 0 0 var(--island-gap) var(--statusbar-height);
+}
+
+/* ---------- rail sessions (rendered by the shared rail while chat is open) ---------- */
+
+/* Rows reuse .list-item; only the quiet hint and the row's delete button need
+   anything of their own. The delete button shrinks to the row height. */
+.rail .list-hint {
+    padding: var(--space-1) var(--space-2);
+    color: var(--text-mute);
+    font-size: var(--font-size-small);
+}
+
+/* Session glyphs read at the tree root's dim tone, matching the folder icon
+   they nest under; the row label keeps the list item's own color. */
+.rail .list-item > .icon {
+    color: var(--text-dim);
+}
+
+/* Hover and selection share the same pale-blue wash, the way the platform's
+   project tree reads: pointing at a row already announces it. */
+.rail .list-item:hover {
+    background: var(--accent-selection);
+}
+
+.rail .list-item .btn[data-variant="icon"] {
+    width: 20px;
+    height: 20px;
+    visibility: hidden;
+}
+
+.rail .list-item:hover .btn[data-variant="icon"] {
+    visibility: visible;
+}
+
+/* ---------- status bar: the assistant's project root ---------- */
+
+/* The shared .text-field control. The strip's left group flexes across the
+   free stretch of the bar so the field inside it has room to grow — a long
+   absolute path stays fully readable — and its text sits at the dim tone the
+   strip's other values use. */
+.statusbar .statusbar-left {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.statusbar .statusbar-root.text-field {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 120px;
+    color: var(--text-dim);
+}
+
+.statusbar .statusbar-root.text-field::placeholder {
+    color: var(--text-mute);
+}
+
+/* ---------- empty state ---------- */
+
+/* With nothing in the transcript the island drops its column: the brand mark
+   and the composer travel to the middle as one group, and the first send
+   sends the composer down to its resting place at the bottom. The state is
+   an island class (assistant.js), not an attribute selector. */
+.assistant.is-empty {
+    justify-content: center;
+}
+
+.assistant.is-empty .messages {
+    display: none;
+}
+
+.assistant.is-empty .composer {
+    margin-top: var(--space-6);
+}
+
+.assistant .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    text-align: center;
+}
+
+/* The brand mark: a filled gradient sprite, not a stroke icon, so it lives
+   outside the 16px createIcon grid and sizes here. */
+.assistant .empty-logo {
+    width: 36px;
+    height: 36px;
+    margin-bottom: var(--space-2);
+}
+
+.assistant .empty-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: var(--weight-semibold);
+    color: var(--text);
+}
+
+.assistant .empty-hint {
+    margin: 0;
+    font-size: var(--font-size-small);
+    color: var(--text-mute);
+}
+
+/* ---------- messages ---------- */
+
+.assistant .messages {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-height: 0;
+}
+
+.assistant .messages > * {
+    max-width: var(--composer-max);
+    width: 100%;
+    margin: 0 auto;
+}
+
+.assistant .bubble {
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-island);
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.assistant .bubble-user {
+    align-self: flex-end;
+    width: auto;
+    max-width: calc(var(--composer-max) * .8);
+    margin: 0 0 0 auto;
+    background: var(--accent-selection);
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* The agent speaks in the open: no box, just the column. Only its blocks
+   (thinking, tool results) carry surfaces. */
+.assistant .bubble-agent {
+    background: transparent;
+    border: none;
+    padding: 0 var(--space-1);
+}
+
+.assistant .bubble-error {
+    background: color-mix(in srgb, var(--error) 10%, transparent);
+    border: 1px solid var(--error);
+    color: #f2b8b5;
+}
+
+/* Collapsible blocks: thinking, tool results. */
+
+.assistant details.block {
+    background: color-mix(in srgb, var(--bg-raised) 45%, transparent);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-island);
+}
+
+.assistant details.block > summary {
+    padding: var(--space-2) var(--space-3);
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: var(--font-size-small);
+    user-select: none;
+    list-style: none;
+}
+
+.assistant details.block > summary::before {
+    content: "\25B8 ";
+    color: var(--text-mute);
+}
+
+.assistant details.block[open] > summary::before {
+    content: "\25BE ";
+    color: var(--text-mute);
+}
+
+.assistant details.block > summary:hover {
+    color: var(--text);
+}
+
+.assistant .block-body {
+    padding: 0 var(--space-3) var(--space-2);
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: var(--font-mono), monospace;
+    font-size: var(--font-size-small);
+    line-height: 1.5;
+    color: var(--text-dim);
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.assistant details.block[data-failed] > summary {
+    color: var(--error);
+}
+
+/* Ask card: the one island that asks for the user's hand, so it gets the
+   accent outline the editor reserves for focused dialogs. */
+
+.assistant .ask-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: color-mix(in srgb, var(--bg-raised) 45%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+    border-radius: var(--radius-island);
+    box-shadow: var(--shadow-popup);
+}
+
+.assistant .ask-title {
+    font-weight: var(--weight-semibold);
+}
+
+.assistant .ask-details {
+    font-family: var(--font-mono), monospace;
+    font-size: var(--font-size-small);
+    color: var(--text-dim);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.assistant .ask-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.assistant .ask-button {
+    height: var(--control-height);
+    padding: 0 var(--space-3);
+    font: inherit;
+    font-size: var(--font-size-small);
+    font-weight: var(--weight-medium);
+    color: var(--text-dim);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    cursor: pointer;
+    transition: background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.assistant .ask-button:hover {
+    background: var(--bg-raised);
+    color: var(--text);
+}
+
+.assistant .ask-button[data-semantics="allow_once"],
+.assistant .ask-button[data-semantics="allow_always"] {
+    color: var(--ok);
+    border-color: var(--ok);
+}
+
+.assistant .ask-button[data-semantics="reject"] {
+    color: var(--error);
+    border-color: var(--error);
+}
+
+.assistant .ask-answered {
+    color: var(--text-mute);
+    font-size: var(--font-size-small);
+    margin: 0;
+}
+
+.assistant .ask-input {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.assistant .ask-input input {
+    flex: 1;
+    height: var(--control-height);
+    padding: 0 var(--space-2);
+    color: var(--text);
+    background: var(--bg-canvas);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    outline: none;
+    font: inherit;
+    min-width: 0;
+}
+
+.assistant .ask-input input:focus {
+    border-color: var(--accent);
+}
+
+/* ---------- composer ---------- */
+
+/* One raised card at the bottom of the island: the input above, a quiet foot
+   below carrying the model chip on the left and the run controls on the right.
+   The card owns the focus ring, so the input itself stays frameless. */
+.assistant .composer {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    width: 100%;
+    max-width: var(--composer-max);
+    margin: 0 auto var(--space-6);
+    padding: var(--space-2);
+    background: var(--bg-popup);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-popup);
+    transition: border-color var(--motion-fast) var(--ease-standard);
+}
+
+.assistant .composer:hover {
+    border-color: var(--border-strong);
+}
+
+.assistant .composer:focus-within {
+    border-color: var(--accent-outline);
+}
+
+.assistant .composer-input {
+    resize: none;
+    /* The chip's label sits one --space-2 inside the chip; the placeholder
+       matches that line so input and chip share a left edge. */
+    padding: var(--space-1) 0 var(--space-1) var(--space-2);
+    font: inherit;
+    line-height: 1.45;
+    color: var(--text);
+    caret-color: var(--accent);
+    background: transparent;
+    border: none;
+    outline: none;
+    min-height: 56px;
+    max-height: 240px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scroll-thumb) transparent;
+}
+
+.assistant .composer-input::selection {
+    background: var(--accent-selection);
+}
+
+.assistant .composer-input::placeholder {
+    color: var(--text-mute);
+}
+
+.assistant .composer-foot {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+/* The two pill chips share the platform's pill recipe; they sit together as
+   one left group with a tighter inner gap than the foot's, and the group's
+   auto margin pushes the run controls to the foot's right edge. */
+.assistant .chip-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-right: auto;
+}
+
+.assistant .model-chip,
+.assistant .perm-chip {
+    max-width: 320px;
+    height: 24px;
+    padding: 0 var(--space-2);
+    border-radius: 999px;
+    font-size: var(--font-size-small);
+    color: var(--text-dim);
+}
+
+/* A chip's chevron turns upward while its menu stands open, easing between
+   the two states at the shared fast-motion pace. */
+.assistant .model-chip .icon,
+.assistant .perm-chip .icon {
+    transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.assistant .model-chip[data-open] .icon,
+.assistant .perm-chip[data-open] .icon {
+    transform: rotate(180deg);
+}
+
+.assistant .model-chip-label,
+.assistant .perm-chip-label {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* The picker's popup: the completion surface's glass recipe, opened upward
+   from the chip because the composer sits on the island's floor. */
+.assistant .model-menu,
+.assistant .perm-menu {
+    position: absolute;
+    bottom: calc(100% + var(--space-2));
+    left: 0;
+    z-index: 8;
+    min-width: 240px;
+    max-width: 360px;
+    padding: var(--space-1) 0;
+    background: color-mix(in srgb, var(--bg-popup) 65%, transparent);
+    backdrop-filter: blur(var(--blur-popup));
+    -webkit-backdrop-filter: blur(var(--blur-popup));
+    border: 1px solid var(--border);
+    border-radius: var(--radius-island);
+    box-shadow: var(--shadow-popup);
+}
+
+.assistant .model-menu[hidden] {
+    display: none;
+}
+
+.assistant .model-menu-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-1);
+}
+
+/* The permission rows carry the plugin's two-line copy — mode name over its
+   info sentence — so the single-row height gives way to the pair. */
+.assistant .perm-item {
+    height: auto;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: var(--space-1) var(--space-2);
+}
+
+.assistant .perm-item .list-item-label {
+    white-space: nowrap;
+}
+
+.assistant .perm-item-info {
+    color: var(--text-mute);
+    font-size: var(--font-size-small);
+    line-height: 1.35;
+}
+
+.assistant .chat-status {
+    font-size: var(--font-size-small);
+    color: var(--text-mute);
+}
+
+/* A resting chat says nothing; only streaming and failures earn words. */
+.assistant .chat-status[data-tone="idle"] {
+    display: none;
+}
+
+.assistant .chat-status[data-tone="error"] {
+    color: var(--error);
+}
+
+/* The round run mark — send at rest, stop in flight — at the foot's right edge. */
+.assistant .composer-send {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--control-height);
+    height: var(--control-height);
+    padding: 0;
+    color: var(--text-dim);
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard);
+}
+
+.assistant .composer-send:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.assistant .composer-send:hover {
+    color: var(--text);
+    background: var(--bg-raised);
+}
+
+.assistant .composer-send:active {
+    background: var(--bg-raised);
+}
+
+.assistant .composer-send:disabled {
+    opacity: .5;
+    cursor: default;
+}

@@ -1,7 +1,7 @@
 package gradum.mcp
 
-import gradum.mcp.jsonrpc.JsonRpcSession
-import gradum.mcp.jsonrpc.RpcException
+import gradum.jsonrpc.JsonRpcSession
+import gradum.jsonrpc.RpcException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking

@@ -178,6 +178,13 @@ html.is-booting * {
     grid-column: 3;
 }
 
+/* The assistant island shares the editor's cell; the chat-open class on the
+   canvas stands the editor down while it is in view (rules in chat.css). */
+.assistant {
+    grid-row: 3;
+    grid-column: 3;
+}
+
 .bottom {
     grid-row: 5;
     grid-column: 3;
