@@ -36,15 +36,6 @@ export async function stop(runId) {
   });
 }
 
-/**
- * Posts a task and drains the NDJSON reply.
- *
- * Calls [onEvent] with each parsed frame; resolves when the stream ends. The
- * abort signal is the Stop button's first half: aborting kills the fetch, and
- * POST /stop separately tells the server to halt the run. A malformed line is
- * reported through `onParseError` (console by default); an exception thrown by
- * [onEvent] propagates, because a renderer failure is not an undecodable frame.
- */
 export async function streamEvents(body, {onEvent, signal, onParseError}) {
   const response = await fetch("/events", {
     method: "POST",

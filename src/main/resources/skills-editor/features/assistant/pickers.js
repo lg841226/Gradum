@@ -10,9 +10,6 @@ import {copy} from "../../ui/copy.js";
 import {STORAGE_KEYS} from "../../core/storageKeys.js";
 import {readStorage, writeStorage} from "../../core/storage.js";
 
-// The tool-surface modes the server's /events accepts as `toolMode`
-// (Routes.kt). Same wire values the plugin's permission selector sends; its
-// debug entry is plugin-only, so the web picker leaves it out.
 export const PERMISSION_MODES = [
   {value: "read_only", icon: "reader-mode"},
   {value: "edit", icon: "edit"},

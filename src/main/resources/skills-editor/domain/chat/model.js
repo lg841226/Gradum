@@ -98,9 +98,6 @@ export function createChatModel() {
         }
 
         case "thinking": {
-          // Only the pending row and the agent bubble stand down here; the
-          // running thinking block must survive, or every streamed chunk
-          // would retire its block at ~0.0s and open a fresh one.
           const out = [...closePending()];
           if (state.agent.open) {
             state.agent = {open: false, text: ""};

@@ -1,9 +1,9 @@
 /* Design tokens. Every visual value in the editor resolves to one of these
    variables so the whole surface can be re-themed from a single place. */
 :root {
-    --bg-canvas: #212327;
-    --bg-raised: #393b40;
     --bg-popup: #2b2d31;
+    --bg-raised: #393b40;
+    --bg-canvas: #212327;
     --shadow-popup: 0 4px 12px rgb(9 13 24 / 40%);
     --bg-island: color-mix(in srgb, #121317 88%, transparent);
     --glow: color-mix(in srgb, var(--accent) 34%, transparent);
@@ -32,40 +32,40 @@
     --match-border: color-mix(in srgb, var(--accent) 65%, transparent);
 
     /* Semantic */
+    --ok: #62b543;
     --error: #db5c5c;
     --warning: #e7bc4b;
-    --ok: #62b543;
 
     /* Syntax */
-    --syn-keyword: #cf8e6d;
+    --syn-type: #b3ae60;
+    --syn-number: #2aacb8;
     --syn-string: #6aab73;
     --syn-comment: #7a7e85;
-    --syn-number: #2aacb8;
-    --syn-type: #b3ae60;
-    --syn-annotation: #b3ae60;
+    --syn-keyword: #cf8e6d;
     --syn-function: #56a8f5;
+    --syn-annotation: #b3ae60;
 
     /* Brand mark. The Kotlin icon is a filled sprite (expui/kotlin_dark.svg)
        rather than a currentColor glyph, so its two stops live here and flip
        with the theme like every other colour. */
-    --icon-kotlin-wedge: #2f2936;
     --icon-kotlin-body: #a571e6;
     --icon-node-val-bg: #2f2936;
-    --icon-node-val-ink: #b589ec;
     --icon-node-fun-bg: #402929;
+    --icon-kotlin-wedge: #2f2936;
+    --icon-node-val-ink: #b589ec;
     --icon-node-fun-ink: #db5c5c;
     --icon-node-type-bg: #25324d;
-    --icon-node-type-ink: #548af7;
     --icon-node-word-bg: #45322b;
+    --icon-node-type-ink: #548af7;
     --icon-node-word-ink: #c77d55;
     --icon-node-snippet-ink: #ced0d6;
 
     --squiggle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='3'%3E%3Cpath d='M0 3 L1.5 1 L3 3 L4.5 1 L6 3' fill='none' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E");
 
     /* Radii */
-    --radius-control: 4px;
     --radius-tab: 6px;
     --radius-island: 8px;
+    --radius-control: 4px;
     --radius-dialog: 12px;
 
     /* Spacing scale (4px base) */
@@ -76,14 +76,14 @@
     --space-6: 24px;
 
     /* Typography */
-    --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --font-size-ui: 13px;
-    --font-size-small: 12px;
     --font-size-code: 12px;
+    --font-size-small: 12px;
     --line-height-code: 20px;
-    --weight-regular: 400;
     --weight-medium: 500;
+    --weight-regular: 400;
     --weight-semibold: 600;
 
     /* Motion */
@@ -92,24 +92,24 @@
 
     /* Structure */
     --island-gap: 6px;
+    --rail-width: 208px;
+    --blur-popup: 10px;
     --header-height: 36px;
     --control-height: 28px;
     --menubar-height: 28px;
-    --statusbar-height: 20px;
-    --rail-width: 208px;
     --bottom-height: 200px;
     --minimap-width: 128px;
-    --blur-popup: 10px;
+    --statusbar-height: 20px;
 
     /* Layout values written from script at runtime: the menubar measures each
        entry's width, the editor's divider drag re-shares --split-ratio, and the
        tooltip positioner flips its edge. The declarations here are the states
        before any of those writes lands, so the CSS reads the same tokens the
        JS sets. */
-    --menu-entry-width: 12em;
     --split-ratio: 0.5;
-    --tooltip-origin: bottom;
     --tooltip-shift: 0;
+    --menu-entry-width: 12em;
+    --tooltip-origin: bottom;
 }
 
 /* Light theme. The page puts data-theme="light" on <html> when the user picks
@@ -118,15 +118,13 @@
    and structure stay shared between the two palettes. */
 :root[data-theme="light"] {
     /* Surfaces invert: a grey backdrop with white panels. */
-    --bg-canvas: #f2f3f5;
-    --bg-island: color-mix(in srgb, #ffffff 80%, transparent);
-    --bg-raised: #e4e6ea;
     --bg-popup: #ffffff;
+    --bg-canvas: #f2f3f5;
+    --bg-raised: #e4e6ea;
     --shadow-popup: 0 4px 12px rgb(43 53 76 / 14%);
+    --bg-island: color-mix(in srgb, #ffffff 80%, transparent);
 
     --bg-menu: color-mix(in srgb, var(--bg-raised) 62%, transparent);
-
-    /* A light backdrop needs a gentler wash than the dark one. */
     --glow: color-mix(in srgb, var(--accent) 18%, transparent);
 
     /* Lines */
@@ -147,31 +145,31 @@
     --accent-outline: #93b4ef;
 
     /* Semantic */
+    --ok: #2e7d32;
     --error: #c0392b;
     --warning: #b07d0a;
-    --ok: #2e7d32;
 
     /* Syntax: the IntelliJ Light scheme. */
-    --syn-keyword: #0033b3;
-    --syn-string: #067d17;
-    --syn-comment: #8c8c8c;
-    --syn-number: #1750eb;
     --syn-type: #808000;
-    --syn-annotation: #808000;
+    --syn-number: #1750eb;
+    --syn-string: #067d17;
+    --syn-keyword: #0033b3;
+    --syn-comment: #8c8c8c;
     --syn-function: #00627a;
+    --syn-annotation: #808000;
 
     /* Kotlin file mark: the platform's light variant (expui/kotlin.svg). */
-    --icon-kotlin-wedge: #faf5ff;
     --icon-kotlin-body: #834df0;
+    --icon-kotlin-wedge: #faf5ff;
 
     /* Completion kind marks: the platform's light variants (expui/nodes/*.svg). */
     --icon-node-val-bg: #faf5ff;
-    --icon-node-val-ink: #834df0;
     --icon-node-fun-bg: #fff7f7;
+    --icon-node-val-ink: #834df0;
     --icon-node-fun-ink: #db3b4b;
     --icon-node-type-bg: #e7effd;
-    --icon-node-type-ink: #3574f0;
     --icon-node-word-bg: #fff4eb;
     --icon-node-word-ink: #e66d17;
+    --icon-node-type-ink: #3574f0;
     --icon-node-snippet-ink: #6c707e;
 }

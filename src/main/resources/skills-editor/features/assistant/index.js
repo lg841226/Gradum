@@ -17,7 +17,7 @@ import {readStorage, writeStorage} from "../../core/storage.js";
 import {copy} from "../../ui/copy.js";
 import {createIconButton} from "../../ui/components/button.js";
 import {createTabStrip, renderTabStrip} from "../../ui/components/tab.js";
-import {createChat} from "../chat/index.js";
+import {createChat} from "../chat";
 import {createComposer} from "./composer.js";
 import {createModelPicker, createPermissionPicker} from "./pickers.js";
 import {createStreamController} from "./stream.js";
@@ -61,14 +61,9 @@ export function mountAssistant(store, {canvas}) {
   };
   const left = makePane("left");
   const right = makePane("right");
-  const strips = [left.strip, right.strip];
-
   const columns = document.createElement("div");
   columns.className = "chat-columns";
 
-  // The divider is a handle, not just a hairline: pressing it re-shares the
-  // body between the two panes along whichever axis the split is on, exactly
-  // as the editor's divider does over the same store state.
   const divider = document.createElement("div");
   divider.className = "pane-divider";
   divider.setAttribute("role", "separator");
@@ -88,25 +83,17 @@ export function mountAssistant(store, {canvas}) {
     });
   });
 
-  // Inactive tabs' message columns park here, out of both panes, until their
-  // tab is hosted again.
+
   const vault = document.createElement("div");
   vault.hidden = true;
 
   columns.append(left.pane, divider, right.pane, vault);
 
-  // A pane is a full duplicate of the chat surface: a message column and a
-  // composer with its own model and permission pickers. Split - driven by the
-  // menubar's existing split toggles through the store's `split` state, the
-  // same one the editor answers to - shows two panes side by side, and each
-  // composer sends into the tab its pane hosts.
   const makeUi = () => {
     const ui = {};
     let modelPicker;
     let permissionPicker;
-    // Both menus are mutually exclusive; opening one closes the other. The
-    // pickers are assigned before any menu can be opened, and the optional
-    // call keeps the closure safe if a picker failed to mount.
+
     const closeOther = () => {
       modelPicker?.close();
       permissionPicker?.close();
@@ -125,9 +112,6 @@ export function mountAssistant(store, {canvas}) {
   };
 
   let wired = false;
-  // The open chats, in tab order. A tab is `fresh` while it is a client-minted
-  // session the server has never seen; fresh tabs stay out of storage, so a
-  // reload always lands on real sessions.
   const tabs = new Map();
   let lastRoot = readStorage(STORAGE_KEYS.projectRoot, "");
   let sessionRequest = 0;
@@ -136,10 +120,6 @@ export function mountAssistant(store, {canvas}) {
   const splitUi = makeUi();
   const composer = ui.composer;
 
-  // Each pane hosts its own tab, the way each editor group holds its own
-  // document: a pane's strip picks what that pane shows, independently of the
-  // other. The focused pane's tab is the island's active one and drives the
-  // rail highlight and the menubar widget.
   const hosted = {left: null, right: null};
   let focusedSide = "left";
 
@@ -179,8 +159,7 @@ export function mountAssistant(store, {canvas}) {
     const sessions = projectRoot
       ? await listSessions(projectRoot).catch(() => [])
       : [];
-    // A root edit while the first request was in flight owns the list; a late
-    // answer from the old root must not replace it.
+
     if (request === sessionRequest) {
       store.setState({sessions});
     }
@@ -203,7 +182,7 @@ export function mountAssistant(store, {canvas}) {
     writeStorage(STORAGE_KEYS.chatTabs, {tabs: ids, active: activeId()});
   }
 
-  // The split state is the editor's: the menubar's split toggles write it and
+  // The split state is the editor's: the menu bar's split toggles write it and
   // both surfaces read it. The chat only splits with two or more tabs, and
   // never afloat, where there is no width worth splitting. The classes and the
   // ratio variable land on the pane body, exactly where the editor's land on
@@ -279,14 +258,13 @@ export function mountAssistant(store, {canvas}) {
         labelFor(tab),
       ]),
     });
+
     if (next === tabsSignature) {
       return;
     }
+
     tabsSignature = next;
 
-    // Each pane lists the open chats at its own top and marks the tab it
-    // hosts, the way a split editor group keeps its own tab bar. A tab click
-    // in a strip opens that chat in that strip's pane.
     const items = [...tabs.values()].map((tab) => ({
       id: tab.id,
       label: labelFor(tab),
@@ -295,6 +273,7 @@ export function mountAssistant(store, {canvas}) {
       dirty: tab.stream.streaming,
       tooltip: labelFor(tab),
     }));
+
     for (const [side, strip] of [["left", left.strip], ["right", right.strip]]) {
       strip.hidden = tabs.size < 2;
       renderTabStrip(strip, items.map((item) => ({
@@ -367,24 +346,20 @@ export function mountAssistant(store, {canvas}) {
     seedRoot();
     void refreshSessions();
 
-    // The stored tabs come back in their saved order; the saved active tab
-    // leads. A reload mid-run reconnects as a fresh view: the server holds
-    // the transcript, so the history load rebuilds what was on screen.
     const saved = readStorage(STORAGE_KEYS.chatTabs, {tabs: [], active: null});
     for (const id of saved.tabs ?? []) {
       const tab = createTab({id, fresh: false});
       loadHistory(tab);
     }
+
     if (tabs.size === 0) {
       createTab();
     }
+
     setActive(saved.active && tabs.has(saved.active) ? saved.active : tabs.keys().next().value);
     hosted.right = [...tabs.keys()].find((id) => id !== hosted.left) ?? null;
     layout();
 
-    // An empty model selection means "let the server pick its default"; a
-    // failed discovery leaves the runtime default as the only path. Both
-    // panes' pickers take the same list.
     listModels()
       .then((models) => {
         ui.modelPicker.applyModels(models);
@@ -507,10 +482,6 @@ export function mountAssistant(store, {canvas}) {
   island.append(columns);
   canvas.appendChild(island);
 
-  // Whichever pane the user last touched is the active one: its tab drives
-  // the rail highlight and the menubar widget, as the editor's focused pane
-  // owns the caret. Pointer and focus both count; capture catches clicks on
-  // bubbles that never take focus themselves.
   const noteFocus = (event) => {
     const side = event.target.closest?.(".chat-pane")?.dataset.pane;
     if ((side === "left" || side === "right") && side !== focusedSide) {
@@ -525,10 +496,6 @@ export function mountAssistant(store, {canvas}) {
   island.addEventListener("pointerdown", noteFocus, {capture: true});
   island.addEventListener("focusin", noteFocus, {capture: true});
 
-  // Scroll-to-bottom: a circular button anchored to the composer's top-right
-  // corner, visible only while the user has scrolled away from the newest
-  // content. The active tab's column drives scrollTop; this listens to the
-  // result of any of them.
   const scrollButton = createIconButton({
     icon: "scroll-down",
     tooltip: "Scroll to Bottom",
@@ -553,22 +520,13 @@ export function mountAssistant(store, {canvas}) {
   };
   island.addEventListener("scroll", updateScrollButton, {passive: true, capture: true});
 
-  // The composer floats above the message column; the column reserves the
-  // composer's live height through the --composer-h variable so the newest
-  // bubble scrolls clear of it instead of parking underneath.
   new ResizeObserver(([entry]) => {
     const height = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height;
     island.style.setProperty("--composer-h", `${Math.ceil(height)}px`);
   }).observe(composer.root);
 
-  // Session titles arrive with the list; the strip labels follow them.
   store.subscribe(() => renderTabs());
 
-  // The menubar's split toggles and the divider drag both write the shared
-  // split state; the island follows the moment either moves. The ratio is
-  // written straight onto the pane body - the variable the two panes' grow
-  // factors read - while the shape (on/off, axis) only re-lays the panes out
-  // when it actually changes.
   let splitSignature = null;
   store.subscribe((state) => {
     const ratio = String(state.splitRatio ?? 0.5);
