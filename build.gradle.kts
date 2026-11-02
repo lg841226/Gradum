@@ -52,8 +52,6 @@ ktor {
   }
 }
 
-// The editor's resources folder also holds the IDE's own `.idea` directory,
-// which is gitignored but would still be packaged into the jar. Keep it out.
 tasks.named<ProcessResources>("processResources") {
   exclude("skills-editor/.idea/**")
 }
@@ -92,7 +90,7 @@ tasks.named<JavaExec>("run") {
 /**
  * Swing tail over the debug NDJSON dump (`gradum.logging.EventStreamDump`).
  * Dev-only: it never runs as part of the server, it just reads the temp log
- * the server writes when `debug.eventDump` is on in `~/.gradum/settings.json`.
+ * the server writes when `debug.eventDump` is on in `../.gradum/settings.json`.
  */
 tasks.register<JavaExec>("eventMonitor") {
   group = "gradum"
@@ -168,11 +166,6 @@ private fun selfContainedServerExecutable(appName: String, destDir: File): File 
     else -> destDir.resolve("bin/$appName")
   }
 }
-
-/**
- * On macOS the packaged app opens the Swing Runtime Window on start, which
- * shows the server logs — no Terminal wrapper is needed to keep logs visible.
- */
 
 private val SQLITE_NATIVE_PREFIX = "org/sqlite/native/"
 

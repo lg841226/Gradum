@@ -98,14 +98,14 @@ export const SNIPPETS = [
     ].join("\n"),
   },
   {
-    label: "overrideVal",
-    kind: "snippet",
     detail: "",
+    kind: "snippet",
+    label: "overrideVal",
     insert: "override val ",
   },
   {
-    label: "schemaBlock",
     kind: "snippet",
+    label: "schemaBlock",
     detail: "",
     insert: [
       "override val schemaProperties: SchemaBuilder.() -> Unit = {",

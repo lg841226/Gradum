@@ -13,11 +13,11 @@
 
 import {listModels, listSessions, sessionState} from "../../data/legatusApi.js";
 import {STORAGE_KEYS} from "../../core/storageKeys.js";
-import {readStorage, writeStorage} from "../../core/storage.js";
+import {readJsonStorage, readStorage, writeStorage} from "../../core/storage.js";
 import {copy} from "../../ui/copy.js";
 import {createIconButton} from "../../ui/components/button.js";
 import {createTabStrip, renderTabStrip} from "../../ui/components/tab.js";
-import {createChat} from "../chat";
+import {createChat} from "../chat/index.js";
 import {createComposer} from "./composer.js";
 import {createModelPicker, createPermissionPicker} from "./pickers.js";
 import {createStreamController} from "./stream.js";
@@ -179,7 +179,10 @@ export function mountAssistant(store, {canvas}) {
 
   function persistTabs() {
     const ids = [...tabs.values()].filter((tab) => !tab.fresh).map((tab) => tab.id);
-    writeStorage(STORAGE_KEYS.chatTabs, {tabs: ids, active: activeId()});
+    writeStorage(
+      STORAGE_KEYS.chatTabs,
+      JSON.stringify({tabs: ids, active: activeId()}),
+    );
   }
 
   // The split state is the editor's: the menu bar's split toggles write it and
@@ -346,8 +349,9 @@ export function mountAssistant(store, {canvas}) {
     seedRoot();
     void refreshSessions();
 
-    const saved = readStorage(STORAGE_KEYS.chatTabs, {tabs: [], active: null});
-    for (const id of saved.tabs ?? []) {
+    const saved = readJsonStorage(STORAGE_KEYS.chatTabs, {tabs: [], active: null});
+    const savedTabs = Array.isArray(saved?.tabs) ? saved.tabs : [];
+    for (const id of savedTabs) {
       const tab = createTab({id, fresh: false});
       loadHistory(tab);
     }

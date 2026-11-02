@@ -44,8 +44,6 @@
     visibility: visible;
 }
 
-/* ---------- status bar: project root ---------- */
-
 .statusbar .statusbar-left {
     flex: 1 1 auto;
     min-width: 0;
@@ -62,8 +60,6 @@
     color: var(--text-mute);
 }
 
-/* The pane body mirrors the editor's .editor-body: a fixed pair of chat panes
-   with the divider between them, the right one folded until the split is on. */
 .assistant .chat-columns {
     flex: 1 1 auto;
     display: flex;
@@ -72,10 +68,6 @@
     position: relative;
 }
 
-/* A chat pane is one column of the split: its own tab strip above its own
-   message column and composer. The right pane is mounted from the start and
-   folded away here rather than added on demand, so both panes can be measured
-   and drawn at any time - the editor's .code-pane[data-pane="right"] again. */
 .assistant .chat-pane {
     position: relative;
     flex: 1 1 0;
@@ -97,9 +89,6 @@
     visibility var(--motion-fast) var(--ease-standard);
 }
 
-/* Both panes grow from a zero basis, so they divide the body by their grow
-   factors alone and the pair always fills it. Dragging the divider only
-   rewrites --split-ratio, which both of these read. */
 .assistant .chat-columns.is-split .chat-pane[data-pane="right"] {
     opacity: 1;
     flex-basis: 0;
@@ -111,8 +100,6 @@
     flex-grow: var(--split-ratio, 0.5);
 }
 
-/* The split runs left to right by default; the "down" direction stacks the two
-   panes instead. Only the axis the flex lines are laid on turns. */
 .assistant .chat-columns.is-split-down {
     flex-direction: column;
 }
@@ -121,10 +108,6 @@
     min-height: 0;
 }
 
-/* The hairline between the two panes, drawn only while the split is on, and
-   the handle that re-shares the body when it is dragged. The base look and the
-   grab strip come from the editor's .pane-divider; only the per-axis cursor
-   and the drawn state are restated for the chat body. */
 .assistant .chat-columns.is-split-down .pane-divider {
     cursor: row-resize;
 }
@@ -138,13 +121,12 @@
     visibility: visible;
 }
 
-/* Each pane lists the open chats at its own top, the way a split editor group
-   keeps its own tab bar. */
+
 .assistant .chat-pane .tab-strip {
-    flex: 0 0 auto;
     height: auto;
-    padding: var(--space-2) var(--space-2) 0;
+    flex: 0 0 auto;
     overflow-x: auto;
+    padding: var(--space-2) var(--space-2) 0;
 }
 
 .assistant .tab-strip[hidden] {
@@ -152,14 +134,15 @@
 }
 
 .assistant .messages {
+    width: 100%;
+    min-height: 0;
+    display: flex;
     flex: 1 1 auto;
     overflow-y: auto;
-    padding: var(--space-4) max(var(--space-4), calc((100% - var(--composer-max)) / 2)) calc(var(--composer-h, 96px) + var(--space-6));
-    display: flex;
     flex-direction: column;
     gap: var(--space-4);
-    min-height: 0;
-    width: 100%;
+    padding: var(--space-4) max(var(--space-4),
+    calc((100% - var(--composer-max)) / 2)) calc(var(--composer-h, 96px) + var(--space-6));
 }
 
 .assistant .messages > * {
@@ -167,21 +150,18 @@
     margin: 0;
 }
 
-/* Virtual blank after the last message: half a composer's height of empty
-   column the scroll can pull the newest bubble up into, so it never parks
-   flush against the composer when reading the end of a long exchange. */
 .assistant .messages::after {
-    content: "";
     flex: none;
+    content: "";
     height: calc(var(--composer-h, 96px) * .5);
 }
 
 .assistant .bubble {
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-island);
     line-height: 1.55;
     white-space: pre-wrap;
     word-break: break-word;
+    border-radius: var(--radius-island);
+    padding: var(--space-2) var(--space-3);
 }
 
 .assistant .bubble-user {
@@ -199,12 +179,6 @@
     padding: 0 var(--space-1);
 }
 
-/* ---------- agent markdown ---------- */
-
-/* Bold reads one step below the browser's 700 default: the UI stack lands on
-   Segoe UI on Windows, whose full bold at small sizes outweighs the same
-   weight on macOS, so the semibold the rest of the interface uses keeps the
-   emphasis without the heaviness. */
 .assistant strong {
     font-weight: var(--weight-semibold);
 }
@@ -243,11 +217,11 @@
 }
 
 .assistant .md-list {
-    margin: 0 0 var(--space-2);
-    padding-left: 1.4em;
     display: flex;
+    padding-left: 1.4em;
     flex-direction: column;
     gap: var(--space-1);
+    margin: 0 0 var(--space-2);
 }
 
 .assistant .md-list .md-list {
@@ -255,14 +229,14 @@
 }
 
 .assistant .md-code {
-    margin: 0 0 var(--space-2);
     padding: 0;
+    line-height: 1.5;
     border: none;
     background: none;
-    font-family: var(--font-mono), monospace;
-    font-size: var(--font-size-small);
-    line-height: 1.5;
     color: var(--text-dim);
+    margin: 0 0 var(--space-2);
+    font-size: var(--font-size-small);
+    font-family: var(--font-mono), monospace;
 }
 
 .assistant .md-code code {
@@ -274,12 +248,12 @@
 
 .assistant .md-code-inline {
     padding: 0 4px;
+    font-size: .92em;
+    border-radius: 4px;
+    color: var(--text);
     background: var(--bg-canvas);
     border: 1px solid var(--border);
-    border-radius: 4px;
     font-family: var(--font-mono), monospace;
-    font-size: .92em;
-    color: var(--text);
 }
 
 .assistant .md-link {
@@ -292,10 +266,10 @@
 }
 
 .assistant .md-quote {
+    color: var(--text-dim);
     margin: 0 0 var(--space-2);
     padding: var(--space-1) var(--space-3);
     border-left: 3px solid var(--border-strong);
-    color: var(--text-dim);
 }
 
 .assistant .md-quote > :last-child {
@@ -304,8 +278,8 @@
 
 .assistant .md-hr {
     border: none;
-    border-top: 1px solid var(--border);
     margin: var(--space-3) 0;
+    border-top: 1px solid var(--border);
 }
 
 .assistant .md-task {
@@ -315,22 +289,22 @@
 }
 
 .assistant .md-task-box {
-    flex: 0 0 auto;
+    top: 1px;
     width: 13px;
     height: 13px;
-    border: 1px solid var(--border-strong);
+    flex: 0 0 auto;
     border-radius: 3px;
     position: relative;
-    top: 1px;
+    border: 1px solid var(--border-strong);
 }
 
 .assistant .md-task-box[data-checked="true"]::after {
     content: "";
     position: absolute;
     inset: 2px 3px 3px 2px;
-    border-left: 1.5px solid var(--accent);
-    border-bottom: 1.5px solid var(--accent);
     transform: rotate(-45deg);
+    border-left: 1px solid var(--accent);
+    border-bottom: 1px solid var(--accent);
 }
 
 .assistant del {
@@ -340,36 +314,25 @@
 .assistant .md-table-wrap {
     overflow-x: auto;
     margin: 0 0 var(--space-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-control);
 }
 
 .assistant .md-table-wrap table {
-    width: 100%;
     border-collapse: collapse;
     font-size: var(--font-size-small);
 }
 
 .assistant .md-table-wrap th,
 .assistant .md-table-wrap td {
-    padding: var(--space-1) var(--space-2);
     text-align: left;
     border-bottom: 1px solid var(--border);
+    padding: var(--space-2) var(--space-3) var(--space-2) 0;
 }
 
 .assistant .md-table-wrap th {
-    background: var(--bg-raised);
+    color: var(--text);
     font-weight: var(--weight-medium);
-    color: var(--text-dim);
 }
 
-.assistant .md-table-wrap tr:last-child td {
-    border-bottom: none;
-}
-
-/* The sweep, mirroring the plugin's SweepLightText: a low-high-low alpha
-   band crosses the glyphs once per 1200ms while a state label is live
-   (thinking, tool group, pending status). Never applied to response body. */
 .assistant .sweep-text {
     background: linear-gradient(
             90deg,
@@ -378,9 +341,9 @@
             color-mix(in srgb, var(--text-dim) 40%, transparent) 100%
     );
     background-size: 200% 100%;
+    color: transparent;
     background-clip: text;
     -webkit-background-clip: text;
-    color: transparent;
     animation: md-sweep 1.2s linear infinite;
 }
 
@@ -393,36 +356,28 @@
     }
 }
 
-/* Pre-content status row inside the assistant bubble (the plugin's
-   TokenStatusRow): visible from the send moment, gone once content lands.
-   No color here: the sweep owns it (transparent glyphs, gradient fill). */
 .assistant .pending-status {
     font-weight: 500;
 }
 
 .assistant .bubble-error {
-    background: color-mix(in srgb, var(--error) 10%, transparent);
-    border: 1px solid var(--error);
     color: #f2b8b5;
 }
 
-/* Thinking block, mirroring the plugin's ThinkingIndicator: an unboxed
-   header row (nodes/related icon + elapsed-time label + chevron) over a
-   muted-gray markdown body. */
 .assistant details.thinking > summary {
     display: flex;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
     align-items: center;
     gap: var(--space-2);
     padding: var(--space-1) 0;
-    cursor: pointer;
     color: var(--text-dim);
-    user-select: none;
-    list-style: none;
 }
 
 .assistant details.thinking > summary > svg:first-child {
-    color: var(--text-mute);
     flex: none;
+    color: var(--text-mute);
 }
 
 .assistant .thinking-label {
@@ -430,8 +385,6 @@
     font-feature-settings: "tnum";
 }
 
-/* While the seconds tick the label keeps a running width, so the chevron
-   beside it does not jitter; once done the width follows the final text. */
 .assistant .thinking:not([data-done="true"]) .thinking-label {
     min-width: 96px;
 }
@@ -469,8 +422,6 @@
     overflow-y: auto;
 }
 
-/* Thinking is prose for reading, not code for inspecting: nothing inside may
-   start a sideways scrollbar, long tokens and fenced code wrap instead. */
 .assistant .thinking-body {
     overflow-x: hidden;
 }
@@ -480,23 +431,20 @@
     word-break: break-word;
 }
 
-/* Working Process group, mirroring the plugin's ProcessGroupSection: a
-   chevron + sweeping header row over an indented body of thinking blocks
-   and tool capsules. */
 .assistant details.tool-group > summary {
     display: flex;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
     align-items: center;
+    color: var(--text);
     gap: var(--space-2);
     padding: var(--space-1) 0;
-    cursor: pointer;
-    color: var(--text);
-    user-select: none;
-    list-style: none;
 }
 
 .assistant details.tool-group > summary > svg {
-    color: var(--text-mute);
     flex: none;
+    color: var(--text-mute);
     transition: transform var(--motion-fast) ease;
 }
 
@@ -518,15 +466,15 @@
 /* One tool call, the plugin's ToolCallCapsule: a single row of icon,
    medium-weight label, and (on failure) an error tint. */
 .assistant .tool-capsule {
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    min-width: 0;
 }
 
 .assistant .tool-capsule > svg {
-    color: var(--text-mute);
     flex: none;
+    color: var(--text-mute);
 }
 
 .assistant .tool-capsule-label {
@@ -543,10 +491,10 @@
     flex-direction: column;
     gap: var(--space-2);
     padding: var(--space-3);
+    box-shadow: var(--shadow-popup);
+    border-radius: var(--radius-island);
     background: color-mix(in srgb, var(--bg-raised) 45%, transparent);
     border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
-    border-radius: var(--radius-island);
-    box-shadow: var(--shadow-popup);
 }
 
 .assistant .ask-title {
@@ -554,37 +502,37 @@
 }
 
 .assistant .ask-details {
-    font-family: var(--font-mono), monospace;
-    font-size: var(--font-size-small);
-    color: var(--text-dim);
     white-space: pre-wrap;
     word-break: break-word;
+    color: var(--text-dim);
+    font-size: var(--font-size-small);
+    font-family: var(--font-mono), monospace;
 }
 
 .assistant .ask-actions {
     display: flex;
-    gap: var(--space-2);
     flex-wrap: wrap;
+    gap: var(--space-2);
 }
 
 .assistant .ask-button {
-    height: var(--control-height);
-    padding: 0 var(--space-3);
     font: inherit;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-dim);
+    padding: 0 var(--space-3);
+    height: var(--control-height);
+    border: 1px solid var(--border);
     font-size: var(--font-size-small);
     font-weight: var(--weight-medium);
-    color: var(--text-dim);
-    background: transparent;
-    border: 1px solid var(--border);
     border-radius: var(--radius-control);
-    cursor: pointer;
     transition: background var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard);
 }
 
 .assistant .ask-button:hover {
-    background: var(--bg-raised);
     color: var(--text);
+    background: var(--bg-raised);
 }
 
 .assistant .ask-button[data-semantics="allow_once"],
@@ -599,9 +547,9 @@
 }
 
 .assistant .ask-answered {
+    margin: 0;
     color: var(--text-mute);
     font-size: var(--font-size-small);
-    margin: 0;
 }
 
 .assistant .ask-input {
@@ -611,15 +559,15 @@
 
 .assistant .ask-input input {
     flex: 1;
-    height: var(--control-height);
-    padding: 0 var(--space-2);
-    color: var(--text);
-    background: var(--bg-canvas);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-control);
+    min-width: 0;
     outline: none;
     font: inherit;
-    min-width: 0;
+    color: var(--text);
+    padding: 0 var(--space-2);
+    background: var(--bg-canvas);
+    height: var(--control-height);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
 }
 
 .assistant .ask-input input:focus {
@@ -627,54 +575,48 @@
 }
 
 .assistant .composer {
-    /* The composer is the topmost layer: it floats over the bottom edge of
-       the island and the message column scrolls beneath it. */
-    position: absolute;
-    inset-inline: 0;
     bottom: 0;
     z-index: 10;
+    inset-inline: 0;
+    border-radius: 16px;
     display: flex;
+    position: absolute;
+    background: transparent;
     flex-direction: column;
     gap: var(--space-1);
-    width: min(calc(100% - 2 * var(--space-4)), var(--composer-max));
-    margin: 0 auto var(--space-6);
     padding: var(--space-2);
-    /* Frosted glass, carried by a ::before layer rather than the composer
-       itself: an element with backdrop-filter is a backdrop root for its
-       descendants, which would strip the popovers' own frost, while a
-       pseudo-element has none. */
-    background: transparent;
+    margin: 0 auto var(--space-6);
     border: 1px solid var(--border);
-    border-radius: 16px;
     box-shadow: 0 2px 8px rgb(9 13 24 / 6%);
+    width: min(calc(100% - 2 * var(--space-4)), var(--composer-max));
     transition: border-color var(--motion-fast) var(--ease-standard);
 }
 
 .assistant .composer::before {
-    content: "";
-    position: absolute;
     inset: 0;
     z-index: -1;
-    background: color-mix(in srgb, var(--bg-popup) 72%, transparent);
+    content: "";
+    position: absolute;
+    border-radius: inherit;
     backdrop-filter: blur(20px) saturate(1.2);
     -webkit-backdrop-filter: blur(20px) saturate(1.2);
-    border-radius: inherit;
+    background: color-mix(in srgb, var(--bg-popup) 72%, transparent);
 }
 
 .assistant .composer-scroll-bottom {
-    position: absolute;
     right: 0;
-    bottom: calc(100% + var(--space-3));
+    padding: 0;
     z-index: 11;
     width: 32px;
     height: 32px;
-    padding: 0;
     border-radius: 50%;
-    background: color-mix(in srgb, var(--bg-popup) 72%, transparent);
+    position: absolute;
+    border: 1px solid var(--border);
+    bottom: calc(100% + var(--space-3));
+    box-shadow: 0 2px 8px rgb(9 13 24 / 6%);
     backdrop-filter: blur(20px) saturate(1.2);
     -webkit-backdrop-filter: blur(20px) saturate(1.2);
-    border: 1px solid var(--border);
-    box-shadow: 0 2px 8px rgb(9 13 24 / 6%);
+    background: color-mix(in srgb, var(--bg-popup) 72%, transparent);
     animation: scroll-bottom-in var(--motion-slow) var(--ease-standard);
 }
 
@@ -703,16 +645,16 @@
 
 .assistant .composer-input {
     resize: none;
-    padding: var(--space-1) 0 var(--space-1) var(--space-2);
-    font: inherit;
-    line-height: 1.45;
-    color: var(--text);
-    caret-color: var(--accent);
-    background: transparent;
     border: none;
     outline: none;
+    font: inherit;
     min-height: 56px;
     max-height: 240px;
+    line-height: 1.45;
+    background: transparent;
+    color: var(--text);
+    caret-color: var(--accent);
+    padding: var(--space-1) 0 var(--space-1) var(--space-2);
 }
 
 .assistant .composer-input::selection {
@@ -724,8 +666,8 @@
 }
 
 .assistant .composer-foot {
-    position: relative;
     display: flex;
+    position: relative;
     align-items: center;
     gap: var(--space-2);
 }
@@ -818,15 +760,15 @@
 }
 
 .assistant .composer-send {
+    padding: 0;
     flex: 0 0 auto;
+    border-radius: 50%;
     border: none;
     cursor: pointer;
     align-items: center;
     display: inline-flex;
     background: transparent;
     justify-content: center;
-    padding: 0;
-    border-radius: 50%;
     color: var(--text-dim);
     width: var(--control-height);
     height: var(--control-height);

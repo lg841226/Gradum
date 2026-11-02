@@ -1,8 +1,8 @@
-// Single source of truth for every user-facing string. Descriptive copy is
+// Single source of truth for every user facing string. Descriptive copy is
 // written as complete sentences; control labels stay short verb phrases.
 //
 // Style: lines stay under 100 characters. Long sentences break at clause
-// boundaries inside a parenthesized + chain, one clause per line. Branching
+// boundaries inside a parenthesized and chain, one clause per line. Branching
 // copy uses if/return instead of a wide ternary, so each variant reads as its
 // own block. The fragments must reassemble to the exact same output string.
 
@@ -24,13 +24,13 @@ export const copy = {
 
   control: {
     all: "All",
-    developer: "Developer",
     agent: "Agent",
     editor: "Editor",
     output: "Console",
-    explorer: "Explorer",
-    problems: "Problems",
     session: "Session",
+    problems: "Problems",
+    explorer: "Explorer",
+    developer: "Developer",
   },
 
   agent: {
@@ -44,35 +44,35 @@ export const copy = {
   },
 
   chat: {
-    placeholder: "Ask a question, or hand off a task for this project",
-    model: "Model",
-    runtimeDefault: "Runtime Default",
-    noModels: "No models available",
-    permissions: "Permissions",
     stop: "Stop",
     send: "Send",
+    model: "Model",
     thinking: "Thinking",
-    working: "Working Process",
-    thoughtFor: (seconds) => `Thought for ${seconds.toFixed(1)}s`,
     thoughtNoTime: "Thought",
-    answered: (label) => `Answered: ${label}`,
-    answerFailed: (message) => `Could not answer: ${message}`,
+    working: "Working Process",
+    permissions: "Permissions",
+    noModels: "No models available",
+    runtimeDefault: "Runtime Default",
     askTitle: "Gradum needs your input",
     answerPlaceholder: "Type your answer",
+    answered: (label) => `Answered: ${label}`,
+    placeholder: "Ask a question, or hand off a task for this project",
+    answerFailed: (message) => `Could not answer: ${message}`,
+    thoughtFor: (seconds) => `Thought for ${seconds.toFixed(1)}s`,
     rootMissing:
       "Set the project root in the status bar first: the absolute path of the " +
       "directory Gradum should work in. Sessions and file tools are rooted there.",
     sendFailed: (message) => `Send failed: ${message}`,
     loadFailed: (message) => `Could not load session: ${message}`,
     choices: {
+      reject: "Reject",
       allow_once: "Allow once",
       allow_always: "Allow always",
-      reject: "Reject",
     },
     modes: {
-      read_only: {label: "Read Permissions", info: "Read, explore and run diagnostics"},
       edit: {label: "Edit Permissions", info: "Edit files and code by hand"},
       agent: {label: "Full Agent Mode", info: "Reads, writes, executes complex tasks"},
+      read_only: {label: "Read Permissions", info: "Read, explore and run diagnostics"},
       yolo: {label: "Full Access", info: "Skips all approvals, runs edits and commands directly"},
     },
   },
@@ -80,15 +80,15 @@ export const copy = {
   tooltip: {
     hide: "Hide",
     closeTab: "Close",
+    newChat: "New chat",
     expandTree: "Expand",
     run: "Run and install",
     newSkill: "Create skill",
-    newChat: "New chat",
     unsplit: "Unsplit editor",
     split: "Split editor right",
-    splitDown: "Split editor down",
     hideMinimap: "Hide minimap",
     showMinimap: "Show minimap",
+    splitDown: "Split editor down",
     build: "Build without installing",
     collapseTree: "Collapse this folder",
   },
@@ -104,8 +104,8 @@ export const copy = {
 
   rail: {
     root: "skills",
-    title: "Skill Explorer",
     sessions: "Sessions",
+    title: "Skill Explorer",
     sessionsRoot: "sessions",
   },
 
@@ -126,8 +126,8 @@ export const copy = {
     lineEnding: "LF",
     encoding: "UTF-8",
     label: "Status bar",
-    projectRoot: "Project working directory",
     encodingTip: "Text stored as UTF-8",
+    projectRoot: "Project working directory",
     lineEndingTip: "Lines end with LF (\\n)",
     lockedTip: "Make the skill file editable",
     unlockedTip: "Make the skill file read only and lock it",
@@ -147,8 +147,8 @@ export const copy = {
     submit: "Unlock",
     cancel: "Cancel",
     title: "Enable Editing",
-    placeholder: "Enter server token",
     codePlaceholder: "Pairing code",
+    placeholder: "Enter server token",
     invalid: "Sorry, the token did not match, please try again",
     codeInvalid: "Sorry, the code was incorrect, please try again",
     codeHint: "Enter the pairing code shown on the Gradum console.",

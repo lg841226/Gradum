@@ -76,18 +76,19 @@
     --space-6: 24px;
 
     /* Typography */
+    --font-size-ui: 14px;
+    --font-size-code: 13px;
+    --font-size-small: 13px;
+    --line-height-code: 20px;
+    --weight-medium: 520;
+    --weight-regular: 500;
+    --weight-semibold: 600;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    --font-size-ui: 13px;
-    --font-size-code: 12px;
-    --font-size-small: 12px;
-    --line-height-code: 20px;
-    --weight-medium: 500;
-    --weight-regular: 400;
-    --weight-semibold: 600;
 
     /* Motion */
     --motion-fast: 120ms;
+    --motion-slow: 320ms;
     --ease-standard: cubic-bezier(.4, 0, .2, 1);
 
     /* Structure */
@@ -100,16 +101,15 @@
     --bottom-height: 200px;
     --minimap-width: 128px;
     --statusbar-height: 20px;
-
-    /* Layout values written from script at runtime: the menubar measures each
-       entry's width, the editor's divider drag re-shares --split-ratio, and the
-       tooltip positioner flips its edge. The declarations here are the states
-       before any of those writes lands, so the CSS reads the same tokens the
-       JS sets. */
     --split-ratio: 0.5;
     --tooltip-shift: 0;
     --menu-entry-width: 12em;
     --tooltip-origin: bottom;
+    /* The composer's measured height, written by the assistant's
+       ResizeObserver onto the island; the chat's bottom padding and its
+       virtual blank read it. The value here is the pre-measurement default
+       the stylesheet falls back to. */
+    --composer-h: 96px;
 }
 
 /* Light theme. The page puts data-theme="light" on <html> when the user picks

@@ -9,10 +9,10 @@
 function idleState() {
   return {
     phase: "idle",
-    pending: false,
-    agent: {open: false, text: ""},
-    thinking: null,
     group: null,
+    pending: false,
+    thinking: null,
+    agent: {open: false, text: ""},
   };
 }
 
@@ -123,8 +123,6 @@ export function createChatModel() {
           return out;
         }
 
-        // Pending calls stay invisible; the sweeping group header carries the
-        // waiting state until the result arrives.
         case "tool_call_start":
           return closeAgent(now);
 

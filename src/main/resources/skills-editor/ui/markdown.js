@@ -23,6 +23,7 @@ function renderInline(parent, text) {
   for (const part of text.split(INLINE_SPLIT)) {
     if (!part) continue;
     const link = part.match(/^\[([^\]]+)]\(([^)\s]+)\)$/);
+
     if (part.length > 2 && part.startsWith("`") && part.endsWith("`") && !link) {
       const code = document.createElement("code");
       code.className = "md-code-inline";
@@ -46,6 +47,7 @@ function renderInline(parent, text) {
         parent.append(document.createTextNode(part));
         continue;
       }
+
       const anchor = document.createElement("a");
       anchor.className = "md-link";
       anchor.href = href;
@@ -63,6 +65,7 @@ function parseBlocks(text) {
   const lines = text.split("\n");
   const blocks = [];
   let i = 0;
+
   while (i < lines.length) {
     const line = lines[i];
     if (/^\s*$/.test(line)) {
@@ -172,9 +175,9 @@ function fillItem(li, text) {
 // shape. The list is cleared first, since streaming refreshes reuse it.
 function fillList(list, items) {
   list.replaceChildren();
-  // Each stack entry is a list level holding items of its own depth; the
-  // root list holds depth 0.
+
   const stack = [{depth: 0, el: list}];
+
   for (const {depth, text} of items) {
     const level = Math.max(0, depth);
     let owner = stack[stack.length - 1];
@@ -182,9 +185,7 @@ function fillList(list, items) {
       stack.pop();
       owner = stack[stack.length - 1];
     }
-    // A deeper row nests under the previous item; with no previous item
-    // (a deeper first row), it flattens onto the current level instead of
-    // building a detached subtree.
+
     const parent = level > owner.depth ? owner.el.lastElementChild : null;
     if (parent) {
       const sub = document.createElement(list.tagName);
@@ -192,6 +193,7 @@ function fillList(list, items) {
       parent.append(sub);
       stack.push({depth: level, el: sub});
     }
+
     const li = document.createElement("li");
     fillItem(li, text);
     stack[stack.length - 1].el.append(li);
@@ -228,20 +230,15 @@ function fillBlock(el, block) {
   } else if (block.type === "table") {
     fillTable(el.firstChild, block);
   } else if (block.type === "quote") {
-    // A quote renders its inner markdown with the same streaming-aware pass,
-    // so a quote that grows across tokens reuses its own paragraphs.
     renderMarkdown(el, block.text);
   } else if (block.type === "hr") {
     // A rule has no content to fill.
   } else {
-    // Reused blocks keep their element across renders; clear before the
-    // inline pass or every token would stack another copy of the text.
     el.replaceChildren();
     renderInline(el, block.text);
   }
 }
 
-// Renders `text` into `target`, reusing block elements by position and type.
 export function renderMarkdown(target, text) {
   const blocks = parseBlocks(text);
   for (let i = 0; i < blocks.length; i++) {

@@ -13,7 +13,7 @@ import {mountMinimap} from "./features/minimap.js";
 import {mountSplitters} from "./features/splitter.js";
 import {mountStatusBar} from "./features/statusbar.js";
 import {mountFloatPanels} from "./features/floatPanels.js";
-import {mountAssistant} from "./features/assistant";
+import {mountAssistant} from "./features/assistant/index.js";
 import {mountTooltip} from "./ui/components/tooltip.js";
 import {mountDiagnostics} from "./features/diagnostics.js";
 import {createLayoutWriter, loadLayout} from "./core/persistence.js";
