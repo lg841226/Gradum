@@ -124,11 +124,8 @@ export function mountMinimap(store, {container, source, highlightCode}) {
   let renderedHidden = null;
   const render = (state) => {
     const doc = activeDoc(state);
-
-    // The strip shows only while a document is open and the menubar's toggle
-    // wants it: a reveal re-measures once, because the strip cannot learn its
-    // scale from inside the hidden state it just left.
     const hidden = !doc || Boolean(state.minimapHidden);
+
     if (hidden !== renderedHidden) {
       renderedHidden = hidden;
       strip.hidden = hidden;

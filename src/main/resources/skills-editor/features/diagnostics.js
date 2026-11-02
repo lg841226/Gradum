@@ -111,9 +111,6 @@ export function mountDiagnostics(store, {body, editor}) {
     }
 
     if (diagnostics.length === 0) {
-      // An edit throws the last run's verdict away, so the all-clear note would
-      // be a claim nobody has checked. A rejected rename is a current, real
-      // error, so it still outranks the out-of-date note.
       const current = status && status.tone === "error";
       if (current) {
         list.appendChild(createEmptyState({title: status.text, tone: "error"}));
@@ -141,8 +138,6 @@ export function mountDiagnostics(store, {body, editor}) {
       return;
     }
 
-    // The problem row steals focus from the textarea, so the pane the user was
-    // last in is the one to scroll: that is what `activePane()` falls back to.
     const pane = editor.activePane();
     const source = pane.source;
     let offset = 0;

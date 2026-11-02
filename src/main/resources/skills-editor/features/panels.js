@@ -59,8 +59,6 @@ export function mountPanels(store, {canvas}) {
   }
 
   const apply = (state) => {
-    // Afloat the bottom window takes no editor room, so only the user's own
-    // toggle hides it; the size-driven auto step-aside stays desktop-only.
     const hidden = state.collapsed || (!isFloatLayout() && state.autoBottom);
 
     canvas.classList.toggle("bottom-hidden", hidden);

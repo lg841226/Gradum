@@ -255,12 +255,10 @@
 }
 
 .assistant .md-code {
-    /* Bare code: no fill, no frame, no header. The block reads as indented
-       mono text inside the message, nothing more. */
     margin: 0 0 var(--space-2);
     padding: 0;
-    background: none;
     border: none;
+    background: none;
     font-family: var(--font-mono), monospace;
     font-size: var(--font-size-small);
     line-height: 1.5;
@@ -269,9 +267,9 @@
 
 .assistant .md-code code {
     display: block;
-    padding: var(--space-2) var(--space-3);
     white-space: pre;
     overflow-x: auto;
+    padding: var(--space-2) var(--space-3);
 }
 
 .assistant .md-code-inline {
@@ -677,7 +675,6 @@
     -webkit-backdrop-filter: blur(20px) saturate(1.2);
     border: 1px solid var(--border);
     box-shadow: 0 2px 8px rgb(9 13 24 / 6%);
-    /* Replay on every unhide, since display:none restarts animations. */
     animation: scroll-bottom-in var(--motion-slow) var(--ease-standard);
 }
 
@@ -734,24 +731,24 @@
 }
 
 .assistant .chip-group {
-    display: flex;
-    align-items: center;
     gap: 2px;
-    margin-right: auto;
     min-width: 0;
+    display: flex;
+    margin-right: auto;
+    align-items: center;
 }
 
 .assistant .model-chip,
 .assistant .perm-chip {
     min-width: 0;
-    flex: 0 1 auto;
-    max-width: 320px;
     height: 24px;
-    padding: 0 var(--space-2);
-    border-radius: 999px;
+    flex: 0 1 auto;
     overflow: hidden;
-    font-size: var(--font-size-small);
+    max-width: 320px;
+    border-radius: 999px;
     color: var(--text-dim);
+    padding: 0 var(--space-2);
+    font-size: var(--font-size-small);
 }
 
 .assistant .model-chip .icon:last-child,
@@ -773,19 +770,19 @@
 
 .assistant .model-menu,
 .assistant .perm-menu {
-    position: absolute;
-    bottom: calc(100% + var(--space-2));
     left: 0;
     z-index: 8;
     min-width: 240px;
     max-width: 360px;
+    position: absolute;
     padding: var(--space-1) 0;
-    background: color-mix(in srgb, var(--bg-popup) 65%, transparent);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-popup);
+    bottom: calc(100% + var(--space-2));
+    border-radius: var(--radius-island);
     backdrop-filter: blur(var(--blur-popup));
     -webkit-backdrop-filter: blur(var(--blur-popup));
-    border: 1px solid var(--border);
-    border-radius: var(--radius-island);
-    box-shadow: var(--shadow-popup);
+    background: color-mix(in srgb, var(--bg-popup) 65%, transparent);
 }
 
 .assistant .model-menu[hidden] {
@@ -803,10 +800,10 @@
 }
 
 .assistant .perm-item {
+    gap: 2px;
     height: auto;
     flex-direction: column;
     align-items: flex-start;
-    gap: 2px;
     padding: var(--space-1) var(--space-2);
 }
 
@@ -815,24 +812,24 @@
 }
 
 .assistant .perm-item-info {
+    line-height: 1.35;
     color: var(--text-mute);
     font-size: var(--font-size-small);
-    line-height: 1.35;
 }
 
 .assistant .composer-send {
     flex: 0 0 auto;
-    display: inline-flex;
+    border: none;
+    cursor: pointer;
     align-items: center;
+    display: inline-flex;
+    background: transparent;
     justify-content: center;
+    padding: 0;
+    border-radius: 50%;
+    color: var(--text-dim);
     width: var(--control-height);
     height: var(--control-height);
-    padding: 0;
-    color: var(--text-dim);
-    background: transparent;
-    border: none;
-    border-radius: 50%;
-    cursor: pointer;
     transition: color var(--motion-fast) var(--ease-standard),
     background var(--motion-fast) var(--ease-standard),
     opacity var(--motion-fast) var(--ease-standard);

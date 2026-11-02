@@ -50,9 +50,6 @@ export function mountTabs(store, {strips}) {
     return `NewSkill${index}.kt`;
   }
 
-  // A click on a loading file joins the request already in flight instead of
-  // posting a second one: both would otherwise race to add a document and the
-  // loser would leave a duplicate tab behind.
   const loading = new Map();
 
   async function loadDoc(name) {
@@ -60,8 +57,6 @@ export function mountTabs(store, {strips}) {
     try {
       remote = await loadSkill(name);
     } catch (error) {
-      // Never fall back to the template here: an unauthorized or failed read
-      // would open a blank document over a real skill on the next deploy.
       if (error instanceof HttpError) {
         const text = error.status === 401 || error.status === 403
           ? copy.status.unauthorized
@@ -73,16 +68,12 @@ export function mountTabs(store, {strips}) {
       return;
     }
 
-    // A rename or another opener may have created the tab while the source was
-    // in flight; reuse it rather than adding a second document of that name.
     const current = findDocByName(store.getState(), name);
     if (current) {
       activate(current.id);
       return;
     }
 
-    // 404 is the only answer that means "this skill does not exist yet", so
-    // it opens an empty starter; every other failure returned above.
     const source = remote === null ? starter : remote;
     addDoc({
       id: store.getState().nextId,
@@ -118,11 +109,11 @@ export function mountTabs(store, {strips}) {
 
   function create() {
     const state = store.getState();
-    // Reader mode has no editing to start: the rail button is disabled and the
-    // shortcut lands here too, so this is the one gate either path crosses.
+
     if (state.reader) {
       return;
     }
+
     addDoc({
       id: state.nextId,
       name: nextName(state),
@@ -183,8 +174,6 @@ export function mountTabs(store, {strips}) {
       return;
     }
 
-    // Match the label it replaces, so the tab keeps its size while renaming
-    // instead of jumping to the field's default width.
     const width = label.getBoundingClientRect().width;
     const field = createTextField({
       value: doc.name,
@@ -213,12 +202,12 @@ export function mountTabs(store, {strips}) {
 
     const tabModels = state.docs.map((doc) => ({
       id: doc.id,
-      label: doc.name,
       icon: "kotlin",
       variant: "file",
-      active: doc.id === state.activeId,
+      label: doc.name,
       dirty: doc.dirty,
       tooltip: doc.name,
+      active: doc.id === state.activeId,
     }));
     const handlers = {
       onActivate: (tab) => activate(Number(tab.dataset.id)),
@@ -231,10 +220,6 @@ export function mountTabs(store, {strips}) {
       },
     };
 
-    // Each pane lists the same documents, but the close button is not the same
-    // gesture on both: in the primary pane it closes the document, while in the
-    // copy it only takes the split down, so the copy can never close a tab the
-    // primary pane still holds.
     for (const view of strips) {
       renderTabStrip(view.strip, tabModels, {
         onActivate: handlers.onActivate,

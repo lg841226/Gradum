@@ -45,9 +45,9 @@ html.is-booting * {
     align-items: center;
     gap: var(--space-2);
     flex: 0 0 auto;
-    height: var(--header-height);
     padding: 0 var(--space-3);
     color: var(--text-dim);
+    height: var(--header-height);
 }
 
 /* Both bottom pages (Problems and Output) scroll under the app-wide scrollbar
@@ -115,15 +115,15 @@ html.is-booting * {
 }
 
 .menubar-logo {
-    display: block;
     width: 16px;
     height: 16px;
+    display: block;
 }
 
 .menubar-brand-name {
-    font-size: var(--font-size-ui);
     color: var(--text);
     white-space: nowrap;
+    font-size: var(--font-size-ui);
 }
 
 /* The Developer/Agent switch, matched to the reference: a solid light-gray
@@ -133,17 +133,17 @@ html.is-booting * {
    the track. Segments share one width so the row reads evenly spaced. */
 .menubar .menubar-modes {
     padding: 2px;
-    background: var(--bg-raised);
     border-radius: 999px;
+    background: var(--bg-raised);
 }
 
 .menubar .menubar-modes .btn[data-variant="menu"] {
     flex: 1 1 0;
-    justify-content: center;
-    min-width: 60px;
     height: auto;
-    padding: 2px var(--space-3);
+    min-width: 60px;
     border-radius: 999px;
+    justify-content: center;
+    padding: 2px var(--space-3);
 }
 
 .menubar .menubar-modes .btn[data-variant="menu"][aria-pressed="true"] {
@@ -183,7 +183,6 @@ html.is-booting * {
     padding-left: 0;
     padding-right: 0;
     pointer-events: none;
-    /* Cancels the flex gap the folded entry would otherwise leave behind. */
     margin-left: calc(-1 * var(--space-1));
 }
 
@@ -214,20 +213,20 @@ html.is-booting * {
 
     .menubar .menubar-views {
         top: 100%;
-        left: var(--space-2);
         z-index: 20;
+        min-width: 180px;
         display: none;
         position: absolute;
         width: max-content;
-        min-width: 180px;
-        max-width: calc(100% - 2 * var(--space-2));
-        padding: var(--space-2);
-        flex-direction: column;
         align-items: stretch;
+        flex-direction: column;
+        left: var(--space-2);
+        padding: var(--space-2);
         background: var(--bg-popup);
         border: 1px solid var(--border);
-        border-radius: var(--radius-island);
         box-shadow: var(--shadow-popup);
+        border-radius: var(--radius-island);
+        max-width: calc(100% - 2 * var(--space-2));
     }
 
     .menubar.nav-open .menubar-views {
@@ -239,8 +238,8 @@ html.is-booting * {
        as the bar measures itself are voided here, since the column owns the
        entries' width. */
     .menubar .menubar-views .btn[data-variant="menu"] {
-        max-width: none;
         width: 100%;
+        max-width: none;
         justify-content: flex-start;
     }
 
@@ -248,9 +247,9 @@ html.is-booting * {
         opacity: 1;
         margin-left: 0;
         max-width: none;
+        pointer-events: auto;
         padding-left: revert;
         padding-right: revert;
-        pointer-events: auto;
     }
 
     /* Header actions (rail toggles, the assistant button) have no hover to
@@ -279,21 +278,17 @@ html.is-booting * {
 
     .rail,
     .bottom {
-        position: fixed;
         z-index: 40;
+        position: fixed;
         left: var(--float-x, 12px);
         top: var(--float-y, 64px);
         width: var(--float-w, min(320px, calc(100vw - 24px)));
         height: var(--float-h, min(46vh, 420px));
         overflow: hidden;
-        /* The island fill is translucent by design: as grid islands it lies on
-           the same-colored canvas and reads solid. Afloat over editor content
-           it would show the text through, so windows take the opaque popup
-           fill instead. */
         background: var(--bg-popup);
+        box-shadow: var(--shadow-popup);
         border: 1px solid var(--border);
         border-radius: var(--radius-island);
-        box-shadow: var(--shadow-popup);
     }
 
     .rail.is-dragging,
@@ -304,19 +299,19 @@ html.is-booting * {
 
     .rail .panel-header,
     .bottom .panel-header {
-        touch-action: none;
         cursor: grab;
+        touch-action: none;
     }
 
     .float-resize {
-        position: absolute;
         right: 0;
         bottom: 0;
         z-index: 2;
         width: 18px;
         height: 18px;
-        cursor: nwse-resize;
+        position: absolute;
         touch-action: none;
+        cursor: nwse-resize;
     }
 }
 
@@ -376,23 +371,23 @@ html.is-booting * {
    height while the bar the chips sit in shrinks around it, so aiming at a chip
    never gets any harder the thinner the bar becomes. */
 .statusbar-item {
+    min-width: 0;
     display: flex;
     cursor: pointer;
+    overflow: hidden;
     align-items: center;
     white-space: nowrap;
-    min-width: 0;
-    overflow: hidden;
     padding: 0 var(--space-2);
     font-variant-numeric: tabular-nums;
     border-radius: var(--radius-control);
-    height: calc(var(--control-height) - var(--space-2)); /* 24px */
+    height: calc(var(--control-height) - var(--space-2));
     transition: background var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard);
 }
 
 .statusbar-item:hover {
-    background: var(--bg-menu);
     color: var(--text);
+    background: var(--bg-menu);
 }
 
 /* An empty item still paints its hit area, which would leave a blank chip
@@ -415,8 +410,8 @@ html.is-booting * {
 .statusbar-lock {
     border: 0;
     font: inherit;
-    background: none;
     color: inherit;
+    background: none;
 }
 
 /* The reported values, held together at the right end and packed tighter than
@@ -424,9 +419,9 @@ html.is-booting * {
    read as a hole between them. */
 .statusbar-right {
     display: flex;
+    margin-left: auto;
     align-items: center;
     gap: var(--space-1);
-    margin-left: auto;
 }
 
 /* The problem counts lead the strip at its far left, ahead of everything the
@@ -438,8 +433,8 @@ html.is-booting * {
 }
 
 .status-count {
-    display: inline-flex;
     align-items: center;
+    display: inline-flex;
     gap: var(--space-1);
 }
 
@@ -647,16 +642,12 @@ body.is-dragging .code-pane {
    The axis the split is on sets which way the pointer reads it. */
 .pane-divider {
     flex: 0 0 0;
+    z-index: 5;
     position: relative;
     visibility: hidden;
     cursor: col-resize;
     touch-action: none;
     align-self: stretch;
-    /* Lift the divider and its grab strip above both panes: the panes are
-       positioned siblings that would otherwise paint over the strip's outer
-       half (the right half in a row split) and swallow the press that was
-       aimed at the handle. */
-    z-index: 5;
     background: color-mix(in srgb, var(--border) 45%, transparent);
     transition: flex-basis var(--motion-fast) var(--ease-standard),
     visibility var(--motion-fast) var(--ease-standard);
@@ -752,19 +743,11 @@ body.is-dragging .code-pane {
     z-index: 1;
     overflow: hidden;
     pointer-events: none;
-    /* What the syntax classes do not claim (the plain runs) reads in the softer
-       code tone rather than inheriting the UI's --text. The minimap's clone takes
-       this rule too, so the two surfaces stay the same tone. */
     color: var(--code-text);
 }
 
 .highlight code {
     display: block;
-    /* The lines must box out to the full scroll width, not just the pane's
-       width: the active and diagnostic bands paint on the box, and a box that
-       stopped at the pane's edge would leave the band hanging mid-screen the
-       moment the overlay scrolls sideways. max-content stretches it to the
-       longest line, the floor keeps a short file covering a wide pane. */
     min-width: 100%;
     width: max-content;
 }
@@ -859,9 +842,6 @@ body.is-dragging .code-pane {
 }
 
 .source::selection {
-    /* The platform paints the selection across the whole line box, so the band
-       stands taller than the glyphs and drifts with the fallback font's metrics.
-       Silenced here; the editor draws the band itself, at a height it picks. */
     background: transparent;
 }
 
@@ -941,9 +921,9 @@ body.is-dragging .code-pane {
    row's offset measures against the list itself, which the keep-in-view
    arithmetic needs exactly. It carries the other half of the open animation. */
 .completion-list {
-    position: relative;
     overflow-y: auto;
     max-height: 200px;
+    position: relative;
     scrollbar-width: none;
     animation: completion-grow var(--motion-fast) var(--ease-standard);
 }
@@ -996,11 +976,11 @@ body.is-dragging .code-pane {
    rows carry a letter instead of a glyph: the K is the mark, the token colour
    says the rest. */
 .completion-kind-kw {
-    color: var(--syn-keyword);
     flex: none;
     width: 16px;
     font-weight: 600;
     text-align: center;
+    color: var(--syn-keyword);
 }
 
 .completion-icon {

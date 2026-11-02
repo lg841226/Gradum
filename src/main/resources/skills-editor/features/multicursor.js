@@ -72,8 +72,6 @@ function lineEndAt(text, offset) {
   return found === -1 ? text.length : found;
 }
 
-// One code unit left, skipping a surrogate pair in a single step so an emoji
-// is never split down the middle.
 function stepLeft(text, offset) {
   if (offset <= 0) {
     return 0;
@@ -104,8 +102,6 @@ function charKind(char) {
   return "punct";
 }
 
-// Left end of the run (letters, punctuation or whitespace) that ends at
-// `offset`, stepping over a whole run so one press crosses one word.
 function wordLeftAt(text, offset) {
   if (offset <= 0) {
     return 0;
@@ -197,8 +193,6 @@ function moveCursor(text, cursor, motion, extend) {
       ? lineStartAt(text, cursor.head)
       : lineEndAt(text, cursor.head);
   } else {
-    // Up and down carry the display column across the line change, so a caret
-    // threading through a run of tabs keeps its visual track.
     const originStart = lineStartAt(text, cursor.head);
     const column = displayColumns(text.slice(originStart, cursor.head));
     const line = lineIndexOf(text, cursor.head);

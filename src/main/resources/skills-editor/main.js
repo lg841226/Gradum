@@ -30,6 +30,8 @@ const store = createStore({
   log: [],
   docs: [],
   files: [],
+  sessions: [],
+  chatTabs: [],
   nextId: 1,
   indent: 4,
   focusToken: 0,
@@ -39,20 +41,18 @@ const store = createStore({
   view: "problems",
   panel: "problems",
   status: {text: "", tone: "neutral"},
-  busy: false,
   busyTask: null,
   activeId: null,
+  selection: null,
+  activeSession: null,
+  busy: false,
+  split: false,
   chatOpen: false,
   chatBusy: false,
-  selection: null,
-  minimapHidden: false,
-  sessions: [],
-  chatTabs: [],
-  split: false,
   autoRail: false,
   collapsed: false,
   autoBottom: false,
-  activeSession: null,
+  minimapHidden: false,
   railCollapsed: false,
   treeCollapsed: false,
   railWidth: 208,
@@ -172,9 +172,9 @@ try {
   });
 } catch (error) {
   console.error(error);
-  document.documentElement.style.background = "#ffffff";
   document.body.replaceChildren();
   document.body.style.color = "#000000";
   document.body.style.background = "#ffffff";
+  document.documentElement.style.background = "#ffffff";
   document.body.textContent = error.message || String(error);
 }

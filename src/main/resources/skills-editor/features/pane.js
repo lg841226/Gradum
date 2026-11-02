@@ -199,10 +199,6 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     setSourceVisible(Boolean(doc));
     completion.close();
 
-    // The platform leaves the selection wherever a fresh value puts it; the
-    // caret list adopts that as its primary entry, and a document with no
-    // history yet seeds it with this exact state so the first undo has a
-    // before-picture to return to.
     cursors = [{anchor: source.selectionStart, head: source.selectionEnd}];
     if (doc) {
       seedHistory(doc.id, {text: source.value, cursors: [...cursors]});
@@ -246,7 +242,6 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     tabStrip,
     highlightCode,
     loadDoc,
-    advance: measure.advance,
     adoptText,
     syncScroll,
     updateCaret,
@@ -254,6 +249,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     updateSelection,
     renderHighlight,
     updateActiveLine,
+    advance: measure.advance,
     syncCursors: syncCursorsFromSource,
   };
 
@@ -385,26 +381,18 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     return null;
   }
 
-  // The completion popup is built once per pane, closed over this pane's own
-  // textarea, code box and edit path, and driven from the three events below:
-  // the input (may raise it), the committed edit (may only refresh it) and
-  // the caret draw (may refresh or dismiss it).
   completion = createCompletion({
-    source,
     code,
     store,
-    caretPosition: caretLayer.position,
+    source,
     metrics,
-    getCursors: () => cursors,
     commit: commitEdit,
+    getCursors: () => cursors,
     isComposing: () => composing,
+    caretPosition: caretLayer.position,
   });
 
   source.addEventListener("input", (event) => {
-    // A native edit (typing, pasting, cutting with one caret) has already
-    // moved the platform's range, so the list collapses to match and the
-    // state joins the history as its own entry. Inputs inside a composition
-    // skip the record; compositionend books the finished word once.
     if (!event.isComposing && !composing) {
       cursors = [{anchor: source.selectionStart, head: source.selectionEnd}];
       const docId = currentDocId();
@@ -422,10 +410,6 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
   });
   source.addEventListener("blur", updateCaret);
 
-  // The platform composes IME text into its one range; several carets would
-  // scatter the word wrongly, so the extras step aside first and the composed
-  // text lands in exactly one place. The finished composition is booked into
-  // history once, after the input that carries it has settled.
   source.addEventListener("compositionstart", () => {
     composing = true;
     completion.close();
@@ -450,11 +434,6 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     });
   });
 
-  // Cmd/Ctrl-click plants another caret without disturbing the one the
-  // textarea holds: the default is suppressed (the native selection would
-  // otherwise jump to the click and collapse the list), the point is mapped
-  // to an offset, and the list grows. A plain press first drops the extras;
-  // the platform's own selection change finishes the collapse a moment later.
   source.addEventListener("mousedown", (event) => {
     const modifier = event.metaKey || event.ctrlKey;
     if (cursors.length > 1 && !modifier) {
@@ -476,15 +455,8 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     setCursors([...cursors, {anchor: offset, head: offset}]);
   });
 
-  // Holding an arrow key repeats keydown but fires neither keyup nor input, and
-  // the text layer only scrolls once the caret reaches an edge: so a caret
-  // redrawn on those events alone would sit still through the whole repeat and
-  // then jump on release. The caret moves on every repeat, and selectionchange
-  // is the one event that reports it; the editor layer listens for it once and
-  // routes it to the focused pane.
   source.addEventListener("keydown", (event) => {
-    // IME keys belong to the composition; compositionstart has already
-    // collapsed the extras, so nothing here may race the platform's own text.
+
     if (event.isComposing || composing) {
       return;
     }
@@ -541,10 +513,6 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
       return;
     }
 
-    // An opener pairs itself and parks the caret in the middle of the two; a
-    // closer already waiting in front of an empty caret is stepped over rather
-    // than doubled. The step moves no text, so it travels the caret road and
-    // leaves the history alone.
     if (!mod && !event.altKey) {
       const bracket = typedBracket(source.value, cursors, event.key);
       if (bracket) {

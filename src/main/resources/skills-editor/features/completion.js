@@ -93,10 +93,6 @@ export function createCompletion({
     IDENTIFIER.lastIndex = 0;
     let match;
     while ((match = IDENTIFIER.exec(chunk)) !== null) {
-      // A run opening with a digit is a numeric literal (`900`, `0xFF`,
-      // `123L`), not a name the caret could reach for, so it never enters the
-      // word source. Letter- and underscore-led runs are names by the lexer's
-      // own rule and stay.
       if (!/^\d/.test(match[0])) {
         into.push({word: match[0], start: offset + match.index});
       }
@@ -389,8 +385,6 @@ export function createCompletion({
     }
 
     if (open) {
-      // Keep the highlighted row on the same label when it survived the
-      // refilter, so a keystroke refines the list instead of resetting it.
       const keep = items[selected] ? items[selected].item.label : null;
       items = matches;
       const survived = keep

@@ -39,7 +39,6 @@ export function mountStatusBar(store, {canvas}) {
   bar.className = "statusbar";
   bar.setAttribute("aria-label", copy.statusBar.label);
 
-  // The active skill's errors and warnings, reported before anything else.
   const errors = createCount({tone: "error", icon: "error-outline"});
   const warnings = createCount({tone: "warning", icon: "warning-outline"});
 
@@ -95,9 +94,6 @@ export function mountStatusBar(store, {canvas}) {
       location.assign(`/skills/editor?token=${encodeURIComponent(token)}`);
     },
     onCode: (code) => {
-      // A correct code comes back as the auth cookie, so navigating to the
-      // bare page (query dropped, including any ?lock=1) lands in editing;
-      // a wrong one reopens the dialog with why.
       pair(code).then((ok) => {
         if (ok) {
           location.assign(location.pathname);

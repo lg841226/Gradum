@@ -33,9 +33,6 @@ export function mountEditor(store, {canvas, showPanel}) {
     hint: copy.editor.emptyHint,
   });
 
-  // The pane the user last put the caret in. `activePane()` prefers whatever
-  // holds focus right now and falls back to this, so a focus lost to a click on
-  // the gutter or a panel still leaves a sensible pane behind.
   let focusedPane;
   const panes = [];
 
@@ -63,11 +60,6 @@ export function mountEditor(store, {canvas, showPanel}) {
   divider.className = "pane-divider";
   divider.setAttribute("role", "separator");
 
-  // The divider is a handle, not just a hairline: pressing it re-shares the body
-  // between the two panes along whichever axis the split is on. The share is a
-  // fraction of the body's own length, so it stays right through a resize, and
-  // it lives in the store so a re-render does not drop it. While the split is
-  // closed the divider has no width and is hidden, so it takes no pointer.
   divider.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     const bounds = body.getBoundingClientRect();
@@ -117,16 +109,11 @@ export function mountEditor(store, {canvas, showPanel}) {
     if (!doc) {
       return;
     }
-    // Reader mode never compiles or installs: the run widget is disabled, and
-    // a keyboard path that reached here anyway stops at the same line.
+
     if (state.reader) {
       return;
     }
 
-    // The buffer is read from the store, not from a textarea: the store is the
-    // single source of truth, `onInput` has already written every keystroke
-    // into it, and with two panes there is no longer one obvious textarea to
-    // read.
     const name = doc.name;
     const text = doc.source;
     const lines = text.split("\n").length;
@@ -236,8 +223,6 @@ export function mountEditor(store, {canvas, showPanel}) {
       const errors = diagnostics.filter((item) => item.severity === "error").length;
       const warnings = diagnostics.filter((item) => item.severity === "warning").length;
 
-      // Nothing was deployed, so the baseline and the dirty flag stay as they
-      // are: the buffer is still unsaved and the loaded skill is unchanged.
       patchDoc(doc.id, {diagnostics});
 
       if (errors === 0) {
@@ -277,9 +262,7 @@ export function mountEditor(store, {canvas, showPanel}) {
       if (dirty !== doc.dirty) {
         patch.dirty = dirty;
       }
-      // Diagnostics are the last run's verdict on the text as it was then, so an
-      // edit leaves them describing lines that moved or that the edit already
-      // fixed. Drop them here; the next run repopulates them.
+
       if (doc.diagnostics.length > 0) {
         patch.diagnostics = [];
       }
@@ -333,9 +316,6 @@ export function mountEditor(store, {canvas, showPanel}) {
       renderedId = id;
     }
 
-    // A deployment swaps the baseline without moving a byte of the buffer, so the
-    // modified-line bars have to be redrawn by hand: nothing below would
-    // otherwise notice.
     const baselineChanged = !idChanged && baseline !== renderedBaseline;
     renderedBaseline = baseline;
 
@@ -354,9 +334,6 @@ export function mountEditor(store, {canvas, showPanel}) {
       }
     }
 
-    // Reader mode locks both surfaces; a document-less surface was already
-    // read-only. Written on every render because the flag flips while the same
-    // document stays open, and loadDoc only runs when the document changes.
     const locked = Boolean(state.reader);
     for (const pane of panes) {
       pane.source.readOnly = locked || !doc;
@@ -389,10 +366,7 @@ export function mountEditor(store, {canvas, showPanel}) {
     if (!pane) {
       return;
     }
-    // The platform only speaks for the primary range: a real user action
-    // moves it somewhere the list does not match and collapses the extras,
-    // while the echo of the editor's own write compares equal and leaves
-    // every caret where it planted it.
+
     pane.syncCursors();
     pane.updateActiveLine();
     pane.updateCaret();

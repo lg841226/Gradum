@@ -48,9 +48,9 @@ function classOf(match) {
 }
 
 export function tokenize(text) {
-  const tokens = [];
-  let cursor = 0;
   let match;
+  let cursor = 0;
+  const tokens = [];
 
   TOKEN_PATTERN.lastIndex = 0;
   while ((match = TOKEN_PATTERN.exec(text)) !== null) {
@@ -66,11 +66,6 @@ export function tokenize(text) {
   return tokens;
 }
 
-// Anything outside ASCII is boxed in the overlay, so a fullwidth （ is not read
-// as an ASCII ( at a glance: the two are near-identical at code size and the
-// glyph shape alone does not separate them. Escaping runs first, so the tags
-// added here are never themselves boxed and an entity's ASCII characters are
-// left alone: only the glyphs the file actually holds are wrapped.
 export function markGlyphs(text) {
   return escapeText(text).replace(
     /[^\x00-\x7F]+/g,

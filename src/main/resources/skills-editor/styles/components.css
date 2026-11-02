@@ -8,34 +8,34 @@
 }
 
 .panel-title {
-    display: inline-flex;
+    white-space: nowrap;
     align-items: center;
+    display: inline-flex;
+    color: var(--text);
     font-size: var(--font-size-ui);
     font-weight: var(--weight-semibold);
-    color: var(--text);
-    white-space: nowrap;
 }
 
 .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-1);
-    height: var(--control-height);
-    padding: 0 var(--space-3);
     border: 0;
-    border-radius: var(--radius-control);
-    background: transparent;
-    color: var(--text-dim);
     cursor: pointer;
+    align-items: center;
+    display: inline-flex;
+    justify-content: center;
+    background: transparent;
     white-space: nowrap;
+    gap: var(--space-1);
+    color: var(--text-dim);
+    padding: 0 var(--space-3);
+    height: var(--control-height);
+    border-radius: var(--radius-control);
     transition: background var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard);
 }
 
 .btn[data-variant="ghost"]:hover {
-    background: var(--bg-raised);
     color: var(--text);
+    background: var(--bg-raised);
 }
 
 .btn[data-variant="ghost"]:active {
@@ -43,14 +43,14 @@
 }
 
 .btn[data-variant="icon"] {
-    width: var(--control-height);
     padding: 0;
     color: var(--text-mute);
+    width: var(--control-height);
 }
 
 .btn[data-variant="icon"]:hover {
-    background: var(--bg-raised);
     color: var(--text);
+    background: var(--bg-raised);
 }
 
 .btn[data-variant="icon"]:active {
@@ -69,10 +69,10 @@
    full brightness and the current view is marked by weight alone, so the
    bar never grows a block of colour: selection reads as heavier type only. */
 .btn[data-variant="menu"] {
-    height: calc(var(--menubar-height) - var(--space-1));
+    color: var(--text-dim);
     padding: 0 var(--space-2);
     border-radius: var(--radius-control);
-    color: var(--text-dim);
+    height: calc(var(--menubar-height) - var(--space-1));
 }
 
 .btn[data-variant="menu"]:hover {
@@ -82,8 +82,8 @@
 /* Text-only highlight: full-brightness weight, no colour tint and no
    background fill. The higher specificity keeps it bright even hovered. */
 .btn[data-variant="menu"][aria-pressed="true"] {
-    font-weight: var(--weight-semibold);
     color: var(--text);
+    font-weight: var(--weight-semibold);
 }
 
 /* The underlined first letter of each entry marks its access key, the way a
@@ -99,9 +99,9 @@
    menu text, where the dimmer default reads as a disabled control. The hover
    rule is restated at this specificity so it still wins over the base colour. */
 .menubar .btn[data-variant="icon"] {
+    color: var(--text-dim);
     width: calc(var(--menubar-height) - var(--space-1));
     height: calc(var(--menubar-height) - var(--space-1));
-    color: var(--text-dim);
 }
 
 .menubar .btn[data-variant="icon"]:hover {
@@ -128,8 +128,8 @@
    than squeezing the name; the two side groups in the bar take the space evenly
    either side, which is what places it at the middle. */
 .run-widget {
-    flex: 0 0 auto;
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
     gap: var(--space-2);
     height: calc(var(--menubar-height) - var(--space-1));
@@ -151,9 +151,9 @@
    mark and title. The mark keeps the icon button size so the spinner swap
    never shifts the text, and reuses the busy spin. */
 .agent-widget-repo {
-    font-size: var(--font-size-ui);
     color: var(--text);
     white-space: nowrap;
+    font-size: var(--font-size-ui);
 }
 
 .agent-widget-sep {
