@@ -1,21 +1,8 @@
-/* Islands layout: a dark canvas with same-colored islands separated by narrow
-   gaps. A view menu runs across the top and a status strip along the bottom;
-   the rail spans the height between them and the bottom tool window sits under
-   the editor only. Splitter tracks double as the gaps and as drag handles. */
-
-/* First-frame guard. The pre-paint script in index.html sets this class before
-   anything is styled; it stays until the restored layout has been written to the
-   grid, so the panels do not animate from their CSS defaults into the stored
-   sizes on load. Animation is suppressed for one frame, then the class is
-   dropped in main.js. */
 html.is-booting * {
     transition: none !important;
 }
 
 .canvas {
-    /* Inherited from the fixed body (base.css): exactly the screen, never the
-       keyboard-shrunk viewport, so no blank band is left below the canvas when
-       the touch keyboard folds away. */
     height: 100%;
     padding: var(--island-gap);
     display: grid;
@@ -50,24 +37,13 @@ html.is-booting * {
     height: var(--header-height);
 }
 
-/* Both bottom pages (Problems and Output) scroll under the app-wide scrollbar
-   (base.css); the rows and the panel's own padding do the framing. */
+
 .panel-body {
     flex: 1 1 auto;
     min-height: 0;
     overflow: auto;
 }
 
-/* View menu: the views as plain text in a bar across the top, the way a desktop
-   window lists its menus. It sits straight on the canvas, not an island. The bar
-   is one row, not a centred three-column grid: the brand and the view menu, the
-   theme toggle held at the far edge, and the run widget floating between them.
-   The widget sits exactly at the middle because the two side groups take equal
-   shares of the space, not because it is centred in what is left over; as the
-   window narrows the menu's share gives way and the widget slides left with it,
-   coming to rest against the menu instead of over it. Only the menu gives way,
-   so the entries fold instead of the bar carrying a wasted half-column that let
-   the menu run out of room early and spill over the widget. */
 .menubar {
     grid-column: 1 / -1;
     grid-row: 1;
@@ -84,23 +60,12 @@ html.is-booting * {
     min-width: 0;
 }
 
-/* The brand unit sits further from the view menu than the menu items sit from
-   each other, so the two groups read as separate. The group is also the only
-   part of the bar that gives way: it takes an equal share of the space the widget
-   leaves and clips whatever the fold has not caught up with, so nothing is ever
-   drawn over the widget. */
 .menubar-left {
     gap: var(--space-3);
     overflow: hidden;
     flex: 1 1 0;
 }
 
-/* The two side groups take an equal share of the space, which is what puts the
-   widget's own track at the middle of the bar: auto margins would centre it in
-   the room left over instead, and the menu is far wider than the toggle, so that
-   reads as off-centre to the right. The toggle's group cannot shrink past its
-   button, so as the window narrows the menu's share gives way first and the
-   widget slides left with it rather than closing over the toggle. */
 .menubar-right {
     flex: 1 1 0;
     min-width: max-content;
@@ -126,11 +91,6 @@ html.is-booting * {
     font-size: var(--font-size-ui);
 }
 
-/* The Developer/Agent switch, matched to the reference: a solid light-gray
-   fully rounded track; the pressed segment lifts as an opaque white chip with
-   a faint drop shadow and no border, reading as a slider floating on the
-   track; the unpressed segments keep no background of their own and dim to
-   the track. Segments share one width so the row reads evenly spaced. */
 .menubar .menubar-modes {
     padding: 2px;
     border-radius: 999px;
@@ -151,20 +111,10 @@ html.is-booting * {
     box-shadow: 0 1px 3px rgb(9 13 24 / 22%);
 }
 
-/* A mode-filtered entry leaves the menu entirely; the button's own display
-   would out-rank the global hidden guard, so it is restated here. */
 .menubar .btn[data-variant="menu"][hidden] {
     display: none;
 }
 
-/* A menu entry folds shut on its own rather than vanishing at a breakpoint:
-   the width cap runs to zero while the padding, the gap it holds open and its
-   opacity follow, so the entries to its left slide over as it goes. The cap
-   starts at the entry's own measured width (written from script), so the run
-   covers the entry's real size instead of a guess; the fallback only has to be
-   wider than any label for the first measurement. The entry is taken out of
-   flex shrinking, so only the cap decides its width and the label is never
-   squeezed by the flex algorithm before script gets to fold it. */
 .menubar .btn[data-variant="menu"] {
     flex: 0 0 auto;
     overflow: hidden;
@@ -186,18 +136,10 @@ html.is-booting * {
     margin-left: calc(-1 * var(--space-1));
 }
 
-/* Measured with every entry at the selected weight (the widest any of them can
-   ever get), so a fold cap never clips a label. */
 .menubar.is-measuring .btn[data-variant="menu"] {
     font-weight: var(--weight-semibold);
 }
 
-/* Touch nav: the hamburger sits ahead of the brand and only exists on devices
-   without hover (there the entries live behind it). A tap drops the views as
-   one vertical island hanging from the bar; the run widget and the right
-   toggles stay on the bar, since they are icons and already fit. The trigger
-   is any of: no hover, a coarse pointer, or a narrow viewport — many mobile
-   browsers claim hover:hover, so no single check catches them all. */
 .menubar-nav-toggle {
     display: none;
 }
@@ -233,10 +175,6 @@ html.is-booting * {
         display: flex;
     }
 
-    /* Full-width rows overwrite the desktop fold caps, so every entry reads
-       whole in the column; the fold classes the desktop layout keeps writing
-       as the bar measures itself are voided here, since the column owns the
-       entries' width. */
     .menubar .menubar-views .btn[data-variant="menu"] {
         width: 100%;
         max-width: none;
@@ -252,17 +190,10 @@ html.is-booting * {
         padding-right: revert;
     }
 
-    /* Header actions (rail toggles, the assistant button) have no hover to
-       reveal them, so they rest visible. */
     .panel-header .panel-actions {
         opacity: 1;
     }
 
-    /* Touch layout: the side panels leave the grid and float as windows
-       dragged by their header and resized from the corner grip. The bottom
-       row and the gap above it both drop to zero: with the panel afloat the
-       two gap rows would otherwise stack into a doubled blank strip between
-       the editor and the status bar. */
     .canvas {
         grid-template-columns: 0 0 1fr;
         grid-template-rows:
@@ -315,16 +246,12 @@ html.is-booting * {
     }
 }
 
-/* Desktop keeps the plain menu bar: no hamburger, hover-revealed actions. */
 @media (hover: hover) and (pointer: fine) and (min-width: 721px) {
     .menubar-nav-toggle {
         display: none !important;
     }
 }
 
-/* The rail and its splitter span from the editor row to the bottom tool window,
-   up to the line before the gap above the status strip, which they must not
-   underlap. */
 .rail {
     grid-column: 1;
     grid-row: 3 / 6;
@@ -335,8 +262,6 @@ html.is-booting * {
     grid-column: 3;
 }
 
-/* The assistant island shares the editor's cell; the chat-open class on the
-   canvas stands the editor down while it is in view (rules in chat.css). */
 .assistant {
     grid-row: 3;
     grid-column: 3;
@@ -347,10 +272,6 @@ html.is-booting * {
     grid-column: 3;
 }
 
-/* Status bar: a plain text strip along the bottom, mirroring the view menu on
-   top. The reported values sit at its right end, leaving the left free for
-   counts and connection state. The row is addressed from the end (-2), so it
-   keeps its place if more rows are ever stacked above it. */
 .statusbar {
     grid-row: -2;
     grid-column: 1 / -1;
@@ -364,12 +285,6 @@ html.is-booting * {
     height: var(--statusbar-height);
 }
 
-/* Items read as something to aim at rather than bare text: each carries its own
-   hit area and lifts onto the same translucent wash the view menu uses, so the
-   whole padded box responds, not just the glyphs. Nothing is wired to a click
-   yet; this is the target the handlers will land on. The chip keeps a fixed hit
-   height while the bar the chips sit in shrinks around it, so aiming at a chip
-   never gets any harder the thinner the bar becomes. */
 .statusbar-item {
     min-width: 0;
     display: flex;
@@ -390,23 +305,15 @@ html.is-booting * {
     background: var(--bg-menu);
 }
 
-/* An empty item still paints its hit area, which would leave a blank chip
-   hovering with nothing in it while no document is open. */
 .statusbar-item:empty {
     display: none;
 }
 
-/* The items and the left group are flex boxes, so their own display rule
-   would beat the UA's [hidden] style; the guard keeps the attribute honest
-   for the render logic that toggles it. */
 .statusbar .statusbar-left[hidden],
 .statusbar-item[hidden] {
     display: none;
 }
 
-/* The lock switch is a real button, so it turns up in the strip wearing the
-   user agent's own face: these lines hand its background, border and font back
-   to the chip rules every sibling already follows. */
 .statusbar-lock {
     border: 0;
     font: inherit;
@@ -414,9 +321,6 @@ html.is-booting * {
     background: none;
 }
 
-/* The reported values, held together at the right end and packed tighter than
-   the bar's own gap: each item already carries padding, and the bar gap would
-   read as a hole between them. */
 .statusbar-right {
     display: flex;
     margin-left: auto;
@@ -424,8 +328,6 @@ html.is-booting * {
     gap: var(--space-1);
 }
 
-/* The problem counts lead the strip at its far left, ahead of everything the
-   document reports at the right end. */
 .statusbar-left {
     display: flex;
     align-items: center;
@@ -442,8 +344,6 @@ html.is-booting * {
     color: var(--text-dim);
 }
 
-/* Splitter drag must be immediate: each pixel writes a new track size and a
-   transition lag would feel slippery. Only fold/unfold toggles animate. */
 body.is-dragging .canvas,
 body.is-dragging .panel,
 body.is-dragging .splitter,
@@ -451,9 +351,6 @@ body.is-dragging .code-pane {
     transition: none;
 }
 
-/* Collapsing explorer drops the rail and its splitter and zeroes their tracks,
-   so the editor takes the full width. --rail-width keeps its value, so
-   reopening restores the previous width. */
 .canvas.rail-collapsed {
     grid-template-columns: 0 0 1fr;
 }
@@ -464,10 +361,6 @@ body.is-dragging .code-pane {
     pointer-events: none;
 }
 
-/* Hiding the bottom tool window drops it and its splitter and zeroes their
-   tracks, so the editor takes the full height. --bottom-height keeps its value,
-   so reopening restores the previous height. The gap and status strip below
-   stay in place. */
 .canvas.bottom-hidden {
     grid-template-rows:
         var(--menubar-height) var(--island-gap)
@@ -486,7 +379,6 @@ body.is-dragging .code-pane {
     transition: opacity var(--motion-fast) var(--ease-standard);
 }
 
-/* Invisible hit area widens the narrow grid track so it is easy to grab. */
 .splitter::after {
     content: "";
     position: absolute;
@@ -512,12 +404,6 @@ body.is-dragging .code-pane {
     inset: -3px 0;
 }
 
-/* Every panel header's icon actions read at the title's own brightness rather
-   than the muted default, so the whole header sits at one level. The actions
-   themselves stay out of the way until the pointer is anywhere over the panel,
-   not just its header: the whole group is revealed by opacity alone, so the bar
-   rests as a plain title and no action shifts the others as it comes forward.
-   Keyboard focus brings the group back the same way. */
 .panel-header .btn[data-variant="icon"] {
     color: var(--text);
 }
@@ -532,23 +418,16 @@ body.is-dragging .code-pane {
     opacity: 1;
 }
 
-/* Panels that lead with a title keep the title inset wider than a tab, but the
-   trailing actions still sit 4px from the right so that inset matches the 4px
-   above them. */
 .rail .panel-header,
 .bottom .panel-header {
     gap: var(--space-1);
     padding: 0 var(--space-1) 0 var(--space-3);
 }
 
-/* The bottom title leads a group of tabs, so it sits further from them than
-   the tabs sit from each other. */
 .bottom .panel-title {
     margin-right: var(--space-2);
 }
 
-/* Grouped so the buttons inside it can sit tighter than the header gap, which
-   would otherwise space every child of the header alike. */
 .panel-actions {
     display: flex;
     align-items: center;
@@ -573,8 +452,6 @@ body.is-dragging .code-pane {
     flex-direction: column;
 }
 
-/* Each pane lists the open documents at its own top, the way a split editor
-   group keeps its own tab bar. The inset matches the 4px the tab centres in. */
 .code-pane-tabs {
     min-width: 0;
     display: flex;
@@ -585,8 +462,6 @@ body.is-dragging .code-pane {
     height: var(--header-height);
 }
 
-/* The row under the tabs: the gutter and code area, with the pane's own minimap
-   appended to it by the minimap feature. */
 .code-pane-main {
     min-width: 0;
     min-height: 0;
@@ -614,16 +489,10 @@ body.is-dragging .code-pane {
     flex-grow: calc(1 - var(--split-ratio, 0.5));
 }
 
-/* Both panes grow from a zero basis, so they divide the body by their grow
-   factors alone and the pair always fills it. Dragging the divider only rewrites
-   --split-ratio, which both of these read. */
 .editor-body.is-split .code-pane[data-pane="left"] {
     flex-grow: var(--split-ratio, 0.5);
 }
 
-/* The split runs left to right by default; the "down" direction stacks the two
-   panes instead. Only the axis the flex lines are laid on turns: the folded
-   second pane, the hairline and the share all read the same either way. */
 .editor-body.is-split-down {
     flex-direction: column;
 }
@@ -636,10 +505,6 @@ body.is-dragging .code-pane {
     inset: -3px 0;
 }
 
-/* The hairline between the two panes, drawn only while the split is on, and the
-   handle that re-shares the body when it is dragged. Its grab area is the wider
-   strip the pseudo-element lays over it, so the line itself stays a hairline.
-   The axis the split is on sets which way the pointer reads it. */
 .pane-divider {
     flex: 0 0 0;
     z-index: 5;
@@ -668,8 +533,7 @@ body.is-dragging .code-pane {
     position: absolute;
 }
 
-/* With no document open the panes would each halve the empty state, so they are
-   taken out of the flow and the placeholder takes the whole body. */
+
 .editor-body.is-empty .code-pane,
 .editor-body.is-empty .pane-divider {
     display: none;
@@ -705,11 +569,6 @@ body.is-dragging .code-pane {
     color: var(--text-dim);
 }
 
-/* A run of modified lines reads as one bar, drawn as a single pill spanning
-   them rather than a chip per line, so a block of changes looks like a block.
-   It sits at the far edge of the gutter, clear of the numbers; the 4px insets
-   keep the round tips inside the outermost lines of the run. The accent blue
-   because the change belongs to the same story as the selection and carets. */
 .changed-run {
     position: absolute;
     left: 4px;
@@ -752,10 +611,6 @@ body.is-dragging .code-pane {
     width: max-content;
 }
 
-/* A line is its own stacking context, so the selection band below can be pushed
-   behind the line's text with a negative z-index while still sitting on top of
-   the line's own background: the one slot between "line is painted" and "line's
-   glyphs are painted". */
 .highlight .line {
     display: block;
     position: relative;
@@ -763,12 +618,6 @@ body.is-dragging .code-pane {
     min-height: var(--line-height-code);
 }
 
-/* The selection band, one span per selected range: several carets can share a
-   line and a line owns only one ::before, so each band is an empty child
-   instead of a pseudo-element. Empty means the TreeWalker that places the
-   caret never sees it; left and width come from the same measured offsets the
-   caret draws with. It takes the caret's own height from the caret's own
-   token, so the two are always exactly as tall as each other. */
 .highlight .line .band {
     top: 0;
     z-index: -1;
@@ -777,10 +626,6 @@ body.is-dragging .code-pane {
     background: var(--accent-selection);
 }
 
-/* The bracket match: a rounded box behind each end of the pair, another child
-   of the line the band already taught to scroll under the glyphs. The border
-   is inside the box, so a full-width character is never pushed off its
-   measured column. */
 .highlight .line .match {
     top: 0;
     z-index: -1;
@@ -790,9 +635,6 @@ body.is-dragging .code-pane {
     height: var(--line-height-code);
 }
 
-/* The caret's line is a wash, not a slab: one pass of the raised surface
-   over the code, so the current line reads as a step above the rest without
-   closing off a band of its own. */
 .highlight .line.active {
     background: color-mix(in srgb, var(--bg-raised) 35%, transparent);
 }
@@ -805,11 +647,6 @@ body.is-dragging .code-pane {
     background: color-mix(in srgb, var(--warning) 12%, transparent);
 }
 
-/* A non-ASCII glyph in the overlay is outlined, never bordered: a border would
-   widen the glyph and pull the overlay off the text layer's metrics, which the
-   caret and the selection both ride on. An outline is paint only, so the frame
-   costs no advance. The offset tucks it against the glyph instead of leaving a
-   gap the eye reads as spacing. */
 .highlight .glyph-box {
     outline-offset: -1px;
     outline: 1px solid var(--glyph-box);
@@ -849,9 +686,6 @@ body.is-dragging .code-pane {
     cursor: default;
 }
 
-/* Drawn instead of the platform caret, which drifts against the syntax overlay
-   because the two layers round their fractional line boxes apart. The editor
-   positions it from the same metrics the overlay and squiggles use. */
 .caret {
     top: 0;
     left: 0;
@@ -869,28 +703,23 @@ body.is-dragging .code-pane {
     opacity: 1;
 }
 
-/* The shadows of a multi-cursor edit wear the brand blue. Every caret then
-   answers to one clock on the root: the off-toggle lands on an ancestor, so
-   all carets flip in the same frame and a shadow can never blink out of step
-   with the one it follows. */
 .caret.is-shadow {
     background: var(--accent);
 }
 
-.caret-blink-off .caret.is-visible {
-    opacity: 0;
+.caret.is-visible {
+    animation: caret-blink 1s steps(1, end) infinite;
 }
 
-/* The completion panel floats inside the same code box the caret draws in, as a
-   sibling of the text layers (a re-render of the highlight never touches it)
-   and takes its position from JS, since only the caret's own measurement knows
-   which side of the line has room. Rows are one code line tall, so the list
-   reads as a continuation of the text rather than a menu dropped over it. The
-   panel is a fixed frame (padding, border, shadow) sized to its widest row
-   up to a cap; the list inside it is what scrolls, so the air between the
-   rows and the rounded border holds still while the rows travel. The sheet is
-   frosted: its colour stands at 65% over a blur of whatever code lies behind
-   it, so the buffer reads through as light through glass. */
+@keyframes caret-blink {
+    0%, 49.9% {
+        opacity: 1;
+    }
+    50%, 100% {
+        opacity: 0;
+    }
+}
+
 .completion {
     top: 0;
     left: 0;

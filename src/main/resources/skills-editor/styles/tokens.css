@@ -106,6 +106,13 @@
     --tooltip-shift: 0;
     --menu-entry-width: 12em;
     --tooltip-origin: bottom;
+
+    /* Floating panels (touch layout): the dragged position and size of the
+       rail and bottom windows, written from script at runtime. */
+    --float-x: 12px;
+    --float-y: 64px;
+    --float-w: min(320px, calc(100vw - 24px));
+    --float-h: min(46vh, 420px);
 }
 
 /* Light theme. The page puts data-theme="light" on <html> when the user picks

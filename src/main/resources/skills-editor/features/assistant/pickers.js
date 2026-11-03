@@ -64,7 +64,6 @@ function selectRow(list, value) {
 export function createModelPicker({onOtherOpen} = {}) {
   let value = "";
   let currentLabel = copy.chat.runtimeDefault;
-  let chipIcon = null;
 
   const chip = document.createElement("button");
   chip.type = "button";
@@ -85,21 +84,10 @@ export function createModelPicker({onOtherOpen} = {}) {
 
   const control = mountMenu({chip, menu, onOpen: onOtherOpen});
 
-  // The chip's leading brand mark follows the current selection; the runtime
-  // default has no provider, so the slot simply empties.
-  const setChipIcon = (provider) => {
-    chipIcon?.remove();
-    chipIcon = provider ? createProviderIcon({provider}) : null;
-    if (chipIcon) {
-      chip.insertBefore(chipIcon, label);
-    }
-  };
-
-  const choose = (next, nextLabel, provider) => {
+  const choose = (next, nextLabel) => {
     value = next;
     currentLabel = nextLabel;
     label.textContent = nextLabel;
-    setChipIcon(provider);
     writeStorage(STORAGE_KEYS.model, next);
     selectRow(list, value);
     control.close();
@@ -133,7 +121,7 @@ export function createModelPicker({onOtherOpen} = {}) {
           detail: backend,
           lead: createProviderIcon({provider: parsed.provider}),
           active: model.name === value,
-          onClick: () => choose(model.name, backend ? `${backend} / ${parsed.displayName}` : parsed.displayName, parsed.provider),
+          onClick: () => choose(model.name, parsed.displayName),
         });
         row.dataset.value = model.name;
         return row;
@@ -153,10 +141,8 @@ export function createModelPicker({onOtherOpen} = {}) {
       if (value) {
         const current = usable.find((model) => model.name === value);
         if (current) {
-          const parsed = parseModelName(current.name);
-          currentLabel = parsed.displayName;
+          currentLabel = parseModelName(current.name).displayName;
           label.textContent = currentLabel;
-          setChipIcon(parsed.provider);
         }
       }
     },
@@ -174,11 +160,10 @@ export function createPermissionPicker({onOtherOpen} = {}) {
   chip.className = "btn perm-chip";
   chip.dataset.tooltip = copy.chat.permissions;
 
-  let chipIcon = createIcon({name: PERMISSION_MODES.find((mode) => mode.value === value).icon});
   const label = document.createElement("span");
   label.className = "perm-chip-label";
   label.textContent = modeInfo(value).label;
-  chip.append(chipIcon, label, createIcon({name: "chevron-down"}));
+  chip.append(label, createIcon({name: "chevron-down"}));
 
   const menu = document.createElement("div");
   menu.className = "perm-menu";
@@ -191,10 +176,6 @@ export function createPermissionPicker({onOtherOpen} = {}) {
 
   const choose = (next) => {
     value = next;
-    const mode = PERMISSION_MODES.find((entry) => entry.value === next);
-    const nextIcon = createIcon({name: mode.icon});
-    chipIcon.replaceWith(nextIcon);
-    chipIcon = nextIcon;
     label.textContent = modeInfo(next).label;
     writeStorage(STORAGE_KEYS.permission, next);
     selectRow(list, value);
@@ -210,13 +191,19 @@ export function createPermissionPicker({onOtherOpen} = {}) {
       row.setAttribute("aria-selected", mode.value === value ? "true" : "false");
       row.dataset.value = mode.value;
 
+      // The mode glyphs ride along in the popup only; the chip stays text.
+      // Icon left, the label+info pair stacked to its right.
+      row.append(createIcon({name: mode.icon}));
+      const text = document.createElement("div");
+      text.className = "perm-item-text";
       const name = document.createElement("span");
       name.className = "list-item-label";
       name.textContent = modeInfo(mode.value).label;
       const info = document.createElement("span");
       info.className = "perm-item-info";
       info.textContent = modeInfo(mode.value).info;
-      row.append(name, info);
+      text.append(name, info);
+      row.append(text);
       row.addEventListener("click", () => choose(mode.value));
       return row;
     }),

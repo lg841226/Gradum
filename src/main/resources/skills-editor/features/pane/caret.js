@@ -12,14 +12,12 @@
 import {displayColumns} from "../../core/dom.js";
 import {indentWidth} from "../analysis.js";
 
-let blinkTimer = null;
-
-function restartBlink() {
-  document.documentElement.classList.remove("caret-blink-off");
-  clearInterval(blinkTimer);
-  blinkTimer = setInterval(() => {
-    document.documentElement.classList.toggle("caret-blink-off");
-  }, 500);
+function restartBlink(elements) {
+  for (const element of elements) {
+    for (const animation of element.getAnimations()) {
+      animation.currentTime = 0;
+    }
+  }
 }
 
 export function createCaretLayer({
@@ -160,6 +158,7 @@ export function createCaretLayer({
     }
 
     let blinkChanged = false;
+    const visible = [];
     for (let index = 0; index < carets.length; index++) {
       const element = carets[index];
       const entry = wanted[index];
@@ -173,6 +172,7 @@ export function createCaretLayer({
       element.style.transform = `translate(${x}px, ${y}px)`;
       element.classList.toggle("is-shadow", entry.shadow);
       element.classList.add("is-visible");
+      visible.push(element);
 
       // Nudge the shared clock only when a caret changes position, never on a
       // scroll frame: a forced reflow here would make the gutter lag the
@@ -183,7 +183,7 @@ export function createCaretLayer({
       }
     }
     if (blinkChanged) {
-      restartBlink();
+      restartBlink(visible);
     }
 
     // The completion list rides the caret's coattails: every caret draw

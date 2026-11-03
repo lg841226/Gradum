@@ -740,11 +740,18 @@
 }
 
 .assistant .perm-item {
-    gap: 2px;
     height: auto;
-    flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
+    gap: var(--space-2);
     padding: var(--space-1) var(--space-2);
+}
+
+.assistant .perm-item-text {
+    gap: 2px;
+    min-width: 0;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
 }
 
 .assistant .perm-item .list-item-label {

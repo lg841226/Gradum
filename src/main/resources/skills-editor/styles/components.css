@@ -108,25 +108,16 @@
     color: var(--text);
 }
 
-/* The split toggle holds its pressed state, so the bar shows at a glance that
-   the editor is divided. The rule is scoped to the bar to outrank the dim
-   resting colour above by source order. */
 .menubar .btn[data-variant="icon"][aria-pressed="true"] {
     background: var(--accent-selection);
     color: var(--text);
 }
 
-/* The toggles at the far edge carry a slightly larger glyph than the 16px
-   default, so the split and theme marks read clearly at the bar's width. */
 .menubar-right .btn[data-variant="icon"] .icon {
     width: 18px;
     height: 18px;
 }
 
-/* Run widget: the skill it would run beside its build and run actions. It is
-   held at its content size, so a narrow window closes the menu onto it rather
-   than squeezing the name; the two side groups in the bar take the space evenly
-   either side, which is what places it at the middle. */
 .run-widget {
     display: flex;
     flex: 0 0 auto;
@@ -135,21 +126,15 @@
     height: calc(var(--menubar-height) - var(--space-1));
 }
 
-/* The widget stands down with the developer mode; its own display would
-   out-rank the global hidden guard, so it is restated here. */
 .run-widget[hidden] {
     display: none;
 }
 
-/* Same for bar buttons hidden outright, such as the split and minimap toggles
-   on devices where the panels float. */
+
 .menubar .btn[hidden] {
     display: none;
 }
 
-/* The agent side's breadcrumb: repository, a hairline slash, then the session
-   mark and title. The mark keeps the icon button size so the spinner swap
-   never shifts the text, and reuses the busy spin. */
 .agent-widget-repo {
     color: var(--text);
     white-space: nowrap;
@@ -160,20 +145,14 @@
     color: var(--text-dim);
 }
 
-/* The mark rides one collapse: an idle mark folds to no width at all (and
-   cancels the flex gap it would hold open), a working mark grows to its icon
-   box, so the row breathes open and shut instead of snapping. The icon sits a
-   step under the text's cap height, so it never reads taller than its
-   neighbours. */
 .agent-widget-mark {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     width: 14px;
     height: 14px;
     max-width: 0;
     overflow: hidden;
-    /* Cancels the flex gap the folded mark would otherwise leave behind. */
+    align-items: center;
+    display: inline-flex;
+    justify-content: center;
     margin-left: calc(-1 * var(--space-2));
     transition: max-width 220ms var(--ease-standard),
     margin 220ms var(--ease-standard);
@@ -278,8 +257,6 @@
     display: none;
 }
 
-/* One tab style for file and tool window labels: a rounded chip whose active
-   state is a blue fill with a blue outline. */
 .tab {
     border: 0;
     flex: 0 0 auto;
@@ -357,10 +334,6 @@
     display: none;
 }
 
-/* Inline rename only: the field replaces a label, so JS sizes it to the label's
-   width and the padding stays at zero, otherwise the box would be wider than the
-   title it stands in for. The box itself is invisible (no border, no background,
-   no focus ring), so the padding was never doing any visible work. */
 .text-field {
     border: 0;
     padding: 0;
@@ -415,8 +388,7 @@
     text-overflow: ellipsis;
 }
 
-/* Secondary line (the serving backend in the model menu): quiet gray, the
-   label's own size, pushed to the item's far right. */
+
 .list-item-detail {
     flex: 1 1 auto;
     overflow: hidden;
@@ -426,16 +398,11 @@
     color: var(--text-mute);
 }
 
-/* Provider brand marks (model menu): fill-based monochrome glyphs that take
-   the theme's tint through currentColor, quiet like secondary text. */
 .provider-icon {
     flex: none;
     color: var(--text-dim);
 }
 
-/* The root row stands for the skills directory, so it reads as a heading over
-   the branch: dim, short, and with no selection of its own. The tree item wraps
-   the row and its branch so the group nests correctly. */
 .tree-item {
     display: flex;
     flex: 0 0 auto;
@@ -486,9 +453,6 @@
     transform: rotate(-90deg);
 }
 
-/* The branch indents past the root's twisty, so the skills line up under the
-   folder label rather than under its arrow, and stacks its rows with the same
-   gap the list uses: a plain block would leave them flush. */
 .tree-children {
     display: flex;
     flex: 0 0 auto;
@@ -520,8 +484,6 @@
     color: var(--text-mute);
 }
 
-/* A placeholder standing in for a failed action takes that action's colour, so a
-   rejected rename does not read like the ordinary "nothing to show" message. */
 .empty-state[data-tone="ok"] .empty-state-title {
     color: var(--ok);
 }
@@ -534,8 +496,6 @@
     color: var(--accent);
 }
 
-/* The wave is a monochrome mask tinted by the marker's own colour, so the two
-   severities share one asset instead of hard-coding each stroke colour. */
 .squiggle {
     mask-size: 6px 3px;
     position: absolute;
@@ -557,8 +517,6 @@
     color: var(--warning);
 }
 
-/* Stretched to the body so an empty-state child can center in the whole panel
-   instead of collapsing to the height of its own text. */
 .problem-list {
     display: flex;
     flex-direction: column;
@@ -566,11 +524,6 @@
     padding: var(--space-1) var(--space-2) var(--space-2);
 }
 
-/* Table-style columns: severity | fixed-width location | message. The row is a
-   grid so every message starts at exactly the same x; the location column
-   keeps its width on the child (ch units resolve against its own mono font)
-   because each row is its own grid and only a child-level width is therefore
-   identical across rows. */
 .problem {
     display: grid;
     flex: 0 0 auto;
@@ -587,13 +540,6 @@
     background: var(--bg-raised);
 }
 
-/* Baseline-anchored against the first message line: with a wrapped message the
-   icon stays on line one instead of drifting to the middle of the row. The
-   wrapper exists because a replaced box has no text baseline of its own: the
-   SVG's is its bottom edge, so aligning the SVG directly would drop that edge
-   onto the baseline and ride the icon well above the line. A wrapper holding a
-   line box gives the cell a real baseline to line up with, and the icon centres
-   on that line. */
 .problem-severity {
     display: inline-block;
 }
@@ -619,9 +565,6 @@
     word-break: break-word;
 }
 
-/* The log is monospace content like the editor, so it takes the code size rather
-   than the smaller UI size it used to carry. That also lines it up with the
-   placeholder shown in the other tab of this same tool window. */
 .output {
     font-size: var(--font-size-code);
     padding: var(--space-2) var(--space-3);
@@ -647,8 +590,6 @@
     color: var(--accent);
 }
 
-/* Compiler diagnostics that report individual problems: quieter than the
-   failure line they hang under, indented so they read as its detail. */
 .output-line[data-tone="detail"] {
     color: var(--text-mute);
 }
@@ -673,16 +614,7 @@
     }
 }
 
-/* One bubble, moved from control to control. It is fixed to the viewport rather
-   than to the control, so a control inside a scrolling pane cannot clip it. It
-   stays laid out while hidden, so its size can be read before the first painted
-   frame and it never flashes at the window's corner before it has been placed.
-   The visibility delay is what lets the exit finish before it is taken out of
-   the hit test.
-   The enter is a short rise out of the anchor edge plus a slight scale-up: the
-   bubble grows out of the control it describes instead of appearing in place.
-   Its offset and origin are written by JS, since only the positioner knows
-   which side it ended up on. */
+
 .tooltip {
     top: 0;
     left: 0;
@@ -715,9 +647,6 @@
     transform var(--motion-fast) var(--ease-standard);
 }
 
-/* The unlock dialog: reader mode's way out when the session carries no token.
-   A wash over the page keeps the code behind it as context rather than a
-   second thing to close first, and the card sits centered on it. */
 .unlock-backdrop {
     inset: 0;
     z-index: 60;
@@ -734,10 +663,6 @@
     display: none;
 }
 
-/* The entrance runs in two beats: the backdrop fades its blur in first, then
-   the card pops after it: the pop waits out one motion-fast and carries its
-   own start state through the wait. The display flip that opens the dialog
-   replays both on every open. */
 @keyframes unlock-fade {
     from {
         opacity: 0;
@@ -801,9 +726,6 @@
     border-color: var(--accent);
 }
 
-/* The pairing code splits into six single-digit cells: fixed 44px boxes in a
-   centered row, sized to fit the card, wrapping instead of overflowing on a
-   narrow screen. */
 .unlock-codes {
     display: flex;
     flex-wrap: wrap;
@@ -855,8 +777,6 @@
     background: var(--accent-hover);
 }
 
-/* The accent face stays put while the button is disabled: the generic
-   disabled-hover rule would otherwise wash it out on the way to gray. */
 .unlock-submit:disabled,
 .unlock-submit.btn:disabled:hover {
     color: #fff;

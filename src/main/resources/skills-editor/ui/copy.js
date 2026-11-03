@@ -30,7 +30,7 @@ export const copy = {
     session: "Session",
     problems: "Problems",
     explorer: "Explorer",
-    developer: "Developer",
+    developer: "Develop",
   },
 
   agent: {
