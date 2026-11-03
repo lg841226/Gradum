@@ -7,6 +7,8 @@
 import {createIcon} from "../../ui/components/icon.js";
 import {createListItem} from "../../ui/components/list.js";
 import {copy} from "../../ui/copy.js";
+import {beautifyProvider, parseModelName} from "../../ui/modelName.js";
+import {createProviderIcon} from "../../ui/providerIcons.js";
 import {STORAGE_KEYS} from "../../core/storageKeys.js";
 import {readStorage, writeStorage} from "../../core/storage.js";
 
@@ -62,6 +64,7 @@ function selectRow(list, value) {
 export function createModelPicker({onOtherOpen} = {}) {
   let value = "";
   let currentLabel = copy.chat.runtimeDefault;
+  let chipIcon = null;
 
   const chip = document.createElement("button");
   chip.type = "button";
@@ -82,10 +85,21 @@ export function createModelPicker({onOtherOpen} = {}) {
 
   const control = mountMenu({chip, menu, onOpen: onOtherOpen});
 
-  const choose = (next, nextLabel) => {
+  // The chip's leading brand mark follows the current selection; the runtime
+  // default has no provider, so the slot simply empties.
+  const setChipIcon = (provider) => {
+    chipIcon?.remove();
+    chipIcon = provider ? createProviderIcon({provider}) : null;
+    if (chipIcon) {
+      chip.insertBefore(chipIcon, label);
+    }
+  };
+
+  const choose = (next, nextLabel, provider) => {
     value = next;
     currentLabel = nextLabel;
     label.textContent = nextLabel;
+    setChipIcon(provider);
     writeStorage(STORAGE_KEYS.model, next);
     selectRow(list, value);
     control.close();
@@ -110,11 +124,16 @@ export function createModelPicker({onOtherOpen} = {}) {
       }
 
       const rows = usable.map((model) => {
-        const rowLabel = `${model.name} (${model.provider})`;
+        const parsed = parseModelName(model.name);
+        const backend = beautifyProvider(model.provider);
         const row = createListItem({
-          label: rowLabel,
+          label: parsed.displayName,
+          // The serving backend parks at the row's far right in quiet gray;
+          // the chip carries it as a prefix instead ("Ollama / ChatGPT 4").
+          detail: backend,
+          lead: createProviderIcon({provider: parsed.provider}),
           active: model.name === value,
-          onClick: () => choose(model.name, rowLabel),
+          onClick: () => choose(model.name, backend ? `${backend} / ${parsed.displayName}` : parsed.displayName, parsed.provider),
         });
         row.dataset.value = model.name;
         return row;
@@ -124,16 +143,20 @@ export function createModelPicker({onOtherOpen} = {}) {
         createListItem({
           label: copy.chat.runtimeDefault,
           active: value === "",
-          onClick: () => choose("", copy.chat.runtimeDefault),
+          onClick: () => choose("", copy.chat.runtimeDefault, null),
         }),
         ...rows,
       );
 
+      // The restored selection renders formatted from the first paint, the
+      // same way a click would leave it.
       if (value) {
         const current = usable.find((model) => model.name === value);
         if (current) {
-          currentLabel = `${current.name} (${current.provider})`;
+          const parsed = parseModelName(current.name);
+          currentLabel = parsed.displayName;
           label.textContent = currentLabel;
+          setChipIcon(parsed.provider);
         }
       }
     },

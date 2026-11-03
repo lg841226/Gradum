@@ -415,6 +415,24 @@
     text-overflow: ellipsis;
 }
 
+/* Secondary line (the serving backend in the model menu): quiet gray, the
+   label's own size, pushed to the item's far right. */
+.list-item-detail {
+    flex: 1 1 auto;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    text-align: right;
+    color: var(--text-mute);
+}
+
+/* Provider brand marks (model menu): fill-based monochrome glyphs that take
+   the theme's tint through currentColor, quiet like secondary text. */
+.provider-icon {
+    flex: none;
+    color: var(--text-dim);
+}
+
 /* The root row stands for the skills directory, so it reads as a heading over
    the branch: dim, short, and with no selection of its own. The tree item wraps
    the row and its branch so the group nests correctly. */

@@ -95,6 +95,7 @@
     --island-gap: 6px;
     --rail-width: 208px;
     --blur-popup: 10px;
+    --composer-h: 96px;
     --header-height: 36px;
     --control-height: 28px;
     --menubar-height: 28px;
@@ -105,11 +106,6 @@
     --tooltip-shift: 0;
     --menu-entry-width: 12em;
     --tooltip-origin: bottom;
-    /* The composer's measured height, written by the assistant's
-       ResizeObserver onto the island; the chat's bottom padding and its
-       virtual blank read it. The value here is the pre-measurement default
-       the stylesheet falls back to. */
-    --composer-h: 96px;
 }
 
 /* Light theme. The page puts data-theme="light" on <html> when the user picks
@@ -124,8 +120,8 @@
     --shadow-popup: 0 4px 12px rgb(43 53 76 / 14%);
     --bg-island: color-mix(in srgb, #ffffff 80%, transparent);
 
-    --bg-menu: color-mix(in srgb, var(--bg-raised) 62%, transparent);
     --glow: color-mix(in srgb, var(--accent) 18%, transparent);
+    --bg-menu: color-mix(in srgb, var(--bg-raised) 62%, transparent);
 
     /* Lines */
     --border: #e0e2e6;
