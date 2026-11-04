@@ -1,9 +1,9 @@
-// The one owner of an in-flight run: AbortController, runId, generation and
+// The one owner of an in-flight run: AbortController, runId, generation +
 // the streaming flag all live here.
 //
 // Stop is two actions, not a choice: abort the fetch so the browser stops
 // rendering, and tell the server to halt the run. A reset (new chat, another
-// session) invalidates the generation first, so late frames and a late
+// session) invalidates the generation first, so late frames + a late
 // finally cannot touch the turn that replaced them.
 
 import {stop as stopRun, streamEvents} from "../../data/legatusApi.js";

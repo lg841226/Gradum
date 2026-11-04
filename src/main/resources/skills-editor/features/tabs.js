@@ -1,11 +1,7 @@
 import {findDoc, findDocByName, withDoc} from "../core/store.js";
-import {HttpError} from "../data/http.js";
-import {loadSkill} from "../data/skillsApi.js";
 import {createTextField} from "../ui/components/field.js";
 import {renderTabStrip} from "../ui/components/tab.js";
 import {copy} from "../ui/copy.js";
-
-const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 // A name is taken when it is already on disk or open in a tab. Renaming ignores
 // the tab being renamed so a no-op rename stays valid.
@@ -16,13 +12,15 @@ function isNameTaken(state, name, exceptId = null) {
   return state.docs.some((doc) => doc.id !== exceptId && doc.name === name);
 }
 
-// Owns the open documents: open, create, close, activate and rename. The tab
-// strip containers belong to the editor island and are handed in by main.js,
-// one per editor pane, all listing the same documents. Each view may bring its
-// own close handler; a pane without one closes the document itself.
-export function mountTabs(store, {strips}) {
-  const starter = document.getElementById("starterTemplate")?.textContent ?? "";
-
+// Owns the open documents: open, create, close, activate + rename. The tab
+// strip containers belong to the editor island and are handed in by the
+// assembly entry, one per editor pane, all listing the same documents. Each view
+// may bring its own close handler; a pane without one closes the document itself.
+//
+// The host owns everything the filesystem knows: how a name is opened, what a
+// new file is called + what it starts from, and how a name is normalized. This
+// file only tracks the tabs that result.
+export function mountTabs(store, {strips, documents}) {
   function activate(id) {
     const state = store.getState();
     if (state.activeId === id) {
@@ -42,29 +40,18 @@ export function mountTabs(store, {strips}) {
     });
   }
 
-  function nextName(state) {
-    let index = 1;
-    while (isNameTaken(state, `NewSkill${index}.kt`)) {
-      index++;
-    }
-    return `NewSkill${index}.kt`;
-  }
-
   const loading = new Map();
 
   async function loadDoc(name) {
-    let remote;
+    let result;
     try {
-      remote = await loadSkill(name);
-    } catch (error) {
-      if (error instanceof HttpError) {
-        const text = error.status === 401 || error.status === 403
-          ? copy.status.unauthorized
-          : copy.status.loadFailed(name, error.detail);
-        store.setState({status: {text, tone: "error"}});
-      } else {
-        store.setState({status: {text: copy.status.unreachable, tone: "error"}});
-      }
+      result = await documents.open(name);
+    } catch (_error) {
+      store.setState({status: {text: copy.status.unreachable, tone: "error"}});
+      return;
+    }
+    if (result.error) {
+      store.setState({status: {text: result.error, tone: "error"}});
       return;
     }
 
@@ -74,12 +61,11 @@ export function mountTabs(store, {strips}) {
       return;
     }
 
-    const source = remote === null ? starter : remote;
     addDoc({
       id: store.getState().nextId,
       name,
-      source,
-      baseline: source,
+      source: result.source,
+      baseline: result.source,
       dirty: false,
       diagnostics: [],
     });
@@ -114,11 +100,19 @@ export function mountTabs(store, {strips}) {
       return;
     }
 
+    const fresh = documents.create({
+      files: state.files,
+      names: state.docs.map((doc) => doc.name),
+    });
+    if (!fresh) {
+      return;
+    }
+
     addDoc({
       id: state.nextId,
-      name: nextName(state),
-      source: starter,
-      baseline: starter,
+      name: fresh.name,
+      source: fresh.source,
+      baseline: fresh.source,
       dirty: false,
       diagnostics: [],
     });
@@ -148,13 +142,12 @@ export function mountTabs(store, {strips}) {
   }
 
   function rename(id, rawName) {
-    const bare = String(rawName).trim().replace(/\.kt$/, "");
-    if (!NAME_PATTERN.test(bare)) {
+    const name = documents.rename(rawName);
+    if (!name) {
       store.setState({status: {text: copy.status.invalidName, tone: "error"}});
       return false;
     }
 
-    const name = `${bare}.kt`;
     const state = store.getState();
     if (isNameTaken(state, name, id)) {
       store.setState({status: {text: copy.status.nameTaken(name), tone: "error"}});
@@ -210,10 +203,10 @@ export function mountTabs(store, {strips}) {
       active: doc.id === state.activeId,
     }));
     const handlers = {
-      onActivate: (tab) => activate(Number(tab.dataset.id)),
-      onClose: (tab) => close(Number(tab.dataset.id)),
-      onRename: (tab) => {
-        const doc = findDoc(store.getState(), Number(tab.dataset.id));
+      onActivate: (_tab, id) => activate(Number(id)),
+      onClose: (_tab, id) => close(Number(id)),
+      onRename: (tab, id) => {
+        const doc = findDoc(store.getState(), Number(id));
         if (doc) {
           beginRename(tab, doc);
         }

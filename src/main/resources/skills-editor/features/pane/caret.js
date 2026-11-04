@@ -1,5 +1,3 @@
-// The drawn carets and the caret readout they publish.
-//
 // One blink clock is shared by every caret in the document: the off-toggle
 // lands on the root, so all carets flip in the same frame and the phases can
 // never drift apart. A caret move restarts the clock, so a moved set comes back
@@ -7,7 +5,7 @@
 //
 // The native caret can drift against the syntax overlay because the two layers
 // round their fractional line boxes apart, so it is hidden and these carets are
-// drawn from the same metrics the overlay and squiggles use.
+// drawn from the same metrics the overlay + squiggles use.
 
 import {displayColumns} from "../../core/dom.js";
 import {indentWidth} from "../analysis.js";
@@ -37,14 +35,14 @@ export function createCaretLayer({
   let publishedSelection = null;
   let publishedWidth = 4;
 
-  // Drawn carets, pooled: one per collapsed cursor, grown on demand and hidden,
+  // Drawn carets, pooled: one per collapsed cursor, grown on demand + hidden,
   // never destroyed, when the list shrinks. The first entry is the caret
   // element mounted with the pane.
   const carets = [initialCaret];
   const drawnOffsets = [-1];
 
   // Placement for one caret at one buffer offset, from the same measurements
-  // the overlay and squiggles use: the line comes from the text before the
+  // the overlay + squiggles use: the line comes from the text before the
   // offset, the horizontal edge from a Range over the rendered line, the
   // vertical from the line box the pane already trusts.
   function position(offset) {
@@ -76,7 +74,7 @@ export function createCaretLayer({
     // move publishes it, but only for the pane the user is actually in, so the
     // readout follows the focused view rather than whichever pane drew last.
     // The selection rides along in the same patch: the strip appends its length
-    // in characters and newlines while a range is selected. The position is the
+    // in characters + newlines while a range is selected. The position is the
     // primary range (cursors[0], the one the textarea mirrors), so a screen of
     // carets still reports the one the platform calls home.
     if (focused) {

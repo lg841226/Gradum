@@ -1,9 +1,10 @@
-import {tokenize} from "./syntax.js";
-
-// Buffer analysis, all of it pure: which brackets pair across the strings
-// and comments the scan skips, how wide one indent level in this file is,
-// and which lines an edit has changed since the baseline. The pane asks,
+// Buffer analysis, all of it pure: which brackets pair across the strings +
+// comments the scan skips, how wide one indent level in this file is,
+// which lines an edit has changed since the baseline. The pane asks,
 // this file answers, and nothing here touches the document.
+//
+// The bracket scan needs a tokenizer to know what a string or comment is,
+// and only the language pack has that answer, so the caller passes one in.
 
 const BRACKET_OPEN = "([{";
 const BRACKET_CLOSE = ")]}";
@@ -11,13 +12,14 @@ const BRACKET_CLOSE = ")]}";
 // Every bracket outside a string or comment, with its buffer offset. The
 // match scan reads this list instead of the raw characters, so a paren the
 // overlay paints as part of a string is not a bracket at all. The list is
-// memoised on the text, because the caret moves far more often than the
-// buffer changes.
+// memoised on the text + the tokenizer, because the caret moves far more
+// often than the buffer changes, but a tab switch can swap the language.
 let bracketCacheText = null;
+let bracketCacheTokenize = null;
 let bracketCache = [];
 
-function bracketRuns(text) {
-  if (text === bracketCacheText) {
+function bracketRuns(text, tokenize) {
+  if (text === bracketCacheText && tokenize === bracketCacheTokenize) {
     return bracketCache;
   }
 
@@ -36,6 +38,7 @@ function bracketRuns(text) {
   }
 
   bracketCacheText = text;
+  bracketCacheTokenize = tokenize;
   bracketCache = found;
   return found;
 }
@@ -84,8 +87,8 @@ function bracketPartner(brackets, origin) {
 // The pairs to box: one per caret that touches a bracket (the character
 // before it first, the one under it otherwise), deduplicated, because two
 // cursors standing on one pair light the same two boxes.
-export function matchPairs(text, cursors) {
-  const brackets = bracketRuns(text);
+export function matchPairs(text, cursors, tokenize) {
+  const brackets = bracketRuns(text, tokenize);
   if (brackets.length < 2) {
     return [];
   }
@@ -123,13 +126,12 @@ export function matchPairs(text, cursors) {
 }
 
 // The nesting a caret sits in: opens minus closes over the brackets before
-// it (strings and comments skipped by the same scan the match boxes use),
-// so Enter lays the next line at that level, two spaces a level the way Tab
-// indents. A run with more closes than opens reads as zero rather than a
-// negative hang.
-export function bracketDepth(text, offset) {
+// it (strings + comments skipped by the same scan the match boxes use),
+// so the caller can lay the next line at that level, one indent unit a level.
+// A run with more closes than opens reads as zero rather than a negative hang.
+export function bracketDepth(text, offset, tokenize) {
   let depth = 0;
-  for (const bracket of bracketRuns(text)) {
+  for (const bracket of bracketRuns(text, tokenize)) {
     if (bracket.at >= offset) {
       break;
     }
@@ -180,7 +182,7 @@ export function indentWidth(text) {
 
 // The lines an edit has touched since the buffer's baseline, as one-based
 // numbers in document order: a line counts as modified when the longest
-// common subsequence of baseline and buffer lines cannot claim it: an
+// common subsequence of baseline + buffer lines cannot claim it: an
 // insertion marks the new line, a rewrite marks the line that replaced the
 // old one, and the walk runs backwards so the answer comes out in order.
 // Skill files are small, so the table fits; a file big enough to make it a

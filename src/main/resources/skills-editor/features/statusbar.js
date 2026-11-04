@@ -1,4 +1,3 @@
-import {activeDoc} from "../core/store.js";
 import {pair} from "../data/skillsApi.js";
 import {createIcon} from "../ui/components/icon.js";
 import {createUnlock} from "../ui/components/unlock.js";
@@ -30,11 +29,7 @@ function updateCount(count, value, label) {
   count.item.setAttribute("aria-label", label);
 }
 
-// The strip across the window bottom: what the open document reports. The
-// problem counts lead it at the far left, and the caret, line ending and
-// encoding trail it at the right. The values come from the store, so this
-// feature reads state without reaching into the editor.
-export function mountStatusBar(store, {canvas}) {
+export function mountStatusBar(store, {canvas, getActiveDoc}) {
   const bar = document.createElement("footer");
   bar.className = "statusbar";
   bar.setAttribute("aria-label", copy.statusBar.label);
@@ -90,6 +85,7 @@ export function mountStatusBar(store, {canvas}) {
   right.appendChild(lock);
 
   const unlock = createUnlock({
+    container: canvas,
     onToken: (token) => {
       location.assign(`/skills/editor?token=${encodeURIComponent(token)}`);
     },
@@ -133,10 +129,10 @@ export function mountStatusBar(store, {canvas}) {
   }
 
   const render = (state) => {
-    const doc = activeDoc(state);
+    const doc = getActiveDoc(state);
     const chat = state.chatOpen === true;
 
-    // The agent mode owns the strip: the counts and the editor-facing values
+    // The agent mode owns the strip: the counts + the editor-facing values
     // describe the developer workspace, so they leave with it and only the
     // project root stays. The strip reads the mode from the store, so nothing
     // outside this render couples the two features.

@@ -1,4 +1,4 @@
-// One place for the escapes and URL checks that keep untrusted text inert.
+// One place for the escapes + URL checks that keep untrusted text inert.
 //
 // `escapeText` is for text content only. An attribute value needs the same
 // call, but the result must be quoted: the escapes cover quotes precisely so
@@ -36,7 +36,7 @@ export function safeUrl(raw) {
   return SAFE_SCHEMES.has(`${scheme[1].toLowerCase()}:`) ? value : null;
 }
 
-// Kind tokens reach class names and icon-map keys. Only the lowercase
+// Kind tokens reach class names + icon-map keys. Only the lowercase
 // identifiers the completion tables define are allowed.
 export function isSafeToken(value) {
   return typeof value === "string" && /^[a-z][a-z0-9-]*$/.test(value);

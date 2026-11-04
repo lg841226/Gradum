@@ -9,26 +9,29 @@
     <link href="/skills/editor/styles/layout.css" rel="stylesheet"/>
     <link href="/skills/editor/styles/components.css" rel="stylesheet"/>
     <link href="/skills/editor/styles/chat.css" rel="stylesheet"/>
-    <script>
-      (function () {
-        // This key is repeated from core/storageKeys.js because the first frame
-        // must be themed before the module graph loads; keep the two in sync.
-        let preference = null;
-        try {
-          preference = window.localStorage.getItem("gradum.skillsEditor.theme");
-        } catch (storageError) {
-          preference = null;
-        }
-        if (preference !== "light" && preference !== "dark") preference = "dark";
-        document.documentElement.dataset.theme = preference;
-        // Held until the first frame is painted, so the layout the script
-        // restores from storage does not animate in from the defaults.
-        document.documentElement.classList.add("is-booting");
-      })();
-    </script>
 </head>
 <body>
 <div class="canvas" id="canvas"></div>
+<script>
+  (function () {
+    // This key is repeated from core/storageKeys.js because the first frame
+    // must be themed before the module graph loads; keep the two in sync. The
+    // attribute lands on the editor root (not <html>) so the palette never
+    // escapes the mounted container.
+    let preference = null;
+    try {
+      preference = window.localStorage.getItem("gradum.skillsEditor.theme");
+    } catch (storageError) {
+      preference = null;
+    }
+    if (preference !== "light" && preference !== "dark") preference = "dark";
+    document.getElementById("canvas").dataset.theme = preference;
+    // Held until the first frame is painted, so the layout the script
+    // restores from storage does not animate in from the defaults. It rides
+    // the editor root, like the theme, so the host page is left untouched.
+    document.getElementById("canvas").classList.add("is-booting");
+  })();
+</script>
 <script id="starterTemplate" type="text/plain">
 </script>
 <script src="/skills/editor/main.js" type="module"></script>

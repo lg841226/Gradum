@@ -1,8 +1,8 @@
 import {codeMetrics, displayColumns, FALLBACK_METRICS} from "../core/dom.js";
-import {activeDoc} from "../core/store.js";
 import {createTabStrip} from "../ui/components/tab.js";
 import {bracketDepth} from "./analysis.js";
 import {createCompletion} from "./completion.js";
+import {languageFor} from "./languages/registry.js";
 import {createCaretLayer} from "./pane/caret.js";
 import {createHighlightLayer} from "./pane/highlight.js";
 import {createMeasure} from "./pane/measure.js";
@@ -21,14 +21,14 @@ import {
 import {recordEdit, redo as redoHistory, seedHistory, undo as undoHistory} from "./history.js";
 
 // One code surface: the gutter, the syntax overlay, the marker layer, the drawn
-// caret, and the textarea that owns the real caret and selection. Two of these
+// caret + the textarea that owns the real caret + selection. Two of these
 // are mounted side by side to show the same buffer twice: each keeps its own
-// tab strip, scroll, selection and caret, and redraws only its own overlay.
+// tab strip, scroll, selection + caret, and redraws only its own overlay.
 //
 // The surface itself is assembled here; the three drawing layers live under
-// features/pane/ and are handed the elements and accessors they need, so none
+// features/pane/ and are handed the elements + accessors they need, so none
 // of them reaches for a second source of truth.
-export function createCodePane(store, {onInput, onFocus, onRun}) {
+export function createCodePane(store, {onInput, onFocus, getActiveDoc}) {
   const root = document.createElement("div");
   root.className = "code-pane";
 
@@ -89,18 +89,19 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     gutterInner,
     getText: () => source.value,
     getActiveOffset: () => source.selectionStart,
+    getActiveDoc,
   });
 
   // The textarea can only ever hold one real range, so the caret list is the
-  // truth and cursors[0] is the entry written back into it: drawing, editing
-  // and the status bar all read from here, and the platform's range is just
+  // truth and cursors[0] is the entry written back into it: drawing, editing +
+  // the status bar all read from here, and the platform's range is just
   // the primary entry seen from outside.
   let cursors = [{anchor: 0, head: 0}];
   let composing = false;
 
   // Writing the list to the textarea is the only way the platform can learn
   // about the primary range. The reverse read must not mistake that echo for a
-  // user action (the low and high edges compare equal), so the anchors
+  // user action (the low + high edges compare equal), so the anchors
   // behind them, and every caret after them, survive the round trip.
   function writeCursors() {
     const first = cursors[0];
@@ -126,7 +127,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
 
   // macOS elastic overscroll can report a negative offset for a moment when a
   // fast scroll hits the top. The text layer cannot follow it, so the overlays
-  // clamp and hold still instead of bouncing against the text.
+  // clamp + hold still instead of bouncing against the text.
   function scrollOffset() {
     return {
       left: Math.max(0, source.scrollLeft),
@@ -140,6 +141,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     source,
     highlightCode,
     advance: measure.advance,
+    getTokenize: () => currentLanguage().tokenize,
   });
 
   const caretLayer = createCaretLayer({
@@ -169,6 +171,74 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
 
   function renderHighlight(text) {
     highlightLayer.render(text);
+  }
+
+  // The problems panel hands its result to the pane rather than reaching into
+  // the gutter, the marker layer + the metrics itself: the pane owns those
+  // nodes, so the drawing rule stays here with them.
+  function setDiagnostics(diagnostics, text) {
+    markers.replaceChildren();
+    highlightCode
+      .querySelectorAll(".errline, .warnline")
+      .forEach((node) => node.classList.remove("errline", "warnline"));
+    if (diagnostics.length === 0) {
+      return;
+    }
+
+    const lines = text.split("\n");
+    for (const diagnostic of diagnostics) {
+      if (!diagnostic.line) {
+        continue;
+      }
+
+      const lineNode = highlightCode.querySelector(`.line[data-line="${diagnostic.line}"]`);
+      if (lineNode) {
+        lineNode.classList.add(diagnostic.severity === "error" ? "errline" : "warnline");
+      }
+
+      const line = lines[diagnostic.line - 1] || "";
+      const column = Math.max(1, diagnostic.column || 1);
+      const start = measure.advance(diagnostic.line, Math.min(column - 1, line.length));
+      const end = measure.advance(diagnostic.line, line.length);
+
+      const isError = diagnostic.severity === "error";
+      const marker = document.createElement("div");
+      marker.className = `squiggle ${isError ? "error" : "warning"}`;
+      marker.style.top = `${metrics.padTop + (diagnostic.line - 1) * metrics.lineHeight}px`;
+      marker.style.left = `${metrics.padLeft + start}px`;
+      marker.style.width = `${Math.max(1, end - start)}px`;
+      marker.style.height = `${metrics.lineHeight}px`;
+      markers.appendChild(marker);
+    }
+  }
+
+  function revealLine(lineNumber, column) {
+    if (!lineNumber) {
+      return;
+    }
+
+    const text = source.value;
+    let offset = 0;
+    for (let line = 1; line < lineNumber; line++) {
+      const next = text.indexOf("\n", offset);
+      if (next === -1) {
+        offset = text.length;
+        break;
+      }
+      offset = next + 1;
+    }
+
+    let end = text.indexOf("\n", offset);
+    if (end === -1) {
+      end = text.length;
+    }
+
+    const caret = Math.min(offset + Math.max(0, (column || 1) - 1), end);
+    source.focus();
+    source.setSelectionRange(caret, end);
+    source.scrollTop = Math.max(0, (lineNumber - 3) * metrics.lineHeight);
+    syncScroll();
+    updateActiveLine();
   }
 
   function setCursors(next) {
@@ -214,7 +284,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
   }
 
   // Writes a buffer this pane did not produce itself (the other pane's typing)
-  // while keeping this pane's own scroll and (clamped) selection, so a reader's
+  // while keeping this pane's own scroll + (clamped) selection, so a reader's
   // place is not thrown away by an edit on the far side.
   function adoptText(text) {
     const {selectionStart, selectionEnd, scrollTop, scrollLeft} = source;
@@ -249,18 +319,28 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     updateSelection,
     renderHighlight,
     updateActiveLine,
+    setDiagnostics,
+    revealLine,
     advance: measure.advance,
     syncCursors: syncCursorsFromSource,
   };
 
   function currentDocId() {
-    const doc = activeDoc(store.getState());
+    const doc = getActiveDoc(store.getState());
     return doc ? doc.id : null;
   }
 
-  // One edit, one path: buffer, caret list, the platform's range, the store
-  // and the history all move together, so no layer can learn about a splice
-  // another layer has not heard of.
+  // The active document's language pack: the editor's only source of
+  // tokenizing, completion + indent width. An unknown extension resolves to
+  // plaintext, so this never has to check for null.
+  function currentLanguage() {
+    const doc = getActiveDoc(store.getState());
+    return languageFor(doc ? doc.name : null);
+  }
+
+  // One edit, one path: buffer, caret list, the platform's range,
+  // the store + the history all move together, so no layer can learn about
+  // a splice another layer has not heard of.
   function commitEdit(edit) {
     source.value = edit.text;
     cursors = normalize(edit.cursors, edit.text);
@@ -390,6 +470,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     getCursors: () => cursors,
     isComposing: () => composing,
     caretPosition: caretLayer.position,
+    getActiveDoc,
   });
 
   source.addEventListener("input", (event) => {
@@ -475,12 +556,6 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
       return;
     }
 
-    if (mod && event.key === "Enter") {
-      event.preventDefault();
-      void onRun();
-      return;
-    }
-
     if (completion.keydown(event)) {
       return;
     }
@@ -499,15 +574,19 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
 
     if (event.key === "Tab") {
       event.preventDefault();
-      commitEdit(insertText(source.value, cursors, "  "));
+      commitEdit(insertText(source.value, cursors, " ".repeat(currentLanguage().indentUnit)));
       return;
     }
 
-    if (event.key === "Enter") {
+    // Plain Enter inserts the newline; with Mod held the shortcut belongs to
+    // the host, so the event is left to bubble to the command registry.
+    if (event.key === "Enter" && !mod) {
       event.preventDefault();
+      const language = currentLanguage();
+      const unit = " ".repeat(language.indentUnit);
       const newline = (text, at) => {
-        const depth = bracketDepth(text, at);
-        return `\n${"  ".repeat(depth)}`;
+        const depth = bracketDepth(text, at, language.tokenize);
+        return `\n${unit.repeat(depth)}`;
       };
       commitEdit(insertText(source.value, cursors, newline));
       return;

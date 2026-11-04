@@ -480,6 +480,14 @@
     white-space: nowrap;
 }
 
+.assistant .tool-capsule-detail {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-mute);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
 .assistant .tool-capsule[data-failed] .tool-capsule-label {
     color: var(--error);
 }

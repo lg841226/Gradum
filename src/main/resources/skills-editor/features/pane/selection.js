@@ -1,5 +1,3 @@
-// The selection bands and bracket-pair boxes drawn over the highlight overlay.
-//
 // The band is drawn per line from the same measured offsets the caret uses, so
 // it lines up with the glyphs rather than the line box. A selection that runs
 // past a line's end simply stops there: the band is the selected characters,
@@ -12,7 +10,7 @@
 
 import {matchPairs} from "../analysis.js";
 
-export function createSelectionLayer({source, highlightCode, advance}) {
+export function createSelectionLayer({source, highlightCode, advance, getTokenize}) {
   let bands = [];
   let matches = [];
 
@@ -93,7 +91,7 @@ export function createSelectionLayer({source, highlightCode, advance}) {
       }
     }
 
-    for (const [open, close] of matchPairs(text, cursors)) {
+    for (const [open, close] of matchPairs(text, cursors, getTokenize())) {
       drawMatch(text, open);
       drawMatch(text, close);
     }

@@ -1,10 +1,3 @@
-import {escapeText} from "../core/safety.js";
-
-// The syntax overlay's tokenizer: one pattern run over the buffer labels
-// every run as a comment, string, number, keyword or name for the highlight
-// layer, and the glyph framing keeps a fullwidth character from reading as
-// its ASCII twin at a glance. Everything here is pure text to text.
-
 export const KOTLIN_KEYWORDS = [
   "package", "import", "class", "object", "interface", "fun", "val", "var",
   "override", "private", "public", "protected", "internal", "return", "if", "else", "when",
@@ -64,11 +57,4 @@ export function tokenize(text) {
     tokens.push({text: text.slice(cursor), cls: null});
   }
   return tokens;
-}
-
-export function markGlyphs(text) {
-  return escapeText(text).replace(
-    /[^\x00-\x7F]+/g,
-    (run) => `<span class="glyph-box">${run}</span>`,
-  );
 }

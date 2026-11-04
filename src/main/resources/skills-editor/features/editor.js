@@ -1,5 +1,4 @@
-import {activeDoc, withDoc} from "../core/store.js";
-import {buildSkill, deploySkill, listSkills} from "../data/skillsApi.js";
+import {withDoc} from "../core/store.js";
 import {createEmptyState} from "../ui/components/feedback.js";
 import {createPanel} from "../ui/components/panel.js";
 import {copy} from "../ui/copy.js";
@@ -17,11 +16,14 @@ const MIN_SHARE = 0.2;
 const MAX_SHARE = 0.8;
 
 // The editor island: it owns the two code surfaces with their syntax overlays,
-// the problem counts, and the run command. The surface is two panes over one
+// the problem counts + the run command. The surface is two panes over one
 // buffer: the right pane stays mounted and is folded away by CSS until the split
 // is switched on, so the pane list is fixed at two. Each pane carries its own
 // tab strip, so nothing sits above the panes at the panel level.
-export function mountEditor(store, {canvas, showPanel}) {
+//
+// File I/O + the identity of the active document come from the host: this
+// island never learns where a buffer came from or how a build reaches a server.
+export function mountEditor(store, {canvas, showPanel, documents, getActiveDoc, runCommand}) {
   const panel = createPanel();
   panel.classList.add("editor");
 
@@ -41,14 +43,14 @@ export function mountEditor(store, {canvas, showPanel}) {
     onFocus: (pane) => {
       focusedPane = pane;
     },
-    onRun: () => run(),
+    getActiveDoc,
   });
   const rightPane = createCodePane(store, {
     onInput,
     onFocus: (pane) => {
       focusedPane = pane;
     },
-    onRun: () => run(),
+    getActiveDoc,
   });
   panes.push(leftPane, rightPane);
   focusedPane = leftPane;
@@ -95,17 +97,9 @@ export function mountEditor(store, {canvas, showPanel}) {
     store.setState({log: [...state.log, {message, tone}]});
   }
 
-  async function refreshFiles() {
-    try {
-      store.setState({files: await listSkills()});
-    } catch (_error) {
-      // The rail keeps the names it already knows while the server is down.
-    }
-  }
-
   async function run() {
     const state = store.getState();
-    const doc = activeDoc(state);
+    const doc = getActiveDoc(state);
     if (!doc) {
       return;
     }
@@ -125,7 +119,7 @@ export function mountEditor(store, {canvas, showPanel}) {
 
     const startedAt = performance.now();
     try {
-      const result = await deploySkill(name, text);
+      const result = await documents.save(name, text);
       const ms = Math.round(performance.now() - startedAt);
 
       if (!result.ok || !result.body) {
@@ -166,7 +160,7 @@ export function mountEditor(store, {canvas, showPanel}) {
         showPanel?.("problems");
       }
 
-      void refreshFiles();
+      runCommand("refresh-files");
     } catch (error) {
       patchDoc(doc.id, {
         diagnostics: [{severity: "error", message: error.message, line: null, column: null}],
@@ -185,7 +179,7 @@ export function mountEditor(store, {canvas, showPanel}) {
   // panel is raised to show them.
   async function build() {
     const state = store.getState();
-    const doc = activeDoc(state);
+    const doc = getActiveDoc(state);
     if (!doc) {
       return;
     }
@@ -204,7 +198,7 @@ export function mountEditor(store, {canvas, showPanel}) {
 
     const startedAt = performance.now();
     try {
-      const result = await buildSkill(name, text);
+      const result = await documents.build(name, text);
       const ms = Math.round(performance.now() - startedAt);
 
       if (!result.ok || !result.body) {
@@ -252,7 +246,7 @@ export function mountEditor(store, {canvas, showPanel}) {
   // change to write just produced.
   function onInput(pane) {
     const state = store.getState();
-    const doc = activeDoc(state);
+    const doc = getActiveDoc(state);
 
     if (doc) {
       const value = pane.source.value;
@@ -290,7 +284,7 @@ export function mountEditor(store, {canvas, showPanel}) {
     store.setState({split: false});
   }
 
-  // Both directions share one on/off flag and one orientation, so pressing the
+  // Both directions share one on/off flag + one orientation, so pressing the
   // other direction while a split is open swings the second pane over instead of
   // opening a third one.
   function toggleSplit(direction = "right") {
@@ -307,7 +301,7 @@ export function mountEditor(store, {canvas, showPanel}) {
   let renderedBaseline;
 
   const render = (state) => {
-    const doc = activeDoc(state);
+    const doc = getActiveDoc(state);
     const id = doc ? doc.id : null;
     const text = doc ? doc.source : "";
     const baseline = doc ? doc.baseline : null;
@@ -325,7 +319,7 @@ export function mountEditor(store, {canvas, showPanel}) {
         continue;
       }
       // The focused pane already holds the buffer it just typed; only a pane
-      // that is behind adopts the new text, so the writer's caret, selection and
+      // that is behind adopts the new text, so the writer's caret, selection +
       // IME composition are never disturbed.
       if (pane.source.value !== text && pane.source !== document.activeElement) {
         pane.adoptText(text);

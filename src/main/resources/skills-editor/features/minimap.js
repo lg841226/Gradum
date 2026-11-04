@@ -1,20 +1,13 @@
-import {activeDoc} from "../core/store.js";
-
-// The minimap: a scaled clone of the syntax overlay in a fixed-width strip on
-// the pane's right edge, the way a desktop editor parks its overview ruler. One
-// is mounted per editor pane, each bound to that pane's source and overlay, so
-// each side scrolls its own code through its own map.
-//
 // The scale fits the visible code width to the strip, so a line that fills the
 // code pane reaches the far edge of the strip and longer lines clip. The strip
 // slides with the editor's own progress through the document, so the rectangle
 // travels the map top to bottom instead of resting in its middle, and pressing
 // or dragging anywhere in it scrolls the editor to that point, centred under the
-// pointer. The clone refreshes on every keystroke and on document switches;
+// pointer. The clone refreshes on every keystroke + document switches;
 // squiggle bands are carried over as overview markers while the current-line
-// band and the selection and match boxes are dropped, because they belong to
+// band + the selection + match boxes are dropped, because they belong to
 // the editor pane alone.
-export function mountMinimap(store, {container, source, highlightCode}) {
+export function mountMinimap(store, {container, source, highlightCode, getActiveDoc}) {
   const strip = document.createElement("div");
   strip.className = "minimap";
 
@@ -123,7 +116,7 @@ export function mountMinimap(store, {container, source, highlightCode}) {
   let renderedRevision = -1;
   let renderedHidden = null;
   const render = (state) => {
-    const doc = activeDoc(state);
+    const doc = getActiveDoc(state);
     const hidden = !doc || Boolean(state.minimapHidden);
 
     if (hidden !== renderedHidden) {

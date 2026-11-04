@@ -527,13 +527,6 @@ export function parseModelName(raw) {
   };
 }
 
-export function formatModelName(raw) {
-  return parseModelName(raw).displayName;
-}
-
-// Beautified serving-backend names. The /models payload carries the wire-level
-// providerType ("ollama", "lmstudio", ...) straight from the enum's wireType;
-// the selector renders the human name instead.
 const PROVIDER_WIRE_NAMES = new Map(Object.entries({
   "ollama": "Ollama",
   "openai": "OpenAI",

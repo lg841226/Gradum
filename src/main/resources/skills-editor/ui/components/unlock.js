@@ -9,7 +9,10 @@ export function unlockMode() {
   return LOOPBACK_HOSTNAME.test(window.location.hostname) ? "token" : "code";
 }
 
-export function createUnlock({onToken, onCode} = {}) {
+// The backdrop joins the editor container instead of <body>, so the dialog
+// resolves the container's theme tokens; it stays position: fixed, so the grid
+// parent has no effect on where it lands.
+export function createUnlock({onToken, onCode, container = document.body} = {}) {
   const backdrop = document.createElement("div");
   backdrop.className = "unlock-backdrop";
   backdrop.hidden = true;
@@ -24,7 +27,6 @@ export function createUnlock({onToken, onCode} = {}) {
   title.className = "unlock-title";
   title.textContent = copy.unlock.title;
 
-  // The blue info mark rides before the title.
   const titleRow = document.createElement("div");
   titleRow.className = "unlock-title-row";
   titleRow.append(createIcon({name: "info-outline", size: 20}), title);
@@ -32,7 +34,6 @@ export function createUnlock({onToken, onCode} = {}) {
   const hint = document.createElement("p");
   hint.className = "unlock-hint";
 
-  // The token field: one masked input, kept for this machine's own console.
   const tokenInput = document.createElement("input");
   tokenInput.className = "unlock-input";
   tokenInput.type = "password";
@@ -41,7 +42,6 @@ export function createUnlock({onToken, onCode} = {}) {
   tokenInput.placeholder = copy.unlock.placeholder;
   tokenInput.setAttribute("aria-label", copy.unlock.placeholder);
 
-  // The pairing code: five single-character cells, one letter or digit each.
   const codeGroup = document.createElement("div");
   codeGroup.className = "unlock-codes";
   codeGroup.hidden = true;
@@ -85,7 +85,7 @@ export function createUnlock({onToken, onCode} = {}) {
   actions.append(cancel, submit);
   card.append(titleRow, hint, tokenInput, codeGroup, error, actions);
   backdrop.appendChild(card);
-  document.body.appendChild(backdrop);
+  container.appendChild(backdrop);
 
   let mode = "token";
 
@@ -112,8 +112,6 @@ export function createUnlock({onToken, onCode} = {}) {
       mode === "code" ? !codeComplete() : tokenInput.value.trim().length === 0;
   };
 
-  // The red line belongs to the try that missed: the moment the user types
-  // again, it is gone.
   const clearError = () => {
     error.textContent = "";
     error.hidden = true;

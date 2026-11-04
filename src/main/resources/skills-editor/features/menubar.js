@@ -1,14 +1,14 @@
 import {createButton, createIconButton} from "../ui/components/button.js";
 import {createIcon} from "../ui/components/icon.js";
 import {copy} from "../ui/copy.js";
-import {createTheme} from "../core/theme.js";
 import {isFloatLayout} from "./floatPanels.js";
 
-// The view menu: a two-position mode switch leads the bar — Developer is the
-// editor workspace, Agent hands the cell to the assistant overlay — and the
+// The view menu: a two-position mode switch leads the bar. Developer is the
+// editor workspace, Agent hands the cell to the assistant overlay, and the
 // view entries sit to its right, the same menu as before. The run widget sits
-// in the middle and names the skill it would run.
-export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
+// in the middle and names the skill it would run. The theme control is handed
+// in by the assembly entry, which owns the editor root it paints.
+export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, theme}) {
   const bar = document.createElement("nav");
   bar.className = "menubar";
 
@@ -50,7 +50,7 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
       modes: ["developer"],
       select: () => ({view: "output", panel: "output", collapsed: false}),
     },
-    // Two layout presets close the list: the editor alone, and everything back.
+    // Two layout presets close the list: the editor alone + everything back.
     // Editor skips its first letter: the E already belongs to Explorer, so its
     // access key falls to the next letter, the way a desktop menu resolves a
     // duplicate.
@@ -83,8 +83,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
   const viewsGroup = document.createElement("div");
   viewsGroup.className = "menubar-group menubar-views";
 
-  // The brand leads the bar, the way a desktop window titles itself before
-  // listing its menus.
   const brand = document.createElement("div");
   const logo = document.createElement("img");
   const brandName = document.createElement("span");
@@ -126,7 +124,7 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
     return {name: view.name, button, modes: view.modes};
   });
 
-  // Touch devices have no hover and no room for a menu bar, so the entries
+  // Touch devices have no hover + no room for a menu bar, so the entries
   // gather behind a hamburger: tapping it drops the views as one vertical
   // island under the bar, and a selection (or a tap anywhere else) closes it.
   const closeNav = () => bar.classList.remove("nav-open");
@@ -164,17 +162,13 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
   });
 
   // The actions are their own zone rather than loose siblings of the label, so
-  // the stylesheet can split them from the name with a rule and a wider gap.
+  // the stylesheet can split them from the name with a rule + a wider gap.
   const actions = document.createElement("div");
   actions.className = "run-widget-actions";
   actions.append(buildButton, runButton);
 
   widget.append(createIcon({name: "kotlin"}), widgetName, actions);
 
-  // The agent mode answers with its own widget: a breadcrumb of the repository
-  // the session runs against, then the run mark with its title. The mark is
-  // empty while idle: it spins while a run streams, lifts a check when the run
-  // lands, and folds away again a moment later.
   const agentWidget = document.createElement("div");
   agentWidget.className = "run-widget agent-widget";
 
@@ -197,7 +191,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
   leftGroup.className = "menubar-group menubar-left";
   leftGroup.append(brand, viewsGroup);
 
-  const theme = createTheme();
   const themeIcons = {light: "theme-light", dark: "theme-dark"};
 
   const themeButton = createIconButton({
@@ -233,8 +226,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
   });
   splitDownButton.hidden = isFloatLayout();
 
-  // The mode switch trails the bar's icon toggles, closing the right group at
-  // its far end.
   const rightGroup = document.createElement("div");
   rightGroup.className = "menubar-group menubar-right";
   rightGroup.append(minimapButton, splitButton, splitDownButton, themeButton, modesGroup);
@@ -311,10 +302,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
     canvas.classList.toggle(
       "rail-collapsed",
       state.railCollapsed || (!isFloatLayout() && state.autoRail));
-    // The switch's pressed segment mirrors the overlay flag: Agent while the
-    // assistant holds the cell, Developer once it hands it back. Each view
-    // entry only exists in the modes that name it, so the menu swaps with the
-    // switch; the pressed entry tracks the selected view.
     const activeMode = state.chatOpen === true ? "agent" : "developer";
     for (const item of modeItems) {
       item.button.setAttribute("aria-pressed", item.name === activeMode ? "true" : "false");
@@ -327,9 +314,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
       );
     }
 
-    // The two widgets trade the middle of the bar with the mode: build and run
-    // name a skill on the developer side; the agent side names the repository
-    // and the session, its mark spinning while a run streams.
     widget.hidden = activeMode === "agent";
     agentWidget.hidden = activeMode !== "agent";
 
@@ -340,9 +324,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
     agentRepo.hidden = !repo;
     agentSep.hidden = !repo;
 
-    // The mark is a small state machine keyed to the run: the busy edge swaps
-    // in the spinning loader, the settle edge lifts the check and schedules
-    // its exit, and an idle mark carries no icon at all.
     const busy = state.chatBusy === true;
     if (busy !== agentBusyShown) {
       agentBusyShown = busy;
@@ -413,9 +394,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
       splitDownOn ? copy.tooltip.unsplit : copy.tooltip.splitDown,
     );
 
-    // The minimap follows the open document the way the splits do, and its
-    // pressed look is the strip in view: the tooltip names the way out while
-    // it shows and the way back once it is gone.
     minimapButton.disabled = !activeName;
     setToggle(
       minimapButton,
@@ -435,20 +413,18 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
   new ResizeObserver(layout).observe(bar);
 
   // The button mirrors the preference the theme reports, so a switch repaints
-  // the icon and the label without any local bookkeeping.
+  // the icon + the label without any local bookkeeping.
   theme.subscribe(({preference}) => {
     const tooltip = copy.theme.tooltip;
-
     themeButton.dataset.tooltip = tooltip;
     themeButton.setAttribute("aria-label", tooltip);
     themeButton.replaceChildren(createIcon({name: themeIcons[preference]}));
   });
-  theme.start();
 
   return {bar};
 }
 
-// A toggle button's pressed look and its tooltip move together, and the tooltip
+// A toggle button's pressed look + its tooltip move together, and the tooltip
 // is only rewritten when it actually changes, so the pointer sitting on the
 // button is not disturbed by a render that did not touch it.
 function setToggle(button, pressed, tooltip) {
@@ -479,7 +455,7 @@ function basename(path) {
 }
 
 // "HelloSkill.kt" reads as "Hello" in the widget: the file icon already says it
-// is a skill file, so the tag and the extension are noise. The tag is stripped
+// is a skill file, so the tag + the extension are noise. The tag is stripped
 // wherever it ends a word, so "NewSkill1" becomes "New1" and any casing counts,
 // while a name like "Skillful" is left alone.
 const SKILL_TAG = /skill(?=\d|\W|$)/gi;

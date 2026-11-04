@@ -7,7 +7,7 @@ const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 // A pointer drag that grabs the window rather than the handle, so the pointer
 // may leave the thin strip without dropping the drag. Shared by the rail width,
-// the bottom tool window, and the editor's own split, so every handle takes hold
+// the bottom tool window + the editor's own split, so every handle takes hold
 // and let's go the same way.
 export function dragPointer(cursor, onMove) {
   document.body.classList.add("is-dragging");
@@ -34,7 +34,7 @@ function createSplitter(variant, orientation) {
   return splitter;
 }
 
-// Drag handles for the rail width and the bottom panel height. Only the rail
+// Drag handles for the rail width + the bottom panel height. Only the rail
 // width is applied here; the bottom height is applied by the panels feature so
 // a single writer controls that grid track.
 export function mountSplitters(store, {canvas, rail, bottom}) {

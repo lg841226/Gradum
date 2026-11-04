@@ -1,4 +1,4 @@
-// The composer row: textarea, the picker pills and menus, and
+// The composer row: textarea, the picker pills + menus, and
 // the send/stop pair. It owns only its own controls; whether a run is active is
 // pushed in through `setStreaming`.
 

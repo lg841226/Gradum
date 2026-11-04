@@ -1,7 +1,7 @@
-// Chat semantics with no DOM and no clock of its own.
+// Chat semantics with no DOM + no clock of its own.
 //
 // One streaming turn is a small state machine: the agent text, the thinking
-// block, the pre-content status row and the working-process group. The model
+// block, the pre-content status row + the working-process group. The model
 // owns those facts and emits effects; features/chat/view.js projects the
 // effects onto nodes. Nothing else may keep a second copy of "is the agent
 // bubble open" or "is the group live".
@@ -218,6 +218,8 @@ export function createChatModel() {
             const data = {
               alias: block.alias ?? block.toolCallId,
               success: block.success !== false,
+              arguments: block.arguments,
+              result: block.result,
             };
             state.group.tools.push(data);
             out.push({type: "tool:add", data});

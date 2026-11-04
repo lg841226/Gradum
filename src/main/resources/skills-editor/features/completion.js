@@ -1,17 +1,10 @@
 import {escapeText, isSafeToken} from "../core/safety.js";
 import {copy} from "../ui/copy.js";
 import {icons} from "../ui/icons.js";
-import {API_SYMBOLS, SNIPPETS} from "../data/apiSymbols.js";
 import {insertText} from "./multicursor.js";
-import {KOTLIN_KEYWORDS, tokenize} from "./syntax.js";
+import {languageFor} from "./languages/registry.js";
 
-// Code completion: a local popup over the buffer's own words, the skill API,
-// Kotlin keywords and a few skeletons: filtered as the caret types, accepted
-// with Enter or Tab, dismissed with Escape. The list lives inside `.code`
-// beside the text layers, so re-rendering the highlight never touches it, and
-// it takes its position from the same measurement the drawn caret uses.
-//
-// Sources are ranked and the result is capped, so the list stays short and
+// Sources are ranked and the result is capped, so the list stays short +
 // predictable, and an empty result leaves the popup closed rather than showing
 // a shell. The pane drives the popup from three calls: `onTextInput` after a
 // native insert (the only one that may raise it), `onEdit` after an edit the
@@ -34,6 +27,7 @@ export function createCompletion({
                                    getCursors,
                                    commit,
                                    isComposing,
+                                   getActiveDoc,
                                  }) {
   const listId = `completion-${++listSeq}`;
 
@@ -44,7 +38,7 @@ export function createCompletion({
   code.appendChild(popup);
 
   // The panel is a fixed frame (padding, border, shadow) and the list inside
-  // it is what scrolls, so the air between the rows and the rounded border
+  // it is what scrolls, so the air between the rows + the rounded border
   // holds still while the rows travel. The listbox role lives on the list: it
   // is the surface the options actually sit in, the way a native select
   // draws one, and aria-activedescendant still finds them from the textarea.
@@ -62,15 +56,17 @@ export function createCompletion({
   let box = {width: 0, height: 0};
 
   let scanText = null;
+  let scanTokenize = null;
   let scanCache = {words: [], guards: []};
   const otherDocs = new Map();
 
   // One tokenizer run answers two questions about the buffer: which identifier
-  // runs it holds (the word source) and where the strings and comments sit
-  // (the zones the popup stays silent in). Memoized on the text, so a caret
-  // move through an unchanged buffer never re-tokenizes.
-  function scan(text) {
-    if (text !== scanText) {
+  // runs it holds (the word source) and where the strings + comments sit
+  // (the zones the popup stays silent in). Memoized on the text + the
+  // tokenizer, so a caret move through an unchanged buffer never re-tokenizes
+  // while a tab switch to another language does.
+  function scan(text, tokenize) {
+    if (text !== scanText || tokenize !== scanTokenize) {
       const words = [];
       const guards = [];
       let cursor = 0;
@@ -85,6 +81,7 @@ export function createCompletion({
       }
       scanCache = {words, guards};
       scanText = text;
+      scanTokenize = tokenize;
     }
     return scanCache;
   }
@@ -103,11 +100,11 @@ export function createCompletion({
   // not retokenize files the caret is nowhere near.
   function wordsOf(doc) {
     const cached = otherDocs.get(doc.id);
-    if (cached && cached.source === doc.source) {
+    if (cached && cached.source === doc.source && cached.name === doc.name) {
       return cached.words;
     }
     const words = [];
-    for (const token of tokenize(doc.source)) {
+    for (const token of languageFor(doc.name).tokenize(doc.source)) {
       if (token.cls === "str" || token.cls === "com" || token.cls === "kw") {
         continue;
       }
@@ -117,11 +114,10 @@ export function createCompletion({
         words.push(run.word);
       }
     }
-    otherDocs.set(doc.id, {source: doc.source, words});
+    otherDocs.set(doc.id, {source: doc.source, name: doc.name, words});
     return words;
   }
 
-  // The identifier run ending at the offset: the range an accept replaces.
   function wordStartAt(text, offset) {
     let start = offset;
     while (start > 0 && IDENTIFIER_CHAR.test(text[start - 1])) {
@@ -133,9 +129,9 @@ export function createCompletion({
   // Where the caret stands, or null when it stands somewhere the popup must
   // not speak: inside a string or comment the typed run is content, not a
   // name. A dot just before the run switches the list to members (what can
-  // follow a dot) with no keywords and no snippets.
-  function contextAt(text, caret) {
-    const {guards} = scan(text);
+  // follow a dot) with no keywords + no snippets.
+  function contextAt(text, caret, tokenize) {
+    const {guards} = scan(text, tokenize);
     for (const guard of guards) {
       if (caret > guard.start && caret < guard.end) {
         return null;
@@ -155,7 +151,7 @@ export function createCompletion({
   // wins, so a duplicate row can never come back twice. The one word left out
   // is the run the caret is standing in: what is being typed should be the
   // question, not the first answer to it.
-  function candidates(text, member, tokenStart) {
+  function candidates(text, member, tokenStart, language) {
     const picked = new Map();
     const add = (label, kind, detail, source, insert) => {
       if (!picked.has(label)) {
@@ -163,20 +159,21 @@ export function createCompletion({
       }
     };
 
-    for (const symbol of API_SYMBOLS) {
+    const {symbols, snippets, keywords} = language.completion;
+    for (const symbol of symbols) {
       if (!member || symbol.member) {
         add(symbol.label, symbol.kind, symbol.detail, 1);
       }
     }
     if (!member) {
-      for (const snippet of SNIPPETS) {
+      for (const snippet of snippets) {
         add(snippet.label, snippet.kind, snippet.detail, 3, snippet.insert);
       }
-      for (const keyword of KOTLIN_KEYWORDS) {
+      for (const keyword of keywords) {
         add(keyword, "kw", "", 2);
       }
     }
-    for (const entry of scan(text).words) {
+    for (const entry of scan(text, language.tokenize).words) {
       if (entry.start !== tokenStart) {
         add(entry.word, "word", "", 0);
       }
@@ -226,10 +223,10 @@ export function createCompletion({
   // finally the alphabet: short exact words in front of long lookalikes, and
   // a stable order between keystrokes. Capped so one letter cannot drag a wall
   // of rows into the pane.
-  function collect(text, context) {
+  function collect(text, context, language) {
     const lowerPrefix = context.prefix.toLowerCase();
     const matches = [];
-    for (const item of candidates(text, context.member, context.start)) {
+    for (const item of candidates(text, context.member, context.start, language)) {
       const match = matchOf(item.label, context.prefix, lowerPrefix);
       if (match) {
         matches.push({item, match});
@@ -287,8 +284,6 @@ export function createCompletion({
     );
   }
 
-  // The label with its matched letters wrapped: the prefix as a run for the
-  // first two tiers, scattered characters for a camel subsequence.
   function labelHtml(label, matched) {
     let html = "";
     let previous = 0;
@@ -322,7 +317,7 @@ export function createCompletion({
 
   // The popup hangs off the caret the way the caret hangs off the text: below
   // the line while there is room, above it when there is not, clamped into the
-  // code box on both axes. Width and height are measured once per render and
+  // code box on both axes. Width + height are measured once per render and
   // reused, so following a scroll costs no layout.
   function place() {
     const {x, y} = caretPosition(source.selectionStart);
@@ -370,7 +365,16 @@ export function createCompletion({
     lastText = text;
     lastCaret = caret;
 
-    const context = contextAt(text, caret);
+    // A language pack with no completion source (plaintext + any pack that
+    // has not built one) leaves the popup closed instead of offering a shell
+    // or throwing.
+    const language = languageFor(getActiveDoc(store.getState())?.name);
+    if (!language.completion) {
+      close();
+      return;
+    }
+
+    const context = contextAt(text, caret, language.tokenize);
     if (!context) {
       close();
       return;
@@ -378,7 +382,7 @@ export function createCompletion({
     if (!open && !(allowOpen && (context.prefix.length > 0 || allowEmpty))) {
       return;
     }
-    const matches = collect(text, context);
+    const matches = collect(text, context, language);
     if (matches.length === 0) {
       close();
       return;
@@ -409,7 +413,7 @@ export function createCompletion({
 
   // Accept runs through the pane's own edit path: the identifier run before
   // each caret (not only the primary's) is replaced by the item's insert
-  // text, so several carets spell the same word in one stroke and one undo
+  // text, so several carets spell the same word in one stroke + one undo
   // takes the stroke back. Ranges that would overlap (two carets inside one
   // word) fall back to the selections themselves rather than corrupt the
   // splice the shared edit path performs.

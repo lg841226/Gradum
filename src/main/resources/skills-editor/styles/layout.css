@@ -1,4 +1,5 @@
-html.is-booting * {
+.canvas.is-booting,
+.canvas.is-booting * {
     transition: none !important;
 }
 
@@ -6,6 +7,18 @@ html.is-booting * {
     height: 100%;
     padding: var(--island-gap);
     display: grid;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    font: var(--weight-regular) var(--font-size-ui) / 1.5 var(--font-ui);
+    /* The page backdrop + its ambient glow: a soft blue wash centred on the
+       seam between the rail + the editor, partway down and fading out. Both
+       layers ride the container so the host page keeps its own background. */
+    background: radial-gradient(
+            560px 460px at calc(var(--island-gap) + var(--rail-width) + var(--island-gap) * .5) 180px,
+            var(--glow),
+            transparent 70%
+    ),
+    var(--bg-canvas);
     grid-template-columns:
         var(--rail-width) var(--island-gap) 1fr;
     grid-template-rows:
@@ -442,7 +455,7 @@ body.is-dragging .code-pane {
 }
 
 /* A code pane is one column of the split: its own tab strip above its own
-   gutter, code area and minimap. The right pane is mounted from the start and
+   gutter, code area + minimap. The right pane is mounted from the start and
    folded away here rather than added on demand, so both panes can be measured
    and drawn at any time. */
 .code-pane {
@@ -799,7 +812,7 @@ body.is-dragging .code-pane {
     border-radius: 5px;
 }
 
-/* One mark per kind: the platform's round letter icons, disc and ink carried
+/* One mark per kind: the platform's round letter icons, disc + ink carried
    by --icon-node-* tokens so the theme swap paints each mark's dark twin: a
    purple property, a red method, a blue class, an orange variable. The keyword
    rows carry a letter instead of a glyph: the K is the mark, the token colour
@@ -825,7 +838,7 @@ body.is-dragging .code-pane {
 }
 
 /* The letters the prefix matched take the brand blue: the row's own kind
-   colour carries the icon and the type line, not the match. */
+   colour carries the icon + the type line, not the match. */
 .completion-label .match {
     color: var(--accent);
 }
@@ -836,9 +849,8 @@ body.is-dragging .code-pane {
     white-space: nowrap;
 }
 
-
 /* The strip rides the right edge of the editor body with no seam or floor of its
-   own, so the scaled code and the slider are the only things drawn in it. It
+   own, so the scaled code + the slider are the only things drawn in it. It
    casts a soft shadow off its left edge, onto the code, so the strip reads as a
    surface lifted above the text rather than an outlined block. */
 .minimap {
@@ -849,7 +861,7 @@ body.is-dragging .code-pane {
     box-shadow: -6px 0 9px -6px rgba(0, 0, 0, .25);
 }
 
-/* The clone carries .highlight for the overlay typography and line rules;
+/* The clone carries .highlight for the overlay typography + line rules;
    these later declarations cancel that rule's absolute fill, because the map
    scales from the top-left corner instead of tracking the textarea, and they
    reset the origin so the scale stays anchored there. */

@@ -79,7 +79,7 @@
     color: var(--text);
 }
 
-/* Text-only highlight: full-brightness weight, no colour tint and no
+/* Text-only highlight: full-brightness weight, no colour tint + no
    background fill. The higher specificity keeps it bright even hovered. */
 .btn[data-variant="menu"][aria-pressed="true"] {
     color: var(--text);
@@ -215,8 +215,8 @@
     max-width: 16em;
 }
 
-/* The label and the actions are two zones, not one run of siblings: a hairline
-   rule and the wider gap keep the actions from reading as part of the name. */
+/* The label + the actions are two zones, not one run of siblings: a hairline
+   rule + the wider gap keep the actions from reading as part of the name. */
 .run-widget-actions {
     display: flex;
     align-items: center;

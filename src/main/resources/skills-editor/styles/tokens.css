@@ -1,6 +1,8 @@
 /* Design tokens. Every visual value in the editor resolves to one of these
-   variables so the whole surface can be re-themed from a single place. */
-:root {
+   variables so the whole surface can be re-themed from a single place. They sit
+   on the mount container rather than :root, so embedding the editor cannot
+   rewrite the host page's palette. */
+.canvas {
     --bg-popup: #2b2d31;
     --bg-raised: #393b40;
     --bg-canvas: #212327;
@@ -115,11 +117,11 @@
     --float-h: min(46vh, 420px);
 }
 
-/* Light theme. The page puts data-theme="light" on <html> when the user picks
-   Light; the dark values above remain the fallback for bare :root (and for
-   data-theme="dark"). Only colour tokens change here, so radii, spacing, type,
-   and structure stay shared between the two palettes. */
-:root[data-theme="light"] {
+/* Light theme. The editor root carries data-theme="light" when the user picks
+   Light; the dark values above remain the fallback for a canvas with no theme
+   attribute (and for data-theme="dark"). Only colour tokens change here, so
+   radii, spacing, type + structure stay shared between the two palettes. */
+.canvas[data-theme="light"] {
     /* Surfaces invert: a grey backdrop with white panels. */
     --bg-popup: #ffffff;
     --bg-canvas: #f2f3f5;

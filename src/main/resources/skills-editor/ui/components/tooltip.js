@@ -1,8 +1,8 @@
 // One tooltip for the whole document, driven by a [data-tooltip] attribute
-// rather than an instance bound to each control. The rail and the tab strip
+// rather than an instance bound to each control. The rail + the tab strip
 // rebuild their buttons on every render, and a delegated reader means a fresh
-// button answers the pointer the moment it is inserted, with nothing to bind
-// and nothing to clean up when it goes away.
+// button answers the pointer the moment it is inserted, with nothing to bind +
+// nothing to clean up when it goes away.
 //
 // This replaces the native title attribute, which waits about a second, is drawn
 // by the platform, ignores the theme and cannot be positioned. Every control
@@ -17,12 +17,15 @@ const SHOW_DELAY = 500;
 const ANCHOR_GAP = 6;
 const WINDOW_EDGE = 8;
 
-export function mountTooltip({root = document} = {}) {
+// The bubble is appended to the editor container rather than <body>, so it
+// resolves the container's theme tokens while staying position: fixed. Pointer
+// delegation stays on the document, since the controls it serves are rebuilt.
+export function mountTooltip({container = document.body} = {}) {
   const bubble = document.createElement("div");
   bubble.className = "tooltip";
   bubble.setAttribute("role", "tooltip");
   bubble.setAttribute("aria-hidden", "true");
-  root.body.appendChild(bubble);
+  container.appendChild(bubble);
 
   let anchor = null;
   let timer = 0;
@@ -34,7 +37,7 @@ export function mountTooltip({root = document} = {}) {
     bubble.classList.remove("is-visible");
   }
 
-  // Centred over the control and lifted clear of it, dropping below only when
+  // Centred over the control + lifted clear of it, dropping below only when
   // the window's top edge is in the way, and pulled back inside at either side
   // so a control near a corner still shows the whole bubble.
   function place(target) {
@@ -52,7 +55,7 @@ export function mountTooltip({root = document} = {}) {
       top = rect.bottom + ANCHOR_GAP;
       above = false;
     }
-    // Position and animation share the transform channel, so the anchor offset
+    // Position + animation share the transform channel, so the anchor offset
     // lives in left/top and the animation keeps transform to itself.
     bubble.style.left = `${Math.round(left)}px`;
     bubble.style.top = `${Math.round(top)}px`;
@@ -81,7 +84,7 @@ export function mountTooltip({root = document} = {}) {
     return node instanceof Element ? node.closest("[data-tooltip]") : null;
   }
 
-  root.addEventListener("pointerover", (event) => {
+  document.addEventListener("pointerover", (event) => {
     const target = targetOf(event.target);
     const skip = !target || !target.dataset.tooltip || target === anchor;
 
@@ -94,7 +97,7 @@ export function mountTooltip({root = document} = {}) {
     timer = setTimeout(() => show(target), SHOW_DELAY);
   });
 
-  root.addEventListener("pointerout", (event) => {
+  document.addEventListener("pointerout", (event) => {
     if (!anchor || anchor.contains(event.relatedTarget)) {
       return;
     }
@@ -102,9 +105,9 @@ export function mountTooltip({root = document} = {}) {
     hide();
   });
 
-  root.addEventListener("pointerdown", hide, true);
-  root.addEventListener("keydown", hide, true);
-  root.addEventListener("scroll", hide, true);
+  document.addEventListener("pointerdown", hide, true);
+  document.addEventListener("keydown", hide, true);
+  document.addEventListener("scroll", hide, true);
   window.addEventListener("blur", hide);
 
   return {bubble};

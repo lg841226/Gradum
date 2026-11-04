@@ -9,35 +9,16 @@ body {
 
 /* App-shell lockdown: a fixed body of exactly the screen's size. The window
    itself can never scroll, so a raised touch keyboard cannot drag the page
-   out of view or leave the viewport half-restored when it folds away — the
+   out of view or leave the viewport half-restored when it folds away: the
    two mobile blank-space culprits. Inner scrolling stays with the message
-   column, the panels and the editor, which scroll their own boxes. */
+   column, the panels + the editor, which scroll their own boxes.
+   Colour + type live on .canvas, not here: the editor is embedded under the
+   host's body, so this file only pins the geometry. */
 body {
     position: fixed;
     inset: 0;
     margin: 0;
     overflow: hidden;
-    color: var(--text);
-    background: var(--bg-canvas);
-    -webkit-font-smoothing: antialiased;
-    font: var(--weight-regular) var(--font-size-ui) / 1.5 var(--font-ui);
-}
-
-/* Ambient glow: a soft blue wash behind the whole window, centred on the seam
-   between the rail and the editor, partway down from the top and fading down and
-   out. It is fixed at the bottom of the stack, so the translucent islands let it
-   bleed through while still reading as solid panes. */
-body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    background: radial-gradient(
-            560px 460px at calc(var(--island-gap) + var(--rail-width) + var(--island-gap) * .5) 180px,
-            var(--glow),
-            transparent 70%
-    );
 }
 
 button,
@@ -55,7 +36,7 @@ textarea {
     flex: 1;
 }
 
-:focus-visible {
+.canvas :focus-visible {
     outline-offset: 1px;
     outline: 2px solid var(--accent);
 }
@@ -64,32 +45,32 @@ textarea {
     user-select: none;
 }
 
-/* The app's own scrollbar, stated once for every scroll surface: a slim
-   translucent thumb on an invisible track, firming up as the pointer lands.
-   The standard properties carry Firefox and current Chromium; the
-   -webkit rules below are the fallback for older Chromium builds. Areas
-   that hide the bar outright (tab strip, completion list, the editor under
-   its minimap) keep their own scrollbar-width: none, which out-ranks these. */
-* {
+/* The app's own scrollbar, stated once for every scroll surface inside the
+   editor: a slim translucent thumb on an invisible track, firming up as the
+   pointer lands. Scoped to the container so an embedding page keeps its own
+   scrollbars. Areas that hide the bar outright (tab strip, completion list,
+   the editor under its minimap) keep their own scrollbar-width: none. */
+.canvas,
+.canvas * {
     scrollbar-width: thin;
     scrollbar-color: var(--scroll-thumb) transparent;
 }
 
-::-webkit-scrollbar {
+.canvas ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
 }
 
-::-webkit-scrollbar-thumb {
+.canvas ::-webkit-scrollbar-thumb {
     background: var(--scroll-thumb);
     border-radius: 4px;
 }
 
-::-webkit-scrollbar-thumb:hover {
+.canvas ::-webkit-scrollbar-thumb:hover {
     background: var(--scroll-thumb-hover);
 }
 
-::-webkit-scrollbar-track,
-::-webkit-scrollbar-corner {
+.canvas ::-webkit-scrollbar-track,
+.canvas ::-webkit-scrollbar-corner {
     background: transparent;
 }

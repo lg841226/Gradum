@@ -1,8 +1,8 @@
-// The Gradum skill API as the completion list knows it: a hand-kept mirror of
-// Skill.kt, SkillContext, AgentConfiguration and the schema DSL, grown the
-// way the docs are, by hand. Every row carries the kind its icon paints with
-// and the type the right edge reports; `member` marks what belongs after a
-// dot, where keywords and snippets do not.
+// The Gradum skill API as the Kotlin completion list knows it: a hand-kept
+// mirror of Skill.kt, SkillContext, AgentConfiguration + the schema DSL,
+// grown the way the docs are, by hand. Every row carries the kind its icon
+// paints with + the type the right edge reports; `member` marks what belongs
+// after a dot, where keywords + snippets do not.
 
 export const API_SYMBOLS = [
   // Skill itself: what an override or an execute() body reaches for.
@@ -35,15 +35,15 @@ export const API_SYMBOLS = [
   {label: "FETCH", kind: "val", detail: "ToolDisplayKind", member: true},
   {label: "OTHER", kind: "val", detail: "ToolDisplayKind", member: true},
 
-  // How a call is presented, and the shapes it is built from.
+  // How a call is presented + the shapes it is built from.
   {label: "ToolDisplay", kind: "type", detail: "data class", member: false},
   {label: "label", kind: "val", detail: "String", member: true},
   {label: "paramKey", kind: "val", detail: "String", member: true},
   {label: "kind", kind: "val", detail: "ToolDisplayKind", member: true},
 
-  // The schema block: what SchemaBuilder and the SchemaAdapter extensions
-  // resolve inside schemaProperties: string and friends called bare inside
-  // the lambda, cloudOnly and simpleOnly after a dot on the builder.
+  // The schema block: what SchemaBuilder + the SchemaAdapter extensions
+  // resolve inside schemaProperties: string + friends called bare inside
+  // the lambda, cloudOnly + simpleOnly after a dot on the builder.
   {label: "SchemaBuilder", kind: "type", detail: "class", member: false},
   {label: "SkillParameter", kind: "type", detail: "class", member: false},
   {label: "string", kind: "fun", detail: "SchemaAdapter", member: false},
@@ -66,7 +66,7 @@ export const API_SYMBOLS = [
   {label: "emitEvent", kind: "val", detail: "", member: true},
   {label: "isSimpleModel", kind: "val", detail: "Boolean", member: true},
 
-  // What an execute() body returns and builds it with.
+  // What an execute() body returns + builds it with.
   {label: "Skill", kind: "type", detail: "abstract class", member: false},
   {label: "SkillResult", kind: "type", detail: "sealed", member: false},
   {label: "makeSuccess", kind: "fun", detail: "SkillResult", member: false},

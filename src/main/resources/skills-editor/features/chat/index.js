@@ -1,11 +1,11 @@
 // Connects the chat model to its view. This is the
-// only object the assistant island talks to: it owns no streaming state and no
+// only object the assistant island talks to: it owns no streaming state + no
 // DOM references of its own.
 
 import {createChatModel} from "../../domain/chat/model.js";
 import {createChatView} from "./view.js";
 
-export function createChat({messages, stopButton}) {
+export function createChat({messages}) {
   const model = createChatModel();
   const view = createChatView({
     messages,
@@ -14,7 +14,6 @@ export function createChat({messages, stopButton}) {
 
   return {
     beginUserTurn(text) {
-      stopButton.hidden = false;
       view.apply(model.beginTurn(text, Date.now()));
     },
 
@@ -24,12 +23,10 @@ export function createChat({messages, stopButton}) {
 
     finishTurn() {
       view.apply(model.finishTurn(Date.now()));
-      stopButton.hidden = true;
     },
 
     reset() {
       view.apply(model.reset());
-      stopButton.hidden = true;
     },
 
     notice(text) {
@@ -38,7 +35,6 @@ export function createChat({messages, stopButton}) {
 
     loadHistory(bubbles) {
       view.apply(model.loadHistory(bubbles));
-      stopButton.hidden = true;
     },
   };
 }

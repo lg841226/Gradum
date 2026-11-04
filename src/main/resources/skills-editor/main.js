@@ -1,10 +1,10 @@
 import {copy} from "./ui/copy.js";
 import {formatTime} from "./core/dom.js";
-import {createStore} from "./core/store.js";
+import {activeDoc, createStore} from "./core/store.js";
 import {mountRail} from "./features/rail.js";
-import {mountTabs} from "./features/tabs.js";
-import {listSkills} from "./data/skillsApi.js";
-import {mountEditor} from "./features/editor.js";
+import {HttpError} from "./data/http.js";
+import {buildSkill, deploySkill, listSkills, loadSkill} from "./data/skillsApi.js";
+import {createEditor} from "./createEditor.js";
 import {mountPanels} from "./features/panels.js";
 import {mountCompact} from "./features/compact.js";
 import {mountConsole} from "./features/console.js";
@@ -67,9 +67,108 @@ const store = createStore({
 
 store.subscribe(createLayoutWriter());
 
+// The host half of the editor: where a buffer comes from, what a new file starts
+// as + how a typed name becomes a real file. These are the only places this
+// shell touches the skill endpoints; the editor below only sees callbacks.
+const starter = document.getElementById("starterTemplate")?.textContent ?? "";
+
+const documents = {
+  async open(name) {
+    try {
+      const source = await loadSkill(name);
+      return {source: source === null ? starter : source};
+    } catch (error) {
+      if (error instanceof HttpError) {
+        const text = error.status === 401 || error.status === 403
+          ? copy.status.unauthorized
+          : copy.status.loadFailed(name, error.detail);
+        return {error: text};
+      }
+      return {error: copy.status.unreachable};
+    }
+  },
+  create({files, names}) {
+    let index = 1;
+    while (files.includes(`NewSkill${index}.kt`) || names.includes(`NewSkill${index}.kt`)) {
+      index++;
+    }
+    return {name: `NewSkill${index}.kt`, source: starter};
+  },
+  rename(rawName) {
+    const bare = String(rawName).trim().replace(/\.kt$/, "");
+    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(bare) ? `${bare}.kt` : null;
+  },
+  save: (name, source) => deploySkill(name, source),
+  build: (name, source) => buildSkill(name, source),
+  list: listSkills,
+};
+
+const getActiveDoc = activeDoc;
+
+// Host commands. The editor container owns the listener; these entries say what
+// a key means + when it applies. Edit keys the code surface consumed never
+// reach here, and the first enabled entry for a key wins.
+let assistant = null;
+
+const hasDocument = ({getActiveDoc: resolve, state}) => !state.reader && Boolean(resolve(state));
+
+const commands = [
+  {
+    id: "new-chat",
+    keys: ["Mod+N"],
+    enabled: ({state, isTextEntry}) => state.chatOpen && !isTextEntry,
+    run: () => assistant.newChat(),
+  },
+  {
+    id: "new-document",
+    keys: ["Mod+N"],
+    enabled: ({state, isTextEntry}) => !state.chatOpen && !state.reader && !isTextEntry,
+    run: ({tabs}) => tabs.create(),
+  },
+  {
+    id: "close-document",
+    keys: ["Mod+W"],
+    enabled: (context) => !context.isTextEntry && hasDocument(context),
+    run: ({tabs}) => tabs.closeActive(),
+  },
+  {
+    id: "show-problems",
+    keys: ["Mod+1"],
+    run: ({showPanel}) => showPanel?.("problems"),
+  },
+  {
+    id: "show-output",
+    keys: ["Mod+2"],
+    run: ({showPanel}) => showPanel?.("output"),
+  },
+  {
+    id: "run",
+    keys: ["Mod+Enter"],
+    enabled: (context) => !context.isTextEntry && hasDocument(context),
+    run: ({editor}) => void editor.run(),
+  },
+  {
+    id: "build",
+    keys: [],
+    enabled: (context) => !context.isTextEntry && hasDocument(context),
+    run: ({editor}) => void editor.build(),
+  },
+  {
+    id: "refresh-files",
+    keys: [],
+    run: () => {
+      documents.list()
+        .then((files) => store.setState({files}))
+        .catch(() => {
+          // The rail keeps the names it already knows while the server is down.
+        });
+    },
+  },
+];
+
 // Features are wired here so they never import each other. The editor island
-// exposes its tab strip and code-surface API; the panels island exposes the two
-// body elements that diagnostics and the console render into.
+// exposes its tab strip + code-surface API; the panels island exposes the two
+// body elements that diagnostics + the console render into.
 //
 // The compact feature is mounted first so it is the first listener to run: it
 // settles the size-driven flags before the panels render from them.
@@ -82,20 +181,16 @@ store.subscribe(createLayoutWriter());
 try {
   mountCompact(store, {canvas});
   const panels = mountPanels(store, {canvas});
-  const editor = mountEditor(store, {canvas, showPanel: (name) => panels.show(name)});
-  const [primaryPane, copyPane] = editor.panes;
-  const tabs = mountTabs(store, {
-    strips: [
-      {strip: primaryPane.tabStrip},
-      {
-        strip: copyPane.tabStrip,
-        onClose: () => editor.unsplit(),
-        closeTooltip: copy.tooltip.unsplit,
-      },
-    ],
+  const editor = createEditor(store, {
+    canvas,
+    showPanel: (name) => panels.show(name),
+    documents,
+    getActiveDoc,
+    commands,
   });
+  const tabs = editor.tabs;
 
-  const assistant = mountAssistant(store, {canvas});
+  assistant = mountAssistant(store, {canvas});
   const rail = mountRail(store, {
     canvas,
     onOpen: (name) => void tabs.open(name),
@@ -104,49 +199,27 @@ try {
   });
   mountFloatPanels(store, {canvas});
 
-  mountDiagnostics(store, {body: panels.problemsBody, editor});
+  mountDiagnostics(store, {body: panels.problemsBody, editor, getActiveDoc});
   mountConsole(store, {body: panels.outputBody});
   for (const pane of editor.panes) {
     mountMinimap(store, {
       container: pane.main,
       source: pane.source,
       highlightCode: pane.highlightCode,
+      getActiveDoc,
     });
   }
   mountMenubar(store, {
     canvas,
-    onRun: () => void editor.run(),
-    onBuild: () => void editor.build(),
+    onRun: () => editor.commands.run("run"),
+    onBuild: () => editor.commands.run("build"),
     onToggleSplit: (direction) => editor.toggleSplit(direction),
+    theme: editor.theme,
   });
   mountSplitters(store, {canvas, rail: rail.panel, bottom: panels.panel});
-  mountStatusBar(store, {canvas});
-  mountTooltip();
+  mountStatusBar(store, {canvas, getActiveDoc});
+  mountTooltip({container: canvas});
 
-  window.addEventListener("keydown", (event) => {
-    const command = event.metaKey || event.ctrlKey;
-    if (!command) {
-      return;
-    }
-
-    if (event.key === "n") {
-      event.preventDefault();
-      if (store.getState().chatOpen) {
-        assistant.newChat();
-      } else {
-        tabs.create();
-      }
-    } else if (event.key === "w") {
-      event.preventDefault();
-      tabs.closeActive();
-    } else if (event.key === "1") {
-      event.preventDefault();
-      panels.show("problems");
-    } else if (event.key === "2") {
-      event.preventDefault();
-      panels.show("output");
-    }
-  });
   const pinScroll = () => {
     if (window.scrollY !== 0 || window.scrollX !== 0) {
       window.scrollTo(0, 0);
@@ -159,16 +232,12 @@ try {
     log: [...store.getState().log, {time: formatTime(), message: copy.log.ready(), tone: null}],
   });
 
-  listSkills()
-    .then((files) => store.setState({files}))
-    .catch(() => {
-      // The rail stays empty until the server becomes reachable.
-    });
+  editor.commands.run("refresh-files");
 
   void tabs.open(store.getState().openFile || DEFAULT_SKILL);
 
   requestAnimationFrame(() => {
-    requestAnimationFrame(() => document.documentElement.classList.remove("is-booting"));
+    requestAnimationFrame(() => canvas.classList.remove("is-booting"));
   });
 } catch (error) {
   console.error(error);

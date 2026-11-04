@@ -1,15 +1,3 @@
-// Markdown-to-DOM renderer for the agent bubble. No third-party parser (this
-// page must run offline); covers paragraphs, headings, nested lists, task
-// lists, fenced code with a language label and copy action, blockquotes,
-// tables, rules, and the inline code / bold / italic / strikethrough / link
-// shapes. Text is untrusted, so nothing is ever assigned to innerHTML: every
-// token goes through createElement / createTextNode, and a link's scheme is
-// checked before it becomes an href.
-//
-// renderMarkdown is streaming-aware: block elements are matched by position
-// and type and only their contents are refreshed, so nothing reflows and
-// reused nodes keep their identity across tokens.
-
 import {safeUrl} from "../core/safety.js";
 
 const INLINE_SPLIT =
@@ -170,9 +158,7 @@ function fillItem(li, text) {
   renderInline(li, text);
 }
 
-// Rebuilds the list from flat `{depth, text}` rows; deeper rows become nested
-// lists under the previous item, so agents' multi-level outlines keep their
-// shape. The list is cleared first, since streaming refreshes reuse it.
+
 function fillList(list, items) {
   list.replaceChildren();
 

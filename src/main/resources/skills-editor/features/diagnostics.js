@@ -1,12 +1,12 @@
 import {clear} from "../core/dom.js";
-import {activeDoc} from "../core/store.js";
 import {createEmptyState} from "../ui/components/feedback.js";
 import {createIcon} from "../ui/components/icon.js";
 import {copy} from "../ui/copy.js";
 
-// Renders the Problems panel and the squiggle markers over the editor. It reads
-// the code surface through the API the editor feature exposes in main.js.
-export function mountDiagnostics(store, {body, editor}) {
+// Renders the Problems panel and asks each pane to draw its squiggle markers.
+// It never reaches into the pane's gutter, highlight or metrics: the pane owns
+// those nodes and exposes the drawing + reveal calls it needs.
+export function mountDiagnostics(store, {body, editor, getActiveDoc}) {
   const list = document.createElement("div");
   list.className = "problem-list";
   body.appendChild(list);
@@ -18,46 +18,13 @@ export function mountDiagnostics(store, {body, editor}) {
 
   function clearMarks() {
     for (const pane of editor.panes) {
-      pane.markers.replaceChildren();
-      pane.highlightCode
-        .querySelectorAll(".errline, .warnline")
-        .forEach((node) => node.classList.remove("errline", "warnline"));
+      pane.setDiagnostics([], "");
     }
   }
 
   function renderMarks(diagnostics, text) {
-    clearMarks();
-
-    const lines = text.split("\n");
-
     for (const pane of editor.panes) {
-      const {padTop, padLeft, lineHeight} = pane.metrics;
-
-      for (const diagnostic of diagnostics) {
-        if (!diagnostic.line) {
-          continue;
-        }
-
-        const lineNode = pane.highlightCode.querySelector(`.line[data-line="${diagnostic.line}"]`);
-        if (lineNode) {
-          const severityClass = diagnostic.severity === "error" ? "errline" : "warnline";
-          lineNode.classList.add(severityClass);
-        }
-
-        const line = lines[diagnostic.line - 1] || "";
-        const column = Math.max(1, diagnostic.column || 1);
-        const start = pane.advance(diagnostic.line, Math.min(column - 1, line.length));
-        const end = pane.advance(diagnostic.line, line.length);
-
-        const isError = diagnostic.severity === "error";
-        const marker = document.createElement("div");
-        marker.className = `squiggle ${isError ? "error" : "warning"}`;
-        marker.style.top = `${padTop + (diagnostic.line - 1) * lineHeight}px`;
-        marker.style.left = `${padLeft + start}px`;
-        marker.style.width = `${Math.max(1, end - start)}px`;
-        marker.style.height = `${lineHeight}px`;
-        pane.markers.appendChild(marker);
-      }
+      pane.setDiagnostics(diagnostics, text);
     }
   }
 
@@ -134,38 +101,11 @@ export function mountDiagnostics(store, {body, editor}) {
   }
 
   function jumpToLine(lineNumber, column) {
-    if (!lineNumber) {
-      return;
-    }
-
-    const pane = editor.activePane();
-    const source = pane.source;
-    let offset = 0;
-
-    for (let line = 1; line < lineNumber; line++) {
-      const next = source.value.indexOf("\n", offset);
-      if (next === -1) {
-        offset = source.value.length;
-        break;
-      }
-      offset = next + 1;
-    }
-
-    let end = source.value.indexOf("\n", offset);
-    if (end === -1) {
-      end = source.value.length;
-    }
-
-    const caret = Math.min(offset + Math.max(0, (column || 1) - 1), end);
-    source.focus();
-    source.setSelectionRange(caret, end);
-    source.scrollTop = Math.max(0, (lineNumber - 3) * pane.metrics.lineHeight);
-    pane.syncScroll();
-    pane.updateActiveLine();
+    editor.activePane().revealLine(lineNumber, column);
   }
 
   const render = (state) => {
-    const doc = activeDoc(state);
+    const doc = getActiveDoc(state);
     const id = doc ? doc.id : null;
     const diagnostics = doc ? doc.diagnostics : [];
     const status = state.status;

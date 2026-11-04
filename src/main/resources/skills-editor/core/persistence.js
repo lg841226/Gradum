@@ -1,7 +1,7 @@
 // The editor's layout choices outlive a reload: which view is selected, which
-// tool window sits at the bottom, whether the rail and the tree are folded,
+// tool window sits at the bottom, whether the rail + the tree are folded,
 // whether the editor is split into two views, whether the minimap strip shows,
-// and how wide and tall the user dragged the panels. Keeping them is what makes
+// and how wide + tall the user dragged the panels. Keeping them is what makes
 // a refreshed page look the way it was left. Which file held the focus is a
 // choice like the rest: it rides along here by name, so a refresh comes back to
 // the document the user was reading instead of falling to the default skill.
@@ -48,8 +48,6 @@ function pickLayout(source) {
   return picked;
 }
 
-// The patch to spread over the store's defaults at boot. Anything missing or
-// unreadable simply leaves the default in place.
 export function loadLayout() {
   const stored = readJsonStorage(STORAGE_KEYS.layout, null);
   return stored && typeof stored === "object" ? pickLayout(stored) : {};

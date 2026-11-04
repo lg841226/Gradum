@@ -1,6 +1,6 @@
 // Horizontal measurement against the rendered highlight overlay.
 //
-// The caret and the squiggles are drawn, not laid out by the text layer, so
+// The caret + the squiggles are drawn, not laid out by the text layer, so
 // their horizontal offsets are read back off the very glyphs on screen instead
 // of being predicted from a font. Neither counting columns nor measuring with
 // a canvas survives a fallback: a CJK glyph is drawn by whatever font the stack
@@ -11,7 +11,7 @@
 // a scroll frame stays cheap.
 
 export function createMeasure({highlightCode}) {
-  // The text node and offset that `index` (in UTF-16 units, matching the text
+  // The text node + offset that `index` (in UTF-16 units, matching the text
   // layer) falls on within a rendered line.
   function textPositionAt(lineNode, index) {
     let remaining = index;
@@ -27,7 +27,7 @@ export function createMeasure({highlightCode}) {
   }
 
   // Width, in pixels, of the first `charCount` characters of the rendered line,
-  // measured from the line's own left edge. Tabs, wide glyphs and fallback runs
+  // measured from the line's own left edge. Tabs, wide glyphs + fallback runs
   // are all handled by the layout engine, so the number matches the glyphs.
   function advance(lineNumber, charCount) {
     if (charCount <= 0) {

@@ -1,16 +1,3 @@
-// The assistant island: the Gradum chat occupying the editor's grid cell
-// while it is open. It owns no rail of its own: the session list renders in
-// the shared rail (from the store's `sessions`) and the project root lives in
-// the status bar (`projectRoot`); this feature reacts to both.
-//
-// Chats open as tabs, the way the editor lists its documents. Every tab owns
-// a full stack of its own - a message column, a chat model and view, and a
-// stream controller - so a background tab keeps receiving its run and the
-// transcript is already there when the user switches back. The composer, the
-// pickers and the tab strip are shared; only the active tab's stream drives
-// them. The wiring is deferred to the first open, so merely loading the page
-// posts nothing to the chat endpoints.
-
 import {listModels, listSessions, sessionState} from "../../data/legatusApi.js";
 import {STORAGE_KEYS} from "../../core/storageKeys.js";
 import {readJsonStorage, readStorage, writeStorage} from "../../core/storage.js";
@@ -24,16 +11,10 @@ import {createStreamController} from "./stream.js";
 import {isFloatLayout} from "../floatPanels.js";
 import {dragPointer} from "../splitter.js";
 
-// The share of the body the first pane keeps when the divider is dragged. Held
-// between a fifth and four fifths, so neither pane can be dragged shut: closing
-// one outright is what the split toggle is for. The editor holds the same bounds.
+
 const MIN_SHARE = 0.2;
 const MAX_SHARE = 0.8;
 
-// A fresh session id per chat, minted here so new chats are durable even
-// before the server has seen them. crypto.randomUUID only exists in secure
-// contexts; this page is often opened over plain http on the LAN, where it
-// is undefined.
 function newSessionId() {
   if (typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -46,11 +27,6 @@ export function mountAssistant(store, {canvas}) {
   island.className = "assistant panel";
   island.hidden = true;
 
-  // The chat splits the way the editor does: a fixed pair of panes over the
-  // island, the right one mounted from the start and folded away by CSS until
-  // the split is switched on. Each pane carries its own tab strip at its top
-  // and its own composer at its foot, so a split pane is a full duplicate of
-  // the chat surface.
   const makePane = (name) => {
     const pane = document.createElement("div");
     pane.className = "chat-pane";
@@ -120,11 +96,20 @@ export function mountAssistant(store, {canvas}) {
   const splitUi = makeUi();
   const composer = ui.composer;
 
-  const hosted = {left: null, right: null};
-  let focusedSide = "left";
+  // Ownership model, the single source of truth for the chat workspace: which
+  // tab each pane owns and which pane holds the focus. A tab is owned by at
+  // most one pane; a cross-pane move detaches from the old pane before it
+  // attaches to the new one. `tabs` stays the registry of live tabs (messages
+  // node, chat, stream), and the DOM is only ever a projection of both.
+  const workspace = {left: null, right: null, focused: "left"};
+  const SIDES = ["left", "right"];
+  // Per-pane scroll-to-bottom state, derived from that pane's own container.
+  // true means the column is at the bottom, so the button stays hidden.
+  const paneScroll = {left: true, right: true};
+  let chatBusy = null;
 
   function activeId() {
-    return hosted[focusedSide] ?? hosted.left;
+    return workspace[workspace.focused] ?? workspace.left;
   }
 
   function sideOf(forUi) {
@@ -132,7 +117,20 @@ export function mountAssistant(store, {canvas}) {
   }
 
   function paneTabId(forUi) {
-    return hosted[sideOf(forUi)];
+    return workspace[sideOf(forUi)];
+  }
+
+  function detach(id) {
+    for (const side of SIDES) {
+      if (workspace[side] === id) {
+        workspace[side] = null;
+      }
+    }
+  }
+
+  function attach(side, id) {
+    detach(id);
+    workspace[side] = id;
   }
 
   // The server stamps its own working directory on the page; the root must
@@ -165,18 +163,6 @@ export function mountAssistant(store, {canvas}) {
     }
   }
 
-  // Each visible pane's chrome mirrors the tab it hosts, whatever the other
-  // panes are doing; the busy flag is the island's, any tab generating.
-  function syncChrome() {
-    const busy = [...tabs.values()].some((tab) => tab.stream.streaming);
-    for (const paneUi of [ui, splitUi]) {
-      const tab = tabs.get(paneTabId(paneUi));
-      paneUi.composer.setStreaming(tab?.stream.streaming ?? false);
-      paneUi.composer.stopButton.hidden = !(tab?.stream.streaming ?? false);
-    }
-    store.setState({chatBusy: busy});
-  }
-
   function persistTabs() {
     const ids = [...tabs.values()].filter((tab) => !tab.fresh).map((tab) => tab.id);
     writeStorage(
@@ -185,37 +171,103 @@ export function mountAssistant(store, {canvas}) {
     );
   }
 
-  // The split state is the editor's: the menu bar's split toggles write it and
-  // both surfaces read it. The chat only splits with two or more tabs, and
-  // never afloat, where there is no width worth splitting. The classes and the
-  // ratio variable land on the pane body, exactly where the editor's land on
-  // its own, and the same stylesheet language reads them.
-  function layout() {
+  function splitShown(state) {
+    return Boolean(state.split) && !isFloatLayout() && tabs.size >= 2;
+  }
+
+  // Ownership invariants, applied at the start of every render: a stale id is
+  // dropped, a tab never belongs to both panes, the left pane takes the first
+  // free tab, and the right pane holds a second tab only while split is shown.
+  function repairOwnership(splitOn) {
+    for (const side of SIDES) {
+      if (workspace[side] != null && !tabs.has(workspace[side])) {
+        workspace[side] = null;
+      }
+    }
+
+    const ids = [...tabs.keys()];
+    if (ids.length === 0) {
+      workspace.left = null;
+      workspace.right = null;
+      workspace.focused = "left";
+      return;
+    }
+
+    if (workspace.right === workspace.left) {
+      workspace.right = null;
+    }
+    if (workspace.left == null) {
+      workspace.left = ids.find((id) => id !== workspace.right) ?? ids[0];
+    }
+    if (workspace.right === workspace.left) {
+      workspace.right = null;
+    }
+    if (splitOn && workspace.right == null) {
+      workspace.right = ids.find((id) => id !== workspace.left) ?? null;
+    }
+    if (workspace.focused === "right" && workspace.right == null) {
+      workspace.focused = "left";
+    }
+  }
+
+  // The only writer of the pane DOM. Every entry point edits `workspace` or
+  // `tabs` and then calls this once: split classes, pane contents, composer
+  // streaming state, tab strips + the stored tab list all derive from that
+  // model here, so a missed manual sync can no longer leave the panes +
+  // strips disagreeing.
+  function render() {
     const state = store.getState();
-    const splitOn = Boolean(state.split) && !isFloatLayout() && tabs.size >= 2;
+    const splitOn = splitShown(state);
+
+    repairOwnership(splitOn);
+
     columns.classList.toggle("is-split", splitOn);
     columns.classList.toggle("is-split-down", splitOn && state.splitDirection === "down");
     columns.style.setProperty("--split-ratio", String(state.splitRatio ?? 0.5));
-    syncPanes();
+
+    placePanes(splitOn);
+
+    // Measured after placement: a pane's button only ever reflects the
+    // container this pane just received.
+    refreshScrollState(splitOn);
+
+    ui.composer.setStreaming(tabs.get(workspace.left)?.stream.streaming ?? false);
+    const rightTab = splitOn ? tabs.get(workspace.right) : null;
+    splitUi.composer.setStreaming(rightTab?.stream.streaming ?? false);
+
+    renderTabs();
+    persistTabs();
+    applyScrollButtons(splitOn);
+
+    const busy = [...tabs.values()].some((tab) => tab.stream.streaming);
+    if (busy !== chatBusy) {
+      chatBusy = busy;
+      store.setState({chatBusy: busy});
+    }
   }
 
-  // The left pane always hosts its tab; the right one shows its own only while
-  // split. Every unhosted tab's column parks in the vault. Each hosted pane
-  // ends with its own composer, so both sides are complete chat views.
-  function syncPanes() {
-    const splitOn = columns.classList.contains("is-split");
-    const leftTab = tabs.get(hosted.left);
-    const rightTab = splitOn ? tabs.get(hosted.right) : null;
-    for (const tab of tabs.values()) {
-      if (tab !== leftTab && tab !== rightTab) {
-        vault.append(tab.messages);
+  // Each hosted pane ends with its own composer; every other tab's column parks
+  // in the vault. A node is appended only when it is not already there, so one
+  // `.messages` node is never moved twice within a render.
+  function placePanes(splitOn) {
+    const rightTab = splitOn ? tabs.get(workspace.right) : null;
+    const hosts = [
+      [left.pane, ui.composer.root, workspace.left],
+      [right.pane, splitUi.composer.root, splitOn ? workspace.right : null],
+    ];
+
+    for (const [pane, composerRoot, id] of hosts) {
+      const tab = tabs.get(id);
+      if (tab && tab.messages.parentElement !== pane) {
+        pane.append(tab.messages, composerRoot);
       }
     }
-    if (leftTab) {
-      left.pane.append(leftTab.messages, ui.composer.root);
-    }
-    if (rightTab) {
-      right.pane.append(rightTab.messages, splitUi.composer.root);
+
+    for (const tab of tabs.values()) {
+      const parked = tab !== tabs.get(workspace.left) && tab !== rightTab;
+      if (parked && tab.messages.parentElement !== vault) {
+        vault.append(tab.messages);
+      }
     }
   }
 
@@ -225,20 +277,18 @@ export function mountAssistant(store, {canvas}) {
     if (!tabs.has(id)) {
       return;
     }
-    hosted[side] = id;
-    layout();
+    attach(side, id);
+
     const tab = tabs.get(id);
-    if (side === focusedSide) {
+    if (side === workspace.focused) {
       store.setState({activeSession: tab.fresh ? null : id});
     }
-    syncChrome();
-    renderTabs();
-    persistTabs();
+    render();
     (side === "left" ? ui : splitUi).composer.focus();
   }
 
   function setActive(id) {
-    hostTab(focusedSide, id);
+    hostTab(workspace.focused, id);
   }
 
   function labelFor(tab) {
@@ -253,8 +303,9 @@ export function mountAssistant(store, {canvas}) {
 
   function renderTabs() {
     const next = JSON.stringify({
-      focusedSide,
-      hosted,
+      focused: workspace.focused,
+      left: workspace.left,
+      right: workspace.right,
       tabs: [...tabs.values()].map((tab) => [
         tab.id,
         tab.stream.streaming,
@@ -281,10 +332,10 @@ export function mountAssistant(store, {canvas}) {
       strip.hidden = tabs.size < 2;
       renderTabStrip(strip, items.map((item) => ({
         ...item,
-        active: item.id === hosted[side],
+        active: item.id === workspace[side],
       })), {
-        onActivate: (node) => hostTab(side, node.dataset.id),
-        onClose: (node) => closeTab(node.dataset.id),
+        onActivate: (node, id) => hostTab(side, id),
+        onClose: (node, id) => closeTab(id),
         closeTooltip: copy.tooltip.closeTab,
       });
     }
@@ -295,25 +346,22 @@ export function mountAssistant(store, {canvas}) {
     messages.className = "messages";
 
     const tab = {id, fresh, messages, started: false};
-    tab.chat = createChat({
-      messages,
-      stopButton: composer.stopButton,
-    });
+    // Frames + tool cards grow the column without a scroll event, so content
+    // changes schedule the same single scroll verdict.
+    tab.watch = new MutationObserver(() => scheduleScrollSync());
+    tab.watch.observe(messages, {childList: true, subtree: true, characterData: true});
+    tab.chat = createChat({messages});
     tab.stream = createStreamController({
-      onStart: () => {
-        syncChrome();
-        renderTabs();
-      },
+      onStart: () => render(),
       onFrame: (frame) => tab.chat.handleEvent(frame),
       onEnd: () => {
         tab.chat.finishTurn();
-        syncChrome();
-        renderTabs();
+        render();
         void refreshSessions();
       },
       onError: (error) => {
         tab.chat.notice(copy.chat.sendFailed(error.message));
-        syncChrome();
+        render();
       },
     });
 
@@ -361,8 +409,6 @@ export function mountAssistant(store, {canvas}) {
     }
 
     setActive(saved.active && tabs.has(saved.active) ? saved.active : tabs.keys().next().value);
-    hosted.right = [...tabs.keys()].find((id) => id !== hosted.left) ?? null;
-    layout();
 
     listModels()
       .then((models) => {
@@ -374,8 +420,8 @@ export function mountAssistant(store, {canvas}) {
       });
   }
 
-  // The composer that sent owns the turn: its own input, model and permission
-  // pickers are read and cleared, and its tab takes the run.
+  // The composer that sent owns the turn: its own input, model + permission
+  // pickers are read + cleared, and its tab takes the run.
   function send(forUi = ui) {
     const text = forUi.composer.input.value.trim();
     const tab = tabs.get(paneTabId(forUi));
@@ -409,14 +455,14 @@ export function mountAssistant(store, {canvas}) {
       }
     }
     tab.chat.beginUserTurn(text);
-    syncChrome();
+    render();
     forUi.composer.focus();
   }
 
   // A new chat opens another tab rather than replacing anything; an untouched
   // active tab is reused instead of piling up empty ones.
   function newChat() {
-    const active = tabs.get(activeId);
+    const active = tabs.get(activeId());
     if (active && active.fresh && !active.started) {
       composer.focus();
       return;
@@ -447,28 +493,23 @@ export function mountAssistant(store, {canvas}) {
     }
 
     tab.stream.reset();
+    tab.watch?.disconnect();
     tab.messages.remove();
     tabs.delete(id);
-
-    for (const side of ["left", "right"]) {
-      if (hosted[side] === id) {
-        hosted[side] = tabs.keys().next().value ?? null;
-      }
-    }
+    detach(id);
 
     if (tabs.size === 0) {
       const fresh = createTab();
-      focusedSide = "left";
-      hosted.left = fresh.id;
-      hosted.right = null;
+      workspace.focused = "left";
+      workspace.left = fresh.id;
+      workspace.right = null;
       setActive(fresh.id);
       return;
     }
-    layout();
-    syncChrome();
-    renderTabs();
-    persistTabs();
-    store.setState({activeSession: tabs.get(activeId())?.fresh ? null : activeId()});
+
+    render();
+    const active = tabs.get(activeId());
+    store.setState({activeSession: active && !active.fresh ? activeId() : null});
   }
 
   store.subscribe((state) => {
@@ -488,41 +529,89 @@ export function mountAssistant(store, {canvas}) {
 
   const noteFocus = (event) => {
     const side = event.target.closest?.(".chat-pane")?.dataset.pane;
-    if ((side === "left" || side === "right") && side !== focusedSide) {
-      focusedSide = side;
+    if ((side === "left" || side === "right") && side !== workspace.focused) {
+      workspace.focused = side;
+      render();
       const tab = tabs.get(activeId());
-      store.setState({activeSession: tab?.fresh ? null : activeId()});
-      syncChrome();
-      renderTabs();
-      persistTabs();
+      store.setState({activeSession: tab && !tab.fresh ? activeId() : null});
     }
   };
   island.addEventListener("pointerdown", noteFocus, {capture: true});
   island.addEventListener("focusin", noteFocus, {capture: true});
 
-  const scrollButton = createIconButton({
-    icon: "scroll-down",
-    tooltip: "Scroll to Bottom",
-    onClick: () => {
-      const tab = tabs.get(activeId());
-      tab?.messages.scrollTo({
-        top: tab.messages.scrollHeight,
-        behavior: "smooth",
-      });
-      composer.focus();
-    },
-  });
-  scrollButton.classList.add("composer-scroll-bottom");
-  scrollButton.hidden = true;
-  composer.root.append(scrollButton);
+  // The scroll-to-bottom control belongs to a pane, not to the workspace: each
+  // button sits in its own composer and only reflects the column above it.
+  const BOTTOM_SLACK = 40;
 
-  const nearBottom = (el) =>
-    el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-  const updateScrollButton = () => {
-    const tab = tabs.get(activeId());
-    scrollButton.hidden = !tab || nearBottom(tab.messages);
+  const isAtBottom = (el) =>
+    el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_SLACK;
+
+  const makeScrollButton = (side) => {
+    const button = createIconButton({
+      icon: "scroll-down",
+      tooltip: "Scroll to Bottom",
+      onClick: () => {
+        const tab = tabs.get(workspace[side]);
+        if (!tab) {
+          return;
+        }
+        tab.messages.scrollTo({
+          top: tab.messages.scrollHeight,
+          behavior: "smooth",
+        });
+        (side === "left" ? ui : splitUi).composer.focus();
+      },
+    });
+    button.classList.add("composer-scroll-bottom");
+    button.hidden = true;
+    (side === "left" ? ui : splitUi).composer.root.append(button);
+    return button;
   };
-  island.addEventListener("scroll", updateScrollButton, {passive: true, capture: true});
+
+  const leftScroll = makeScrollButton("left");
+  const rightScroll = makeScrollButton("right");
+
+  // The single verdict for both panes: which tab is showing, which container
+  // is measured, and the one threshold. `render` calls it after placement;
+  // scroll, content growth, resize + the divider only schedule it.
+  function refreshScrollState(splitOn) {
+    let changed = false;
+    for (const side of SIDES) {
+      const tab = side === "right" && !splitOn ? null : tabs.get(workspace[side]);
+      const atBottom = tab ? isAtBottom(tab.messages) : true;
+      if (atBottom !== paneScroll[side]) {
+        paneScroll[side] = atBottom;
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  function applyScrollButtons(splitOn) {
+    leftScroll.hidden = paneScroll.left;
+    rightScroll.hidden = !splitOn || paneScroll.right;
+  }
+
+  // Coalesced to one measurement per frame; a flip writes the model and goes
+  // through the same render path as every other state change.
+  let scrollFrame = 0;
+
+  function scheduleScrollSync() {
+    if (scrollFrame) {
+      return;
+    }
+    scrollFrame = requestAnimationFrame(() => {
+      scrollFrame = 0;
+      if (refreshScrollState(splitShown(store.getState()))) {
+        render();
+      }
+    });
+  }
+
+  for (const pane of [left.pane, right.pane]) {
+    pane.addEventListener("scroll", scheduleScrollSync, {passive: true, capture: true});
+  }
+  window.addEventListener("resize", scheduleScrollSync);
 
   new ResizeObserver(([entry]) => {
     const height = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height;
@@ -531,41 +620,50 @@ export function mountAssistant(store, {canvas}) {
 
   store.subscribe(() => renderTabs());
 
-  let splitSignature = null;
+  // The split state is the editor's: the menu bar writes it and both surfaces
+  // read it. The ratio only rewrites the style token, but a narrower column can
+  // rewrap text, so it re-measures the buttons; a mode change re-renders.
+  const splitState = store.getState();
+  let splitSignature = `${Boolean(splitState.split)}/${splitState.splitDirection ?? ""}`;
+  let splitRatio = String(splitState.splitRatio ?? 0.5);
   store.subscribe((state) => {
     const ratio = String(state.splitRatio ?? 0.5);
-    const next = `${state.split}/${state.splitDirection}/${ratio}`;
-    if (next === splitSignature) {
-      return;
-    }
-    const [wasSplit, wasDirection] = splitSignature?.split("/") ?? [];
-    splitSignature = next;
-    if (!wired) {
-      return;
-    }
+    const ratioChanged = ratio !== splitRatio;
+    splitRatio = ratio;
     columns.style.setProperty("--split-ratio", ratio);
-    if (wasSplit !== String(state.split) || wasDirection !== state.splitDirection) {
-      layout();
+
+    const mode = `${Boolean(state.split)}/${state.splitDirection ?? ""}`;
+    if (mode !== splitSignature) {
+      splitSignature = mode;
+      if (wired) {
+        render();
+      }
+      return;
+    }
+    if (ratioChanged && wired) {
+      scheduleScrollSync();
     }
   });
 
-  let signature = null;
-  const render = (state) => {
+  let openSignature = null;
+  const renderOpen = (state) => {
     const next = String(state.chatOpen === true);
-    if (next === signature) {
+    if (next === openSignature) {
       return;
     }
-    signature = next;
+    openSignature = next;
 
     island.hidden = !state.chatOpen;
     canvas.classList.toggle("chat-open", state.chatOpen === true);
     if (state.chatOpen) {
       wire();
+      // Layout only exists once the island is shown; re-measure on reopen.
+      scheduleScrollSync();
     }
   };
 
-  store.subscribe(render);
-  render(store.getState());
+  store.subscribe(renderOpen);
+  renderOpen(store.getState());
 
   return {newChat, openSession};
 }

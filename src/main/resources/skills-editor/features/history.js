@@ -27,7 +27,7 @@ function stackFor(docId) {
 }
 
 // The buffer as a document opens. Reopening a document that already has a
-// stack keeps it: the text left in memory and the history of how it got there
+// stack keeps it: the text left in memory + the history of how it got there
 // still belong together.
 function seedHistory(docId, snapshot) {
   const entry = stackFor(docId);

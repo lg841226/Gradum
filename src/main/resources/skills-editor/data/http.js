@@ -1,4 +1,4 @@
-// The one HTTP error shape and the one place a response body is read.
+// The one HTTP error shape + the one place a response body is read.
 //
 // Callers branch on `status`: 401/403 opens the unlock flow, 404 means the
 // resource is absent, anything else is a server failure. Collapsing those into

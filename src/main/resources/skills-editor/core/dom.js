@@ -1,5 +1,3 @@
-// Small DOM and measurement helpers shared across features and components.
-
 export function clear(node) {
   node.replaceChildren();
   return node;
@@ -16,7 +14,7 @@ export const FALLBACK_METRICS = {lineHeight: 20, padTop: 0, padLeft: 0};
 
 // Vertical metrics of the code surface. Horizontal offsets are never derived
 // from a font: they are read back off the rendered overlay, so only the
-// line box and the padding are needed here.
+// line box + the padding are needed here.
 export function codeMetrics(surface) {
   const style = getComputedStyle(surface);
   return {
@@ -26,7 +24,7 @@ export function codeMetrics(surface) {
   };
 }
 
-// East Asian wide and fullwidth ranges. These are the glyphs a monospace grid
+// East Asian wide + fullwidth ranges. These are the glyphs a monospace grid
 // draws two cells wide, which is how a column is counted for the status bar
 // and for a caret moving vertically through lines of tabs. The class is
 // assembled from fragments so no single line runs past the column limit.

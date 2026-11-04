@@ -1,14 +1,22 @@
-// Rebuilds the syntax overlay and the gutter together.
-//
-// Both layers are written from the same token run, so a line number and the
+// Both layers are written from the same token run, so a line number + the
 // glyphs beside it can never fall out of step. The changed-line bars are
 // computed here because this is the one place the gutter's markup is rebuilt:
-// opening, typing and deploying all land in it, and a bar survives none of
+// opening, typing + deploying all land in it, and a bar survives none of
 // them by accident.
 
-import {activeDoc} from "../../core/store.js";
+import {escapeText} from "../../core/safety.js";
 import {changedLines} from "../analysis.js";
-import {markGlyphs, tokenize} from "../syntax.js";
+import {languageFor} from "../languages/registry.js";
+
+// Glyph framing that keeps a fullwidth character from reading as its ASCII
+// twin at a glance: the tokenizer says what the run is, this says how it is
+// drawn, whichever language the pack belongs to.
+function markGlyphs(text) {
+  return escapeText(text).replace(
+    /[^\x00-\x7F]+/g,
+    (run) => `<span class="glyph-box">${run}</span>`,
+  );
+}
 
 // Consecutive lines are fused into one element, so a block of changes is one
 // pill with a round tip at each end instead of a stack of chips.
@@ -25,7 +33,7 @@ function changedRuns(lines) {
   return runs;
 }
 
-function lineMarkup(text) {
+function lineMarkup(text, tokenize) {
   const lines = [];
   let current = "";
 
@@ -55,6 +63,7 @@ export function createHighlightLayer({
                                        gutterInner,
                                        getText,
                                        getActiveOffset,
+                                       getActiveDoc,
                                      }) {
   function updateActiveLine() {
     const line = getText().slice(0, getActiveOffset()).split("\n").length;
@@ -67,9 +76,9 @@ export function createHighlightLayer({
   }
 
   function render(text) {
-    const lines = lineMarkup(text);
+    const doc = getActiveDoc(store.getState());
+    const lines = lineMarkup(text, languageFor(doc?.name).tokenize);
 
-    const doc = activeDoc(store.getState());
     const marked = doc && doc.baseline != null ? changedLines(text, doc.baseline) : [];
     const runHtml = changedRuns(marked).map(({start, end}) => {
       const span = end - start + 1;

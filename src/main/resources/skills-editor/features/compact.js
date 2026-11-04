@@ -1,4 +1,4 @@
-// Panels step aside when the window can no longer hold them and a usable editor
+// Panels step aside when the window can no longer hold them + a usable editor
 // at the same time: the rail gives up its width, and the bottom tool window its
 // height. What counts as too small comes from the panel sizes the state already
 // carries plus the layout tokens, so a panel dragged wider steps aside sooner
@@ -12,7 +12,9 @@ const EDITOR_MIN_WIDTH = 420;
 const EDITOR_MIN_HEIGHT = 220;
 
 export function mountCompact(store, {canvas}) {
-  const root = getComputedStyle(document.documentElement);
+  // Tokens live on the editor root, not :root, so read them from the mounted
+  // container: an embedding page never defines the editor's own values.
+  const root = getComputedStyle(canvas);
   const token = (name) => parseFloat(root.getPropertyValue(name)) || 0;
   const gap = token("--island-gap");
   const menubarHeight = token("--menubar-height");

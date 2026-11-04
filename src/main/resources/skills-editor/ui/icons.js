@@ -8,7 +8,7 @@
 //                                          org/jetbrains/kotlin/idea/icons/expui/kotlin_dark.svg
 //
 // Monochrome icons have their grey rewritten to currentColor so they follow
-// hover and selected states, drawn at the platform stroke width of 1. The
+// hover + selected states, drawn at the platform stroke width of 1. The
 // Kotlin brand mark is a filled sprite, so its two stops read the
 // --icon-kotlin-* tokens (via inline fill, since a presentation attribute
 // cannot hold var()) and flip with the theme; the coloured status icons keep
@@ -159,7 +159,7 @@ export const icons = {
   // The Gradum chat bubble, copied from the plugin's chat-mode icon
   // (icons/chat-mode/chat-mode.svg): the same glyph GradumIcons.Chat draws
   // for session lists. Its fixed #6C707E stroke becomes currentColor so the
-  // tree rows dim and highlight with the theme like every other icon here.
+  // tree rows dim + highlight with the theme like every other icon here.
   session: '<path d="M4 2.5H12C12.8284 2.5 13.5 3.17157 13.5 4V13.96L9.3125 10.6094C9.22384'
     + ' 10.5384 9.11354 10.5 9 10.5H4C3.17157 10.5 2.5 9.82843 2.5 9V4C2.5 3.17157 3.17157'
     + ' 2.5 4 2.5Z" stroke-width="1" stroke-linejoin="round"/>',
@@ -315,7 +315,7 @@ export const icons = {
   // Completion row marks: the platform's own round letter icons, one per kind:
   // a property, a method, a class, a live template, a plain variable. These
   // keep their own palette instead of following currentColor, the way the Kotlin
-  // brand mark does: the disc and the ink each read an --icon-node-* token, so
+  // brand mark does: the disc + the ink each read an --icon-node-* token, so
   // the theme swap paints the _dark.svg twin of every mark.
   //
   // expui/nodes/property.svg / property_dark.svg
@@ -362,4 +362,121 @@ export const icons = {
     + ' style="fill:var(--icon-node-word-bg);stroke:var(--icon-node-word-ink)"/>'
     + '<path d="M7.5459 11.4H8.46582L10.8213 5.40002H9.79004L8.04395 10.1051L6.23926 5.40002'
     + 'H5.17871L7.5459 11.4Z" style="fill:var(--icon-node-word-ink)"/>',
+
+  // Tool-call rows. Extracted verbatim from the IntelliJ Platform build in
+  // PyCharm.app/Contents/lib/intellij.platform.ide.jar (expui/...), Apache 2.0,
+  // Copyright 2000-2025 JetBrains s.r.o. and contributors. Only the platform's
+  // #6C707E grey is rewritten to currentColor and its 1px stroke is pinned, since
+  // the Icon component defaults to 1.5; the geometry is untouched.
+
+  // expui/general/show.svg, AllIconsKeys.General.Show
+  show: '<circle cx="8" cy="8" r="2.5" stroke-width="1"/>'
+    + '<path d="M3.34803 11.4645C2.03281 10.5496 1.01443 9.31863 0.529751 8C1.01443 6.68137'
+    + ' 2.03281 5.45039 3.34803 4.53545C4.71396 3.58524 6.36604 3 8 3C9.63396 3 11.286 3.58524'
+    + ' 12.652 4.53545C13.9672 5.45039 14.9856 6.68137 15.4702 8C14.9856 9.31863 13.9672 10.5496'
+    + ' 12.652 11.4645C11.286 12.4148 9.63396 13 8 13C6.36604 13 4.71396 12.4148 3.34803 11.4645Z"'
+    + ' stroke-width="1"/>',
+
+  // expui/general/search.svg, AllIconsKeys.Actions.Search
+  search: '<circle cx="7" cy="7" r="4.5" stroke-width="1"/>'
+    + '<path d="M10.1992 10.2002L13.4992 13.4961" stroke-width="1" stroke-linecap="round"/>',
+
+  // expui/general/projectWideAnalysisOff.svg,
+  // AllIconsKeys.Actions.ProjectWideAnalysisOff
+  "project-wide-analysis-off": '<path fill-rule="evenodd" clip-rule="evenodd" fill="currentColor"'
+    + ' stroke="none" d="M7.5 0.995728H8.5V7.13378C8.7989 7.30669 9 7.62986 9 8C9 8.55228'
+    + ' 8.55228 9 8 9C7.44772 9 7 8.55228 7 8C7 7.62986 7.2011 7.30669 7.5 7.13378V5.04148'
+    + 'C6.08114 5.27952 5 6.5135 5 8C5 9.65685 6.34315 11 8 11C9.65685 11 11 9.65685 11 8'
+    + 'C11 7.29897 10.7596 6.65411 10.3566 6.14337L11.0674 5.43258C11.6495 6.12731 12 7.02273'
+    + ' 12 8C12 10.2091 10.2091 12 8 12C5.79086 12 4 10.2091 4 8C4 5.96019 5.52684 4.277'
+    + ' 7.5 4.03095V2.02054C4.42023 2.27461 2 4.85467 2 8C2 11.3137 4.68629 14 8 14'
+    + 'C11.3137 14 14 11.3137 14 8C14 6.47037 13.4276 5.07443 12.4853 4.01469L13.1935 3.30653'
+    + 'C14.3162 4.54812 15 6.19421 15 8C15 11.866 11.866 15 8 15C4.13401 15 1 11.866 1 8'
+    + 'C1 4.30212 3.86736 1.27396 7.5 1.01758V0.995728Z"/>',
+
+  // expui/nodes/ppWeb.svg, AllIconsKeys.Nodes.PpWeb
+  "pp-web": '<circle cx="8" cy="8" r="6.5" stroke-width="1"/>'
+    + '<path d="M10.5 8C10.5 9.8819 10.1721 11.5619 9.66175 12.7528C9.40618 13.3491'
+    + ' 9.11471 13.7997 8.81652 14.094C8.52048 14.3862 8.24513 14.5 8 14.5'
+    + 'C7.75487 14.5 7.47952 14.3862 7.18348 14.094C6.88529 13.7997 6.59382 13.3491'
+    + ' 6.33825 12.7528C5.82788 11.5619 5.5 9.8819 5.5 8C5.5 6.1181 5.82788 4.43808'
+    + ' 6.33825 3.24721C6.59382 2.65089 6.88529 2.20026 7.18348 1.90597C7.47952 1.6138'
+    + ' 7.75487 1.5 8 1.5C8.24513 1.5 8.52048 1.6138 8.81652 1.90597C9.11471 2.20026'
+    + ' 9.40618 2.65089 9.66175 3.24721C10.1721 4.43808 10.5 6.1181 10.5 8Z" stroke-width="1"/>'
+    + '<path d="M14.2218 5.5H1.77734" stroke-width="1"/>'
+    + '<path d="M14.2218 10.5H1.77734" stroke-width="1"/>',
+
+  // expui/general/externalTools.svg, AllIconsKeys.General.ExternalTools
+  "external-tools": '<path stroke-width="1" stroke-miterlimit="10"'
+    + ' d="M6.04 9.55 3.3 12.29c-.2.2-.29.45-.29.71 0 .26.1.51.29.71.19.2.45.29.71.29'
+    + '.26 0 .51-.1.71-.29l2.74-2.74m3.51-6.36L9.55 6.04m1.41 1.41 1.43-1.42"/>'
+    + '<path stroke-width="1" stroke-linejoin="round"'
+    + ' d="m14.19 7.83.31-3.31-3.02-3.02-1.81 1.81 4.52 4.52Zm-1.9 5.88c.2.2.45.29.71.29'
+    + '.26 0 .51-.1.71-.29.2-.19.29-.45.29-.71 0-.26-.1-.51-.29-.71L7.2 5.78'
+    + 'c.19-.39.3-.82.3-1.29 0-1.66-1.34-3-3-3-.13 0-.26.02-.38.04l-.53.53 1.73 1.73L3.8 5.31'
+    + ' 2.07 3.58l-.53.53c-.02.13-.04.25-.04.38 0 1.66 1.34 3 3 3 .46 0 .89-.11 1.29-.3l6.51 6.51-.01.01Z"/>',
+
+  // expui/actions/report.svg, AllIconsKeys.Actions.Report
+  report: '<path fill-rule="evenodd" clip-rule="evenodd" fill="currentColor" stroke="none"'
+    + ' d="M8 1L10 2H12C12.5523 2 13 2.44772 13 3V9C13 9.55229 12.5523 10 12 10H10L8 9H4V15H3V1H8Z'
+    + 'M4 2V8H8.23607L10.2361 9H12V3H9.76393L7.76393 2H4Z"/>',
+
+  // expui/nodes/services.svg, AllIconsKeys.Nodes.Services
+  services: '<path d="M15.2117 7.50028C15.3901 7.80954 15.3901 8.19046 15.2117 8.49972'
+    + 'L12.0386 13.9997C11.86 14.3093 11.5298 14.5 11.1724 14.5L4.82756 14.5'
+    + 'C4.47018 14.5 4.13997 14.3093 3.96138 13.9997L0.788301 8.49972'
+    + 'C0.609882 8.19046 0.609882 7.80954 0.788301 7.50028L3.96138 2.00028'
+    + 'C4.13997 1.69072 4.47018 1.5 4.82756 1.5L11.1724 1.5C11.5298 1.5 11.86 1.69072'
+    + ' 12.0386 2.00028L15.2117 7.50028Z" stroke-width="1"/>'
+    + '<path d="M10.5 8.43301L6.75 10.5981C6.41667 10.7905 6 10.55 6 10.1651L6 5.83493'
+    + 'C6 5.45004 6.41667 5.20947 6.75 5.40192L10.5 7.56699C10.8333 7.75944 10.8333 8.24056'
+    + ' 10.5 8.43301Z" stroke-width="1"/>',
+
+  // expui/actions/checked.svg, AllIconsKeys.Actions.Checked. The platform draws
+  // this one at 1.5, so the path keeps its own width.
+  checked: '<path d="M2.5 8.25L6 11.75L13.5 4.25" stroke-width="1.5"'
+    + ' stroke-linecap="round" stroke-linejoin="round"/>',
+
+  // expui/general/groups.svg, AllIconsKeys.General.Groups
+  groups: '<rect x="1.5" y="1.5" width="5" height="5" rx="0.5" stroke-width="1"/>'
+    + '<rect x="1.5" y="8.5" width="5" height="5" rx="0.5" stroke-width="1"/>'
+    + '<rect x="8.5" y="8.5" width="5" height="5" rx="0.5" stroke-width="1"/>'
+    + '<rect x="8.5" y="1.5" width="5" height="5" rx="0.5" stroke-width="1"/>',
+
+  // The plugin's own command mark (plugin resources icons/cmd/cmd.svg), the same
+  // file GradumIcons.Ran draws. Its #EBECF0 backing plate is dropped and the
+  // #6C707E ink rewritten to currentColor, following the monochrome rule above.
+  cmd: '<path fill-rule="evenodd" clip-rule="evenodd" fill="currentColor" stroke="none"'
+    + ' d="M13 3H3C2.44772 3 2 3.44772 2 4V12C2 12.5523 2.44772 13 3 13H13C13.5523 13 14 12.5523'
+    + ' 14 12V4C14 3.44772 13.5523 3 13 3ZM3 2C1.89543 2 1 2.89543 1 4V12C1 13.1046 1.89543 14'
+    + ' 3 14H13C14.1046 14 15 13.1046 15 12V4C15 2.89543 14.1046 2 13 2H3Z"/>'
+    + '<path fill-rule="evenodd" clip-rule="evenodd" fill="currentColor" stroke="none"'
+    + ' d="M7 10.5C7 10.2239 7.22386 10 7.5 10L10.5 10C10.7761 10 11 10.2239 11 10.5'
+    + 'C11 10.7761 10.7761 11 10.5 11L7.5 11C7.22386 11 7 10.7761 7 10.5Z"/>'
+    + '<path fill-rule="evenodd" clip-rule="evenodd" fill="currentColor" stroke="none"'
+    + ' d="M4.12643 5.16659C4.32169 4.97133 4.63827 4.97133 4.83353 5.16659L6.81343 7.14649'
+    + 'C7.00869 7.34175 7.00869 7.65833 6.81343 7.85359L4.83353 9.83349'
+    + 'C4.63827 10.0288 4.32169 10.0288 4.12643 9.83349C3.93116 9.63823 3.93116 9.32165'
+    + ' 4.12643 9.12639L5.75277 7.50004L4.12643 5.8737C3.93116 5.67843 3.93116 5.36185 4.12643 5.16659Z"/>',
+
+  // The plugin's bullet-list mark (plugin resources icons/bullet-list/
+  // bullet-list.svg), GradumIcons.BulletList, grey rewritten to currentColor.
+  "bullet-list": '<path fill="currentColor" stroke="none"'
+    + ' d="M3.5 3.25C3.91421 3.25 4.25 2.91421 4.25 2.5C4.25 2.08579 3.91421 1.75 3.5 1.75'
+    + 'C3.08579 1.75 2.75 2.08579 2.75 2.5C2.75 2.91421 3.08579 3.25 3.5 3.25Z"/>'
+    + '<path fill="currentColor" stroke="none"'
+    + ' d="M7.5 2C7.22386 2 7 2.22386 7 2.5C7 2.77614 7.22386 3 7.5 3H13.5C13.7761 3'
+    + ' 14 2.77614 14 2.5C14 2.22386 13.7761 2 13.5 2H7.5Z"/>'
+    + '<path fill="currentColor" stroke="none"'
+    + ' d="M7.5 7C7.22386 7 7 7.22386 7 7.5C7 7.77614 7.22386 8 7.5 8H13.5C13.7761 8'
+    + ' 14 7.77614 14 7.5C14 7.22386 13.7761 7 13.5 7H7.5Z"/>'
+    + '<path fill="currentColor" stroke="none"'
+    + ' d="M7.5 12C7.22386 12 7 12.2239 7 12.5C7 12.7761 7.22386 13 7.5 13H13.5'
+    + 'C13.7761 13 14 12.7761 14 12.5C14 12.2239 13.7761 12 13.5 12H7.5Z"/>'
+    + '<path fill="currentColor" stroke="none"'
+    + ' d="M3.5 8.25C3.91421 8.25 4.25 7.91421 4.25 7.5C4.25 7.08579 3.91421 6.75 3.5 6.75'
+    + 'C3.08579 6.75 2.75 7.08579 2.75 7.5C2.75 7.91421 3.08579 8.25 3.5 8.25Z"/>'
+    + '<path fill="currentColor" stroke="none"'
+    + ' d="M4.25 12.5C4.25 12.9142 3.91421 13.25 3.5 13.25C3.08579 13.25 2.75 12.9142 2.75 12.5'
+    + 'C2.75 12.0858 3.08579 11.75 3.5 11.75C3.91421 11.75 4.25 12.0858 4.25 12.5Z"/>',
 };

@@ -2,7 +2,7 @@ import {copy} from "../copy.js";
 import {createIcon} from "./icon.js";
 import {clear} from "../../core/dom.js";
 
-// variant: "file" | "panel". File tabs carry a dirty dot and a close control;
+// variant: "file" | "panel". File tabs carry a dirty dot + a close control;
 // panel tabs are plain tool-window labels.
 export function createTab({
                             id,
@@ -56,21 +56,21 @@ export function createTab({
     close.appendChild(createIcon({name: "close", size: 16}));
     close.addEventListener("click", (event) => {
       event.stopPropagation();
-      onClose?.(tab);
+      onClose?.(tab, id);
     });
     mark.append(dot, close);
     tab.appendChild(mark);
   }
 
-  tab.addEventListener("click", () => onActivate?.(tab));
+  tab.addEventListener("click", () => onActivate?.(tab, id));
   tab.addEventListener("keydown", (event) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      onActivate?.(tab);
+      onActivate?.(tab, id);
     }
   });
   if (onRename) {
-    tab.addEventListener("dblclick", () => onRename(tab));
+    tab.addEventListener("dblclick", () => onRename(tab, id));
   }
 
   return tab;

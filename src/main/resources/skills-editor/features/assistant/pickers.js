@@ -1,6 +1,6 @@
-// The two composer pills: the model picker and the permission picker.
+// The two composer pills: the model picker + the permission picker.
 //
-// Each owns its chip, its popup and the persisted choice. The island reads the
+// Each owns its chip, its popup + the persisted choice. The island reads the
 // current value through `value()` when it builds a run, and never reaches into
 // the menu DOM.
 
