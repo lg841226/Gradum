@@ -1,10 +1,11 @@
 // The editor's layout choices outlive a reload: which view is selected, which
 // tool window sits at the bottom, whether the rail + the tree are folded,
 // whether the editor is split into two views, whether the minimap strip shows,
-// and how wide + tall the user dragged the panels. Keeping them is what makes
-// a refreshed page look the way it was left. Which file held the focus is a
-// choice like the rest: it rides along here by name, so a refresh comes back to
-// the document the user was reading instead of falling to the default skill.
+// how wide and tall the user dragged the panels, and whether the agent island is
+// open. Keeping them is what makes a refreshed page look the way it was left.
+// Which file held the focus is a choice like the rest: it rides along here by
+// name, so a refresh comes back to the document the user was reading instead of
+// falling to the default skill.
 //
 // Only choices are kept. The size-driven overrides (autoRail / autoBottom) are
 // recomputed from the window on every boot, and the documents come back from the
@@ -28,6 +29,16 @@ const LAYOUT_KEYS = {
   splitDirection: "string",
   splitRatio: "number",
   minimapHidden: "boolean",
+  chatOpen: "boolean",
+};
+
+const SPLIT_SHARE_MIN = 0.2;
+const SPLIT_SHARE_MAX = 0.8;
+
+const LAYOUT_ENUMS = {
+  view: ["explorer", "problems", "output", "editor", "all", "session"],
+  panel: ["problems", "output"],
+  splitDirection: ["right", "down"],
 };
 
 function pickLayout(source) {
@@ -38,9 +49,21 @@ function pickLayout(source) {
       continue;
     }
 
-    const isNumber = LAYOUT_KEYS[key] === "number";
-    const validNumber = Number.isFinite(value) && value > 0;
-    if (isNumber && !validNumber) {
+    if (LAYOUT_KEYS[key] === "number") {
+      if (!Number.isFinite(value)) {
+        continue;
+      }
+      if (key === "splitRatio") {
+        picked[key] = Math.min(Math.max(value, SPLIT_SHARE_MIN), SPLIT_SHARE_MAX);
+        continue;
+      }
+      if (value <= 0) {
+        continue;
+      }
+    }
+
+    const allowed = LAYOUT_ENUMS[key];
+    if (allowed && !allowed.includes(value)) {
       continue;
     }
     picked[key] = value;
@@ -53,12 +76,6 @@ export function loadLayout() {
   return stored && typeof stored === "object" ? pickLayout(stored) : {};
 }
 
-// The store subscriber that writes the layout back. It compares against what it
-// last wrote, because the store also reports the caret on every move and there is
-// no reason to touch storage for a change the layout did not make. The open file
-// is read from the focused document as the state changes; until a document
-// exists (the first writes of a fresh boot), the value loaded from storage
-// stands in, so those writes cannot blank out what the last session remembered.
 export function createLayoutWriter() {
   let lastWritten = "";
   let openFile = "";

@@ -15,12 +15,16 @@ import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import javax.swing.*
+import javax.swing.text.Element
 import kotlin.system.exitProcess
 import javax.swing.text.Document as SwingDocument
 
 private const val MAX_LINES: Int = 5_000
 private const val POLL_INTERVAL_MILLIS: Long = 200L
 private const val MAX_READ_BYTES: Long = 8L * 1024L * 1024L
+private const val REPLAY_TAIL_BYTES: Long = 512L * 1024L
+private const val RENDER_BATCH_LINES: Int = 200
+private const val RENDER_BATCH_BYTES: Int = 64 * 1024
 private const val EVENT_FILTER_ALL: String = "All"
 private val logger = LoggerFactory.getLogger(EventStreamMonitor::class.java)
 
@@ -40,6 +44,10 @@ class EventStreamMonitor : JFrame("Gradum Runtime Window") {
   private val settingsEditorPanel: SettingsEditorPanel = SettingsEditorPanel()
 
   private val eventLineBuffer: ArrayDeque<Pair<String, String>> = ArrayDeque()
+  private val pendingLines: ArrayDeque<String> = ArrayDeque()
+  private val renderScheduled: AtomicBoolean = AtomicBoolean(false)
+  private val replayHint: JLabel = JLabel()
+  private var replayLineCount: Int = 0
 
   val serverLogSink: (String, String) -> Unit get() = serverLogPanel::appendLogLine
   private val isPaused: AtomicBoolean = AtomicBoolean(false)
@@ -71,8 +79,15 @@ class EventStreamMonitor : JFrame("Gradum Runtime Window") {
     outputTextArea.isEditable = false
     outputTextArea.font = MONOSPACE_UI_FONT
 
+    replayHint.border = BorderFactory.createEmptyBorder(6, 12, 0, 12)
+    replayHint.foreground = UIManager.getColor("Label.disabledForeground")
+    val header = JPanel(BorderLayout()).apply {
+      add(replayHint, BorderLayout.NORTH)
+      add(buildToolbar(), BorderLayout.CENTER)
+    }
+
     val eventStreamPane = JPanel(BorderLayout()).apply {
-      add(buildToolbar(), BorderLayout.NORTH)
+      add(header, BorderLayout.NORTH)
       add(JScrollPane(outputTextArea).apply {
         border = BorderFactory.createEmptyBorder(8, 10, 8, 10)
       }, BorderLayout.CENTER)
@@ -88,6 +103,7 @@ class EventStreamMonitor : JFrame("Gradum Runtime Window") {
     contentPane.add(tabbedPane, BorderLayout.CENTER)
 
     setLocationRelativeTo(null)
+    primeReadPosition()
     startTailing()
     updateStatus()
   }
@@ -134,7 +150,7 @@ class EventStreamMonitor : JFrame("Gradum Runtime Window") {
         try {
           if (!isPaused.get()) {
             val appendedBlock: String? = readAppendedText()
-            if (appendedBlock != null) SwingUtilities.invokeLater { render(appendedBlock) }
+            if (appendedBlock != null) enqueueBlock(appendedBlock)
           }
           Thread.sleep(POLL_INTERVAL_MILLIS)
         } catch (_: InterruptedException) {
@@ -186,39 +202,120 @@ class EventStreamMonitor : JFrame("Gradum Runtime Window") {
     return readText.substring(0, lastNewlineIndex)
   }
 
-  private fun render(appendedBlock: String) {
-    for (rawLine: String in appendedBlock.lineSequence().filter { line -> line.isNotBlank() }) {
+  private fun primeReadPosition() {
+    val fileSize: Long =
+      try {
+        Files.size(logFile)
+      } catch (_: Exception) {
+        0L
+      }
+    replayLineCount = 0
+    val startOffset: Long = if (fileSize <= REPLAY_TAIL_BYTES) 0L else tailStartOffset(logFile, fileSize)
+    readPosition.set(startOffset)
+    replayHint.text =
+      if (startOffset > 0L) {
+        "Showing only the last $replayLineCount lines (${REPLAY_TAIL_BYTES / 1024} KB) of ${logFile.fileName}; earlier events are skipped."
+      } else {
+        ""
+      }
+  }
+
+  private fun tailStartOffset(filePath: Path, fileSize: Long): Long {
+    val startOffset: Long = fileSize - REPLAY_TAIL_BYTES
+    val replayBuffer: ByteBuffer = ByteBuffer.allocate(REPLAY_TAIL_BYTES.toInt())
+    try {
+      Files.newByteChannel(filePath).use { channel ->
+        channel.position(startOffset)
+        while (replayBuffer.hasRemaining() && channel.read(replayBuffer) >= 0) {
+          // Fill the buffer or reach EOF.
+        }
+      }
+    } catch (_: Exception) {
+      return fileSize
+    }
+    val replayText: String = String(replayBuffer.array(), 0, replayBuffer.position(), Charsets.UTF_8)
+    val firstNewlineIndex: Int = replayText.indexOf('\n')
+    if (firstNewlineIndex < 0) {
+      replayLineCount = 0
+      return fileSize
+    }
+    replayLineCount = replayText.substring(firstNewlineIndex + 1).count { character -> character == '\n' }
+    return startOffset + firstNewlineIndex + 1L
+  }
+
+  private fun enqueueBlock(appendedBlock: String) {
+    enqueueLines(appendedBlock.lineSequence())
+  }
+
+  private fun enqueueLines(lines: Sequence<String>) {
+    synchronized(pendingLines) {
+      for (line: String in lines) {
+        if (line.isBlank()) continue
+        pendingLines.addLast(line)
+        while (pendingLines.size > MAX_LINES) pendingLines.removeFirst()
+      }
+      if (pendingLines.isEmpty()) return
+    }
+    scheduleRender()
+  }
+
+  private fun scheduleRender() {
+    if (!renderScheduled.compareAndSet(false, true)) return
+    SwingUtilities.invokeLater { drainBatch() }
+  }
+
+  private fun drainBatch() {
+    renderScheduled.set(false)
+    val batch: MutableList<String> = ArrayList(RENDER_BATCH_LINES)
+    var batchBytes = 0
+    var hasMoreBatches = false
+    synchronized(pendingLines) {
+      while (pendingLines.isNotEmpty() && batch.size < RENDER_BATCH_LINES && batchBytes < RENDER_BATCH_BYTES) {
+        val line: String = pendingLines.removeFirst()
+        batch.add(line)
+        batchBytes += line.length
+      }
+      hasMoreBatches = pendingLines.isNotEmpty()
+    }
+    if (batch.isNotEmpty()) renderBatch(batch)
+    if (hasMoreBatches) scheduleRender()
+  }
+
+  private fun renderBatch(batch: List<String>) {
+    val renderedText: StringBuilder = StringBuilder()
+    val eventTypes: LinkedHashSet<String> = LinkedHashSet()
+    for (rawLine: String in batch) {
       val eventType: String = extractEventType(rawLine)
       synchronized(eventLineBuffer) {
         eventLineBuffer.addLast(eventType to rawLine)
         while (eventLineBuffer.size > MAX_LINES) eventLineBuffer.removeFirst()
       }
-      rememberEventType(eventType)
-      if (matchesEventFilter(eventType)) {
-        appendRenderedLine(rawLine)
-      }
+      eventTypes.add(eventType)
+      if (matchesEventFilter(eventType)) renderText(renderedText, rawLine)
     }
+    if (renderedText.isNotEmpty()) insertRendered(renderedText.toString())
+    rememberEventTypes(eventTypes)
     if (autoScrollToggle.isSelected) outputTextArea.caretPosition = outputTextArea.document.length
     updateStatus()
   }
 
-  private fun appendRenderedLine(rawLine: String) {
-    val renderedBlock: String =
-      if (prettyToggle.isSelected) prettyJson(rawLine) else rawLine
-    outputTextArea.append(renderedBlock)
-    outputTextArea.append("\n\n")
+  private fun renderText(target: StringBuilder, rawLine: String) {
+    val renderedBlock: String = if (prettyToggle.isSelected) prettyJson(rawLine) else rawLine
+    target.append(renderedBlock).append("\n\n")
+  }
+
+  private fun insertRendered(text: String) {
+    val textDocument: SwingDocument = outputTextArea.document
+    textDocument.insertString(textDocument.length, text, null)
     trimOldLines()
   }
 
   private fun rerenderEvents() {
     SwingUtilities.invokeLater {
       outputTextArea.text = ""
-      synchronized(eventLineBuffer) {
-        eventLineBuffer.forEach { (eventType, rawLine) ->
-          if (matchesEventFilter(eventType)) appendRenderedLine(rawLine)
-        }
-      }
-      if (autoScrollToggle.isSelected) outputTextArea.caretPosition = outputTextArea.document.length
+      synchronized(pendingLines) { pendingLines.clear() }
+      val replayLines: List<String> = synchronized(eventLineBuffer) { eventLineBuffer.map { (_, rawLine) -> rawLine } }
+      enqueueLines(replayLines.asSequence())
       updateStatus()
     }
   }
@@ -232,13 +329,18 @@ class EventStreamMonitor : JFrame("Gradum Runtime Window") {
       "raw"
     }
 
-  private fun rememberEventType(eventType: String) {
-    SwingUtilities.invokeLater {
-      for (index in 0 until eventTypeFilter.itemCount) {
-        if (eventTypeFilter.getItemAt(index) == eventType) return@invokeLater
-      }
+  private fun rememberEventTypes(eventTypes: Collection<String>) {
+    for (eventType: String in eventTypes) {
+      if (containsEventType(eventType)) continue
       eventTypeFilter.addItem(eventType)
     }
+  }
+
+  private fun containsEventType(eventType: String): Boolean {
+    for (index in 0 until eventTypeFilter.itemCount) {
+      if (eventTypeFilter.getItemAt(index) == eventType) return true
+    }
+    return false
   }
 
   private fun matchesEventFilter(eventType: String): Boolean {
@@ -248,20 +350,12 @@ class EventStreamMonitor : JFrame("Gradum Runtime Window") {
 
   private fun trimOldLines() {
     val textDocument: SwingDocument = outputTextArea.document
-    val totalLineCount: Int = outputTextArea.lineCount
-    if (totalLineCount <= MAX_LINES) return
+    val rootElement: Element = textDocument.defaultRootElement
+    if (rootElement.elementCount <= MAX_LINES) return
 
-    val lineCountToRemove: Int = totalLineCount - MAX_LINES
-    var removedLineCount = 0
-    var currentOffset = 0
-
-    while (removedLineCount < lineCountToRemove && currentOffset < textDocument.length) {
-      val character: String = textDocument.getText(currentOffset, 1)
-      if (character == "\n") removedLineCount++
-      currentOffset++
-    }
-
-    textDocument.remove(0, currentOffset)
+    val linesToRemove: Int = rootElement.elementCount - MAX_LINES
+    val cutOffset: Int = rootElement.getElement(linesToRemove).startOffset
+    textDocument.remove(0, cutOffset)
   }
 
   private fun prettyJson(logLine: String): String =
@@ -281,10 +375,11 @@ class EventStreamMonitor : JFrame("Gradum Runtime Window") {
   }
 
   private fun switchTo(resolvedPath: Path) {
-    readPosition.set(0L)
     logFile = resolvedPath
+    synchronized(pendingLines) { pendingLines.clear() }
     synchronized(eventLineBuffer) { eventLineBuffer.clear() }
     outputTextArea.text = ""
+    primeReadPosition()
     updateStatus()
   }
 
@@ -297,7 +392,8 @@ class EventStreamMonitor : JFrame("Gradum Runtime Window") {
     val enabledHint: String =
       if (isDumpEnabled) ""
       else "debug.eventDump is off in settings.json"
-    statusLabel.text = "Read ${readPosition.get()} bytes, ${outputTextArea.lineCount} lines, $logFile$enabledHint"
+    val lineCount: Int = outputTextArea.document.defaultRootElement.elementCount
+    statusLabel.text = "Read ${readPosition.get()} bytes, $lineCount lines, $logFile$enabledHint"
   }
 
   companion object {

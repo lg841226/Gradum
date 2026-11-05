@@ -34,7 +34,7 @@ export function createChat({messages}) {
     },
 
     loadHistory(bubbles) {
-      view.apply(model.loadHistory(bubbles));
+      view.apply(model.loadHistory(bubbles), {silent: true});
     },
   };
 }

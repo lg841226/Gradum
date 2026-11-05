@@ -1224,6 +1224,7 @@ fun Application.registerAllRoutes(
           asset.endsWith(".css") -> ContentType.Text.CSS
           asset.endsWith(".js") -> ContentType.Text.JavaScript
           asset.endsWith(".svg") -> ContentType.Image.SVG
+          asset.endsWith(".png") -> ContentType.Image.PNG
           asset.endsWith(".html") -> ContentType.Text.Html
           else -> null
         }
@@ -1232,11 +1233,32 @@ fun Application.registerAllRoutes(
         segment.isNotBlank() && segment != "." && segment != ".." && !segment.contains('\\')
       }
 
-      val body: String? =
-        if (isSafe) readBundledResource("/skills-editor/$asset")
-        else null
+      if (!isSafe || contentType == null) {
+        call.respondText(
+          status = HttpStatusCode.NotFound,
+          text = "Unknown editor asset: $asset"
+        )
+        return@get
+      }
 
-      if (body == null || contentType == null) {
+      if (asset.endsWith(".png")) {
+        val bytes: ByteArray? = readBundledBytes("/skills-editor/$asset")
+        if (bytes == null) {
+          call.respondText(
+            status = HttpStatusCode.NotFound,
+            text = "Unknown editor asset: $asset"
+          )
+          return@get
+        }
+
+        call.response.header(HttpHeaders.CacheControl, "no-cache")
+        call.respondBytes(bytes = bytes, contentType = contentType)
+        return@get
+      }
+
+      val body: String? = readBundledResource("/skills-editor/$asset")
+
+      if (body == null) {
         call.respondText(
           status = HttpStatusCode.NotFound,
           text = "Unknown editor asset: $asset"
@@ -1445,3 +1467,7 @@ private fun readBundledResource(resourcePath: String): String? =
   SkillDeployRequest::class.java.getResourceAsStream(resourcePath)
     ?.bufferedReader()
     ?.use { reader -> reader.readText() }
+
+private fun readBundledBytes(resourcePath: String): ByteArray? =
+  SkillDeployRequest::class.java.getResourceAsStream(resourcePath)
+    ?.use { stream -> stream.readBytes() }

@@ -80,22 +80,13 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
   const modesGroup = document.createElement("div");
   modesGroup.className = "menubar-group menubar-modes";
 
+  const modeThumb = document.createElement("span");
+  modeThumb.className = "menubar-mode-thumb";
+  modeThumb.setAttribute("aria-hidden", "true");
+  modesGroup.appendChild(modeThumb);
+
   const viewsGroup = document.createElement("div");
   viewsGroup.className = "menubar-group menubar-views";
-
-  const brand = document.createElement("div");
-  const logo = document.createElement("img");
-  const brandName = document.createElement("span");
-
-  logo.alt = "";
-  logo.setAttribute("aria-hidden", "true");
-  logo.src = "/skills/editor/assets/color_logo.svg";
-
-  logo.className = "menubar-logo";
-  brand.className = "menubar-brand";
-  brandName.className = "menubar-brand-name";
-  brandName.textContent = copy.brand.name;
-  brand.append(logo, brandName);
 
   const modeItems = modes.map((mode) => {
     const button = createButton({
@@ -109,6 +100,42 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
     modesGroup.appendChild(button);
     return {name: mode.name, button};
   });
+
+  let modeShown = null;
+  let thumbReady = false;
+
+  // Read the target button's live box instead of assuming two equal segments:
+  // "Develop" and "Agent" measure differently, and a tight window can shrink
+  // either one. Only the button's own edges are used, so the capsule padding,
+  // gap and radius stay exactly what the buttons already drew; the highlight is
+  // pinned to the same box, with the same radius, as the old selected fill.
+  const placeModeThumb = (mode) => {
+    const target = modeItems.find((item) => item.name === mode)?.button;
+    if (!target) {
+      return;
+    }
+    modeShown = mode;
+    const group = modesGroup.getBoundingClientRect();
+    const rect = target.getBoundingClientRect();
+    modeThumb.style.width = `${rect.width}px`;
+    modeThumb.style.height = `${rect.height}px`;
+    modeThumb.style.transform = `translate(${rect.left - group.left}px, ${rect.top - group.top}px)`;
+    // The first placement lands without the transition; every later change is
+    // one slide to the newest target, so rapid clicks retarget instead of
+    // queueing and never leave a second highlight behind.
+    if (!thumbReady) {
+      thumbReady = true;
+      modeThumb.classList.add("is-ready");
+    }
+  };
+
+  // A window resize can shrink the segments without a state change, so the
+  // highlight follows the live box instead of staying at its last measurement.
+  new ResizeObserver(() => {
+    if (modeShown) {
+      placeModeThumb(modeShown);
+    }
+  }).observe(modesGroup);
 
   const items = views.map((view) => {
     const button = createButton({
@@ -189,7 +216,7 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
 
   const leftGroup = document.createElement("div");
   leftGroup.className = "menubar-group menubar-left";
-  leftGroup.append(brand, viewsGroup);
+  leftGroup.append(viewsGroup);
 
   const themeIcons = {light: "theme-light", dark: "theme-dark"};
 
@@ -266,12 +293,11 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
   }
 
   function layout() {
-    // The entries' room is whatever the left track got, less the brand that
-    // leads it. The track is an equal share of the space either side of the
-    // widget: it does not depend on the entries' own widths: so this is stable
-    // and the fold cannot oscillate. Entries hidden by the mode switch cost
-    // nothing and never fold.
-    const room = leftGroup.clientWidth - brand.offsetWidth;
+    // The entries' room is whatever the left track got. The track is an equal
+    // share of the space either side of the widget: it does not depend on the
+    // entries' own widths: so this is stable and the fold cannot oscillate.
+    // Entries hidden by the mode switch cost nothing and never fold.
+    const room = leftGroup.clientWidth;
     let used = 0;
     let folding = false;
 
@@ -306,6 +332,7 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
     for (const item of modeItems) {
       item.button.setAttribute("aria-pressed", item.name === activeMode ? "true" : "false");
     }
+    placeModeThumb(activeMode);
     for (const item of items) {
       item.button.hidden = !item.modes.includes(activeMode);
       item.button.setAttribute(

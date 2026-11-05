@@ -225,7 +225,7 @@ function fillBlock(el, block) {
   }
 }
 
-export function renderMarkdown(target, text) {
+export function renderMarkdown(target, text, onCreate) {
   const blocks = parseBlocks(text);
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
@@ -235,6 +235,7 @@ export function renderMarkdown(target, text) {
       fresh.dataset.type = block.type;
       if (el) target.replaceChild(fresh, el);
       else target.append(fresh);
+      onCreate?.(fresh, i);
       el = fresh;
     }
     fillBlock(el, block);

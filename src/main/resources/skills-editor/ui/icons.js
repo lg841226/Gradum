@@ -164,6 +164,20 @@ export const icons = {
     + ' 10.5384 9.11354 10.5 9 10.5H4C3.17157 10.5 2.5 9.82843 2.5 9V4C2.5 3.17157 3.17157'
     + ' 2.5 4 2.5Z" stroke-width="1" stroke-linejoin="round"/>',
 
+  // The platform's package node mark (package/package.svg, Apache 2.0,
+  // Copyright 2000-2022 JetBrains s.r.o. and contributors). Its #EBECF0
+  // backing plate is dropped and the #6C707E ink rewritten to currentColor,
+  // following the same rule as cmd below.
+  package: '<path fill-rule="evenodd" clip-rule="evenodd" fill="currentColor"'
+    + ' stroke="none" d="M8.04022 5L6.1217 3H2.63333C2.40481 3 2 3.25841 2 3.86667'
+    + 'V12.1333C2 12.7416 2.40481 13 2.63333 13H13.3667C13.5952 13 14 12.7416 14 12.1333V6'
+    + 'C14 5.44771 13.5523 5 13 5H8.04022ZM8.46667 4L6.84336 2.30775C6.65477 2.11115'
+    + ' 6.39413 2 6.1217 2H2.63333C1.73127 2 1 2.83574 1 3.86667V12.1333C1 13.1643'
+    + ' 1.73127 14 2.63333 14H13.3667C14.2687 14 15 13.1643 15 12.1333V6C15 4.89543'
+    + ' 14.1046 4 13 4H8.46667ZM4 9C4 7.89543 4.89543 7 6 7C7.10457 7 8 7.89543 8 9'
+    + 'C8 10.1046 7.10457 11 6 11C4.89543 11 4 10.1046 4 9ZM7 9C7 9.55228 6.55228 10'
+    + ' 6 10C5.44772 10 5 9.55228 5 9C5 8.44772 5.44772 8 6 8C6.55228 8 7 8.44772 7 9Z"/>',
+
   // The plugin's send mark (icons/send/send_dark.svg), its #CED0D6 stroke
   // rewritten to currentColor like the rest of the set.
   send: '<path d="M9.5 8H3.5L2.5 14.5L14.5 8L2.5 1.5L3.192 6" stroke-width="1"'

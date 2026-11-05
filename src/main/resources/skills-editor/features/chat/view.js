@@ -17,6 +17,72 @@ export function createChatView({messages, onGroupToggle}) {
   let thinking = null;
   let group = null;
 
+  // Entry state lives on the column, not on the block element: the parser
+  // replaces every block it cannot reuse, so a per-target cursor is the only
+  // marker that survives a rewrite. The class is dropped on animationend.
+  const entries = new WeakMap();
+
+  messages.addEventListener("animationend", (event) => {
+    if (event.animationName === "chat-enter") {
+      event.target.classList.remove("chat-enter");
+    }
+  });
+
+  const entryState = (target) => {
+    let state = entries.get(target);
+    if (!state) {
+      state = {primed: false, cursor: 0};
+      entries.set(target, state);
+    }
+    return state;
+  };
+
+  // The user bubble enters once, on the node that the `user` effect creates.
+  // That node is never rebuilt, so the class cannot be re-added later; the
+  // gates mirror the prose blocks and the class comes off on animationend.
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  const enterBubble = (element, silent) => {
+    if (silent || reducedMotion.matches) {
+      return;
+    }
+    if (document.body.classList.contains("is-dragging") || messages.getClientRects().length === 0) {
+      return;
+    }
+    element.classList.add("chat-enter");
+  };
+
+  // The leading block of a response animates once, on the first render that
+  // has content. Streaming appends into the block it already created instead
+  // of building a new one, so a per-created-block rule alone never fires for
+  // a single-paragraph answer. Blocks created later still animate, and the
+  // cursor keeps a rebuilt block from replaying.
+  const renderBlocks = (target, text, silent) => {
+    const state = entryState(target);
+    const first = !state.primed;
+    let seen = false;
+
+    renderMarkdown(target, text, (element, index) => {
+      seen = true;
+      const eligible = first ? index === 0 : index >= state.cursor;
+      state.cursor = Math.max(state.cursor, index + 1);
+      if (!eligible || silent) {
+        return;
+      }
+      if (element.dataset.type === "hr") {
+        return;
+      }
+      if (document.body.classList.contains("is-dragging") || target.getClientRects().length === 0) {
+        return;
+      }
+      element.classList.add("chat-enter");
+    });
+
+    if (seen) {
+      state.primed = true;
+    }
+  };
+
   const scrollBottom = () => {
     messages.scrollTop = messages.scrollHeight;
   };
@@ -39,13 +105,14 @@ export function createChatView({messages, onGroupToggle}) {
     return group;
   };
 
-  const applyEffect = (effect) => {
+  const applyEffect = (effect, silent) => {
     switch (effect.type) {
       case "user": {
         const bubble = document.createElement("div");
         bubble.className = "bubble bubble-user";
         bubble.textContent = effect.text;
         append(bubble);
+        enterBubble(bubble, silent);
         break;
       }
 
@@ -73,7 +140,7 @@ export function createChatView({messages, onGroupToggle}) {
 
       case "agent:update":
         if (agentEl) {
-          renderMarkdown(agentEl, effect.text);
+          renderBlocks(agentEl, effect.text, silent);
           scrollBottom();
         }
         break;
@@ -91,7 +158,7 @@ export function createChatView({messages, onGroupToggle}) {
       case "thinking:update":
         if (thinking) {
           thinking.setCapped(effect.capped);
-          renderMarkdown(thinking.body, effect.text);
+          renderBlocks(thinking.body, effect.text, silent);
           scrollBottom();
         }
         break;
@@ -142,9 +209,9 @@ export function createChatView({messages, onGroupToggle}) {
   };
 
   return {
-    apply(effects) {
+    apply(effects, {silent = false} = {}) {
       for (const effect of effects) {
-        applyEffect(effect);
+        applyEffect(effect, silent);
       }
     },
     reset() {

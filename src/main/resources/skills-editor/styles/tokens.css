@@ -92,6 +92,8 @@
     --motion-fast: 120ms;
     --motion-slow: 320ms;
     --ease-standard: cubic-bezier(.4, 0, .2, 1);
+    --enter-shift: 4px;
+    --enter-scale: .97;
 
     /* Structure */
     --island-gap: 6px;

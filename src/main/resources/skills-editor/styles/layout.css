@@ -10,9 +10,6 @@
     color: var(--text);
     -webkit-font-smoothing: antialiased;
     font: var(--weight-regular) var(--font-size-ui) / 1.5 var(--font-ui);
-    /* The page backdrop + its ambient glow: a soft blue wash centred on the
-       seam between the rail + the editor, partway down and fading out. Both
-       layers ride the container so the host page keeps its own background. */
     background: radial-gradient(
             560px 460px at calc(var(--island-gap) + var(--rail-width) + var(--island-gap) * .5) 180px,
             var(--glow),
@@ -74,7 +71,6 @@
 }
 
 .menubar-left {
-    gap: var(--space-3);
     overflow: hidden;
     flex: 1 1 0;
 }
@@ -86,42 +82,45 @@
     gap: var(--space-2);
 }
 
-.menubar-brand {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-}
-
-.menubar-logo {
-    width: 16px;
-    height: 16px;
-    display: block;
-}
-
-.menubar-brand-name {
-    color: var(--text);
-    white-space: nowrap;
-    font-size: var(--font-size-ui);
-}
-
 .menubar .menubar-modes {
     padding: 2px;
     border-radius: 999px;
+    position: relative;
     background: var(--bg-raised);
 }
 
 .menubar .menubar-modes .btn[data-variant="menu"] {
+    z-index: 1;
     flex: 1 1 0;
     height: auto;
     min-width: 60px;
     border-radius: 999px;
+    position: relative;
     justify-content: center;
     padding: 2px var(--space-3);
 }
 
-.menubar .menubar-modes .btn[data-variant="menu"][aria-pressed="true"] {
+.menubar .menubar-mode-thumb {
+    top: 0;
+    left: 0;
+    border-radius: 999px;
+    position: absolute;
+    pointer-events: none;
     background: var(--bg-popup);
     box-shadow: 0 1px 3px rgb(9 13 24 / 22%);
+}
+
+/* The transition only exists after the first placement, so the initial render
+   snaps into place instead of sliding in from the left edge. */
+.menubar .menubar-mode-thumb.is-ready {
+    transition: transform var(--motion-fast) var(--ease-standard),
+    width var(--motion-fast) var(--ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .menubar .menubar-mode-thumb.is-ready {
+        transition: none;
+    }
 }
 
 .menubar .btn[data-variant="menu"][hidden] {
@@ -360,7 +359,8 @@
 body.is-dragging .canvas,
 body.is-dragging .panel,
 body.is-dragging .splitter,
-body.is-dragging .code-pane {
+body.is-dragging .code-pane,
+body.is-dragging .assistant .chat-pane {
     transition: none;
 }
 

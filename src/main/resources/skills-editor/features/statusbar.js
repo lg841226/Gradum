@@ -29,6 +29,23 @@ function updateCount(count, value, label) {
   count.item.setAttribute("aria-label", label);
 }
 
+// The root arrives as one string, so the split has to keep the shape of the
+// path: an absolute prefix becomes its own first segment because no arrow goes
+// before it; repeated and trailing separators collapse; `.`/`..`, drive
+// letters and names with spaces or CJK survive untouched.
+function splitPath(path) {
+  if (!path) {
+    return [];
+  }
+  const parts = path.startsWith("/") ? ["/"] : [];
+  for (const part of path.split(/[\\/]+/)) {
+    if (part) {
+      parts.push(part);
+    }
+  }
+  return parts;
+}
+
 export function mountStatusBar(store, {canvas, getActiveDoc}) {
   const bar = document.createElement("footer");
   bar.className = "statusbar";
@@ -50,14 +67,45 @@ export function mountStatusBar(store, {canvas, getActiveDoc}) {
   rootInput.spellcheck = false;
 
   rootInput.placeholder = copy.statusBar.projectRoot;
-  rootInput.hidden = true;
   rootInput.addEventListener("change", () => {
     store.setState({projectRoot: expand(rootInput.value.trim())});
   });
 
+  // The root stays an editable text field, so the breadcrumb is a read-only
+  // layer above it: it shows while the field is unfocused and steps aside on
+  // focus, leaving the original input to do the editing. The layer ignores
+  // pointers, so clicking anywhere still focuses the same single control.
+  const pathDisplay = document.createElement("span");
+  pathDisplay.className = "statusbar-path";
+  pathDisplay.setAttribute("aria-hidden", "true");
+
+  const rootField = document.createElement("div");
+  rootField.className = "statusbar-path-field";
+  rootField.append(rootInput, pathDisplay);
+
+  let pathShown = null;
+
+  const renderPath = (path) => {
+    if (pathShown === path) {
+      return;
+    }
+    pathShown = path;
+    const nodes = [];
+    for (const [index, part] of splitPath(path).entries()) {
+      if (index > 0) {
+        nodes.push(createIcon({name: "chevron-right", size: 14}));
+      }
+      const segment = document.createElement("span");
+      segment.className = "statusbar-path-segment";
+      segment.textContent = part;
+      nodes.push(segment);
+    }
+    pathDisplay.replaceChildren(...nodes);
+  };
+
   const left = document.createElement("div");
   left.className = "statusbar-left";
-  left.append(errors.item, warnings.item, rootInput);
+  left.append(errors.item, warnings.item, rootField);
 
   const position = document.createElement("span");
   position.className = "statusbar-item";
@@ -139,7 +187,7 @@ export function mountStatusBar(store, {canvas, getActiveDoc}) {
     left.hidden = !doc && !chat;
     errors.item.hidden = chat;
     warnings.item.hidden = chat;
-    rootInput.hidden = !chat;
+    rootField.hidden = !chat;
     position.hidden = chat;
     indent.hidden = chat;
     lineEnding.hidden = chat;
@@ -147,6 +195,7 @@ export function mountStatusBar(store, {canvas, getActiveDoc}) {
     if (rootInput.value !== shorten(state.projectRoot) && document.activeElement !== rootInput) {
       rootInput.value = shorten(state.projectRoot);
     }
+    renderPath(shorten(state.projectRoot));
 
     if (!doc) {
       position.textContent = "";

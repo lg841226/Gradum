@@ -167,12 +167,39 @@ export function mountAssistant(store, {canvas}) {
     const ids = [...tabs.values()].filter((tab) => !tab.fresh).map((tab) => tab.id);
     writeStorage(
       STORAGE_KEYS.chatTabs,
-      JSON.stringify({tabs: ids, active: activeId()}),
+      JSON.stringify({
+        tabs: ids,
+        active: activeId(),
+        left: workspace.left,
+        right: workspace.right,
+        focused: workspace.focused,
+      }),
     );
   }
 
   function splitShown(state) {
     return Boolean(state.split) && !isFloatLayout() && tabs.size >= 2;
+  }
+
+  // Ownership comes back with the tab list, but only when the stored payload
+  // still describes the live tabs: a missing field, an id that no longer
+  // exists, the same id on both sides, or a focus name outside left/right
+  // leaves `workspace` untouched, so the repair below assigns it exactly as it
+  // does on a fresh boot. A partial restore could otherwise empty a pane.
+  function restoreOwnership(saved) {
+    const payload = saved && typeof saved === "object" ? saved : {};
+    const liveId = (value) => typeof value === "string" && tabs.has(value);
+    const leftOk = payload.left === null || liveId(payload.left);
+    const rightOk = payload.right === null || liveId(payload.right);
+    const focusedOk = payload.focused === "left" || payload.focused === "right";
+    const distinct = payload.left !== payload.right || payload.left === null;
+
+    if (!leftOk || !rightOk || !focusedOk || !distinct) {
+      return;
+    }
+    workspace.left = payload.left;
+    workspace.right = payload.right;
+    workspace.focused = payload.focused;
   }
 
   // Ownership invariants, applied at the start of every render: a stale id is
@@ -226,9 +253,6 @@ export function mountAssistant(store, {canvas}) {
     columns.style.setProperty("--split-ratio", String(state.splitRatio ?? 0.5));
 
     placePanes(splitOn);
-
-    // Measured after placement: a pane's button only ever reflects the
-    // container this pane just received.
     refreshScrollState(splitOn);
 
     ui.composer.setStreaming(tabs.get(workspace.left)?.stream.streaming ?? false);
@@ -246,9 +270,6 @@ export function mountAssistant(store, {canvas}) {
     }
   }
 
-  // Each hosted pane ends with its own composer; every other tab's column parks
-  // in the vault. A node is appended only when it is not already there, so one
-  // `.messages` node is never moved twice within a render.
   function placePanes(splitOn) {
     const rightTab = splitOn ? tabs.get(workspace.right) : null;
     const hosts = [
@@ -271,8 +292,6 @@ export function mountAssistant(store, {canvas}) {
     }
   }
 
-  // Hosting a tab in a pane is what a tab click in that pane's strip does; the
-  // active-tab API (new chat, open session) hosts into the focused pane.
   function hostTab(side, id) {
     if (!tabs.has(id)) {
       return;
@@ -346,8 +365,7 @@ export function mountAssistant(store, {canvas}) {
     messages.className = "messages";
 
     const tab = {id, fresh, messages, started: false};
-    // Frames + tool cards grow the column without a scroll event, so content
-    // changes schedule the same single scroll verdict.
+
     tab.watch = new MutationObserver(() => scheduleScrollSync());
     tab.watch.observe(messages, {childList: true, subtree: true, characterData: true});
     tab.chat = createChat({messages});
@@ -408,6 +426,7 @@ export function mountAssistant(store, {canvas}) {
       createTab();
     }
 
+    restoreOwnership(saved);
     setActive(saved.active && tabs.has(saved.active) ? saved.active : tabs.keys().next().value);
 
     listModels()
@@ -592,8 +611,6 @@ export function mountAssistant(store, {canvas}) {
     rightScroll.hidden = !splitOn || paneScroll.right;
   }
 
-  // Coalesced to one measurement per frame; a flip writes the model and goes
-  // through the same render path as every other state change.
   let scrollFrame = 0;
 
   function scheduleScrollSync() {
@@ -620,9 +637,6 @@ export function mountAssistant(store, {canvas}) {
 
   store.subscribe(() => renderTabs());
 
-  // The split state is the editor's: the menu bar writes it and both surfaces
-  // read it. The ratio only rewrites the style token, but a narrower column can
-  // rewrap text, so it re-measures the buttons; a mode change re-renders.
   const splitState = store.getState();
   let splitSignature = `${Boolean(splitState.split)}/${splitState.splitDirection ?? ""}`;
   let splitRatio = String(splitState.splitRatio ?? 0.5);
