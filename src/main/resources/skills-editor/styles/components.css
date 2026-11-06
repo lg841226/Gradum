@@ -789,3 +789,437 @@
     cursor: default;
     background: var(--accent);
 }
+
+.switch {
+    border: 0;
+    padding: 0;
+    flex: none;
+    cursor: pointer;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: var(--switch-width);
+    height: var(--switch-height);
+    background: var(--border-strong);
+    border-radius: 999px;
+}
+
+.switch:focus-visible {
+    outline: 1px solid var(--accent-outline);
+    outline-offset: 2px;
+}
+
+.switch[aria-checked="true"] {
+    background: var(--accent);
+}
+
+.switch-thumb {
+    display: block;
+    flex: none;
+    margin-left: calc(2px * var(--ui-scale));
+    width: calc(var(--switch-height) - 4px * var(--ui-scale));
+    height: calc(var(--switch-height) - 4px * var(--ui-scale));
+    background: var(--switch-thumb);
+    border-radius: 999px;
+}
+
+.switch[aria-checked="true"] .switch-thumb {
+    transform: translateX(calc(var(--switch-width) - var(--switch-height)));
+}
+
+/* The select trigger copies the composer pickers: the current value followed
+   by a chevron, reading as a chip rather than a text field. */
+.select-trigger {
+    min-width: 0;
+    border-radius: 999px;
+    overflow: hidden;
+    gap: var(--space-2);
+    color: var(--text-dim);
+    padding: 0 var(--space-2);
+    font-size: var(--font-size-small);
+    max-width: calc(320px * var(--ui-scale));
+    height: calc(var(--control-height) - var(--space-1));
+}
+
+.select-trigger .icon:last-child {
+    transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.select-trigger[data-open] .icon:last-child {
+    transform: rotate(180deg);
+}
+
+.select-trigger-label {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* The same popup surface as the composer menus (.model-menu): shared border,
+   radius, shadow and blur, with the list component's rows inside. */
+.select-menu {
+    position: fixed;
+    z-index: 13;
+    min-width: calc(160px * var(--ui-scale));
+    max-width: calc(280px * var(--ui-scale));
+    max-height: calc(280px * var(--ui-scale));
+    overflow-y: auto;
+    padding: var(--space-1) 0;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-popup);
+    border-radius: var(--radius-island);
+    backdrop-filter: blur(var(--blur-popup));
+    -webkit-backdrop-filter: blur(var(--blur-popup));
+    background: color-mix(in srgb, var(--bg-popup) 65%, transparent);
+}
+
+.select-menu[hidden] {
+    display: none;
+}
+
+.select-menu-list {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-1);
+}
+
+.select-menu-list > :not(:last-child) {
+    margin-bottom: var(--space-1);
+}
+
+/* Pill track + sliding thumb, shared by the menu bar's Developer/Agent switch
+   and the settings Theme row. The thumb is a popup-coloured block the JS places
+   from measured boxes, so both surfaces use one colour, radius and shadow.
+   Buttons stay transparent and the pressed one lifts to full brightness, the
+   same text-only selection the menu entries use. */
+.segmented {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding: 2px;
+    background: var(--bg-raised);
+    border-radius: 999px;
+}
+
+.segmented .btn {
+    z-index: 1;
+    position: relative;
+    height: auto;
+    justify-content: center;
+    padding: 2px var(--space-3);
+    border-radius: 999px;
+}
+
+.segmented .btn[aria-pressed="true"] {
+    color: var(--text);
+    font-weight: var(--weight-semibold);
+}
+
+.segmented-thumb {
+    top: 0;
+    left: 0;
+    position: absolute;
+    pointer-events: none;
+    border-radius: 999px;
+    background: var(--bg-popup);
+    box-shadow: 0 1px 3px rgb(9 13 24 / 22%);
+}
+
+/* The transition only exists after the first placement, so the initial render
+   snaps into place instead of sliding in from the left edge. */
+.segmented-thumb.is-ready {
+    transition: transform var(--motion-fast) var(--ease-standard),
+    width var(--motion-fast) var(--ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .segmented-thumb.is-ready {
+        transition: none;
+    }
+}
+
+/* The settings window is a floating island, not a modal: no scrim, no
+   outside-click dismissal, and only its own box takes pointer input. Its
+   entrance keeps the unlock dialog's pop keyframe. The z-order sits above the
+   workspace islands and below every surface that has to win over it: the
+   menubar's touch dropdown (20), tooltips (50) and the unlock dialog (60).
+   Native <select> popups paint above the page on their own. */
+.settings-window {
+    display: grid;
+    overflow: hidden;
+    position: fixed;
+    z-index: 12;
+    left: 0;
+    top: 0;
+    width: min(var(--settings-width), calc(100vw - 2 * var(--island-gap)));
+    height: min(var(--settings-height), calc(100vh - 2 * var(--island-gap)));
+    min-width: var(--settings-min-width);
+    min-height: var(--settings-min-height);
+    max-width: min(var(--settings-max-width), calc(100vw - 2 * var(--island-gap)));
+    max-height: min(var(--settings-max-height), calc(100vh - 2 * var(--island-gap)));
+    grid-template-columns: var(--settings-nav-width) minmax(0, 1fr);
+    background: var(--bg-popup);
+    box-shadow: var(--shadow-popup);
+    border-radius: var(--radius-dialog);
+    border: 1px solid var(--border-strong);
+    transition: grid-template-columns var(--motion-fast) var(--ease-standard);
+    animation: unlock-pop var(--motion-fast) var(--ease-standard) var(--motion-fast) both;
+}
+
+.settings-window.is-dragging,
+.settings-window.is-resizing {
+    transition: none;
+}
+
+.settings-window.is-nav-collapsed {
+    grid-template-columns: var(--settings-nav-collapsed) minmax(0, 1fr);
+}
+
+.settings-window:focus {
+    outline: none;
+}
+
+/* min-width: 0 + overflow keep the column at its track width: without it the
+   side's min-content (nav padding + row + the 1px divider) can push the footer
+   past the fold edge. */
+.settings-side {
+    display: grid;
+    overflow: hidden;
+    min-width: 0;
+    min-height: 0;
+    background: var(--bg-canvas);
+    border-right: 1px solid var(--border);
+    grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.settings-nav {
+    display: flex;
+    overflow-y: auto;
+    min-height: 0;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3) var(--space-2);
+}
+
+.settings-nav-group {
+    color: var(--text-mute);
+    font-size: var(--font-size-small);
+    font-weight: var(--weight-semibold);
+    padding: var(--space-2) var(--space-2) var(--space-1);
+}
+
+.settings-nav-group:first-child {
+    padding-top: var(--space-1);
+}
+
+
+.settings-nav .list-item {
+    height: var(--control-height);
+    padding: 0 var(--space-3);
+}
+
+.settings-side-foot {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3) var(--space-3);
+}
+
+.settings-version {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--text-mute);
+    font-size: var(--font-size-small);
+}
+
+/* The chevron points at the nav when expanded (fold it left) and away from it
+   once folded (bring it back). Same transform transition the tree twisty uses. */
+.settings-nav-toggle {
+    flex: 0 0 auto;
+}
+
+/* One step above the 16px default, the same 18px the menubar's icon buttons use. */
+.settings-nav-toggle .icon {
+    width: 18px;
+    height: 18px;
+    transform: rotate(180deg);
+    transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+/* Folded: the version line is gone, so the 47px content column holds only the
+   28px button. Drop the horizontal padding (it was sized for the wide nav) and
+   center the button; it now clears the divider by ~9px. The bottom padding
+   equals the dialog radius so the button also clears the rounded corner. */
+.settings-window.is-nav-collapsed .settings-side-foot {
+    gap: 0;
+    justify-content: center;
+    padding: var(--space-2) 0 var(--space-3);
+}
+
+.settings-window.is-nav-collapsed .settings-version,
+.settings-window.is-nav-collapsed .settings-nav-group,
+.settings-window.is-nav-collapsed .settings-nav .list-item-label {
+    display: none;
+}
+
+/* Folded: the wider row inset would push the lone icon off the column centre,
+   so the row drops its padding and centres the icon inside its own width. */
+.settings-window.is-nav-collapsed .settings-nav .list-item {
+    justify-content: center;
+    padding: 0;
+}
+
+.settings-window.is-nav-collapsed .settings-nav-toggle .icon {
+    transform: none;
+}
+
+.settings-main {
+    display: grid;
+    min-width: 0;
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr);
+}
+
+.settings-header {
+    cursor: grab;
+    display: flex;
+    position: relative;
+    align-items: center;
+    touch-action: none;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+}
+
+.settings-window.is-dragging .settings-header {
+    cursor: grabbing;
+}
+
+/* The collapse control stays out of sight until the pointer is anywhere over
+   the island, and the keyboard reaches it the same way: :focus-visible reveals
+   it even though the panel is not hovered. Two classes, so the colour also
+   wins over .btn[data-variant="icon"]. */
+.settings-window .settings-collapse {
+    opacity: 0;
+    color: var(--text);
+    transition: opacity var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.settings-window:hover .settings-collapse,
+.settings-collapse:focus-visible {
+    opacity: 1;
+}
+
+@media (hover: none), (pointer: coarse) {
+    .settings-collapse {
+        opacity: 1;
+    }
+}
+
+/* The corner grip uses the same invisible hit area as the touch layout's
+   floating panels: the cursor is the affordance, not a drawn mark. */
+.settings-resize {
+    right: 0;
+    bottom: 0;
+    position: absolute;
+    width: var(--space-4);
+    height: var(--space-4);
+    touch-action: none;
+    cursor: nwse-resize;
+}
+
+.settings-heading {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    color: var(--text);
+    font-size: var(--font-size-title);
+    font-weight: var(--weight-semibold);
+}
+
+.settings-body {
+    display: flex;
+    overflow-y: auto;
+    min-height: 0;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-4);
+}
+
+.settings-category {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.settings-category[hidden] {
+    display: none;
+}
+
+/* Cards separate by their own surface + the gap between them, not an outline:
+   the border read as a stack of dark boxes on the window surface. */
+.settings-card {
+    background: var(--bg-canvas);
+    border-radius: var(--radius-island);
+    padding: var(--space-1) var(--space-3) var(--space-2);
+}
+
+.settings-card-title {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: var(--font-size-small);
+    font-weight: var(--weight-semibold);
+    padding: var(--space-2) 0 var(--space-1);
+}
+
+.settings-rows {
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-2) 0;
+}
+
+.settings-row + .settings-row {
+    border-top: 1px solid var(--border);
+}
+
+.settings-row-text {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.settings-row-label {
+    color: var(--text);
+    font-size: var(--font-size-ui);
+}
+
+.settings-row-detail {
+    color: var(--text-mute);
+    font-size: var(--font-size-small);
+}
+
+.settings-row-control {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.settings-value {
+    text-align: right;
+    color: var(--text-dim);
+    font-size: var(--font-size-small);
+    max-width: calc(280px * var(--ui-scale));
+}

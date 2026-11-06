@@ -35,16 +35,9 @@ export function createCaretLayer({
   let publishedSelection = null;
   let publishedWidth = 4;
 
-  // Drawn carets, pooled: one per collapsed cursor, grown on demand + hidden,
-  // never destroyed, when the list shrinks. The first entry is the caret
-  // element mounted with the pane.
   const carets = [initialCaret];
   const drawnOffsets = [-1];
 
-  // Placement for one caret at one buffer offset, from the same measurements
-  // the overlay + squiggles use: the line comes from the text before the
-  // offset, the horizontal edge from a Range over the rendered line, the
-  // vertical from the line box the pane already trusts.
   function position(offset) {
     const before = source.value.slice(0, offset);
     const lineIndex = before.split("\n").length - 1;
@@ -67,16 +60,9 @@ export function createCaretLayer({
     const before = source.value.slice(0, source.selectionStart);
     const lineIndex = before.split("\n").length - 1;
     const linePrefix = before.slice(before.lastIndexOf("\n") + 1);
-    const column = displayColumns(linePrefix);
+    const column = displayColumns(linePrefix, store.getState().tabWidth);
     const focused = document.activeElement === source;
 
-    // The status bar reads the caret position from the store, so every caret
-    // move publishes it, but only for the pane the user is actually in, so the
-    // readout follows the focused view rather than whichever pane drew last.
-    // The selection rides along in the same patch: the strip appends its length
-    // in characters + newlines while a range is selected. The position is the
-    // primary range (cursors[0], the one the textarea mirrors), so a screen of
-    // carets still reports the one the platform calls home.
     if (focused) {
       const nextPosition = {line: lineIndex + 1, column: column + 1};
       const changed = !publishedCursor
@@ -95,8 +81,6 @@ export function createCaretLayer({
         publishedSelection = {start, end};
       }
 
-      // The strip swaps the position for the caret count while the list holds
-      // more than one, so the headcount rides the same patch.
       const countChanged = publishedCount !== cursors.length;
       if (countChanged) {
         publishedCount = cursors.length;
@@ -121,21 +105,12 @@ export function createCaretLayer({
       }
     }
 
-    // The file's indent unit belongs to the text, not the caret, so it is
-    // published whenever the buffer reads a different width, and only then,
-    // since the strip has no use for the same number twice. Focus does not
-    // enter into it: the strip reports the open document even with the pane
-    // clicked away.
     const width = indentWidth(source.value);
     if (width !== publishedWidth) {
       publishedWidth = width;
       store.setState({indent: width});
     }
 
-    // Which carets are drawable right now: focused, editable, on screen. Only
-    // collapsed cursors take a bar: a range shows as its band instead. Each
-    // entry also says whether it is a shadow: everything past the primary, the
-    // one the textarea mirrors, gets dressed in the accent blue.
     const wanted = [];
     const drawable = focused && !source.readOnly && !code.hidden;
     if (drawable) {
@@ -184,11 +159,6 @@ export function createCaretLayer({
       restartBlink(visible);
     }
 
-    // The completion list rides the caret's coattails: every caret draw
-    // revalidates it, so a click, an undo or the other pane's edit dismisses
-    // or refreshes the popup in the same frame the caret moves, while the
-    // keystroke that may *raise* it answers only from the input, never from
-    // this echo.
     onCaretMove?.();
   }
 

@@ -42,12 +42,17 @@ export function mountSplitters(store, {canvas, rail, bottom}) {
   const bottomSplitter = createSplitter("splitter-h", "horizontal");
   canvas.append(railSplitter, bottomSplitter);
 
+  const scale = () => {
+    const value = parseFloat(getComputedStyle(canvas).getPropertyValue("--ui-scale"));
+    return value > 0 ? value : 1;
+  };
+
   railSplitter.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     const left = rail.getBoundingClientRect().left;
 
     dragPointer("col-resize", (moveEvent) => {
-      const width = clamp(moveEvent.clientX - left, RAIL_MIN, RAIL_MAX);
+      const width = clamp((moveEvent.clientX - left) / scale(), RAIL_MIN, RAIL_MAX);
       store.setState({railWidth: width});
     });
   });
@@ -57,14 +62,14 @@ export function mountSplitters(store, {canvas, rail, bottom}) {
     const edge = bottom.getBoundingClientRect().bottom;
 
     dragPointer("row-resize", (moveEvent) => {
-      const max = window.innerHeight * BOTTOM_MAX_RATIO;
-      const height = clamp(edge - moveEvent.clientY, BOTTOM_MIN, max);
+      const max = (window.innerHeight * BOTTOM_MAX_RATIO) / scale();
+      const height = clamp((edge - moveEvent.clientY) / scale(), BOTTOM_MIN, max);
       store.setState({bottomHeight: height});
     });
   });
 
   const apply = (state) => {
-    canvas.style.setProperty("--rail-width", `${state.railWidth}px`);
+    canvas.style.setProperty("--rail-width", `calc(${state.railWidth}px * var(--ui-scale))`);
   };
 
   store.subscribe(apply);

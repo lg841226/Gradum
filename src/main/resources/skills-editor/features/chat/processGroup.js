@@ -25,7 +25,6 @@ const TOOL_ICONS = {
 function toolIconName(data) {
   const alias = String(data.alias ?? data.tool ?? "").trim().toLowerCase();
   if (alias === "delegate") {
-    // DelegateRenderer: Nodes.Services while pending, Actions.Checked once done.
     return data.arguments?.pending === false ? "checked" : "services";
   }
   return TOOL_ICONS[alias] ?? "groups";

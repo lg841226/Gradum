@@ -12,8 +12,6 @@ export function createListItem({label, detail, icon, lead, active = false, muted
   if (icon) {
     item.appendChild(createIcon({name: icon}));
   }
-  // A pre-built leading node (the provider brand mark) for icons that the
-  // stroked sprite can't express; styled by CSS via its own class.
   if (lead) {
     item.appendChild(lead);
   }
@@ -23,8 +21,6 @@ export function createListItem({label, detail, icon, lead, active = false, muted
   name.textContent = label;
   item.appendChild(name);
 
-  // Optional secondary line (the raw identifier behind a formatted label);
-  // only present when given, so existing rows are untouched.
   if (detail) {
     const sub = document.createElement("span");
     sub.className = "list-item-detail";

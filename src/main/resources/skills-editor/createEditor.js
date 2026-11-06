@@ -20,8 +20,6 @@ export function createEditor(store, {
   let tabs = null;
   let editor = null;
 
-  // The tokens + the layout rules both key off `.canvas`, so the mount root
-  // carries that class whether the page supplied it or not.
   canvas.classList.add("canvas");
 
   const themeControl = createTheme(canvas, theme);

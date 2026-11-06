@@ -1,6 +1,3 @@
-// Minimal observable store. State flows one way: features mutate the store and
-// render from the state they read back, never by reaching into each other.
-
 export function createStore(initialState) {
   let state = initialState;
   const listeners = new Set();
@@ -38,8 +35,6 @@ export function findDocByName(state, name) {
   return state.docs.find((doc) => doc.name === name) || null;
 }
 
-// Returns the patch that replaces a single document, leaving the rest of the
-// state untouched.
 export function withDoc(state, id, patch) {
   return {
     docs: state.docs.map((doc) => (doc.id === id ? {...doc, ...patch} : doc)),

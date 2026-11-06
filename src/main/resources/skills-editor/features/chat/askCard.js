@@ -1,10 +1,3 @@
-// Ask-interaction cards: the agent's questions surfaced as buttons or a
-// free-input row, answered through POST /events/respond.
-//
-// The card only acknowledges an answer after the server accepted it. A failed
-// POST leaves the controls live and explains why, so the question is never
-// silently marked answered when the deferred is still waiting.
-
 import {respond} from "../../data/legatusApi.js";
 import {copy} from "../../ui/copy.js";
 

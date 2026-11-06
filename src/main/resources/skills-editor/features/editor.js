@@ -1,4 +1,5 @@
 import {withDoc} from "../core/store.js";
+import {clampShare} from "../core/layout.js";
 import {createEmptyState} from "../ui/components/feedback.js";
 import {createPanel} from "../ui/components/panel.js";
 import {copy} from "../ui/copy.js";
@@ -8,12 +9,6 @@ import {createCodePane} from "./pane.js";
 // Compiler output caps the diagnostics it prints inline; anything past this
 // count lives in the Problems panel, which lists them all.
 const MAX_LOG_PROBLEMS = 6;
-
-// The share of the body the first pane keeps when the divider is dragged. Held
-// between a fifth and four fifths, so neither pane can be dragged shut: closing
-// one outright is what the split toggle is for.
-const MIN_SHARE = 0.2;
-const MAX_SHARE = 0.8;
 
 // The editor island: it owns the two code surfaces with their syntax overlays,
 // the problem counts + the run command. The surface is two panes over one
@@ -74,8 +69,7 @@ export function mountEditor(store, {canvas, showPanel, documents, getActiveDoc, 
 
     dragPointer(down ? "row-resize" : "col-resize", (moveEvent) => {
       const offset = (down ? moveEvent.clientY : moveEvent.clientX) - start;
-      const share = Math.min(Math.max(offset / span, MIN_SHARE), MAX_SHARE);
-      store.setState({splitRatio: share});
+      store.setState({splitRatio: clampShare(offset / span)});
     });
   });
 
@@ -172,11 +166,6 @@ export function mountEditor(store, {canvas, showPanel, documents, getActiveDoc, 
     }
   }
 
-  // Compile-only sibling of run(). It asks the server to compile the buffer and
-  // nothing else: nothing is written to the skills directory and the registry is
-  // not touched, so the buffer stays unsaved and the loaded skill unchanged. The
-  // diagnostics that come back are the build's whole result, so the Problems
-  // panel is raised to show them.
   async function build() {
     const state = store.getState();
     const doc = getActiveDoc(state);
@@ -240,10 +229,6 @@ export function mountEditor(store, {canvas, showPanel, documents, getActiveDoc, 
     }
   }
 
-  // The pane the user typed in redraws its own overlay here: a keystroke has
-  // already mutated its textarea natively, so only the derived layers need to
-  // catch up. The other pane is reconciled by `render`, which sees the store
-  // change to write just produced.
   function onInput(pane) {
     const state = store.getState();
     const doc = getActiveDoc(state);
@@ -284,9 +269,6 @@ export function mountEditor(store, {canvas, showPanel, documents, getActiveDoc, 
     store.setState({split: false});
   }
 
-  // Both directions share one on/off flag + one orientation, so pressing the
-  // other direction while a split is open swings the second pane over instead of
-  // opening a third one.
   function toggleSplit(direction = "right") {
     const state = store.getState();
     if (Boolean(state.split) && state.splitDirection === direction) {
@@ -318,9 +300,6 @@ export function mountEditor(store, {canvas, showPanel, documents, getActiveDoc, 
         pane.loadDoc(doc, {focus: pane === activePane()});
         continue;
       }
-      // The focused pane already holds the buffer it just typed; only a pane
-      // that is behind adopts the new text, so the writer's caret, selection +
-      // IME composition are never disturbed.
       if (pane.source.value !== text && pane.source !== document.activeElement) {
         pane.adoptText(text);
       } else if (baselineChanged && pane.source.value === text) {
@@ -371,6 +350,7 @@ export function mountEditor(store, {canvas, showPanel, documents, getActiveDoc, 
     for (const pane of panes) {
       pane.measureMetrics();
       pane.syncScroll();
+      pane.updateSelection();
     }
   });
 

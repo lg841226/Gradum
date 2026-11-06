@@ -15,65 +15,27 @@
 
 import {STORAGE_KEYS} from "./storageKeys.js";
 import {readJsonStorage, writeStorage} from "./storage.js";
-
-const LAYOUT_KEYS = {
-  view: "string",
-  panel: "string",
-  openFile: "string",
-  railWidth: "number",
-  collapsed: "boolean",
-  bottomHeight: "number",
-  treeCollapsed: "boolean",
-  railCollapsed: "boolean",
-  split: "boolean",
-  splitDirection: "string",
-  splitRatio: "number",
-  minimapHidden: "boolean",
-  chatOpen: "boolean",
-};
-
-const SPLIT_SHARE_MIN = 0.2;
-const SPLIT_SHARE_MAX = 0.8;
-
-const LAYOUT_ENUMS = {
-  view: ["explorer", "problems", "output", "editor", "all", "session"],
-  panel: ["problems", "output"],
-  splitDirection: ["right", "down"],
-};
-
-function pickLayout(source) {
-  const picked = {};
-  for (const key of Object.keys(LAYOUT_KEYS)) {
-    const value = source[key];
-    if (typeof value !== LAYOUT_KEYS[key]) {
-      continue;
-    }
-
-    if (LAYOUT_KEYS[key] === "number") {
-      if (!Number.isFinite(value)) {
-        continue;
-      }
-      if (key === "splitRatio") {
-        picked[key] = Math.min(Math.max(value, SPLIT_SHARE_MIN), SPLIT_SHARE_MAX);
-        continue;
-      }
-      if (value <= 0) {
-        continue;
-      }
-    }
-
-    const allowed = LAYOUT_ENUMS[key];
-    if (allowed && !allowed.includes(value)) {
-      continue;
-    }
-    picked[key] = value;
-  }
-  return picked;
-}
+import {pickLayout} from "./schema.js";
 
 export function loadLayout() {
   const stored = readJsonStorage(STORAGE_KEYS.layout, null);
-  return stored && typeof stored === "object" ? pickLayout(stored) : {};
+  if (!stored || typeof stored !== "object") {
+    return {};
+  }
+  const picked = pickLayout(stored);
+  // Layouts saved before the two surfaces had their own split state carry a
+  // single split. The chat starts from that choice once; from then on the two
+  // pairs are written separately.
+  if (!("chatSplit" in picked)) {
+    picked.chatSplit = picked.split === true;
+  }
+  if (!("chatSplitDirection" in picked)) {
+    picked.chatSplitDirection = picked.splitDirection ?? "right";
+  }
+  if (!("chatSplitRatio" in picked)) {
+    picked.chatSplitRatio = picked.splitRatio ?? 0.5;
+  }
+  return picked;
 }
 
 export function createLayoutWriter() {

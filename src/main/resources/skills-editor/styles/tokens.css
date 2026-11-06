@@ -10,11 +10,22 @@
     --bg-island: color-mix(in srgb, #121317 88%, transparent);
     --glow: color-mix(in srgb, var(--accent) 34%, transparent);
     --bg-menu: color-mix(in srgb, var(--bg-raised) 62%, transparent);
+    --switch-thumb: #dfe1e5;
+
+    /* Interface scale. Every size below is written as calc(base * these
+       ratios), so the whole workspace can grow or shrink without switching to
+       another unit system. features/settings.js writes the three ratios from
+       the saved state; their defaults reproduce the original pixel values. */
+    --ui-scale: 1;
+    --ui-font-ratio: 1;
+    --code-font-ratio: 1;
+    --tab-width: 4;
 
     /* Lines */
     --border: #393b40;
     --glyph-box: #e7bc4b;
     --border-strong: #4e5157;
+    --indent-guide: color-mix(in srgb, var(--text) 16%, transparent);
     --scroll-thumb: color-mix(in srgb, var(--border-strong) 40%, transparent);
     --scroll-thumb-hover: color-mix(in srgb, var(--border-strong) 60%, transparent);
 
@@ -65,23 +76,24 @@
     --squiggle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='3'%3E%3Cpath d='M0 3 L1.5 1 L3 3 L4.5 1 L6 3' fill='none' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E");
 
     /* Radii */
-    --radius-tab: 6px;
-    --radius-island: 8px;
-    --radius-control: 4px;
-    --radius-dialog: 12px;
+    --radius-tab: calc(6px * var(--ui-scale));
+    --radius-island: calc(8px * var(--ui-scale));
+    --radius-control: calc(4px * var(--ui-scale));
+    --radius-dialog: calc(12px * var(--ui-scale));
 
     /* Spacing scale (4px base) */
-    --space-1: 4px;
-    --space-2: 8px;
-    --space-3: 12px;
-    --space-4: 16px;
-    --space-6: 24px;
+    --space-1: calc(4px * var(--ui-scale));
+    --space-2: calc(8px * var(--ui-scale));
+    --space-3: calc(12px * var(--ui-scale));
+    --space-4: calc(16px * var(--ui-scale));
+    --space-6: calc(24px * var(--ui-scale));
 
     /* Typography */
-    --font-size-ui: 14px;
-    --font-size-code: 13px;
-    --font-size-small: 13px;
-    --line-height-code: 20px;
+    --font-size-ui: calc(14px * var(--ui-scale) * var(--ui-font-ratio));
+    --font-size-code: calc(13px * var(--ui-scale) * var(--code-font-ratio));
+    --font-size-small: calc(13px * var(--ui-scale) * var(--ui-font-ratio));
+    --font-size-title: calc(16px * var(--ui-scale) * var(--ui-font-ratio));
+    --line-height-code: calc(20px * var(--ui-scale) * var(--code-font-ratio));
     --weight-medium: 520;
     --weight-regular: 500;
     --weight-semibold: 600;
@@ -96,16 +108,32 @@
     --enter-scale: .97;
 
     /* Structure */
-    --island-gap: 6px;
-    --rail-width: 208px;
+    --island-gap: calc(6px * var(--ui-scale));
+    --rail-width: calc(208px * var(--ui-scale));
     --blur-popup: 10px;
-    --composer-h: 96px;
-    --header-height: 36px;
-    --control-height: 28px;
-    --menubar-height: 28px;
-    --bottom-height: 200px;
-    --minimap-width: 128px;
-    --statusbar-height: 20px;
+    --composer-h: calc(96px * var(--ui-scale));
+    --header-height: calc(36px * var(--ui-scale));
+    --control-height: calc(28px * var(--ui-scale));
+    --menubar-height: calc(28px * var(--ui-scale));
+    --bottom-height: calc(200px * var(--ui-scale));
+    --minimap-width: calc(128px * var(--ui-scale));
+    --statusbar-height: calc(20px * var(--ui-scale));
+    --settings-width: calc(760px * var(--ui-scale));
+    --settings-height: calc(560px * var(--ui-scale));
+    --settings-nav-width: calc(208px * var(--ui-scale));
+    /* The floating settings island may be resized down to the nav column plus
+       one readable row column, and no further. */
+    --settings-min-width: calc(var(--settings-nav-width) + 300px * var(--ui-scale));
+    --settings-min-height: calc(320px * var(--ui-scale));
+    /* The island stops growing at two comfortable content columns beside the
+       nav (2 x 360px), so resizing never turns it into a full-screen sheet. */
+    --settings-max-width: calc(var(--settings-nav-width) + 720px * var(--ui-scale));
+    --settings-max-height: calc(720px * var(--ui-scale));
+    /* Icons-only nav: one 16px icon + 8px padding on each side for the row,
+       plus the nav's own 8px padding on each side. */
+    --settings-nav-collapsed: calc(var(--space-4) + 4 * var(--space-2));
+    --switch-width: calc(34px * var(--ui-scale));
+    --switch-height: calc(18px * var(--ui-scale));
     --split-ratio: 0.5;
     --tooltip-shift: 0;
     --menu-entry-width: 12em;
@@ -133,10 +161,12 @@
 
     --glow: color-mix(in srgb, var(--accent) 18%, transparent);
     --bg-menu: color-mix(in srgb, var(--bg-raised) 62%, transparent);
+    --switch-thumb: #ffffff;
 
     /* Lines */
     --border: #e0e2e6;
     --border-strong: #c6c9ce;
+    --indent-guide: color-mix(in srgb, var(--text) 18%, transparent);
 
     /* Content */
     --text: #1f2329;

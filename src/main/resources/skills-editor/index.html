@@ -17,10 +17,7 @@
 <div class="canvas" id="canvas"></div>
 <script>
   (function () {
-    // This key is repeated from core/storageKeys.js because the first frame
-    // must be themed before the module graph loads; keep the two in sync. The
-    // attribute lands on the editor root (not <html>) so the palette never
-    // escapes the mounted container.
+    // Keep this key in sync with core/storageKeys.js; this runs before modules load.
     let preference = null;
     try {
       preference = window.localStorage.getItem("gradum.skillsEditor.theme");
@@ -28,11 +25,30 @@
       preference = null;
     }
     if (preference !== "light" && preference !== "dark") preference = "dark";
-    document.getElementById("canvas").dataset.theme = preference;
-    // Held until the first frame is painted, so the layout the script
-    // restores from storage does not animate in from the defaults. It rides
-    // the editor root, like the theme, so the host page is left untouched.
-    document.getElementById("canvas").classList.add("is-booting");
+
+    var layout = null;
+    try {
+      layout = JSON.parse(window.localStorage.getItem("gradum.skillsEditor.layout") || "null");
+    } catch (layoutError) {
+      layout = null;
+    }
+    var canvasRoot = document.getElementById("canvas");
+    var pick = function (key, allowed, fallback) {
+      var stored = layout && layout[key];
+      return allowed.indexOf(stored) === -1 ? fallback : stored;
+    };
+    canvasRoot.style.setProperty(
+      "--ui-scale", String(pick("uiScale", [0.9, 1, 1.1, 1.25], 1)),
+    );
+    canvasRoot.style.setProperty(
+      "--ui-font-ratio", String(pick("uiFontSize", [12, 13, 14, 15, 16], 14) / 14),
+    );
+    canvasRoot.style.setProperty(
+      "--code-font-ratio", String(pick("codeFontSize", [12, 13, 14, 15, 16, 17, 18], 13) / 13),
+    );
+    canvasRoot.style.setProperty("--tab-width", String(pick("tabWidth", [2, 4], 4)));
+    canvasRoot.dataset.theme = preference;
+    canvasRoot.classList.add("is-booting");
   })();
 </script>
 <script id="starterTemplate" type="text/plain">

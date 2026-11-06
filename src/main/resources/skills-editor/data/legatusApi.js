@@ -1,6 +1,3 @@
-// Wire access for the assistant (Gradum Legatus). Every call relies on the
-// auth cookie the pairing flow set; none of them handles the token directly.
-
 import {ensureOk, HttpError, requestJson} from "./http.js";
 import {createNdjsonParser} from "./ndjson.js";
 

@@ -135,9 +135,6 @@ export function mountRail(store, {canvas, onOpen, onCreate, onOpenSession}) {
   panel.appendChild(list);
   canvas.appendChild(panel);
 
-  // The user's fold choice per day, kept here so a store update that redraws
-  // the tree reopens exactly the days that were open. The newest day starts
-  // open on its own, so a typical list needs no extra click.
   const groupFolds = new Map();
 
   let signature = null;
@@ -221,8 +218,6 @@ export function mountRail(store, {canvas, onOpen, onCreate, onOpenSession}) {
       return;
     }
 
-    // The branch folds away whole, so the root row is what stays behind. It is
-    // handed to the tree row so the group nests inside its tree item.
     const names = [...new Set([...state.files, ...state.docs.map((doc) => doc.name)])];
     const branch = document.createElement("div");
     branch.className = "tree-children";

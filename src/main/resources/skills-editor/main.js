@@ -10,6 +10,7 @@ import {mountCompact} from "./features/compact.js";
 import {mountConsole} from "./features/console.js";
 import {mountMenubar} from "./features/menubar.js";
 import {mountMinimap} from "./features/minimap.js";
+import {mountSettings} from "./features/settings.js";
 import {mountSplitters} from "./features/splitter.js";
 import {mountStatusBar} from "./features/statusbar.js";
 import {mountFloatPanels} from "./features/floatPanels.js";
@@ -17,6 +18,7 @@ import {mountAssistant} from "./features/assistant/index.js";
 import {mountTooltip} from "./ui/components/tooltip.js";
 import {mountDiagnostics} from "./features/diagnostics.js";
 import {createLayoutWriter, loadLayout} from "./core/persistence.js";
+import {createInitialState} from "./core/schema.js";
 import {STORAGE_KEYS} from "./core/storageKeys.js";
 import {readStorage} from "./core/storage.js";
 
@@ -27,38 +29,7 @@ const canvas = document.getElementById("canvas");
 const readerMark = document.documentElement.getAttribute("data-reader");
 
 const store = createStore({
-  log: [],
-  docs: [],
-  files: [],
-  sessions: [],
-  chatTabs: [],
-  nextId: 1,
-  indent: 4,
-  focusToken: 0,
-  cursorCount: 1,
-  sourceRevision: 0,
-  cursor: {line: 1, column: 1},
-  view: "problems",
-  panel: "problems",
-  status: {text: "", tone: "neutral"},
-  busyTask: null,
-  activeId: null,
-  selection: null,
-  activeSession: null,
-  busy: false,
-  split: false,
-  chatOpen: false,
-  chatBusy: false,
-  autoRail: false,
-  collapsed: false,
-  autoBottom: false,
-  minimapHidden: false,
-  railCollapsed: false,
-  treeCollapsed: false,
-  railWidth: 208,
-  splitRatio: 0.5,
-  bottomHeight: 200,
-  splitDirection: "right",
+  ...createInitialState(),
   projectRoot: readStorage(STORAGE_KEYS.projectRoot, ""),
   ...loadLayout(),
   authed: readerMark === null,
@@ -160,7 +131,6 @@ const commands = [
       documents.list()
         .then((files) => store.setState({files}))
         .catch(() => {
-          // The rail keeps the names it already knows while the server is down.
         });
     },
   },
@@ -209,11 +179,16 @@ try {
       getActiveDoc,
     });
   }
+  const settings = mountSettings(store, {canvas, theme: editor.theme});
   mountMenubar(store, {
     canvas,
     onRun: () => editor.commands.run("run"),
     onBuild: () => editor.commands.run("build"),
-    onToggleSplit: (direction) => editor.toggleSplit(direction),
+    onToggleSplit: (direction) => {
+      editor.toggleSplit(direction);
+      assistant.setSplit(store.getState().split, store.getState().splitDirection);
+    },
+    onToggleSettings: () => settings.toggle(),
     theme: editor.theme,
   });
   mountSplitters(store, {canvas, rail: rail.panel, bottom: panels.panel});

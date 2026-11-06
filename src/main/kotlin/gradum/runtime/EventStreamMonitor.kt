@@ -233,7 +233,7 @@ class EventStreamMonitor : JFrame("Gradum Runtime Window") {
     } catch (_: Exception) {
       return fileSize
     }
-    val replayText: String = String(replayBuffer.array(), 0, replayBuffer.position(), Charsets.UTF_8)
+    val replayText = String(replayBuffer.array(), 0, replayBuffer.position(), Charsets.UTF_8)
     val firstNewlineIndex: Int = replayText.indexOf('\n')
     if (firstNewlineIndex < 0) {
       replayLineCount = 0

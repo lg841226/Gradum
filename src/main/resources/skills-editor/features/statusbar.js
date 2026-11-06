@@ -71,10 +71,6 @@ export function mountStatusBar(store, {canvas, getActiveDoc}) {
     store.setState({projectRoot: expand(rootInput.value.trim())});
   });
 
-  // The root stays an editable text field, so the breadcrumb is a read-only
-  // layer above it: it shows while the field is unfocused and steps aside on
-  // focus, leaving the original input to do the editing. The layer ignores
-  // pointers, so clicking anywhere still focuses the same single control.
   const pathDisplay = document.createElement("span");
   pathDisplay.className = "statusbar-path";
   pathDisplay.setAttribute("aria-hidden", "true");
@@ -180,10 +176,6 @@ export function mountStatusBar(store, {canvas, getActiveDoc}) {
     const doc = getActiveDoc(state);
     const chat = state.chatOpen === true;
 
-    // The agent mode owns the strip: the counts + the editor-facing values
-    // describe the developer workspace, so they leave with it and only the
-    // project root stays. The strip reads the mode from the store, so nothing
-    // outside this render couples the two features.
     left.hidden = !doc && !chat;
     errors.item.hidden = chat;
     warnings.item.hidden = chat;

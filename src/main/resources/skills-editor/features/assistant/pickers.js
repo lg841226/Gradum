@@ -116,8 +116,6 @@ export function createModelPicker({onOtherOpen} = {}) {
         const backend = beautifyProvider(model.provider);
         const row = createListItem({
           label: parsed.displayName,
-          // The serving backend parks at the row's far right in quiet gray;
-          // the chip carries it as a prefix instead ("Ollama / ChatGPT 4").
           detail: backend,
           lead: createProviderIcon({provider: parsed.provider}),
           active: model.name === value,
@@ -136,8 +134,6 @@ export function createModelPicker({onOtherOpen} = {}) {
         ...rows,
       );
 
-      // The restored selection renders formatted from the first paint, the
-      // same way a click would leave it.
       if (value) {
         const current = usable.find((model) => model.name === value);
         if (current) {
@@ -191,8 +187,6 @@ export function createPermissionPicker({onOtherOpen} = {}) {
       row.setAttribute("aria-selected", mode.value === value ? "true" : "false");
       row.dataset.value = mode.value;
 
-      // The mode glyphs ride along in the popup only; the chip stays text.
-      // Icon left, the label+info pair stacked to its right.
       row.append(createIcon({name: mode.icon}));
       const text = document.createElement("div");
       text.className = "perm-item-text";

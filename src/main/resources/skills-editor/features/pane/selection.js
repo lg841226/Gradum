@@ -25,9 +25,6 @@ export function createSelectionLayer({source, highlightCode, advance, getTokeniz
     matches = [];
   }
 
-  // One end of a matched pair: a child of the line it sits on, positioned from
-  // the same advance the band uses, so it scrolls with the content and rests
-  // under the glyphs.
   function drawMatch(text, offset) {
     const before = text.slice(0, offset);
     const row = before.split("\n");
@@ -96,11 +93,6 @@ export function createSelectionLayer({source, highlightCode, advance, getTokeniz
       drawMatch(text, close);
     }
 
-    // Where two boxes meet (an empty pair reads as one merged block), their
-    // facing borders would double into a seam, so those two edges come off and
-    // only the outer frame remains. Boxes are compared by measured position
-    // rather than by drawing order, because the drawing follows the pairs and
-    // a nested pair draws its outer end first.
     const byLine = new Map();
     for (const box of matches) {
       const siblings = byLine.get(box.parentElement);

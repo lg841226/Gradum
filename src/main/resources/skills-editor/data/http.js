@@ -22,7 +22,6 @@ export async function readErrorDetail(response) {
       detail = body.error;
     }
   } catch (_error) {
-    // Non-JSON body: the status line is the whole story.
   }
   return detail;
 }

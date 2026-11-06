@@ -10,10 +10,7 @@ import {createModelPicker, createPermissionPicker} from "./pickers.js";
 import {createStreamController} from "./stream.js";
 import {isFloatLayout} from "../floatPanels.js";
 import {dragPointer} from "../splitter.js";
-
-
-const MIN_SHARE = 0.2;
-const MAX_SHARE = 0.8;
+import {clampShare} from "../../core/layout.js";
 
 function newSessionId() {
   if (typeof crypto.randomUUID === "function") {
@@ -46,7 +43,7 @@ export function mountAssistant(store, {canvas}) {
   divider.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     const bounds = columns.getBoundingClientRect();
-    const down = store.getState().splitDirection === "down";
+    const down = store.getState().chatSplitDirection === "down";
     const span = down ? bounds.height : bounds.width;
     const start = down ? bounds.top : bounds.left;
     if (!span) {
@@ -54,8 +51,7 @@ export function mountAssistant(store, {canvas}) {
     }
     dragPointer(down ? "row-resize" : "col-resize", (moveEvent) => {
       const offset = (down ? moveEvent.clientY : moveEvent.clientX) - start;
-      const share = Math.min(Math.max(offset / span, MIN_SHARE), MAX_SHARE);
-      store.setState({splitRatio: share});
+      store.setState({chatSplitRatio: clampShare(offset / span)});
     });
   });
 
@@ -96,15 +92,8 @@ export function mountAssistant(store, {canvas}) {
   const splitUi = makeUi();
   const composer = ui.composer;
 
-  // Ownership model, the single source of truth for the chat workspace: which
-  // tab each pane owns and which pane holds the focus. A tab is owned by at
-  // most one pane; a cross-pane move detaches from the old pane before it
-  // attaches to the new one. `tabs` stays the registry of live tabs (messages
-  // node, chat, stream), and the DOM is only ever a projection of both.
   const workspace = {left: null, right: null, focused: "left"};
   const SIDES = ["left", "right"];
-  // Per-pane scroll-to-bottom state, derived from that pane's own container.
-  // true means the column is at the bottom, so the button stays hidden.
   const paneScroll = {left: true, right: true};
   let chatBusy = null;
 
@@ -133,10 +122,6 @@ export function mountAssistant(store, {canvas}) {
     workspace[side] = id;
   }
 
-  // The server stamps its own working directory on the page; the root must
-  // never start empty because the browser cannot guess a path. `lastRoot` is
-  // advanced before the state write so the root listener does not schedule a
-  // second session fetch behind the one wire() already starts.
   function seedRoot() {
     const {projectRoot} = store.getState();
     if (projectRoot) {
@@ -178,14 +163,9 @@ export function mountAssistant(store, {canvas}) {
   }
 
   function splitShown(state) {
-    return Boolean(state.split) && !isFloatLayout() && tabs.size >= 2;
+    return Boolean(state.chatSplit) && !isFloatLayout() && tabs.size >= 2;
   }
 
-  // Ownership comes back with the tab list, but only when the stored payload
-  // still describes the live tabs: a missing field, an id that no longer
-  // exists, the same id on both sides, or a focus name outside left/right
-  // leaves `workspace` untouched, so the repair below assigns it exactly as it
-  // does on a fresh boot. A partial restore could otherwise empty a pane.
   function restoreOwnership(saved) {
     const payload = saved && typeof saved === "object" ? saved : {};
     const liveId = (value) => typeof value === "string" && tabs.has(value);
@@ -249,8 +229,8 @@ export function mountAssistant(store, {canvas}) {
     repairOwnership(splitOn);
 
     columns.classList.toggle("is-split", splitOn);
-    columns.classList.toggle("is-split-down", splitOn && state.splitDirection === "down");
-    columns.style.setProperty("--split-ratio", String(state.splitRatio ?? 0.5));
+    columns.classList.toggle("is-split-down", splitOn && state.chatSplitDirection === "down");
+    columns.style.setProperty("--split-ratio", String(state.chatSplitRatio ?? 0.5));
 
     placePanes(splitOn);
     refreshScrollState(splitOn);
@@ -435,12 +415,9 @@ export function mountAssistant(store, {canvas}) {
         splitUi.modelPicker.applyModels(models);
       })
       .catch(() => {
-        // Discovery failed (no local host up); the server default still works.
       });
   }
 
-  // The composer that sent owns the turn: its own input, model + permission
-  // pickers are read + cleared, and its tab takes the run.
   function send(forUi = ui) {
     const text = forUi.composer.input.value.trim();
     const tab = tabs.get(paneTabId(forUi));
@@ -478,8 +455,6 @@ export function mountAssistant(store, {canvas}) {
     forUi.composer.focus();
   }
 
-  // A new chat opens another tab rather than replacing anything; an untouched
-  // active tab is reused instead of piling up empty ones.
   function newChat() {
     const active = tabs.get(activeId());
     if (active && active.fresh && !active.started) {
@@ -490,9 +465,6 @@ export function mountAssistant(store, {canvas}) {
     setActive(tab.id);
   }
 
-  // Opening a past session reuses its tab when one is already open, and the
-  // stored transcript is cold-loaded into that tab so the click visibly opens
-  // the session.
   function openSession(sessionId) {
     const existing = tabs.get(sessionId);
     if (existing) {
@@ -558,8 +530,6 @@ export function mountAssistant(store, {canvas}) {
   island.addEventListener("pointerdown", noteFocus, {capture: true});
   island.addEventListener("focusin", noteFocus, {capture: true});
 
-  // The scroll-to-bottom control belongs to a pane, not to the workspace: each
-  // button sits in its own composer and only reflects the column above it.
   const BOTTOM_SLACK = 40;
 
   const isAtBottom = (el) =>
@@ -590,9 +560,6 @@ export function mountAssistant(store, {canvas}) {
   const leftScroll = makeScrollButton("left");
   const rightScroll = makeScrollButton("right");
 
-  // The single verdict for both panes: which tab is showing, which container
-  // is measured, and the one threshold. `render` calls it after placement;
-  // scroll, content growth, resize + the divider only schedule it.
   function refreshScrollState(splitOn) {
     let changed = false;
     for (const side of SIDES) {
@@ -638,15 +605,15 @@ export function mountAssistant(store, {canvas}) {
   store.subscribe(() => renderTabs());
 
   const splitState = store.getState();
-  let splitSignature = `${Boolean(splitState.split)}/${splitState.splitDirection ?? ""}`;
-  let splitRatio = String(splitState.splitRatio ?? 0.5);
+  let splitSignature = `${Boolean(splitState.chatSplit)}/${splitState.chatSplitDirection ?? ""}`;
+  let splitRatio = String(splitState.chatSplitRatio ?? 0.5);
   store.subscribe((state) => {
-    const ratio = String(state.splitRatio ?? 0.5);
+    const ratio = String(state.chatSplitRatio ?? 0.5);
     const ratioChanged = ratio !== splitRatio;
     splitRatio = ratio;
     columns.style.setProperty("--split-ratio", ratio);
 
-    const mode = `${Boolean(state.split)}/${state.splitDirection ?? ""}`;
+    const mode = `${Boolean(state.chatSplit)}/${state.chatSplitDirection ?? ""}`;
     if (mode !== splitSignature) {
       splitSignature = mode;
       if (wired) {
@@ -671,7 +638,6 @@ export function mountAssistant(store, {canvas}) {
     canvas.classList.toggle("chat-open", state.chatOpen === true);
     if (state.chatOpen) {
       wire();
-      // Layout only exists once the island is shown; re-measure on reopen.
       scheduleScrollSync();
     }
   };
@@ -679,5 +645,12 @@ export function mountAssistant(store, {canvas}) {
   store.subscribe(renderOpen);
   renderOpen(store.getState());
 
-  return {newChat, openSession};
+  function setSplit(on, direction) {
+    store.setState({
+      chatSplit: on === true,
+      chatSplitDirection: direction === "down" ? "down" : "right",
+    });
+  }
+
+  return {newChat, openSession, setSplit};
 }

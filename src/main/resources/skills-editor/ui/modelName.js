@@ -543,6 +543,5 @@ export function beautifyProvider(raw) {
   if (known) {
     return known;
   }
-  // Unknown backends: title-case the wire name rather than show it raw.
   return raw.split(/[\s_-]+/).filter(Boolean).map((part) => part[0].toUpperCase() + part.slice(1)).join(" ");
 }

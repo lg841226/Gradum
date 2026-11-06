@@ -1,7 +1,3 @@
-// A thinking block with its own elapsed-time clock. The timer closes over the
-// block it was created for, never over a shared variable, and every path that
-// retires the block stops it, so a new turn cannot inherit the old interval.
-
 import {createIcon} from "../../ui/components/icon.js";
 import {copy} from "../../ui/copy.js";
 

@@ -79,6 +79,7 @@ export const copy = {
 
   tooltip: {
     hide: "Hide",
+    settings: "Settings",
     closeTab: "Close",
     newChat: "New chat",
     expandTree: "Expand",
@@ -147,6 +148,60 @@ export const copy = {
     positionTip: (line, column) => `Caret at line ${line}, column ${column}`,
     selection: (count, lineCount) =>
       `${count} ${plural(count, "char")}, ${lineCount} ${plural(lineCount, "break")}`,
+  },
+
+  settings: {
+    title: "Settings",
+    collapse: "Collapse settings",
+    collapseNav: "Collapse categories",
+    expandNav: "Expand categories",
+    groups: {
+      settings: "Settings",
+      system: "System",
+    },
+    categories: {
+      appearance: "Appearance",
+      editor: "Editor",
+      about: "About",
+    },
+    appearance: {
+      interfaceGroup: "User Interface",
+      editorGroup: "Editor View",
+      scale: "Interface scale",
+      scaleDetail: "Scales spacing, text and panels together.",
+      interfaceFont: "Interface font size",
+      interfaceFontDetail: "Menus, panels and dialogs.",
+      codeFont: "Code font size",
+      codeFontDetail: "Code, line numbers and the minimap.",
+      theme: "Theme",
+      themeDetail: "Also available from the menu bar.",
+      indentGuides: "Indent guides",
+      indentGuidesDetail: "Dashed lines marking each indentation level.",
+      minimap: "Minimap",
+      minimapDetail: "A scaled overview on the right edge of the editor.",
+    },
+    editor: {
+      generalGroup: "General Settings",
+      tabWidth: "Tab width",
+      tabWidthDetail: "Columns a tab character advances.",
+      completion: "Suggest while typing",
+      completionDetail: "Ctrl+Space still opens the list when this is off.",
+    },
+    about: {
+      applicationGroup: "Application",
+      version: "Version",
+      versionDetail: "Gradum Workspace",
+      versionValue: "1.0.5",
+      license: "License",
+      licenseValue: "Apache License 2.0",
+      icons: "Icon sources",
+      iconsValue: "JetBrains IntelliJ Platform",
+      iconsDetail: "Apache 2.0, Copyright 2000-2025 JetBrains s.r.o. and contributors.",
+    },
+    value: {
+      percent: (value) => `${Math.round(value * 100)}%`,
+      pixels: (value) => `${value} px`,
+    },
   },
 
   unlock: {

@@ -69,14 +69,22 @@ export function createTheme(root, {mode, tokens} = {}) {
     notify();
   };
 
+  const setMode = (mode) => {
+    if (!PREFERENCES.includes(mode)) {
+      return;
+    }
+    writeStorage(STORAGE_KEYS.theme, mode);
+    setTheme({mode});
+  };
+
   return {
     preference: () => preference,
     resolved: () => preference,
     setTheme,
+    setMode,
     cycle() {
       const next = PREFERENCES[(PREFERENCES.indexOf(preference) + 1) % PREFERENCES.length];
-      writeStorage(STORAGE_KEYS.theme, next);
-      setTheme({mode: next});
+      setMode(next);
     },
     subscribe(listener) {
       listeners.add(listener);

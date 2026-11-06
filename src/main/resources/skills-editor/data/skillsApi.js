@@ -1,5 +1,3 @@
-// All server communication lives here so features never touch fetch directly.
-
 import {HttpError, parseJson, readErrorDetail, requestJson} from "./http.js";
 
 export async function listSkills() {
@@ -7,10 +5,7 @@ export async function listSkills() {
   return payload?.sources ?? [];
 }
 
-// Returns the source of a skill, or null when the server has no such skill.
-// Every other failure rejects: a 401 or a 500 must never look like an empty
-// file, because the editor would then offer to deploy that emptiness over the
-// real skill on disk.
+// Only 404 is null; any other failure must reject.
 export async function loadSkill(name) {
   const url = `/skills/source?name=${encodeURIComponent(name)}`;
   const response = await fetch(url);
@@ -30,9 +25,6 @@ export async function loadSkill(name) {
   return payload?.source ?? "";
 }
 
-// Both actions post one skill source and read back the same compile result; only
-// the endpoint differs, and the server decides what to do with the source.
-// The body is returned even on failure: the compile diagnostic is the payload.
 async function postSkill(path, name, source) {
   const response = await fetch(path, {
     method: "POST",
@@ -43,22 +35,14 @@ async function postSkill(path, name, source) {
   return {ok: response.ok, status: response.status, body: parseJson(raw), raw};
 }
 
-// Writes the source into the skills directory and reloads the registry, so the
-// agent can call the skill as soon as the response comes back.
 export function deploySkill(name, source) {
   return postSkill("/skills/deploy", name, source);
 }
 
-// Compiles the source and reports diagnostics without writing it anywhere or
-// loading it, so the editor can check the buffer without changing the installed
-// skill.
 export function buildSkill(name, source) {
   return postSkill("/skills/build", name, source);
 }
 
-// Trades a pairing code for the auth cookie: how a device on another machine
-// leaves reader mode without ever seeing the long server token. The code is
-// shown on the host's console at startup and resets on every restart.
 export async function pair(code) {
   const response = await fetch("/skills/pair", {
     method: "POST",

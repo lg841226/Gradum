@@ -63,9 +63,6 @@ export function mountDiagnostics(store, {body, editor, getActiveDoc}) {
     return row;
   }
 
-  // The list has no row for a rejected action, so a failed action's message takes
-  // the placeholder instead of vanishing. Build results are not failed actions:
-  // Console owns those, and this stays the quiet "all clear" note it was.
   function renderList(diagnostics, doc, status) {
     clear(list);
 

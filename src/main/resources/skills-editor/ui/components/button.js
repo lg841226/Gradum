@@ -1,6 +1,5 @@
 import {createIcon} from "./icon.js";
 
-// variant: "ghost" | "icon"
 export function createButton({
                                label,
                                icon,

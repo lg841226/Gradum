@@ -1,12 +1,5 @@
-// Touch layout: the side panels float as movable windows. Each panel is
-// dragged by its header, resized from a corner grip, and wears the accent
-// border while the pointer holds it. Desktop never mounts this module.
-
 const FLOAT_QUERY = "(hover: none), (pointer: coarse)";
 
-/* True where panels float as windows instead of grid islands. Features that
-   decide visibility read this so the size-driven auto-collapse never overrides
-   a user toggle: afloat, the panels take no room from the editor at all. */
 export function isFloatLayout() {
   return window.matchMedia(FLOAT_QUERY).matches;
 }

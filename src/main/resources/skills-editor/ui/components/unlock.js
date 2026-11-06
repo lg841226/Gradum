@@ -117,9 +117,6 @@ export function createUnlock({onToken, onCode, container = document.body} = {}) 
     error.hidden = true;
   };
 
-  // Both modes share one field slot: the token is masked, the five
-  // characters are visible (there is nothing secret about what you typed,
-  // only about whether it is right).
   const applyMode = () => {
     const isCode = mode === "code";
     hint.textContent = isCode ? copy.unlock.codeHint : copy.unlock.hint;
@@ -156,9 +153,6 @@ export function createUnlock({onToken, onCode, container = document.body} = {}) 
     }
   };
 
-  // A run of characters longer than one cell (a paste that slipped past the
-  // paste handler, a drop) spreads forward from the cell it landed in. A full
-  // row only arms the button: Unlock or Enter does the submitting.
   const distributeFrom = (start, chars) => {
     let written = 0;
     for (let index = start; index < CODE_LENGTH && written < chars.length; index += 1) {

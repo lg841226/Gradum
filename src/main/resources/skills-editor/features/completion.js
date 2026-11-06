@@ -37,11 +37,6 @@ export function createCompletion({
   popup.hidden = true;
   code.appendChild(popup);
 
-  // The panel is a fixed frame (padding, border, shadow) and the list inside
-  // it is what scrolls, so the air between the rows + the rounded border
-  // holds still while the rows travel. The listbox role lives on the list: it
-  // is the surface the options actually sit in, the way a native select
-  // draws one, and aria-activedescendant still finds them from the textarea.
   const list = document.createElement("div");
   list.className = "completion-list";
   list.setAttribute("role", "listbox");
@@ -96,8 +91,6 @@ export function createCompletion({
     }
   }
 
-  // The other open documents' words, cached per document so a keystroke does
-  // not retokenize files the caret is nowhere near.
   function wordsOf(doc) {
     const cached = otherDocs.get(doc.id);
     if (cached && cached.source === doc.source && cached.name === doc.name) {
@@ -145,12 +138,6 @@ export function createCompletion({
     };
   }
 
-  // Every label the list could offer, picked in precedence so a name the API
-  // knows beats the same name the buffer happens to hold: API, snippets,
-  // keywords, this document's words, then the other documents'. First label
-  // wins, so a duplicate row can never come back twice. The one word left out
-  // is the run the caret is standing in: what is being typed should be the
-  // question, not the first answer to it.
   function candidates(text, member, tokenStart, language) {
     const picked = new Map();
     const add = (label, kind, detail, source, insert) => {
@@ -188,9 +175,6 @@ export function createCompletion({
     return picked.values();
   }
 
-  // The match tiers, the best first: the prefix as typed, the prefix ignoring
-  // case, then a camel subsequence so `sbn` finds `skillBookName`. The
-  // positions come back with the tier: they are the letters to paint.
   function matchOf(label, prefix, lowerPrefix) {
     if (label.startsWith(prefix)) {
       return {tier: 0, matched: prefixIndices(prefix.length)};
@@ -219,10 +203,6 @@ export function createCompletion({
     return indices;
   }
 
-  // Tier first, then where the label came from, then the shorter spelling and
-  // finally the alphabet: short exact words in front of long lookalikes, and
-  // a stable order between keystrokes. Capped so one letter cannot drag a wall
-  // of rows into the pane.
   function collect(text, context, language) {
     const lowerPrefix = context.prefix.toLowerCase();
     const matches = [];
@@ -315,10 +295,6 @@ export function createCompletion({
     }
   }
 
-  // The popup hangs off the caret the way the caret hangs off the text: below
-  // the line while there is room, above it when there is not, clamped into the
-  // code box on both axes. Width + height are measured once per render and
-  // reused, so following a scroll costs no layout.
   function place() {
     const {x, y} = caretPosition(source.selectionStart);
     const maxLeft = Math.max(0, code.clientWidth - box.width);
@@ -344,10 +320,6 @@ export function createCompletion({
     source.removeAttribute("aria-activedescendant");
   }
 
-  // One gate for every event. The caret's context decides the list, and
-  // `allowOpen` separates the keystroke that may raise the popup from the
-  // caret move that may only refresh or dismiss what is already up;
-  // `allowEmpty` is Ctrl+Space asking with no prefix at all.
   function revalidate(allowOpen, allowEmpty = false) {
     if (!open && !allowOpen) {
       return;
@@ -365,9 +337,6 @@ export function createCompletion({
     lastText = text;
     lastCaret = caret;
 
-    // A language pack with no completion source (plaintext + any pack that
-    // has not built one) leaves the popup closed instead of offering a shell
-    // or throwing.
     const language = languageFor(getActiveDoc(store.getState())?.name);
     if (!language.completion) {
       close();
@@ -411,12 +380,6 @@ export function createCompletion({
     updateSelection();
   }
 
-  // Accept runs through the pane's own edit path: the identifier run before
-  // each caret (not only the primary's) is replaced by the item's insert
-  // text, so several carets spell the same word in one stroke + one undo
-  // takes the stroke back. Ranges that would overlap (two carets inside one
-  // word) fall back to the selections themselves rather than corrupt the
-  // splice the shared edit path performs.
   function accept() {
     const entry = items[selected];
     if (!entry) {
@@ -450,11 +413,6 @@ export function createCompletion({
     commit(insertText(text, replacements, entry.item.insert));
   }
 
-  // The popup answers for a small set of keys while it is up (navigation,
-  // accept, dismiss) and asks for Ctrl+Space whether it is up or not. Every
-  // other key falls through to the pane's own matrix: arrows still move the
-  // caret (and the caret move revalidates the list), typed characters reach
-  // the textarea and come back through the input event.
   function keydown(event) {
     if (event.isComposing) {
       return false;
@@ -493,10 +451,6 @@ export function createCompletion({
     return false;
   }
 
-  // A press on a row accepts it, and is suppressed first, so the textarea
-  // never loses the focus accept is about to use. A press on the popup's
-  // own empty space is left alone: it blurs like any click, and the blur
-  // closes the list.
   popup.addEventListener("mousedown", (event) => {
     const row = event.target.closest(".completion-row");
     if (!row) {
@@ -524,7 +478,7 @@ export function createCompletion({
     keydown,
     onTextInput(event) {
       const inserted = !event.inputType || event.inputType.startsWith("insert");
-      revalidate(inserted);
+      revalidate(inserted && store.getState().completionAuto !== false);
     },
     onEdit() {
       revalidate(false);

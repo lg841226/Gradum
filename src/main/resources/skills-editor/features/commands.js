@@ -23,8 +23,6 @@ function isTextEntry(target) {
   if (!field) {
     return false;
   }
-  // The code surface is a textarea too, but it is the editing surface itself,
-  // not a form field the user is typing a value into.
   return !field.classList.contains("source");
 }
 
@@ -73,8 +71,6 @@ export function mountCommands(root, commands, {store, getActiveDoc, getContext})
     command.run?.(contextOf({event: null, isTextEntry: false}));
   }
 
-  // Keyboard dispatch only. Direct calls from a button go through `run`, where
-  // the button has already rendered its own disabled state.
   root.addEventListener("keydown", (event) => {
     if (event.defaultPrevented || event.isComposing) {
       return;

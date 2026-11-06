@@ -13,21 +13,25 @@ const EDITOR_MIN_HEIGHT = 220;
 
 export function mountCompact(store, {canvas}) {
   // Tokens live on the editor root, not :root, so read them from the mounted
-  // container: an embedding page never defines the editor's own values.
-  const root = getComputedStyle(canvas);
-  const token = (name) => parseFloat(root.getPropertyValue(name)) || 0;
-  const gap = token("--island-gap");
-  const menubarHeight = token("--menubar-height");
-  const statusbarHeight = token("--statusbar-height");
-
+  // container: an embedding page never defines the editor's own values. They
+  // are re-read here rather than cached at mount, because the interface scale
+  // rewrites them and the break points have to move with it. The saved
+  // rail/bottom numbers are design pixels, so they are multiplied by the same
+  // factor before comparing.
   const evaluate = () => {
     const state = store.getState();
-    const editorWidth = canvas.clientWidth - gap * 3 - state.railWidth;
+    const root = getComputedStyle(canvas);
+    const token = (name) => parseFloat(root.getPropertyValue(name)) || 0;
+    const gap = token("--island-gap");
+    const menubarHeight = token("--menubar-height");
+    const statusbarHeight = token("--statusbar-height");
+    const scale = token("--ui-scale") || 1;
+    const editorWidth = canvas.clientWidth - gap * 3 - state.railWidth * scale;
     const editorHeight = canvas.clientHeight
-      - gap * 5 - menubarHeight - statusbarHeight - state.bottomHeight;
+      - gap * 5 - menubarHeight - statusbarHeight - state.bottomHeight * scale;
 
-    const autoRail = editorWidth < EDITOR_MIN_WIDTH;
-    const autoBottom = editorHeight < EDITOR_MIN_HEIGHT;
+    const autoRail = editorWidth < EDITOR_MIN_WIDTH * scale;
+    const autoBottom = editorHeight < EDITOR_MIN_HEIGHT * scale;
 
     if (autoRail !== state.autoRail || autoBottom !== state.autoBottom) {
       store.setState({autoRail, autoBottom});
@@ -36,5 +40,9 @@ export function mountCompact(store, {canvas}) {
 
   store.subscribe(evaluate);
   new ResizeObserver(evaluate).observe(canvas);
+  // The interface scale changes the metrics this feature reads without
+  // changing the canvas box, so the shared resize event is the signal that
+  // the break points moved.
+  window.addEventListener("resize", evaluate);
   evaluate();
 }

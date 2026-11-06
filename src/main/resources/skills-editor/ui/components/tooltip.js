@@ -37,9 +37,6 @@ export function mountTooltip({container = document.body} = {}) {
     bubble.classList.remove("is-visible");
   }
 
-  // Centred over the control + lifted clear of it, dropping below only when
-  // the window's top edge is in the way, and pulled back inside at either side
-  // so a control near a corner still shows the whole bubble.
   function place(target) {
     const rect = target.getBoundingClientRect();
     const left = Math.max(
@@ -55,13 +52,8 @@ export function mountTooltip({container = document.body} = {}) {
       top = rect.bottom + ANCHOR_GAP;
       above = false;
     }
-    // Position + animation share the transform channel, so the anchor offset
-    // lives in left/top and the animation keeps transform to itself.
     bubble.style.left = `${Math.round(left)}px`;
     bubble.style.top = `${Math.round(top)}px`;
-    // The bubble travels the last few pixels out of the control it belongs to
-    // and scales up from that edge, so it reads as growing out of the control
-    // rather than fading in place.
     bubble.style.setProperty("--tooltip-shift", above ? "3px" : "-3px");
     bubble.style.setProperty("--tooltip-origin", above ? "bottom" : "top");
   }

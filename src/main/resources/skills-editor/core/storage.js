@@ -1,7 +1,3 @@
-// Storage access that never throws. A browser may deny localStorage in private
-// mode or when the quota is full; callers get the fallback and keep working for
-// the rest of the session.
-
 export function readStorage(key, fallback = null) {
   try {
     const value = window.localStorage.getItem(key);

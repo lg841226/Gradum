@@ -82,45 +82,9 @@
     gap: var(--space-2);
 }
 
-.menubar .menubar-modes {
-    padding: 2px;
-    border-radius: 999px;
-    position: relative;
-    background: var(--bg-raised);
-}
-
 .menubar .menubar-modes .btn[data-variant="menu"] {
-    z-index: 1;
     flex: 1 1 0;
-    height: auto;
     min-width: 60px;
-    border-radius: 999px;
-    position: relative;
-    justify-content: center;
-    padding: 2px var(--space-3);
-}
-
-.menubar .menubar-mode-thumb {
-    top: 0;
-    left: 0;
-    border-radius: 999px;
-    position: absolute;
-    pointer-events: none;
-    background: var(--bg-popup);
-    box-shadow: 0 1px 3px rgb(9 13 24 / 22%);
-}
-
-/* The transition only exists after the first placement, so the initial render
-   snaps into place instead of sliding in from the left edge. */
-.menubar .menubar-mode-thumb.is-ready {
-    transition: transform var(--motion-fast) var(--ease-standard),
-    width var(--motion-fast) var(--ease-standard);
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .menubar .menubar-mode-thumb.is-ready {
-        transition: none;
-    }
 }
 
 .menubar .btn[data-variant="menu"][hidden] {
@@ -602,7 +566,7 @@ body.is-dragging .assistant .chat-pane {
 .markers {
     inset: 0;
     margin: 0;
-    tab-size: 4;
+    tab-size: var(--tab-width);
     white-space: pre;
     position: absolute;
     font-size: var(--font-size-code);
@@ -621,7 +585,16 @@ body.is-dragging .assistant .chat-pane {
 .highlight code {
     display: block;
     min-width: 100%;
+    position: relative;
     width: max-content;
+}
+
+.indent-guide {
+    z-index: -1;
+    width: 0;
+    position: absolute;
+    pointer-events: none;
+    border-left: 1px dashed var(--indent-guide);
 }
 
 .highlight .line {
@@ -737,11 +710,11 @@ body.is-dragging .assistant .chat-pane {
     top: 0;
     left: 0;
     z-index: 6;
-    min-width: 220px;
-    max-width: 420px;
-    padding: 6px 0;
     position: absolute;
     color: var(--text);
+    min-width: calc(220px * var(--ui-scale));
+    max-width: calc(420px * var(--ui-scale));
+    padding: calc(6px * var(--ui-scale)) 0;
     background: color-mix(in srgb, var(--bg-popup) 65%, transparent);
     backdrop-filter: blur(var(--blur-popup));
     -webkit-backdrop-filter: blur(var(--blur-popup));
@@ -759,14 +732,11 @@ body.is-dragging .assistant .chat-pane {
     display: none;
 }
 
-/* The scroll surface: ten code lines tall before it moves, and `relative` so a
-   row's offset measures against the list itself, which the keep-in-view
-   arithmetic needs exactly. It carries the other half of the open animation. */
 .completion-list {
     overflow-y: auto;
-    max-height: 200px;
     position: relative;
     scrollbar-width: none;
+    max-height: calc(200px * var(--ui-scale));
     animation: completion-grow var(--motion-fast) var(--ease-standard);
 }
 
@@ -774,10 +744,6 @@ body.is-dragging .assistant .chat-pane {
     display: none;
 }
 
-/* The fade rides the panel because its place is a translate only JS writes (a
-   scale in the same property would drag that translate with it), so the
-   scale rides the list, which carries no transform of its own. The display
-   flip that opens the panel replays both on every open. */
 @keyframes completion-fade {
     from {
         opacity: 0;
@@ -790,33 +756,20 @@ body.is-dragging .assistant .chat-pane {
     }
 }
 
-/* Every row carries a side margin, so the selected row's highlight reads as a
-   rounded swatch floating inside the popup instead of a band welded to its
-   edges, and because all rows carry it, selection never shifts the text. */
 .completion-row {
-    gap: var(--space-2);
     display: flex;
     align-items: center;
-    height: var(--line-height-code);
-    padding: 0 var(--space-2);
+    gap: var(--space-2);
     margin: 0 var(--space-1);
+    padding: 0 var(--space-2);
+    height: calc(var(--line-height-code) + var(--space-1));
 }
 
-/* The swatch must lift off the popup rather than sink into it: the selection
-   token is tuned for the canvas and reads darker than the night popup now is,
-   so the row would disappear. Mixing the accent into the popup's own surface
-   keeps the brand blue visible on both themes (a pale wash over paper, a lit
-   blue over night) and tracks whatever background the panel is given. */
 .completion-row.is-selected {
-    background: color-mix(in srgb, var(--accent) 25%, var(--bg-popup));
     border-radius: 5px;
+    background: color-mix(in srgb, var(--accent) 25%, var(--bg-popup));
 }
 
-/* One mark per kind: the platform's round letter icons, disc + ink carried
-   by --icon-node-* tokens so the theme swap paints each mark's dark twin: a
-   purple property, a red method, a blue class, an orange variable. The keyword
-   rows carry a letter instead of a glyph: the K is the mark, the token colour
-   says the rest. */
 .completion-kind-kw {
     flex: none;
     width: 16px;
@@ -837,8 +790,6 @@ body.is-dragging .assistant .chat-pane {
     text-overflow: ellipsis;
 }
 
-/* The letters the prefix matched take the brand blue: the row's own kind
-   colour carries the icon + the type line, not the match. */
 .completion-label .match {
     color: var(--accent);
 }
@@ -849,10 +800,6 @@ body.is-dragging .assistant .chat-pane {
     white-space: nowrap;
 }
 
-/* The strip rides the right edge of the editor body with no seam or floor of its
-   own, so the scaled code + the slider are the only things drawn in it. It
-   casts a soft shadow off its left edge, onto the code, so the strip reads as a
-   surface lifted above the text rather than an outlined block. */
 .minimap {
     cursor: pointer;
     overflow: hidden;
@@ -861,10 +808,6 @@ body.is-dragging .assistant .chat-pane {
     box-shadow: -6px 0 9px -6px rgba(0, 0, 0, .25);
 }
 
-/* The clone carries .highlight for the overlay typography + line rules;
-   these later declarations cancel that rule's absolute fill, because the map
-   scales from the top-left corner instead of tracking the textarea, and they
-   reset the origin so the scale stays anchored there. */
 .minimap-content {
     top: 0;
     left: 0;
@@ -877,6 +820,12 @@ body.is-dragging .assistant .chat-pane {
    they shrink to a sub-pixel haze over every CJK run, so the clone drops them. */
 .minimap-content .glyph-box {
     outline: none;
+}
+
+/* Indent guides are a full-size reading aid too: at the map's scale they
+   collapse onto the text, so the clone drops them as well. */
+.minimap-content .indent-guide {
+    display: none;
 }
 
 /* The slider over the visible code. It rides above the scaled clone, so it never

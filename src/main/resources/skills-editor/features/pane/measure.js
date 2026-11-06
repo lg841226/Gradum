@@ -11,8 +11,6 @@
 // a scroll frame stays cheap.
 
 export function createMeasure({highlightCode}) {
-  // The text node + offset that `index` (in UTF-16 units, matching the text
-  // layer) falls on within a rendered line.
   function textPositionAt(lineNode, index) {
     let remaining = index;
     const walker = document.createTreeWalker(lineNode, NodeFilter.SHOW_TEXT);
@@ -26,9 +24,6 @@ export function createMeasure({highlightCode}) {
     return null;
   }
 
-  // Width, in pixels, of the first `charCount` characters of the rendered line,
-  // measured from the line's own left edge. Tabs, wide glyphs + fallback runs
-  // are all handled by the layout engine, so the number matches the glyphs.
   function advance(lineNumber, charCount) {
     if (charCount <= 0) {
       return 0;

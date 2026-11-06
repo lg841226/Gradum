@@ -125,9 +125,6 @@ export function createCodePane(store, {onInput, onFocus, getActiveDoc}) {
     cursors = [{anchor: start, head: end}];
   }
 
-  // macOS elastic overscroll can report a negative offset for a moment when a
-  // fast scroll hits the top. The text layer cannot follow it, so the overlays
-  // clamp + hold still instead of bouncing against the text.
   function scrollOffset() {
     return {
       left: Math.max(0, source.scrollLeft),
@@ -173,9 +170,6 @@ export function createCodePane(store, {onInput, onFocus, getActiveDoc}) {
     highlightLayer.render(text);
   }
 
-  // The problems panel hands its result to the pane rather than reaching into
-  // the gutter, the marker layer + the metrics itself: the pane owns those
-  // nodes, so the drawing rule stays here with them.
   function setDiagnostics(diagnostics, text) {
     markers.replaceChildren();
     highlightCode
@@ -283,9 +277,6 @@ export function createCodePane(store, {onInput, onFocus, getActiveDoc}) {
     }
   }
 
-  // Writes a buffer this pane did not produce itself (the other pane's typing)
-  // while keeping this pane's own scroll + (clamped) selection, so a reader's
-  // place is not thrown away by an edit on the far side.
   function adoptText(text) {
     const {selectionStart, selectionEnd, scrollTop, scrollLeft} = source;
     source.value = text;
@@ -330,17 +321,11 @@ export function createCodePane(store, {onInput, onFocus, getActiveDoc}) {
     return doc ? doc.id : null;
   }
 
-  // The active document's language pack: the editor's only source of
-  // tokenizing, completion + indent width. An unknown extension resolves to
-  // plaintext, so this never has to check for null.
   function currentLanguage() {
     const doc = getActiveDoc(store.getState());
     return languageFor(doc ? doc.name : null);
   }
 
-  // One edit, one path: buffer, caret list, the platform's range,
-  // the store + the history all move together, so no layer can learn about
-  // a splice another layer has not heard of.
   function commitEdit(edit) {
     source.value = edit.text;
     cursors = normalize(edit.cursors, edit.text);
@@ -353,8 +338,6 @@ export function createCodePane(store, {onInput, onFocus, getActiveDoc}) {
     completion.onEdit();
   }
 
-  // A restored snapshot travels the same road an edit does, minus the
-  // history push, which the undo or redo already accounted for.
   function restoreHistory(snapshot) {
     if (!snapshot) {
       return;
@@ -366,28 +349,22 @@ export function createCodePane(store, {onInput, onFocus, getActiveDoc}) {
     completion.onEdit();
   }
 
-  // A caret on the line below (or above) the outermost one, at the same
-  // display column: the shortcut marches through the file one line per
-  // press, and a line the file does not have leaves the list alone.
   function addCursorVertical(direction) {
     const text = source.value;
     const reference = direction > 0 ? cursors[cursors.length - 1] : cursors[0];
     const originStart = lineStartAt(text, reference.head);
-    const column = displayColumns(text.slice(originStart, reference.head));
+    const tabWidth = store.getState().tabWidth;
+    const column = displayColumns(text.slice(originStart, reference.head), tabWidth);
     const line = lineIndexOf(text, reference.head);
     const target = line + direction;
     const total = text.split("\n").length;
     if (target < 0 || target >= total) {
       return;
     }
-    const head = offsetAtColumn(text, target, column);
+    const head = offsetAtColumn(text, target, column, tabWidth);
     setCursors([...cursors, {anchor: head, head}]);
   }
 
-  // Click point to buffer offset: the line comes from the vertical metrics the
-  // caret already trusts, the column from a binary search over `advance` (the
-  // same measurement the caret draws with), so a planted caret lands on
-  // the glyph the pointer hit.
   function offsetFromPoint(clientX, clientY) {
     const text = source.value;
     const codeRect = code.getBoundingClientRect();
@@ -429,9 +406,6 @@ export function createCodePane(store, {onInput, onFocus, getActiveDoc}) {
     return start + low;
   }
 
-  // The motion a key requests, resolved on the platform's own habits: Meta
-  // walks to the line's edge (macOS), Option or Control walks a word, and the
-  // plain arrows travel one character or one line while shift extends.
   function motionOf(event) {
     const wordy = event.altKey || (event.ctrlKey && !event.metaKey);
     if (event.key === "ArrowUp") {
@@ -578,8 +552,6 @@ export function createCodePane(store, {onInput, onFocus, getActiveDoc}) {
       return;
     }
 
-    // Plain Enter inserts the newline; with Mod held the shortcut belongs to
-    // the host, so the event is left to bubble to the command registry.
     if (event.key === "Enter" && !mod) {
       event.preventDefault();
       const language = currentLanguage();
@@ -612,8 +584,9 @@ export function createCodePane(store, {onInput, onFocus, getActiveDoc}) {
     const motion = motionOf(event);
     if (motion) {
       event.preventDefault();
+      const tabWidth = store.getState().tabWidth;
       setCursors(
-        cursors.map((cursor) => moveCursor(source.value, cursor, motion, event.shiftKey)),
+        cursors.map((cursor) => moveCursor(source.value, cursor, motion, event.shiftKey, tabWidth)),
       );
       return;
     }

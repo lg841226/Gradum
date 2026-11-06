@@ -37,9 +37,6 @@ export function createChatView({messages, onGroupToggle}) {
     return state;
   };
 
-  // The user bubble enters once, on the node that the `user` effect creates.
-  // That node is never rebuilt, so the class cannot be re-added later; the
-  // gates mirror the prose blocks and the class comes off on animationend.
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   const enterBubble = (element, silent) => {
@@ -52,11 +49,6 @@ export function createChatView({messages, onGroupToggle}) {
     element.classList.add("chat-enter");
   };
 
-  // The leading block of a response animates once, on the first render that
-  // has content. Streaming appends into the block it already created instead
-  // of building a new one, so a per-created-block rule alone never fires for
-  // a single-paragraph answer. Blocks created later still animate, and the
-  // cursor keeps a rebuilt block from replaying.
   const renderBlocks = (target, text, silent) => {
     const state = entryState(target);
     const first = !state.primed;

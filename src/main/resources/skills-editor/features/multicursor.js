@@ -126,11 +126,7 @@ function wordRightAt(text, offset) {
   return at;
 }
 
-// Offset on `targetLine` nearest the display column of `column`, walking the
-// line and counting tab stops the way the grid draws them. A column the line
-// cannot hold lands at its end; a column inside a tab's expansion snaps to
-// the stop the tab reaches, never to the middle of it.
-function offsetAtColumn(text, targetLine, column) {
+function offsetAtColumn(text, targetLine, column, tabWidth = 4) {
   const total = text.split("\n").length;
   const line = Math.min(Math.max(targetLine, 0), total - 1);
   let at = 0;
@@ -145,7 +141,7 @@ function offsetAtColumn(text, targetLine, column) {
   let width = 0;
   while (at < end && width < column) {
     const next = stepRight(text, at);
-    const advance = displayColumns(text.slice(at, next));
+    const advance = displayColumns(text.slice(at, next), tabWidth);
     if (width + advance > column) {
       at = next;
       break;
@@ -156,12 +152,7 @@ function offsetAtColumn(text, targetLine, column) {
   return at;
 }
 
-// One motion applied to one cursor. A plain (unshifted) motion with a live
-// selection collapses it to an empty caret at the side it travels toward
-// (left + word-left to the start, right + word-right to the end) before
-// any traveling happens. With shift the anchor stays planted and the head
-// moves.
-function moveCursor(text, cursor, motion, extend) {
+function moveCursor(text, cursor, motion, extend, tabWidth = 4) {
   const {start, end} = rangeOf(cursor);
   const hasRange = end > start;
 
@@ -194,7 +185,7 @@ function moveCursor(text, cursor, motion, extend) {
       : lineEndAt(text, cursor.head);
   } else {
     const originStart = lineStartAt(text, cursor.head);
-    const column = displayColumns(text.slice(originStart, cursor.head));
+    const column = displayColumns(text.slice(originStart, cursor.head), tabWidth);
     const line = lineIndexOf(text, cursor.head);
     const target = motion === "lineUp" ? line - 1 : line + 1;
     const total = text.split("\n").length;
@@ -203,18 +194,12 @@ function moveCursor(text, cursor, motion, extend) {
     } else if (target >= total) {
       head = text.length;
     } else {
-      head = offsetAtColumn(text, target, column);
+      head = offsetAtColumn(text, target, column, tabWidth);
     }
   }
   return extend ? {anchor: cursor.anchor, head} : {anchor: head, head};
 }
 
-// The insertion at every cursor: each selection is replaced by `insert`, each
-// empty cursor just receives it, and every caret lands after what it just
-// gained. `insert` may be a function of the untouched buffer + this range's
-// start, so each caret can lay down something of its own (Enter's indent
-// differs per position) while the rebuild still runs left to right. Ranges
-// are known disjoint, so the buffer is rebuilt with one running shift.
 function insertText(text, cursors, insert) {
   let buffer = text;
   let shift = 0;

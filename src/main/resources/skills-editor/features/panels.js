@@ -62,7 +62,7 @@ export function mountPanels(store, {canvas}) {
     const hidden = state.collapsed || (!isFloatLayout() && state.autoBottom);
 
     canvas.classList.toggle("bottom-hidden", hidden);
-    canvas.style.setProperty("--bottom-height", `${state.bottomHeight}px`);
+    canvas.style.setProperty("--bottom-height", `calc(${state.bottomHeight}px * var(--ui-scale))`);
 
     const showingProblems = !hidden && state.panel === "problems";
     const showingOutput = !hidden && state.panel === "output";

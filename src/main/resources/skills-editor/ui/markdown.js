@@ -218,7 +218,6 @@ function fillBlock(el, block) {
   } else if (block.type === "quote") {
     renderMarkdown(el, block.text);
   } else if (block.type === "hr") {
-    // A rule has no content to fill.
   } else {
     el.replaceChildren();
     renderInline(el, block.text);

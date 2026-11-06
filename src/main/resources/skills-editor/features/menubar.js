@@ -1,14 +1,10 @@
 import {createButton, createIconButton} from "../ui/components/button.js";
+import {createSegmented, setSegmentedValue} from "../ui/components/segmented.js";
 import {createIcon} from "../ui/components/icon.js";
 import {copy} from "../ui/copy.js";
 import {isFloatLayout} from "./floatPanels.js";
 
-// The view menu: a two-position mode switch leads the bar. Developer is the
-// editor workspace, Agent hands the cell to the assistant overlay, and the
-// view entries sit to its right, the same menu as before. The run widget sits
-// in the middle and names the skill it would run. The theme control is handed
-// in by the assembly entry, which owns the editor root it paints.
-export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, theme}) {
+export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, onToggleSettings, theme}) {
   const bar = document.createElement("nav");
   bar.className = "menubar";
 
@@ -25,9 +21,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
     },
   ];
 
-  // Each view names the modes it belongs to, so the menu is a per-mode list
-  // rather than one shared row: the entries only appear while that mode holds
-  // the switch. The agent mode gains its own entries as its features grow.
   const views = [
     {
       name: "explorer",
@@ -50,10 +43,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
       modes: ["developer"],
       select: () => ({view: "output", panel: "output", collapsed: false}),
     },
-    // Two layout presets close the list: the editor alone + everything back.
-    // Editor skips its first letter: the E already belongs to Explorer, so its
-    // access key falls to the next letter, the way a desktop menu resolves a
-    // duplicate.
     {
       name: "editor",
       label: copy.control.editor,
@@ -77,65 +66,22 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
     },
   ];
 
-  const modesGroup = document.createElement("div");
-  modesGroup.className = "menubar-group menubar-modes";
-
-  const modeThumb = document.createElement("span");
-  modeThumb.className = "menubar-mode-thumb";
-  modeThumb.setAttribute("aria-hidden", "true");
-  modesGroup.appendChild(modeThumb);
+  const modesGroup = createSegmented({
+    className: "menubar-group menubar-modes",
+    options: modes.map((mode) => ({value: mode.name, label: mode.label})),
+    value: store.getState().chatOpen === true ? "agent" : "developer",
+    onChange: (name) => {
+      const mode = modes.find((entry) => entry.name === name);
+      if (!mode) {
+        return;
+      }
+      store.setState(mode.select(store.getState()));
+      closeNav();
+    },
+  });
 
   const viewsGroup = document.createElement("div");
   viewsGroup.className = "menubar-group menubar-views";
-
-  const modeItems = modes.map((mode) => {
-    const button = createButton({
-      label: mode.label,
-      variant: "menu",
-      onClick: () => {
-        store.setState(mode.select(store.getState()));
-        closeNav();
-      },
-    });
-    modesGroup.appendChild(button);
-    return {name: mode.name, button};
-  });
-
-  let modeShown = null;
-  let thumbReady = false;
-
-  // Read the target button's live box instead of assuming two equal segments:
-  // "Develop" and "Agent" measure differently, and a tight window can shrink
-  // either one. Only the button's own edges are used, so the capsule padding,
-  // gap and radius stay exactly what the buttons already drew; the highlight is
-  // pinned to the same box, with the same radius, as the old selected fill.
-  const placeModeThumb = (mode) => {
-    const target = modeItems.find((item) => item.name === mode)?.button;
-    if (!target) {
-      return;
-    }
-    modeShown = mode;
-    const group = modesGroup.getBoundingClientRect();
-    const rect = target.getBoundingClientRect();
-    modeThumb.style.width = `${rect.width}px`;
-    modeThumb.style.height = `${rect.height}px`;
-    modeThumb.style.transform = `translate(${rect.left - group.left}px, ${rect.top - group.top}px)`;
-    // The first placement lands without the transition; every later change is
-    // one slide to the newest target, so rapid clicks retarget instead of
-    // queueing and never leave a second highlight behind.
-    if (!thumbReady) {
-      thumbReady = true;
-      modeThumb.classList.add("is-ready");
-    }
-  };
-
-  // A window resize can shrink the segments without a state change, so the
-  // highlight follows the live box instead of staying at its last measurement.
-  new ResizeObserver(() => {
-    if (modeShown) {
-      placeModeThumb(modeShown);
-    }
-  }).observe(modesGroup);
 
   const items = views.map((view) => {
     const button = createButton({
@@ -151,9 +97,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
     return {name: view.name, button, modes: view.modes};
   });
 
-  // Touch devices have no hover + no room for a menu bar, so the entries
-  // gather behind a hamburger: tapping it drops the views as one vertical
-  // island under the bar, and a selection (or a tap anywhere else) closes it.
   const closeNav = () => bar.classList.remove("nav-open");
 
   const navToggle = createIconButton({
@@ -172,10 +115,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
   const widgetName = document.createElement("span");
   widgetName.className = "run-widget-name";
 
-  // The widget carries both actions in the order the platform lists them: build
-  // compiles the buffer without installing it, run compiles and installs. They
-  // sit in fixed-size icon buttons, so swapping an icon for the spinner while one
-  // of them works never shifts the other.
   const buildButton = createIconButton({
     icon: "build",
     tooltip: copy.tooltip.build,
@@ -188,8 +127,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
     onClick: () => onRun?.(),
   });
 
-  // The actions are their own zone rather than loose siblings of the label, so
-  // the stylesheet can split them from the name with a rule + a wider gap.
   const actions = document.createElement("div");
   actions.className = "run-widget-actions";
   actions.append(buildButton, runButton);
@@ -226,12 +163,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
     onClick: () => theme.cycle(),
   });
 
-  // The split toggles sit beside the theme toggle: one opens a second view to the
-  // right, the other stacks it below. They share the one split the editor keeps,
-  // so the pressed one is always the direction in force. The minimap toggle
-  // leads them: it folds the overview strip away and grows it back, and it is
-  // pressed while the strip is in view. Afloat there is no room worth splitting
-  // and no width for an overview strip, so the three stay desktop-only.
   const minimapButton = createIconButton({
     icon: "minimap",
     tooltip: copy.tooltip.hideMinimap,
@@ -253,9 +184,22 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
   });
   splitDownButton.hidden = isFloatLayout();
 
+  const settingsButton = createIconButton({
+    icon: "settings",
+    tooltip: copy.tooltip.settings,
+    onClick: () => onToggleSettings?.(),
+  });
+
   const rightGroup = document.createElement("div");
   rightGroup.className = "menubar-group menubar-right";
-  rightGroup.append(minimapButton, splitButton, splitDownButton, themeButton, modesGroup);
+  rightGroup.append(
+    minimapButton,
+    splitButton,
+    splitDownButton,
+    settingsButton,
+    themeButton,
+    modesGroup,
+  );
 
   bar.append(navToggle, leftGroup, widget, agentWidget, rightGroup);
   canvas.appendChild(bar);
@@ -264,12 +208,8 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
   let agentBusyShown = false;
   let markTimer = null;
 
-  // The bar folds its view entries away as the room shrinks, rather than at
-  // fixed breakpoints: it measures once how much space everything else needs,
-  // then keeps the longest run of entries from the left that still fits. The
-  // rightmost entries drop first, so the menu reads the same at any width, and
-  // each drop is a transition instead of a jump.
   let measured = false;
+  let measuredScale = "";
   let entryWidths = [];
   let entryGap = 0;
 
@@ -281,8 +221,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
     entryWidths = items.map((item) => item.button.hidden ? 0 : item.button.offsetWidth);
     bar.classList.remove("is-measuring");
 
-    // Gaps are read rather than assumed, so a change to the spacing tokens needs
-    // no matching change here.
     entryGap = parseFloat(getComputedStyle(viewsGroup).columnGap) || 0;
     items.forEach((item, index) => {
       if (!item.button.hidden) {
@@ -318,21 +256,12 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
     items.forEach((item, index) => item.button.classList.toggle("is-folded", folded[index]));
   }
 
-  // The switch mirrors the chat overlay flag, so selecting a segment moves the
-  // highlight and the assistant answers in the same render. The widget names
-  // the skill it would run, the way the platform run widget names its
-  // configuration.
   const render = (state) => {
-    // Afloat the rail takes no editor room, so the size-driven auto step-aside
-    // no longer applies and only the user's own toggle decides.
     canvas.classList.toggle(
       "rail-collapsed",
       state.railCollapsed || (!isFloatLayout() && state.autoRail));
     const activeMode = state.chatOpen === true ? "agent" : "developer";
-    for (const item of modeItems) {
-      item.button.setAttribute("aria-pressed", item.name === activeMode ? "true" : "false");
-    }
-    placeModeThumb(activeMode);
+    setSegmentedValue(modesGroup, activeMode);
     for (const item of items) {
       item.button.hidden = !item.modes.includes(activeMode);
       item.button.setAttribute(
@@ -366,8 +295,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
         markTimer = setTimeout(() => {
           agentMark.classList.add("is-leaving");
           markTimer = setTimeout(() => {
-            // Past the fade, the classes drop and the box folds shut on its
-            // own width transition.
             agentMark.classList.remove("is-done", "is-leaving");
             agentMark.replaceChildren();
           }, 180);
@@ -403,10 +330,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
     buildButton.disabled = !actionable;
     runButton.disabled = !actionable;
 
-    // The split toggles follow the open document, not the busy state: a compile
-    // does not forbid looking at the buffer twice. Each button is pressed when
-    // its own direction is the one in force, and its tooltip turns into the way
-    // out while pressed.
     const direction = state.splitDirection === "down" ? "down" : "right";
     const splitOn = Boolean(state.split) && Boolean(activeName);
     const splitRightOn = splitOn && direction === "right";
@@ -428,8 +351,16 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
       state.minimapHidden ? copy.tooltip.showMinimap : copy.tooltip.hideMinimap,
     );
 
-    if (!measured) {
+    const scaleKey = `${state.uiScale ?? 1}:${state.uiFontSize ?? 14}`;
+    if (scaleKey !== measuredScale) {
+      if (measured) {
+        for (const item of items) {
+          item.button.classList.remove("is-folded");
+          item.button.style.removeProperty("--menu-entry-width");
+        }
+      }
       measure();
+      measuredScale = scaleKey;
     }
     layout();
   };
@@ -439,8 +370,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, them
 
   new ResizeObserver(layout).observe(bar);
 
-  // The button mirrors the preference the theme reports, so a switch repaints
-  // the icon + the label without any local bookkeeping.
   theme.subscribe(({preference}) => {
     const tooltip = copy.theme.tooltip;
     themeButton.dataset.tooltip = tooltip;

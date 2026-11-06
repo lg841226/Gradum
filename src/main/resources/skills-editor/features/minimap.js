@@ -110,6 +110,7 @@ export function mountMinimap(store, {container, source, highlightCode, getActive
   source.addEventListener("scroll", () => update());
 
   new ResizeObserver(() => update()).observe(source);
+  window.addEventListener("resize", () => update());
 
   let renderedDocId;
   let renderedDiagnostics;

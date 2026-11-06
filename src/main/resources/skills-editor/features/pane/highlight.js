@@ -33,6 +33,70 @@ function changedRuns(lines) {
   return runs;
 }
 
+// Indentation guides: one dashed line per level, from the first line of a
+// block to the last. Blank lines are transparent: they never open or close a
+// run, so an empty line cannot leave a stub behind. A tab advances to the next
+// tab stop the overlay is rendered with, so a tab-indented block lines up with
+// its space-indented twin. One pass over the lines: every line opens the levels
+// it newly reaches and closes the ones it falls below. A level's line is only
+// drawn while the line is indented past that level: at indent === level * unit
+// the column is the first glyph's own, so the level must stop one step short.
+function indentGuides(text, indentUnit, tabWidth) {
+  const guides = [];
+  if (!(indentUnit > 0)) {
+    return guides;
+  }
+
+  const rows = text.split("\n");
+  const open = [];
+  let last = -1;
+
+  for (let index = 0; index < rows.length; index++) {
+    const row = rows[index];
+    let columns = 0;
+    let cursor = 0;
+    for (; cursor < row.length; cursor++) {
+      if (row[cursor] === " ") {
+        columns += 1;
+      } else if (row[cursor] === "\t") {
+        columns += tabWidth - (columns % tabWidth);
+      } else {
+        break;
+      }
+    }
+    if (row.slice(cursor).trim() === "") {
+      continue;
+    }
+
+    // Indented past, not level with: a line starting at level * unit has its
+    // first glyph on that column, and a guide there would sit on the text.
+    const depth = Math.max(0, Math.floor((columns - 1) / indentUnit));
+    while (open.length > depth) {
+      const run = open.pop();
+      guides.push({level: run.level, start: run.start, end: last});
+    }
+    while (open.length < depth) {
+      open.push({level: open.length + 1, start: index});
+    }
+    last = index;
+  }
+
+  while (open.length > 0) {
+    const run = open.pop();
+    guides.push({level: run.level, start: run.start, end: last});
+  }
+  return guides;
+}
+
+function guideMarkup(guides, indentUnit) {
+  return guides.map(({level, start, end}) => {
+    const span = end - start + 1;
+    const top = `calc(${start} * var(--line-height-code))`;
+    const height = `calc(${span} * var(--line-height-code))`;
+    return `<span class="indent-guide" style="top: ${top}; height: ${height}; left: ${level * indentUnit}ch;"></span>`;
+  }).join("");
+}
+
 function lineMarkup(text, tokenize) {
   const lines = [];
   let current = "";
@@ -65,6 +129,12 @@ export function createHighlightLayer({
                                        getActiveOffset,
                                        getActiveDoc,
                                      }) {
+  // What the last render used, so a settings change can repaint the two panes
+  // exactly once instead of on every caret update the store broadcasts.
+  let renderedText = null;
+  let renderedGuides = null;
+  let renderedTab = null;
+
   function updateActiveLine() {
     const line = getText().slice(0, getActiveOffset()).split("\n").length;
 
@@ -76,8 +146,16 @@ export function createHighlightLayer({
   }
 
   function render(text) {
-    const doc = getActiveDoc(store.getState());
-    const lines = lineMarkup(text, languageFor(doc?.name).tokenize);
+    const state = store.getState();
+    const doc = getActiveDoc(state);
+    const language = languageFor(doc?.name);
+    const guidesOn = state.indentGuides !== false;
+    const tabWidth = state.tabWidth || 4;
+    const lines = lineMarkup(text, language.tokenize);
+
+    renderedText = text;
+    renderedGuides = guidesOn;
+    renderedTab = tabWidth;
 
     const marked = doc && doc.baseline != null ? changedLines(text, doc.baseline) : [];
     const runHtml = changedRuns(marked).map(({start, end}) => {
@@ -89,7 +167,9 @@ export function createHighlightLayer({
 
     highlightCode.innerHTML = lines
       .map((content, index) => `<span class="line" data-line="${index + 1}">${content}</span>`)
-      .join("");
+      .join("") + (guidesOn
+      ? guideMarkup(indentGuides(text, language.indentUnit, tabWidth), language.indentUnit)
+      : "");
     gutterInner.innerHTML = lines
       .map((_content, index) =>
         `<span class="gutter-line" data-line="${index + 1}">${index + 1}</span>`)
@@ -97,6 +177,17 @@ export function createHighlightLayer({
 
     updateActiveLine();
   }
+
+  store.subscribe((state) => {
+    if (renderedText === null) {
+      return;
+    }
+    const guidesOn = state.indentGuides !== false;
+    const tabWidth = state.tabWidth || 4;
+    if (guidesOn !== renderedGuides || tabWidth !== renderedTab) {
+      render(renderedText);
+    }
+  });
 
   return {render, updateActiveLine};
 }
