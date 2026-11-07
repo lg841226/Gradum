@@ -7,15 +7,19 @@
 
 import {renderMarkdown} from "../../ui/markdown.js";
 import {copy} from "../../ui/copy.js";
+import {createIconButton} from "../../ui/components/button.js";
+import {createIcon} from "../../ui/components/icon.js";
 import {renderAskCard} from "./askCard.js";
 import {createProcessGroup, createToolCapsule} from "./processGroup.js";
 import {createThinkingBlock} from "./thinking.js";
 
-export function createChatView({messages, onGroupToggle}) {
+export function createChatView({messages, onGroupToggle, onRetry}) {
   let pendingEl = null;
   let agentEl = null;
   let thinking = null;
   let group = null;
+  let turnRoot = null;
+  let retryButton = null;
 
   // Entry state lives on the column, not on the block element: the parser
   // replaces every block it cannot reuse, so a per-target cursor is the only
@@ -97,12 +101,121 @@ export function createChatView({messages, onGroupToggle}) {
     return group;
   };
 
+  const retireRetry = () => {
+    retryButton?.remove();
+    retryButton = null;
+  };
+
+  const failureTitle = (effect) => {
+    const friendly = effect.code ? copy.chat.errors[effect.code] : "";
+    return friendly || effect.message || copy.chat.errorUnknown;
+  };
+
+  const failureDetail = (effect) => {
+    const lines = [];
+    if (effect.code) {
+      lines.push(`Code: ${effect.code}`);
+    }
+    if (effect.tool) {
+      lines.push(`Tool: ${effect.tool}`);
+    }
+    if (effect.detail && effect.detail !== effect.message) {
+      lines.push(effect.detail);
+    }
+    if (effect.message) {
+      lines.push(effect.message);
+    }
+    return lines.join("\n");
+  };
+
+  const createFailureBanner = (effect) => {
+    const banner = document.createElement("div");
+    banner.className = "bubble bubble-failure";
+    banner.setAttribute("role", "alert");
+
+    const detail = failureDetail(effect);
+    const row = document.createElement("div");
+    row.className = "failure-row";
+
+    const head = document.createElement(detail ? "button" : "div");
+    head.className = "failure-head";
+    head.append(createIcon({name: "error"}));
+
+    const title = document.createElement("span");
+    title.className = "failure-title";
+    title.textContent = failureTitle(effect);
+    head.append(title);
+
+    const detailEl = document.createElement("div");
+    detailEl.className = "failure-detail";
+    detailEl.textContent = detail;
+    detailEl.hidden = true;
+
+    if (detail) {
+      head.type = "button";
+      head.dataset.expandable = "true";
+      head.dataset.tooltip = copy.chat.showRawError;
+      head.setAttribute("aria-expanded", "false");
+      head.addEventListener("click", () => {
+        const open = detailEl.hidden;
+        detailEl.hidden = !open;
+        head.setAttribute("aria-expanded", String(open));
+        scrollBottom();
+      });
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "failure-actions";
+
+    if (detail) {
+      const copyButton = createIconButton({
+        icon: "copy",
+        tooltip: copy.chat.copyDetails,
+        onClick: () => {
+          const clipboard = navigator.clipboard;
+          if (!clipboard) {
+            return;
+          }
+          clipboard.writeText(detail).then(() => {
+            copyButton.dataset.tooltip = copy.chat.copied;
+            copyButton.setAttribute("aria-label", copy.chat.copied);
+            setTimeout(() => {
+              copyButton.dataset.tooltip = copy.chat.copyDetails;
+              copyButton.setAttribute("aria-label", copy.chat.copyDetails);
+            }, 2000);
+          }).catch(() => {
+          });
+        },
+      });
+      actions.append(copyButton);
+    }
+
+    retireRetry();
+    if (onRetry) {
+      retryButton = createIconButton({
+        icon: "rerun",
+        tooltip: copy.chat.retry,
+        onClick: () => onRetry(),
+      });
+      actions.append(retryButton);
+    }
+
+    row.append(head);
+    if (actions.childElementCount > 0) {
+      row.append(actions);
+    }
+    banner.append(row, detailEl);
+    return banner;
+  };
+
   const applyEffect = (effect, silent) => {
     switch (effect.type) {
       case "user": {
         const bubble = document.createElement("div");
         bubble.className = "bubble bubble-user";
         bubble.textContent = effect.text;
+        retireRetry();
+        turnRoot = bubble;
         append(bubble);
         enterBubble(bubble, silent);
         break;
@@ -177,7 +290,14 @@ export function createChatView({messages, onGroupToggle}) {
         renderAskCard({append, frame: effect.frame});
         break;
 
-      case "error":
+      case "error": {
+        if (effect.code === "INTERRUPTED") {
+          break;
+        }
+        append(createFailureBanner(effect));
+        break;
+      }
+
       case "notice": {
         const bubble = document.createElement("div");
         bubble.className = "bubble bubble-error";
@@ -192,6 +312,8 @@ export function createChatView({messages, onGroupToggle}) {
         group = null;
         agentEl = null;
         pendingEl = null;
+        turnRoot = null;
+        retryButton = null;
         messages.replaceChildren();
         break;
 
@@ -208,6 +330,21 @@ export function createChatView({messages, onGroupToggle}) {
     },
     reset() {
       applyEffect({type: "reset"});
+    },
+    dropTurn() {
+      let node = turnRoot;
+      while (node) {
+        const next = node.nextElementSibling;
+        node.remove();
+        node = next;
+      }
+      turnRoot = null;
+      retryButton = null;
+      thinking?.stop();
+      thinking = null;
+      group = null;
+      agentEl = null;
+      pendingEl = null;
     },
   };
 }

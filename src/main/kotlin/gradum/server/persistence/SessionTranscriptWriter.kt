@@ -70,7 +70,10 @@ object SessionTranscriptWriter {
       ?: ChatDb.sessionTimestamps(projectRoot = projectRoot, sessionId = trimmedId)?.first
       ?: nowMillis
     val sessionMeta = TranscriptMeta(
-      title = title ?: titleFor(messages),
+      title = title ?: persistedTitle(
+        transcriptFile = sessionDirectory.resolve(TRANSCRIPT_FILE),
+        messages = messages
+      ),
       sessionId = trimmedId,
       modelName = modelName,
       createdAt = sessionCreatedAt,
@@ -160,7 +163,22 @@ object SessionTranscriptWriter {
     val firstLine: String =
       SessionHistoryReader.readUser(firstUserMessage).text
         .lineSequence().firstOrNull { it.isNotBlank() }?.trim() ?: ""
-    return firstLine.take(n = MAX_TITLE_LENGTH)
+    return titleText(firstLine)
+  }
+
+  private fun persistedTitle(transcriptFile: Path, messages: List<Map<String, Any?>>): String {
+    val stored: String = titleText(readSessionMeta(transcriptFile = transcriptFile)?.title.orEmpty())
+    return stored.ifBlank { titleFor(messages) }
+  }
+
+  private fun titleText(value: String): String {
+    val text: String = value.trim()
+    if (text.isEmpty()) return ""
+    val codePoints: Int = text.codePointCount(0, text.length)
+    val count: Int = if (codePoints > MAX_TITLE_LENGTH) MAX_TITLE_LENGTH else codePoints
+    var end: Int = text.offsetByCodePoints(0, count)
+    if (end > 0 && Character.isHighSurrogate(text[end - 1])) end -= 1
+    return text.substring(0, end)
   }
 
   private fun renderTranscript(meta: TranscriptMeta, messages: List<Map<String, Any?>>): String {

@@ -3,7 +3,7 @@ import {clampShare} from "../core/layout.js";
 import {createEmptyState} from "../ui/components/feedback.js";
 import {createPanel} from "../ui/components/panel.js";
 import {copy} from "../ui/copy.js";
-import {dragPointer} from "./splitter.js";
+import {dragPointer, isDragging, onDragSettle} from "./splitter.js";
 import {createCodePane} from "./pane.js";
 
 // Compiler output caps the diagnostics it prints inline; anything past this
@@ -50,6 +50,13 @@ export function mountEditor(store, {canvas, showPanel, documents, getActiveDoc, 
   panes.push(leftPane, rightPane);
   focusedPane = leftPane;
 
+  onDragSettle(() => {
+    for (const pane of panes) {
+      pane.syncScroll();
+      pane.updateSelection();
+    }
+  });
+
   leftPane.root.dataset.pane = "left";
   rightPane.root.dataset.pane = "right";
 
@@ -67,9 +74,18 @@ export function mountEditor(store, {canvas, showPanel, documents, getActiveDoc, 
       return;
     }
 
+    let ratio = store.getState().splitRatio ?? 0.5;
+    let moved = false;
+
     dragPointer(down ? "row-resize" : "col-resize", (moveEvent) => {
       const offset = (down ? moveEvent.clientY : moveEvent.clientX) - start;
-      store.setState({splitRatio: clampShare(offset / span)});
+      ratio = clampShare(offset / span);
+      body.style.setProperty("--split-ratio", String(ratio));
+      moved = true;
+    }, () => {
+      if (moved) {
+        store.setState({splitRatio: ratio});
+      }
     });
   });
 
@@ -339,7 +355,9 @@ export function mountEditor(store, {canvas, showPanel, documents, getActiveDoc, 
     emptyState.hidden = Boolean(doc);
 
     const share = state.splitRatio ?? 0.5;
-    body.style.setProperty("--split-ratio", String(share));
+    if (!isDragging()) {
+      body.style.setProperty("--split-ratio", String(share));
+    }
 
     const orientation = state.splitDirection === "down" ? "horizontal" : "vertical";
     divider.setAttribute("aria-orientation", orientation);

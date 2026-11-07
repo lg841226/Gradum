@@ -1295,11 +1295,7 @@ fun Application.registerAllRoutes(
       val deployResult =
         try {
           val workspace = WorkspaceHost.workspace
-          if (workspace != null) {
-            workspace.deploy("$SKILLS_ROOT/${request.name}", request.source)
-          } else {
-            scanner.deploy(request.name, request.source)
-          }
+          workspace?.deploy("$SKILLS_ROOT/${request.name}", request.source) ?: scanner.deploy(request.name, request.source)
         } catch (invalidName: IllegalArgumentException) {
           call.respondText(
             text = JsonUtil.encodeMap(mapOf("error" to (invalidName.message ?: "Invalid skill name"))),

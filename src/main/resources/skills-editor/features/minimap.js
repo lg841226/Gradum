@@ -7,6 +7,8 @@
 // squiggle bands are carried over as overview markers while the current-line
 // band + the selection + match boxes are dropped, because they belong to
 // the editor pane alone.
+import {isDragging, onDragSettle} from "./splitter.js";
+
 export function mountMinimap(store, {container, source, highlightCode, getActiveDoc}) {
   const strip = document.createElement("div");
   strip.className = "minimap";
@@ -109,8 +111,24 @@ export function mountMinimap(store, {container, source, highlightCode, getActive
   source.addEventListener("input", () => clone());
   source.addEventListener("scroll", () => update());
 
-  new ResizeObserver(() => update()).observe(source);
-  window.addEventListener("resize", () => update());
+  let refreshPending = false;
+  const refresh = () => {
+    if (isDragging()) {
+      refreshPending = true;
+      return;
+    }
+    update();
+  };
+
+  new ResizeObserver(refresh).observe(source);
+  window.addEventListener("resize", refresh);
+  onDragSettle(() => {
+    if (!refreshPending) {
+      return;
+    }
+    refreshPending = false;
+    update();
+  });
 
   let renderedDocId;
   let renderedDiagnostics;

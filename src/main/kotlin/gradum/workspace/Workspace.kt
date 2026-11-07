@@ -12,6 +12,10 @@ const val UI_ROOT: String = "ui"
 
 data class WorkspaceRoot(val name: String, val directory: File)
 
+/**
+ * One tree over the registered roots. A path is always `root/relative/path`;
+ * reads, writes, and deploys resolve that string against exactly one root.
+ */
 class Workspace(roots: List<WorkspaceRoot>) {
   private val roots: List<WorkspaceRoot> = roots.toList()
   private val rootDirectories: Map<String, File>

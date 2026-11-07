@@ -148,13 +148,13 @@ export function mountRail(store, {canvas, onOpen, onCreate, onOpenSession}) {
     return lower.endsWith(".kt") ? "kotlin" : null;
   };
 
-  const renderNode = (node, activeName) => {
+  const renderNode = (node, activeName, offline) => {
     if (node.directory) {
       const children = document.createElement("div");
       children.className = "tree-children";
       children.setAttribute("role", "group");
       for (const child of node.children || []) {
-        children.appendChild(renderNode(child, activeName));
+        children.appendChild(renderNode(child, activeName, offline));
       }
       const expanded = groupFolds.has(node.path) ? groupFolds.get(node.path) : false;
       return createGroupRow({
@@ -169,6 +169,7 @@ export function mountRail(store, {canvas, onOpen, onCreate, onOpenSession}) {
       label: node.name,
       icon: iconFor(node.path),
       active: node.path === activeName,
+      offline,
       onClick: () => onOpen?.(node.path),
     });
   };
@@ -197,7 +198,7 @@ export function mountRail(store, {canvas, onOpen, onCreate, onOpenSession}) {
         state.projectRoot,
         state.treeCollapsed,
       ])
-      : JSON.stringify(["workspace", state.tree, activeName]);
+      : JSON.stringify(["workspace", state.tree, activeName, state.offline]);
     if (next === signature) {
       return;
     }
@@ -256,7 +257,7 @@ export function mountRail(store, {canvas, onOpen, onCreate, onOpenSession}) {
       children.className = "tree-children";
       children.setAttribute("role", "group");
       for (const child of rootNode.children || []) {
-        children.appendChild(renderNode(child, activeName));
+        children.appendChild(renderNode(child, activeName, state.offline));
       }
       const expanded = rootFolds.has(rootNode.path) ? rootFolds.get(rootNode.path) : true;
       branches.appendChild(createGroupRow({

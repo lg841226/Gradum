@@ -3,6 +3,7 @@ import {createPanel} from "../ui/components/panel.js";
 import {createTab} from "../ui/components/tab.js";
 import {copy} from "../ui/copy.js";
 import {isFloatLayout} from "./floatPanels.js";
+import {isDragging} from "./splitter.js";
 
 export function mountPanels(store, {canvas}) {
   const panel = createPanel();
@@ -62,7 +63,9 @@ export function mountPanels(store, {canvas}) {
     const hidden = state.collapsed || (!isFloatLayout() && state.autoBottom);
 
     canvas.classList.toggle("bottom-hidden", hidden);
-    canvas.style.setProperty("--bottom-height", `calc(${state.bottomHeight}px * var(--ui-scale))`);
+    if (!isDragging()) {
+      canvas.style.setProperty("--bottom-height", `calc(${state.bottomHeight}px * var(--ui-scale))`);
+    }
 
     const showingProblems = !hidden && state.panel === "problems";
     const showingOutput = !hidden && state.panel === "output";

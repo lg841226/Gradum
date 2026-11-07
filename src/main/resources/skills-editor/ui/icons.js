@@ -149,6 +149,36 @@ export const icons = {
     + 'L8.34547 8.73715C7.91311 8.34082 7.9131 7.65918 8.34547 7.26285L12.9958 3Z"'
     + ' stroke="none" style="fill:var(--icon-kotlin-body)"/>',
 
+  // expui/general/copy.svg + copy_dark.svg, AllIconsKeys.Actions.Copy. The two
+  // variants share one 16x16 drawing and differ only in ink, so both greys fold
+  // onto currentColor and the frame keeps the platform's 1px stroke width. Apache
+  // 2.0, Copyright 2000-2023 JetBrains s.r.o. and contributors.
+  copy: '<rect x="2.5" y="3.5" width="9" height="10" rx="1.5" fill="none"'
+    + ' stroke="currentColor" stroke-width="1"/>'
+    + '<rect x="5" y="6" width="4" height="1" rx="0.5" fill="currentColor" stroke="none"/>'
+    + '<rect x="5" y="8" width="4" height="1" rx="0.5" fill="currentColor" stroke="none"/>'
+    + '<rect x="5" y="10" width="4" height="1" rx="0.5" fill="currentColor" stroke="none"/>'
+    + '<path fill-rule="evenodd" clip-rule="evenodd" d="M11.0017 2H11.5998C12.373 2 12.9998'
+    + ' 2.6268 12.9998 3.4V3.91081C13.0011 3.94038 13.0017 3.97011 13.0017 4V11.5482C13.6063'
+    + ' 11.1124 13.9998 10.4021 13.9998 9.6V3.4C13.9998 2.07452 12.9253 1 11.5998 1H6.39978'
+    + 'C5.59677 1 4.88587 1.39437 4.4502 2H6.39978H11.0017Z" fill="currentColor" stroke="none"/>',
+
+  // expui/run/rerun.svg + rerun_dark.svg, AllIconsKeys.Run.Rerun. The two differ
+  // only in the green + ink values, so the arrow and play outline read
+  // currentColor and the play's inner fill layer is dropped for monochrome use.
+  // Apache 2.0, Copyright 2000-2023 JetBrains s.r.o. and contributors.
+  rerun: '<path fill-rule="evenodd" clip-rule="evenodd" d="M9 9.50215C9 8.32441 10.2951'
+    + ' 7.60608 11.2942 8.22967L15.2962 10.7275C16.2372 11.3149 16.2372 12.6851 15.2962'
+    + ' 13.2725L11.2942 15.7703C10.2951 16.3939 9 15.6756 9 14.4978V9.50215ZM10.7647'
+    + ' 9.07799C10.4317 8.87013 10 9.10957 10 9.50215V14.4978C10 14.8904 10.4317 15.1298'
+    + ' 10.7647 14.922L14.7667 12.4241C15.0804 12.2284 15.0804 11.7716 14.7667 11.5758L10.7647'
+    + ' 9.07799Z" fill="currentColor" stroke="none"/>'
+    + '<path d="M14 1.5C14 1.22386 13.7761 1 13.5 1C13.2239 1 13 1.22386 13 1.5V4.68235'
+    + 'C11.9256 3.06631 10.0877 2 8 2C4.68629 2 2 4.68629 2 8C2 11.3137 4.68629 14 8 14V13'
+    + 'C5.23858 13 3 10.7614 3 8C3 5.23858 5.23858 3 8 3C9.63527 3 11.0878 3.78495 12.0005 5'
+    + 'H9.5C9.22386 5 9 5.22386 9 5.5C9 5.77614 9.22386 6 9.5 6H14V1.5Z" fill="currentColor"'
+    + ' stroke="none"/>',
+
   // expui/toolwindows/project.svg, the folder glyph the platform draws for tree
   // roots.
   folder: '<path d="M8.15132 4.35836L8.29689 4.5H8.5H13C13.8284 4.5 14.5 5.17157 14.5 6V12.1333'

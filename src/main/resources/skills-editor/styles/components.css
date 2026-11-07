@@ -57,6 +57,22 @@
     background: var(--accent-selection);
 }
 
+.canvas:not([data-theme="light"]) .btn[data-variant="icon"],
+.canvas:not([data-theme="light"]) .tab-close,
+.canvas:not([data-theme="light"]) .tree-twisty {
+    color: var(--text-dim);
+}
+
+.canvas:not([data-theme="light"]) .btn[data-variant="icon"]:hover,
+.canvas:not([data-theme="light"]) .tab-close:hover,
+.canvas:not([data-theme="light"]) .tree-twisty:hover {
+    color: var(--text);
+}
+
+.canvas:not([data-theme="light"]) .btn[data-variant="icon"]:disabled {
+    color: var(--text-mute);
+}
+
 /* Header icon buttons keep the control height, so in the 36px header the
    (36 - 28) / 2 = 4px above them matches the 4px of horizontal padding the
    header carries on that side. */
@@ -397,6 +413,12 @@
     text-overflow: ellipsis;
 }
 
+.tab-label[data-offline="true"],
+.list-item-label[data-offline="true"] {
+    color: var(--error);
+    text-decoration: line-through;
+}
+
 
 .list-item-detail {
     flex: 1 1 auto;
@@ -485,7 +507,7 @@
     justify-content: center;
     gap: var(--space-1);
     padding: 0 var(--space-6);
-    font-family: var(--font-code);
+    font-family: var(--font-code), ui-monospace;
 }
 
 .empty-state-title {
@@ -582,7 +604,7 @@
 .output {
     font-size: var(--font-size-code);
     padding: var(--space-2) var(--space-3);
-    font-family: var(--font-code);
+    font-family: var(--font-code), ui-monospace;
 }
 
 .output-line {
@@ -768,7 +790,7 @@
     background: var(--bg-raised);
     border-radius: var(--radius-control);
     border: 1px solid var(--border-strong);
-    font-family: var(--font-code);
+    font-family: var(--font-code), ui-monospace;
 }
 
 .unlock-code:focus {
@@ -789,7 +811,7 @@
 }
 
 .unlock-submit {
-    color: #fff;
+    color: #ffffff;
     background: var(--accent);
 }
 
@@ -799,7 +821,7 @@
 
 .unlock-submit:disabled,
 .unlock-submit.btn:disabled:hover {
-    color: #fff;
+    color: #ffffff;
     opacity: .5;
     cursor: default;
     background: var(--accent);
@@ -829,13 +851,13 @@
 }
 
 .switch-thumb {
-    display: block;
     flex: none;
+    display: block;
+    border-radius: 999px;
+    background: var(--switch-thumb);
     margin-left: calc(2px * var(--ui-scale));
     width: calc(var(--switch-height) - 4px * var(--ui-scale));
     height: calc(var(--switch-height) - 4px * var(--ui-scale));
-    background: var(--switch-thumb);
-    border-radius: 999px;
     transition: transform var(--motion-fast) var(--ease-standard);
 }
 
@@ -903,18 +925,13 @@
     margin-bottom: var(--space-1);
 }
 
-/* Pill track + sliding thumb, shared by the menu bar's Developer/Agent switch
-   and the settings Theme row. The thumb is a popup-coloured block the JS places
-   from measured boxes, so both surfaces use one colour, radius and shadow.
-   Buttons stay transparent and the pressed one lifts to full brightness, the
-   same text-only selection the menu entries use. */
 .segmented {
+    padding: 2px;
+    border-radius: 999px;
     position: relative;
     display: inline-flex;
     align-items: center;
-    padding: 2px;
     background: var(--bg-raised);
-    border-radius: 999px;
 }
 
 .segmented .btn {
@@ -952,10 +969,6 @@
     width var(--motion-fast) var(--ease-standard);
 }
 
-/* Performance mode writes data-motion="off" on the canvas and reuses the same
-   reduced-motion treatment as the OS preference below. Both paths only retime
-   existing motion by collapsing the two duration tokens to zero, with the few
-   literal durations dropped by hand; neither introduces a keyframe or a token. */
 .canvas[data-motion="off"] {
     --motion-fast: 0ms;
     --motion-slow: 0ms;

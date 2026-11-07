@@ -11,6 +11,7 @@ export function createTab({
                             variant = "file",
                             active = false,
                             dirty = false,
+                            offline = false,
                             tooltip,
                             closeTooltip,
                             onActivate,
@@ -40,6 +41,9 @@ export function createTab({
   const labelNode = document.createElement("span");
   labelNode.classList.add("tab-label");
   labelNode.textContent = label;
+  if (offline) {
+    labelNode.dataset.offline = "true";
+  }
   tab.appendChild(labelNode);
 
   if (variant === "file") {

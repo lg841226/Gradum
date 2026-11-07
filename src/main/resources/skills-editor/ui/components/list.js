@@ -1,7 +1,16 @@
 import {createIcon} from "./icon.js";
 import {copy} from "../copy.js";
 
-export function createListItem({label, detail, icon, lead, active = false, muted = false, onClick} = {}) {
+export function createListItem({
+                                 label,
+                                 detail,
+                                 icon,
+                                 lead,
+                                 active = false,
+                                 muted = false,
+                                 offline = false,
+                                 onClick,
+                               } = {}) {
   const item = document.createElement("div");
   item.className = "list-item";
   item.setAttribute("role", "treeitem");
@@ -19,6 +28,9 @@ export function createListItem({label, detail, icon, lead, active = false, muted
   const name = document.createElement("span");
   name.className = "list-item-label";
   name.textContent = label;
+  if (offline) {
+    name.dataset.offline = "true";
+  }
   item.appendChild(name);
 
   if (detail) {

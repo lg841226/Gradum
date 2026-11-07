@@ -69,6 +69,7 @@ export const STATE_SCHEMA = {
   projectRoot: {default: ""},
   authed: {default: false},
   reader: {default: false},
+  offline: {default: false},
 };
 
 export function createInitialState(overrides = {}) {

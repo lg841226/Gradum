@@ -9,7 +9,7 @@ import {createComposer} from "./composer.js";
 import {createModelPicker, createPermissionPicker} from "./pickers.js";
 import {createStreamController} from "./stream.js";
 import {isFloatLayout} from "../floatPanels.js";
-import {dragPointer} from "../splitter.js";
+import {dragPointer, isDragging} from "../splitter.js";
 import {clampShare} from "../../core/layout.js";
 
 function newSessionId() {
@@ -49,9 +49,18 @@ export function mountAssistant(store, {canvas}) {
     if (!span) {
       return;
     }
+    let ratio = store.getState().chatSplitRatio ?? 0.5;
+    let moved = false;
+
     dragPointer(down ? "row-resize" : "col-resize", (moveEvent) => {
       const offset = (down ? moveEvent.clientY : moveEvent.clientX) - start;
-      store.setState({chatSplitRatio: clampShare(offset / span)});
+      ratio = clampShare(offset / span);
+      columns.style.setProperty("--split-ratio", String(ratio));
+      moved = true;
+    }, () => {
+      if (moved) {
+        store.setState({chatSplitRatio: ratio});
+      }
     });
   });
 
@@ -139,13 +148,33 @@ export function mountAssistant(store, {canvas}) {
   async function refreshSessions() {
     const {projectRoot} = store.getState();
     const request = ++sessionRequest;
-    const sessions = projectRoot
-      ? await listSessions(projectRoot).catch(() => [])
-      : [];
 
-    if (request === sessionRequest) {
-      store.setState({sessions});
+    if (!projectRoot) {
+      if (request === sessionRequest) {
+        store.setState({sessions: []});
+      }
+      return;
     }
+
+    let sessions;
+    try {
+      sessions = await listSessions(projectRoot);
+    } catch (_error) {
+      return;
+    }
+    if (request !== sessionRequest) {
+      return;
+    }
+
+    const known = new Map(
+      (store.getState().sessions ?? []).map((item) => [item.id, usableTitle(item.title)]),
+    );
+    store.setState({
+      sessions: sessions.map((item) => ({
+        ...item,
+        title: usableTitle(item.title) ?? known.get(item.id) ?? "",
+      })),
+    });
   }
 
   function persistTabs() {
@@ -230,7 +259,9 @@ export function mountAssistant(store, {canvas}) {
 
     columns.classList.toggle("is-split", splitOn);
     columns.classList.toggle("is-split-down", splitOn && state.chatSplitDirection === "down");
-    columns.style.setProperty("--split-ratio", String(state.chatSplitRatio ?? 0.5));
+    if (!isDragging()) {
+      columns.style.setProperty("--split-ratio", String(state.chatSplitRatio ?? 0.5));
+    }
 
     placePanes(splitOn);
     refreshScrollState(splitOn);
@@ -290,21 +321,51 @@ export function mountAssistant(store, {canvas}) {
     hostTab(workspace.focused, id);
   }
 
+  const titleLimit = 512;
+
+  function usableTitle(value) {
+    if (typeof value !== "string") {
+      return null;
+    }
+    const title = value.trim();
+    if (!title || title.length > titleLimit || title.includes("\uFFFD")) {
+      return null;
+    }
+    return title;
+  }
+
+  function firstLineTitle(text) {
+    const line = String(text).split("\n").find((part) => part.trim().length > 0);
+    const trimmed = line?.trim() ?? "";
+    return trimmed ? Array.from(trimmed).slice(0, 48).join("") : null;
+  }
+
   function labelFor(tab) {
     if (tab.fresh) {
       return copy.agent.untitled;
     }
+    const local = usableTitle(tab.title);
+    if (local && local !== tab.id) {
+      return local;
+    }
     const session = store.getState().sessions.find((item) => item.id === tab.id);
-    return session?.title ?? tab.id;
+    const remote = usableTitle(session?.title);
+    if (remote && remote !== tab.id) {
+      tab.title = remote;
+      return remote;
+    }
+    return tab.id;
   }
 
   let tabsSignature = null;
 
   function renderTabs() {
+    const offline = store.getState().offline;
     const next = JSON.stringify({
       focused: workspace.focused,
       left: workspace.left,
       right: workspace.right,
+      offline,
       tabs: [...tabs.values()].map((tab) => [
         tab.id,
         tab.stream.streaming,
@@ -324,6 +385,7 @@ export function mountAssistant(store, {canvas}) {
       icon: "session",
       variant: "file",
       dirty: tab.stream.streaming,
+      offline,
       tooltip: labelFor(tab),
     }));
 
@@ -348,7 +410,7 @@ export function mountAssistant(store, {canvas}) {
 
     tab.watch = new MutationObserver(() => scheduleScrollSync());
     tab.watch.observe(messages, {childList: true, subtree: true, characterData: true});
-    tab.chat = createChat({messages});
+    tab.chat = createChat({messages, onRetry: () => retryTab(tab)});
     tab.stream = createStreamController({
       onStart: () => render(),
       onFrame: (frame) => tab.chat.handleEvent(frame),
@@ -358,7 +420,7 @@ export function mountAssistant(store, {canvas}) {
         void refreshSessions();
       },
       onError: (error) => {
-        tab.chat.notice(copy.chat.sendFailed(error.message));
+        tab.chat.fail({message: error.message, code: "CLIENT_ERROR"});
         render();
       },
     });
@@ -418,8 +480,7 @@ export function mountAssistant(store, {canvas}) {
       });
   }
 
-  function send(forUi = ui) {
-    const text = forUi.composer.input.value.trim();
+  function sendText(forUi, text, {retry = false} = {}) {
     const tab = tabs.get(paneTabId(forUi));
     if (!text || !tab || tab.stream.streaming) {
       return;
@@ -442,7 +503,13 @@ export function mountAssistant(store, {canvas}) {
       return;
     }
 
-    forUi.composer.clear();
+    tab.lastUser = text;
+    tab.title ??= firstLineTitle(text);
+    if (retry) {
+      tab.chat.discardTurn();
+    } else {
+      forUi.composer.clear();
+    }
     tab.started = true;
     if (tab.fresh) {
       tab.fresh = false;
@@ -453,6 +520,23 @@ export function mountAssistant(store, {canvas}) {
     tab.chat.beginUserTurn(text);
     render();
     forUi.composer.focus();
+  }
+
+  function send(forUi = ui) {
+    sendText(forUi, forUi.composer.input.value.trim());
+  }
+
+  function retryTab(tab) {
+    if (!tab.lastUser || tab.stream.streaming) {
+      return;
+    }
+    const side = workspace.left === tab.id
+      ? "left"
+      : workspace.right === tab.id ? "right" : null;
+    if (!side) {
+      return;
+    }
+    sendText(side === "left" ? ui : splitUi, tab.lastUser, {retry: true});
   }
 
   function newChat() {
@@ -611,7 +695,9 @@ export function mountAssistant(store, {canvas}) {
     const ratio = String(state.chatSplitRatio ?? 0.5);
     const ratioChanged = ratio !== splitRatio;
     splitRatio = ratio;
-    columns.style.setProperty("--split-ratio", ratio);
+    if (!isDragging()) {
+      columns.style.setProperty("--split-ratio", ratio);
+    }
 
     const mode = `${Boolean(state.chatSplit)}/${state.chatSplitDirection ?? ""}`;
     if (mode !== splitSignature) {

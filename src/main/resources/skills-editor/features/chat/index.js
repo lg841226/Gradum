@@ -5,11 +5,12 @@
 import {createChatModel} from "../../domain/chat/model.js";
 import {createChatView} from "./view.js";
 
-export function createChat({messages}) {
+export function createChat({messages, onRetry}) {
   const model = createChatModel();
   const view = createChatView({
     messages,
     onGroupToggle: () => model.toggleGroup(),
+    onRetry,
   });
 
   return {
@@ -31,6 +32,15 @@ export function createChat({messages}) {
 
     notice(text) {
       view.apply(model.notice(text));
+    },
+
+    fail(error) {
+      view.apply(model.fail(error));
+    },
+
+    discardTurn() {
+      view.apply(model.finishTurn(Date.now()));
+      view.dropTurn();
     },
 
     loadHistory(bubbles) {

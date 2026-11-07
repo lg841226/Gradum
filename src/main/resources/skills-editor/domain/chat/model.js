@@ -146,7 +146,10 @@ export function createChatModel() {
             out.push(...settleGroup());
             out.push({
               type: "error",
-              text: data.message ?? JSON.stringify(data),
+              message: typeof data.message === "string" ? data.message : "",
+              code: typeof data.code === "string" ? data.code : "",
+              detail: typeof data.detail === "string" ? data.detail : "",
+              tool: typeof data.tool === "string" ? data.tool : "",
             });
           }
           return out;
@@ -177,6 +180,14 @@ export function createChatModel() {
 
     notice(text) {
       return [{type: "notice", text}];
+    },
+
+    fail({message = "", code = "", detail = "", tool = ""} = {}, now = Date.now()) {
+      return [
+        ...closeAgent(now),
+        ...settleGroup(),
+        {type: "error", message, code, detail, tool},
+      ];
     },
 
     loadHistory(bubbles, now = Date.now()) {

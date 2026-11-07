@@ -2,7 +2,7 @@ import {copy} from "./ui/copy.js";
 import {formatTime} from "./core/dom.js";
 import {activeDoc, createStore} from "./core/store.js";
 import {mountRail} from "./features/rail.js";
-import {HttpError} from "./data/http.js";
+import {HttpError, watchConnection} from "./data/http.js";
 import {buildSkill} from "./data/skillsApi.js";
 import {deploySkill, fetchTree, filePaths, readFile, writeFile} from "./data/workspaceApi.js";
 import {createEditor} from "./createEditor.js";
@@ -77,6 +77,8 @@ const store = createStore({
   authed: readerMark === null,
   reader: readerMark !== null,
 });
+
+watchConnection((reachable) => store.setState({offline: !reachable}));
 
 store.subscribe(createLayoutWriter());
 

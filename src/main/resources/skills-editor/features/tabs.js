@@ -110,6 +110,10 @@ export function mountTabs(store, {strips, documents}) {
     if (state.reader) {
       return;
     }
+    if (state.offline) {
+      store.setState({status: {text: copy.status.unreachable, tone: "error"}});
+      return;
+    }
 
     const fresh = documents.create({
       files: state.files,
@@ -199,6 +203,7 @@ export function mountTabs(store, {strips, documents}) {
     const next = JSON.stringify([
       state.docs.map((doc) => [doc.id, doc.name, doc.dirty]),
       state.activeId,
+      state.offline,
     ]);
     if (next === signature) {
       return;
@@ -211,6 +216,7 @@ export function mountTabs(store, {strips, documents}) {
       variant: "file",
       label: labelFor(doc.name),
       dirty: doc.dirty,
+      offline: state.offline,
       tooltip: doc.name,
       active: doc.id === state.activeId,
     }));

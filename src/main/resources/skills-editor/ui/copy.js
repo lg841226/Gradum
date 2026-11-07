@@ -62,8 +62,19 @@ export const copy = {
     rootMissing:
       "Set the project root in the status bar first: the absolute path of the " +
       "directory Gradum should work in. Sessions and file tools are rooted there.",
-    sendFailed: (message) => `Send failed: ${message}`,
     loadFailed: (message) => `Could not load session: ${message}`,
+    retry: "Retry",
+    copyDetails: "Copy details",
+    copied: "Copied",
+    showRawError: "Show raw error details",
+    errorUnknown: "Something went wrong",
+    errors: {
+      CLIENT_ERROR: "Could not reach the model service",
+      LLM_UPSTREAM_ERROR: "The model service returned an error",
+      LLM_AUTH_ERROR: "Authentication with the model service failed",
+      TIMEOUT: "The request timed out",
+      INVALID_SCENARIO_XML: "The scenario could not be parsed",
+    },
     choices: {
       reject: "Reject",
       allow_once: "Allow once",
@@ -122,7 +133,7 @@ export const copy = {
 
   editor: {
     emptyTitle: "No skill is open",
-    emptyHint: "Choose a file in Explorer, or create a new one with the Add button.",
+    emptyHint: "Choose a file in Explorer, or create a new one with the Add skill button.",
   },
 
   completion: {

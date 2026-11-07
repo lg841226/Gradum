@@ -1,4 +1,4 @@
-import {ensureOk, HttpError, requestJson} from "./http.js";
+import {ensureOk, HttpError, markUnreachable, reachableFetch, requestJson} from "./http.js";
 import {createNdjsonParser} from "./ndjson.js";
 
 export async function listSessions(projectRoot) {
@@ -34,7 +34,7 @@ export async function stop(runId) {
 }
 
 export async function streamEvents(body, {onEvent, signal, onParseError}) {
-  const response = await fetch("/events", {
+  const response = await reachableFetch("/events", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify(body),
@@ -54,7 +54,16 @@ export async function streamEvents(body, {onEvent, signal, onParseError}) {
   });
 
   for (; ;) {
-    const {done, value} = await reader.read();
+    let read;
+    try {
+      read = await reader.read();
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        markUnreachable();
+      }
+      throw error;
+    }
+    const {done, value} = read;
     if (done) {
       break;
     }
