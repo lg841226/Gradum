@@ -57,6 +57,10 @@ export const copy = {
     answerPlaceholder: "Type your answer",
     answered: (label) => `Answered: ${label}`,
     placeholder: "Ask a question, or hand off a task for this project",
+    attach: "Attach a file path",
+    attachEmpty: "This folder is empty",
+    attachLoading: "Loading files...",
+    attachNoRoot: "Set the project root in the status bar first",
     answerFailed: (message) => `Could not answer: ${message}`,
     thoughtFor: (seconds) => `Thought for ${seconds.toFixed(1)}s`,
     rootMissing:
@@ -125,6 +129,10 @@ export const copy = {
       const day = String(date.getDate()).padStart(2, "0");
       return `${date.getFullYear()}-${month}-${day}`;
     },
+  },
+
+  files: {
+    title: "Files",
   },
 
   bottom: {

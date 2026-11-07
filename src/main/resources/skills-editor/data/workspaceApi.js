@@ -5,6 +5,15 @@ export async function fetchTree() {
   return Array.isArray(payload?.roots) ? payload.roots : [];
 }
 
+export async function fetchDirectory(projectRoot, path = "") {
+  const params = new URLSearchParams({root: projectRoot});
+  if (path) {
+    params.set("path", path);
+  }
+  const payload = await requestJson(`/workspace/tree?${params}`);
+  return Array.isArray(payload?.entries) ? payload.entries : [];
+}
+
 export function filePaths(roots) {
   const paths = [];
   const walk = (nodes) => {

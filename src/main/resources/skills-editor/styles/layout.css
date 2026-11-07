@@ -17,7 +17,7 @@
     ),
     var(--bg-canvas);
     grid-template-columns:
-        var(--rail-width) var(--island-gap) 1fr;
+        var(--rail-width) var(--island-gap) 1fr 0 0;
     grid-template-rows:
         var(--menubar-height) var(--island-gap)
         1fr var(--island-gap) var(--bottom-height)
@@ -184,7 +184,8 @@
     }
 
     .rail,
-    .bottom {
+    .bottom,
+    .tree-panel {
         z-index: 40;
         position: fixed;
         left: var(--float-x, 12px);
@@ -198,14 +199,21 @@
         border-radius: var(--radius-island);
     }
 
+    .tree-panel {
+        left: auto;
+        right: var(--float-rx, 12px);
+    }
+
     .rail.is-dragging,
-    .bottom.is-dragging {
+    .bottom.is-dragging,
+    .tree-panel.is-dragging {
         border-color: var(--accent);
         box-shadow: 0 12px 32px var(--glow);
     }
 
     .rail .panel-header,
-    .bottom .panel-header {
+    .bottom .panel-header,
+    .tree-panel .panel-header {
         cursor: grab;
         touch-action: none;
     }
@@ -329,13 +337,32 @@ body.is-dragging .assistant .chat-pane {
 }
 
 .canvas.rail-collapsed {
-    grid-template-columns: 0 0 1fr;
+    grid-template-columns: 0 0 1fr 0 0;
 }
 
 .canvas.rail-collapsed .rail,
-.canvas.rail-collapsed .splitter-v {
+.canvas.rail-collapsed .splitter-rail {
     opacity: 0;
     pointer-events: none;
+}
+
+.tree-panel {
+    grid-column: 5;
+    grid-row: 3 / 6;
+}
+
+.canvas.tree-hidden .tree-panel,
+.canvas.tree-hidden .splitter-tree {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.canvas.tree-open {
+    grid-template-columns: var(--rail-width) var(--island-gap) 1fr var(--island-gap) var(--tree-width);
+}
+
+.canvas.rail-collapsed.tree-open {
+    grid-template-columns: 0 0 1fr var(--island-gap) var(--tree-width);
 }
 
 .canvas.bottom-hidden {
@@ -371,6 +398,11 @@ body.is-dragging .assistant .chat-pane {
     inset: 0 -3px;
 }
 
+.splitter-tree {
+    grid-column: 4;
+    grid-row: 3 / 6;
+}
+
 .splitter-h {
     grid-column: 3;
     grid-row: 4;
@@ -396,7 +428,8 @@ body.is-dragging .assistant .chat-pane {
 }
 
 .rail .panel-header,
-.bottom .panel-header {
+.bottom .panel-header,
+.tree-panel .panel-header {
     gap: var(--space-1);
     padding: 0 var(--space-1) 0 var(--space-3);
 }
@@ -876,4 +909,11 @@ body.is-dragging .assistant .chat-pane {
 
 .fn {
     color: var(--syn-function);
+}
+
+@media (hover: none), (pointer: coarse), (max-width: 720px) {
+    .canvas.tree-open,
+    .canvas.rail-collapsed.tree-open {
+        grid-template-columns: 0 0 1fr;
+    }
 }

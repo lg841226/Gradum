@@ -1,9 +1,5 @@
-const RAIL_MIN = 150;
-const RAIL_MAX = 480;
-const BOTTOM_MIN = 80;
-const BOTTOM_MAX_RATIO = 0.7;
-
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+const resolve = (value, context) => (typeof value === "function" ? value(context) : value);
 
 let activeDrags = 0;
 const settleHandlers = new Set();
@@ -85,65 +81,67 @@ function createSplitter(variant, orientation) {
   return splitter;
 }
 
-// Drag handles for the rail width + the bottom panel height. Only the rail
-// width is applied here; the bottom height is applied by the panels feature so
-// a single writer controls that grid track.
-export function mountSplitters(store, {canvas, rail, bottom}) {
-  const railSplitter = createSplitter("splitter-v", "vertical");
-  const bottomSplitter = createSplitter("splitter-h", "horizontal");
-  canvas.append(railSplitter, bottomSplitter);
+function readScale(canvas) {
+  const value = parseFloat(getComputedStyle(canvas).getPropertyValue("--ui-scale"));
+  return value > 0 ? value : 1;
+}
 
-  const scale = () => {
-    const value = parseFloat(getComputedStyle(canvas).getPropertyValue("--ui-scale"));
-    return value > 0 ? value : 1;
-  };
+function setLive(canvas, spec, value) {
+  canvas.style.setProperty(spec.cssVar, `calc(${value}px * var(--ui-scale))`);
+}
 
-  railSplitter.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    const left = rail.getBoundingClientRect().left;
-    const factor = scale();
-    let width = store.getState().railWidth;
-    let moved = false;
+export function mountSplitters(store, {canvas, panels}) {
+  const siblings = {};
+  for (const descriptor of panels) {
+    siblings[descriptor.id] = descriptor;
+  }
 
-    dragPointer("col-resize", (moveEvent) => {
-      width = clamp((moveEvent.clientX - left) / factor, RAIL_MIN, RAIL_MAX);
-      canvas.style.setProperty("--rail-width", `calc(${width}px * var(--ui-scale))`);
-      moved = true;
-    }, () => {
-      if (moved) {
-        store.setState({railWidth: width});
-      }
-    });
-  });
-
-  bottomSplitter.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    const edge = bottom.getBoundingClientRect().bottom;
-    const factor = scale();
-    const max = (window.innerHeight * BOTTOM_MAX_RATIO) / factor;
-    let height = store.getState().bottomHeight;
-    let moved = false;
-
-    dragPointer("row-resize", (moveEvent) => {
-      height = clamp((edge - moveEvent.clientY) / factor, BOTTOM_MIN, max);
-      canvas.style.setProperty("--bottom-height", `calc(${height}px * var(--ui-scale))`);
-      moved = true;
-    }, () => {
-      if (moved) {
-        store.setState({bottomHeight: height});
-      }
-    });
-  });
-
-  const apply = (state) => {
-    if (isDragging()) {
-      return;
+  const splitters = [];
+  for (const descriptor of panels) {
+    const vertical = descriptor.side === "left" || descriptor.side === "right";
+    const splitter = createSplitter(
+      vertical ? "splitter-v" : "splitter-h",
+      vertical ? "vertical" : "horizontal",
+    );
+    if (descriptor.size.splitterClass) {
+      splitter.classList.add(descriptor.size.splitterClass);
     }
-    canvas.style.setProperty("--rail-width", `calc(${state.railWidth}px * var(--ui-scale))`);
-  };
+    canvas.appendChild(splitter);
 
-  store.subscribe(apply);
-  apply(store.getState());
+    splitter.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      const element = descriptor.element;
+      const scale = readScale(canvas);
+      const context = {
+        canvas,
+        element,
+        siblings,
+        scale,
+        gap: parseFloat(getComputedStyle(canvas).getPropertyValue("--island-gap")) || 0,
+        state: store.getState(),
+      };
+      const min = resolve(descriptor.size.min, context);
+      const max = resolve(descriptor.size.max, context);
+      const horizontal = descriptor.side === "bottom";
+      const direction = descriptor.side === "left" ? 1 : -1;
+      const rect = element.getBoundingClientRect();
+      const anchor = horizontal ? rect.bottom : descriptor.side === "left" ? rect.left : rect.right;
+      const position = (moveEvent) => (horizontal ? moveEvent.clientY : moveEvent.clientX);
+      let value = context.state[descriptor.size.key] ?? descriptor.size.default;
+      let moved = false;
 
-  return {railSplitter, bottomSplitter};
+      dragPointer(horizontal ? "row-resize" : "col-resize", (moveEvent) => {
+        value = clamp(direction * (position(moveEvent) - anchor) / scale, min, max);
+        setLive(canvas, descriptor.size, value);
+        moved = true;
+      }, () => {
+        if (moved) {
+          store.setState({[descriptor.size.key]: value});
+        }
+      });
+    });
+    splitters.push(splitter);
+  }
+
+  return {splitters};
 }

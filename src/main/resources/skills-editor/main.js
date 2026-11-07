@@ -1,21 +1,17 @@
 import {copy} from "./ui/copy.js";
 import {formatTime} from "./core/dom.js";
 import {activeDoc, createStore} from "./core/store.js";
-import {mountRail} from "./features/rail.js";
 import {HttpError, watchConnection} from "./data/http.js";
 import {buildSkill} from "./data/skillsApi.js";
-import {deploySkill, fetchTree, filePaths, readFile, writeFile} from "./data/workspaceApi.js";
+import {deploySkill, fetchDirectory, fetchTree, filePaths, readFile, writeFile} from "./data/workspaceApi.js";
 import {createEditor} from "./createEditor.js";
-import {mountPanels} from "./features/panels.js";
 import {mountCompact} from "./features/compact.js";
 import {mountConsole} from "./features/console.js";
 import {mountMenubar} from "./features/menubar.js";
 import {mountMinimap} from "./features/minimap.js";
 import {mountSettings} from "./features/settings.js";
-import {mountSplitters} from "./features/splitter.js";
 import {mountStatusBar} from "./features/statusbar.js";
-import {mountFloatPanels} from "./features/floatPanels.js";
-import {mountAssistant} from "./features/assistant/index.js";
+import {createPanelRegistry, mountPanelRegistry} from "./features/panelRegistry.js";
 import {mountTooltip} from "./ui/components/tooltip.js";
 import {mountDiagnostics} from "./features/diagnostics.js";
 import {createLayoutWriter, loadLayout} from "./core/persistence.js";
@@ -228,27 +224,35 @@ const commands = [
 // one, and the stack stays in the console.
 try {
   mountCompact(store, {canvas});
-  const panels = mountPanels(store, {canvas});
+  let tabs = null;
+  const panels = mountPanelRegistry(store, {
+    canvas,
+    panels: createPanelRegistry({
+      store,
+      onOpen: (name) => void tabs?.open(name),
+      onCreate: () => (store.getState().chatOpen ? assistant?.newChat() : tabs?.create()),
+      onOpenSession: (id) => assistant?.openSession(id),
+      listDirectory: (path) => fetchDirectory(store.getState().projectRoot, path),
+      onPick: (path) => assistant?.insertPath(path),
+      onOpenFile: (path) => {
+        if (path.startsWith("skills/") || path.startsWith("ui/")) {
+          void tabs?.open(path);
+        }
+      },
+    }),
+  });
   const editor = createEditor(store, {
     canvas,
-    showPanel: (name) => panels.show(name),
+    showPanel: (name) => panels.api.bottom.show(name),
     documents,
     getActiveDoc,
     commands,
   });
-  const tabs = editor.tabs;
+  tabs = editor.tabs;
+  assistant = panels.api.assistant;
 
-  assistant = mountAssistant(store, {canvas});
-  const rail = mountRail(store, {
-    canvas,
-    onOpen: (name) => void tabs.open(name),
-    onCreate: () => (store.getState().chatOpen ? assistant.newChat() : tabs.create()),
-    onOpenSession: (id) => assistant.openSession(id),
-  });
-  mountFloatPanels(store, {canvas});
-
-  mountDiagnostics(store, {body: panels.problemsBody, editor, getActiveDoc});
-  mountConsole(store, {body: panels.outputBody});
+  mountDiagnostics(store, {body: panels.api.bottom.problemsBody, editor, getActiveDoc});
+  mountConsole(store, {body: panels.api.bottom.outputBody});
   for (const pane of editor.panes) {
     mountMinimap(store, {
       container: pane.main,
@@ -260,15 +264,23 @@ try {
   const settings = mountSettings(store, {canvas, theme: editor.theme});
   mountMenubar(store, {
     canvas,
+    panelMenus: panels.menus,
     onRun: () => editor.commands.run("run"),
     onBuild: () => editor.commands.run("build"),
     onToggleSplit: (direction) => {
+      const state = store.getState();
+      if (state.chatOpen === true) {
+        const next = direction === "down" ? "down" : "right";
+        assistant.setSplit(
+          !(Boolean(state.chatSplit) && state.chatSplitDirection === next),
+          next,
+        );
+        return;
+      }
       editor.toggleSplit(direction);
-      assistant.setSplit(store.getState().split, store.getState().splitDirection);
     },
     onToggleSettings: () => settings.toggle(),
   });
-  mountSplitters(store, {canvas, rail: rail.panel, bottom: panels.panel});
   mountStatusBar(store, {canvas, getActiveDoc});
   mountTooltip({container: canvas});
 

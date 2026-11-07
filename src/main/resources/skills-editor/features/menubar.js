@@ -4,7 +4,14 @@ import {createIcon} from "../ui/components/icon.js";
 import {copy} from "../ui/copy.js";
 import {isFloatLayout} from "./floatPanels.js";
 
-export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, onToggleSettings}) {
+export function mountMenubar(store, {
+  canvas,
+  panelMenus = [],
+  onRun,
+  onBuild,
+  onToggleSplit,
+  onToggleSettings,
+}) {
   const bar = document.createElement("nav");
   bar.className = "menubar";
 
@@ -23,31 +30,11 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, onTo
 
   const views = [
     {
-      name: "explorer",
-      label: copy.control.explorer,
-      mnemonic: 0,
-      modes: ["developer"],
-      select: (state) => ({view: "explorer", railCollapsed: !state.railCollapsed}),
-    },
-    {
-      name: "problems",
-      label: copy.control.problems,
-      mnemonic: 0,
-      modes: ["developer"],
-      select: () => ({view: "problems", panel: "problems", collapsed: false}),
-    },
-    {
-      name: "output",
-      label: copy.control.output,
-      mnemonic: 0,
-      modes: ["developer"],
-      select: () => ({view: "output", panel: "output", collapsed: false}),
-    },
-    {
       name: "editor",
       label: copy.control.editor,
       mnemonic: 1,
       modes: ["developer"],
+      order: 3,
       select: () => ({view: "editor", railCollapsed: true, collapsed: true}),
     },
     {
@@ -55,6 +42,7 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, onTo
       label: copy.control.all,
       mnemonic: 0,
       modes: ["developer"],
+      order: 4,
       select: () => ({view: "all", railCollapsed: false, collapsed: false}),
     },
     {
@@ -62,9 +50,11 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, onTo
       label: copy.control.session,
       mnemonic: 0,
       modes: ["agent"],
+      order: 5,
       select: (state) => ({view: "session", railCollapsed: !state.railCollapsed}),
     },
-  ];
+    ...panelMenus,
+  ].sort((left, right) => left.order - right.order);
 
   const modesGroup = createSegmented({
     className: "menubar-group menubar-modes",
@@ -86,6 +76,7 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, onTo
   const items = views.map((view) => {
     const button = createButton({
       label: view.label,
+      icon: view.icon,
       variant: "menu",
       onClick: () => {
         store.setState(view.select(store.getState()));
@@ -94,7 +85,7 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, onTo
     });
     underlineMnemonic(button, view.mnemonic);
     viewsGroup.appendChild(button);
-    return {name: view.name, button, modes: view.modes};
+    return {name: view.name, button, modes: view.modes, pressed: view.pressed};
   });
 
   const closeNav = () => bar.classList.remove("nav-open");
@@ -248,17 +239,13 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, onTo
   }
 
   const render = (state) => {
-    canvas.classList.toggle(
-      "rail-collapsed",
-      state.railCollapsed || (!isFloatLayout() && state.autoRail));
     const activeMode = state.chatOpen === true ? "agent" : "developer";
     setSegmentedValue(modesGroup, activeMode);
     for (const item of items) {
       item.button.hidden = !item.modes.includes(activeMode);
-      item.button.setAttribute(
-        "aria-pressed",
-        item.name === state.view && !item.button.hidden ? "true" : "false",
-      );
+      const pressed = (item.pressed ? item.pressed(state) : item.name === state.view)
+        && !item.button.hidden;
+      item.button.setAttribute("aria-pressed", pressed ? "true" : "false");
     }
 
     widget.hidden = activeMode === "agent";
@@ -321,13 +308,16 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, onTo
     buildButton.disabled = !actionable;
     runButton.disabled = !actionable;
 
-    const direction = state.splitDirection === "down" ? "down" : "right";
-    const splitOn = Boolean(state.split) && Boolean(activeName);
+    const chatMode = state.chatOpen === true;
+    const direction = (chatMode ? state.chatSplitDirection : state.splitDirection) === "down"
+      ? "down"
+      : "right";
+    const splitOn = chatMode ? Boolean(state.chatSplit) : Boolean(state.split) && Boolean(activeName);
     const splitRightOn = splitOn && direction === "right";
     const splitDownOn = splitOn && direction === "down";
 
-    splitButton.disabled = !activeName;
-    splitDownButton.disabled = !activeName;
+    splitButton.disabled = !chatMode && !activeName;
+    splitDownButton.disabled = !chatMode && !activeName;
     setToggle(splitButton, splitRightOn, splitRightOn ? copy.tooltip.unsplit : copy.tooltip.split);
     setToggle(
       splitDownButton,

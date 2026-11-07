@@ -5,12 +5,13 @@
 import {createChatModel} from "../../domain/chat/model.js";
 import {createChatView} from "./view.js";
 
-export function createChat({messages, onRetry}) {
+export function createChat({messages, onRetry, onOpenFile}) {
   const model = createChatModel();
   const view = createChatView({
     messages,
     onGroupToggle: () => model.toggleGroup(),
     onRetry,
+    onOpenFile,
   });
 
   return {

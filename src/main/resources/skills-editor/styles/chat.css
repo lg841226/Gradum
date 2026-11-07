@@ -30,7 +30,8 @@
     color: var(--text-dim);
 }
 
-.rail .list-item:hover {
+.rail .list-item:hover,
+.tree-panel .list-item:hover {
     background: var(--accent-selection);
 }
 
@@ -754,7 +755,7 @@
     position: absolute;
     background: var(--bg-popup);
     flex-direction: column;
-    gap: var(--space-1);
+    gap: var(--space-3);
     padding: var(--space-2);
     margin: 0 auto var(--space-6);
     border: 1px solid var(--border);
@@ -803,26 +804,131 @@
     border-color: var(--accent-outline);
 }
 
-.assistant .composer-input {
-    resize: none;
-    border: none;
-    outline: none;
-    font: inherit;
-    min-height: 56px;
+.assistant .composer-flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--space-1);
     max-height: 240px;
+    overflow-y: auto;
+    position: relative;
+    padding: var(--space-1) 0 var(--space-1) var(--space-2);
+}
+
+.assistant .composer-placeholder {
+    position: absolute;
+    left: var(--space-2);
+    top: var(--space-1);
+    color: var(--text-mute);
+    line-height: 1.45;
+    pointer-events: none;
+}
+
+.assistant .composer-segment {
+    resize: none;
+    border: 0;
+    outline: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
     line-height: 1.45;
     background: transparent;
     color: var(--text);
     caret-color: var(--accent);
-    padding: var(--space-1) 0 var(--space-1) var(--space-2);
+    overflow: hidden;
+    min-width: 2px;
+    max-width: 100%;
 }
 
-.assistant .composer-input::selection {
+.assistant .composer-segment::selection {
     background: var(--accent-selection);
 }
 
-.assistant .composer-input::placeholder {
-    color: var(--text-mute);
+.assistant .composer-attach {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+    padding: 0;
+    display: inline-flex;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    color: var(--text-dim);
+    background: transparent;
+    transition: background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.assistant .composer-attach:hover,
+.assistant .composer-attach[data-open] {
+    color: var(--text);
+    background: var(--bg-raised);
+}
+
+.assistant .path-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 24px;
+    min-width: 0;
+    max-width: 260px;
+    border-radius: 999px;
+    color: var(--text-dim);
+    background: var(--bg-menu);
+    padding: 0 var(--space-1) 0 var(--space-2);
+    font-size: var(--font-size-small);
+}
+
+.assistant .path-chip-label {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.assistant .path-chip-name {
+    gap: 0;
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: center;
+}
+
+.assistant .composer-path {
+    height: 1.45em;
+    gap: var(--space-1);
+    padding: 0 var(--space-1);
+    border-radius: var(--radius-control);
+    color: var(--text);
+    background: var(--bg-canvas);
+    font-size: var(--font-size-ui);
+    line-height: 1.45;
+}
+
+.assistant .composer-path:hover {
+    background: var(--bg-raised);
+}
+
+.assistant .composer-path .path-chip-label {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.assistant .path-chip-ext {
+    flex: 0 0 auto;
+}
+
+.assistant .bubble-path {
+    height: auto;
+    padding: 0 var(--space-2);
+    vertical-align: middle;
+    cursor: pointer;
+}
+
+.assistant .bubble-path .icon {
+    width: 14px;
+    height: 14px;
 }
 
 .assistant .composer-foot {

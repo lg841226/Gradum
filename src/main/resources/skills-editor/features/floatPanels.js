@@ -38,20 +38,27 @@ function track(panel, handle, {onMove}) {
   });
 }
 
-export function mountFloatPanels(store, {canvas}) {
+export function mountFloatPanels(store, {canvas, panels}) {
   if (!window.matchMedia(FLOAT_QUERY).matches) {
     return;
   }
   const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
-  for (const panel of canvas.querySelectorAll(".rail, .bottom")) {
+  for (const descriptor of panels) {
+    const panel = descriptor.element;
     const header = panel.querySelector(".panel-header");
+    const rightAnchored = descriptor.side === "right";
     if (header) {
       track(panel, header, {
         onMove: (dx, dy, rect) => {
-          panel.style.setProperty(
-            "--float-x",
-            `${clamp(rect.left + dx, EDGE, window.innerWidth - 64)}px`);
+          const left = clamp(rect.left + dx, EDGE, window.innerWidth - 64);
+          if (rightAnchored) {
+            panel.style.setProperty(
+              "--float-rx",
+              `${Math.round(window.innerWidth - left - rect.width)}px`);
+          } else {
+            panel.style.setProperty("--float-x", `${left}px`);
+          }
           panel.style.setProperty(
             "--float-y",
             `${clamp(rect.top + dy, 40, window.innerHeight - 64)}px`);

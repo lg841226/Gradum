@@ -1,8 +1,6 @@
 import {clear} from "../core/dom.js";
-import {createIconButton} from "../ui/components/button.js";
 import {createIcon} from "../ui/components/icon.js";
 import {createListItem, createTreeRow} from "../ui/components/list.js";
-import {createPanel, createPanelHeader} from "../ui/components/panel.js";
 import {copy} from "../ui/copy.js";
 
 const UNKNOWN_GROUP = "unknown-time";
@@ -108,33 +106,11 @@ function groupSessions(sessions) {
 // through the callbacks wired in main.js. It serves two masters: the skill
 // tree by default + the assistant's session list while the chat view is
 // open: same panel, same plus button, different content.
-export function mountRail(store, {canvas, onOpen, onCreate, onOpenSession}) {
-  const panel = createPanel();
-  panel.classList.add("rail");
-
-  const newButton = createIconButton({
-    icon: "plus",
-    tooltip: copy.tooltip.newSkill,
-    onClick: () => onCreate?.(),
-  });
-  const hideButton = createIconButton({
-    icon: "hide",
-    tooltip: copy.tooltip.hide,
-    onClick: () => store.setState({railCollapsed: true}),
-  });
-
-  panel.appendChild(createPanelHeader({
-    title: copy.rail.title,
-    actions: [newButton, hideButton],
-  }));
-
-  const title = panel.querySelector(".panel-title");
-
+export function mountRail(store, {panel, onOpen, onCreate, onOpenSession}) {
   const list = document.createElement("div");
   list.className = "list";
   list.setAttribute("role", "tree");
   panel.appendChild(list);
-  canvas.appendChild(panel);
 
   const groupFolds = new Map();
   const rootFolds = new Map();
@@ -177,18 +153,6 @@ export function mountRail(store, {canvas, onOpen, onCreate, onOpenSession}) {
   let signature = null;
   const render = (state) => {
     const chat = state.chatOpen === true;
-
-    newButton.disabled = Boolean(state.reader);
-    const newTooltip = chat ? copy.tooltip.newChat : copy.tooltip.newSkill;
-    if (newButton.dataset.tooltip !== newTooltip) {
-      newButton.dataset.tooltip = newTooltip;
-      newButton.setAttribute("aria-label", newTooltip);
-    }
-    const heading = chat ? copy.rail.sessions : copy.rail.title;
-    if (title.textContent !== heading) {
-      title.textContent = heading;
-    }
-
     const activeName = state.docs.find((doc) => doc.id === state.activeId)?.name ?? null;
     const next = chat
       ? JSON.stringify([

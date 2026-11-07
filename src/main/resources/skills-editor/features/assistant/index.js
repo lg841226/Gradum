@@ -19,11 +19,7 @@ function newSessionId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export function mountAssistant(store, {canvas}) {
-  const island = document.createElement("section");
-  island.className = "assistant panel";
-  island.hidden = true;
-
+export function mountAssistant(store, {panel, onOpenFile}) {
   const makePane = (name) => {
     const pane = document.createElement("div");
     pane.className = "chat-pane";
@@ -75,17 +71,23 @@ export function mountAssistant(store, {canvas}) {
     let modelPicker;
     let permissionPicker;
 
-    const closeOther = () => {
+    const closePickers = () => {
       modelPicker?.close();
       permissionPicker?.close();
     };
-    modelPicker = createModelPicker({onOtherOpen: closeOther});
-    permissionPicker = createPermissionPicker({onOtherOpen: closeOther});
+
+    const toggleAttach = () => {
+      closePickers();
+      store.setState({treePanelOpen: !store.getState().treePanelOpen});
+    };
+    modelPicker = createModelPicker({onOtherOpen: closePickers});
+    permissionPicker = createPermissionPicker({onOtherOpen: closePickers});
     ui.modelPicker = modelPicker;
     ui.permissionPicker = permissionPicker;
     ui.composer = createComposer({
       chips: [modelPicker.chip, permissionPicker.chip],
       menus: [modelPicker.menu, permissionPicker.menu],
+      onAttach: toggleAttach,
       onSend: () => send(ui),
       onStop: () => tabs.get(paneTabId(ui))?.stream.stop(),
     });
@@ -270,6 +272,10 @@ export function mountAssistant(store, {canvas}) {
     const rightTab = splitOn ? tabs.get(workspace.right) : null;
     splitUi.composer.setStreaming(rightTab?.stream.streaming ?? false);
 
+    const attachOpen = state.treePanelOpen === true;
+    ui.composer.setAttachOpen(attachOpen);
+    splitUi.composer.setAttachOpen(attachOpen);
+
     renderTabs();
     persistTabs();
     applyScrollButtons(splitOn);
@@ -410,7 +416,7 @@ export function mountAssistant(store, {canvas}) {
 
     tab.watch = new MutationObserver(() => scheduleScrollSync());
     tab.watch.observe(messages, {childList: true, subtree: true, characterData: true});
-    tab.chat = createChat({messages, onRetry: () => retryTab(tab)});
+    tab.chat = createChat({messages, onRetry: () => retryTab(tab), onOpenFile});
     tab.stream = createStreamController({
       onStart: () => render(),
       onFrame: (frame) => tab.chat.handleEvent(frame),
@@ -523,7 +529,7 @@ export function mountAssistant(store, {canvas}) {
   }
 
   function send(forUi = ui) {
-    sendText(forUi, forUi.composer.input.value.trim());
+    sendText(forUi, forUi.composer.text());
   }
 
   function retryTab(tab) {
@@ -599,8 +605,7 @@ export function mountAssistant(store, {canvas}) {
     }
   });
 
-  island.append(columns);
-  canvas.appendChild(island);
+  panel.append(columns);
 
   const noteFocus = (event) => {
     const side = event.target.closest?.(".chat-pane")?.dataset.pane;
@@ -611,8 +616,8 @@ export function mountAssistant(store, {canvas}) {
       store.setState({activeSession: tab && !tab.fresh ? activeId() : null});
     }
   };
-  island.addEventListener("pointerdown", noteFocus, {capture: true});
-  island.addEventListener("focusin", noteFocus, {capture: true});
+  panel.addEventListener("pointerdown", noteFocus, {capture: true});
+  panel.addEventListener("focusin", noteFocus, {capture: true});
 
   const BOTTOM_SLACK = 40;
 
@@ -683,10 +688,22 @@ export function mountAssistant(store, {canvas}) {
 
   new ResizeObserver(([entry]) => {
     const height = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height;
-    island.style.setProperty("--composer-h", `${Math.ceil(height)}px`);
+    panel.style.setProperty("--composer-h", `${Math.ceil(height)}px`);
   }).observe(composer.root);
 
   store.subscribe(() => renderTabs());
+
+  let attachSignature = store.getState().treePanelOpen === true;
+  store.subscribe((state) => {
+    const open = state.treePanelOpen === true;
+    if (open === attachSignature) {
+      return;
+    }
+    attachSignature = open;
+    if (wired) {
+      render();
+    }
+  });
 
   const splitState = store.getState();
   let splitSignature = `${Boolean(splitState.chatSplit)}/${splitState.chatSplitDirection ?? ""}`;
@@ -720,8 +737,6 @@ export function mountAssistant(store, {canvas}) {
     }
     openSignature = next;
 
-    island.hidden = !state.chatOpen;
-    canvas.classList.toggle("chat-open", state.chatOpen === true);
     if (state.chatOpen) {
       wire();
       scheduleScrollSync();
@@ -738,5 +753,15 @@ export function mountAssistant(store, {canvas}) {
     });
   }
 
-  return {newChat, openSession, setSplit};
+  return {
+    newChat,
+    openSession,
+    setSplit,
+    insertPath(path) {
+      const target = workspace.focused === "right" && splitShown(store.getState())
+        ? splitUi
+        : ui;
+      target.composer.insertPath(path);
+    },
+  };
 }

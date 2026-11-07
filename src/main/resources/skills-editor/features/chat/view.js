@@ -13,7 +13,66 @@ import {renderAskCard} from "./askCard.js";
 import {createProcessGroup, createToolCapsule} from "./processGroup.js";
 import {createThinkingBlock} from "./thinking.js";
 
-export function createChatView({messages, onGroupToggle, onRetry}) {
+function fileName(path) {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  const cut = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  return cut >= 0 ? trimmed.slice(cut + 1) : trimmed;
+}
+
+function copyText(node) {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.nodeValue ?? "";
+  }
+  if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains("bubble-path")) {
+    return node.dataset.path ? `@${node.dataset.path}` : "";
+  }
+  return Array.from(node.childNodes, copyText).join("");
+}
+
+function createPathChip(path, onOpenFile) {
+  const chip = document.createElement("span");
+  chip.className = "path-chip bubble-path";
+  chip.dataset.path = path;
+  chip.dataset.tooltip = path;
+
+  const label = document.createElement("span");
+  label.className = "path-chip-label";
+  label.textContent = fileName(path);
+  chip.append(createIcon({name: "attach"}), label);
+
+  if (onOpenFile) {
+    chip.setAttribute("role", "button");
+    chip.tabIndex = 0;
+    chip.addEventListener("click", () => onOpenFile(path));
+    chip.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        onOpenFile(path);
+      }
+    });
+  }
+  return chip;
+}
+
+function renderUserText(bubble, text, onOpenFile) {
+  const pattern = /(^|\s)@(\S+)/g;
+  let cursor = 0;
+  let match;
+  bubble.replaceChildren();
+  while ((match = pattern.exec(text)) !== null) {
+    const at = match.index + match[1].length;
+    if (at > cursor) {
+      bubble.append(text.slice(cursor, at));
+    }
+    bubble.append(createPathChip(match[2], onOpenFile));
+    cursor = at + 1 + match[2].length;
+  }
+  if (cursor < text.length) {
+    bubble.append(text.slice(cursor));
+  }
+}
+
+export function createChatView({messages, onGroupToggle, onRetry, onOpenFile}) {
   let pendingEl = null;
   let agentEl = null;
   let thinking = null;
@@ -213,7 +272,22 @@ export function createChatView({messages, onGroupToggle, onRetry}) {
       case "user": {
         const bubble = document.createElement("div");
         bubble.className = "bubble bubble-user";
-        bubble.textContent = effect.text;
+        renderUserText(bubble, effect.text, onOpenFile);
+        bubble.addEventListener("copy", (event) => {
+          const selection = window.getSelection();
+          if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+            return;
+          }
+          const range = selection.getRangeAt(0);
+          if (!bubble.contains(range.startContainer) || !bubble.contains(range.endContainer)) {
+            return;
+          }
+          if (!bubble.querySelector(".bubble-path")) {
+            return;
+          }
+          event.preventDefault();
+          event.clipboardData.setData("text/plain", copyText(range.cloneContents()));
+        });
         retireRetry();
         turnRoot = bubble;
         append(bubble);

@@ -16,6 +16,7 @@ import gradum.skill.SkillRegistry
 import gradum.skill.external.DeployResult
 import gradum.skill.external.ExternalDiagnosticSeverity
 import gradum.skill.external.ExternalSkillHost
+import gradum.skill.resolveProjectPath
 import gradum.task.BackgroundTaskManager
 import gradum.task.JobOutcome
 import gradum.utils.ContextManager
@@ -41,6 +42,7 @@ import kotlinx.serialization.json.JsonObject
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Duration
@@ -1055,6 +1057,11 @@ fun Application.registerAllRoutes(
     }
 
     get("/workspace/tree") {
+      val projectRoot: String? = call.request.queryParameters["root"]
+      if (!projectRoot.isNullOrBlank()) {
+        respondProjectDirectory(call = call, projectRoot = projectRoot)
+        return@get
+      }
       val workspace = WorkspaceHost.workspace
       if (workspace == null) {
         call.respondText(
@@ -1655,3 +1662,80 @@ private fun readBundledResource(resourcePath: String): String? =
 private fun readBundledBytes(resourcePath: String): ByteArray? =
   SkillDeployRequest::class.java.getResourceAsStream(resourcePath)
     ?.use { stream -> stream.readBytes() }
+
+private suspend fun respondProjectDirectory(call: ApplicationCall, projectRoot: String) {
+  val rootPath: Path = try {
+    Paths.get(projectRoot).toAbsolutePath().normalize()
+  } catch (invalidRoot: Exception) {
+    call.respondText(
+      text = JsonUtil.encodeMap(mapOf("error" to "Invalid project root: ${invalidRoot.message}")),
+      status = HttpStatusCode.BadRequest,
+      contentType = ContentType.Application.Json,
+    )
+    return
+  }
+  if (!rootPath.toFile().isDirectory) {
+    call.respondText(
+      text = JsonUtil.encodeMap(mapOf("error" to "Project root is not a directory: $rootPath")),
+      status = HttpStatusCode.BadRequest,
+      contentType = ContentType.Application.Json,
+    )
+    return
+  }
+
+  val requestedPath: String = call.request.queryParameters["path"]?.takeIf { it.isNotBlank() } ?: "."
+  val resolvedPath = resolveProjectPath(requestedPath, rootPath.toString())
+  val rejectionReason: String? = resolvedPath.rejectionReason
+  if (rejectionReason != null) {
+    call.respondText(
+      text = JsonUtil.encodeMap(
+        mapOf(
+          "error" to "Path is outside the project root: $rejectionReason",
+          "code" to "PERMISSION_DENIED",
+        )
+      ),
+      status = HttpStatusCode.Forbidden,
+      contentType = ContentType.Application.Json,
+    )
+    return
+  }
+
+  val directory: File = resolvedPath.resolved.toFile()
+  if (!directory.isDirectory) {
+    call.respondText(
+      text = JsonUtil.encodeMap(mapOf("error" to "Not a directory: $requestedPath")),
+      status = HttpStatusCode.BadRequest,
+      contentType = ContentType.Application.Json,
+    )
+    return
+  }
+
+  call.respondText(
+    text = JsonUtil.encodeMap(
+      mapOf("entries" to projectDirectoryEntries(root = rootPath, directory = directory.toPath()))
+    ),
+    contentType = ContentType.Application.Json,
+  )
+}
+
+private fun projectDirectoryEntries(root: Path, directory: Path): List<Map<String, Any?>> {
+  val children: Array<File> = directory.toFile().listFiles() ?: return emptyList()
+  val withinRoot: Boolean = directory.startsWith(root)
+  return children.asSequence()
+    .filter { child -> !child.name.startsWith(".") }
+    .filter { child -> !Files.isSymbolicLink(child.toPath()) }
+    .sortedWith(compareBy<File>({ child -> !child.isDirectory }, { child -> child.name.lowercase() }))
+    .mapNotNull { child ->
+      val path: String = if (withinRoot) {
+        root.relativize(child.toPath()).toString().replace(File.separatorChar, '/')
+      } else {
+        child.absolutePath.replace(File.separatorChar, '/')
+      }
+      when {
+        child.isDirectory -> mapOf("name" to child.name, "path" to path, "directory" to true)
+        child.isFile -> mapOf("name" to child.name, "path" to path, "directory" to false)
+        else -> null
+      }
+    }
+    .toList()
+}
