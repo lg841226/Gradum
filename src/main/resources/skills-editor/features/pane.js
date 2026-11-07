@@ -139,6 +139,7 @@ export function createCodePane(store, {onInput, onFocus, getActiveDoc}) {
     highlightCode,
     advance: measure.advance,
     getTokenize: () => currentLanguage().tokenize,
+    getState: () => store.getState(),
   });
 
   const caretLayer = createCaretLayer({
@@ -157,6 +158,15 @@ export function createCodePane(store, {onInput, onFocus, getActiveDoc}) {
   function updateSelection() {
     selectionLayer.render(cursors);
   }
+
+  let renderedPairs = store.getState().highlightPairs !== false;
+  store.subscribe((state) => {
+    const pairsOn = state.highlightPairs !== false;
+    if (pairsOn !== renderedPairs) {
+      renderedPairs = pairsOn;
+      updateSelection();
+    }
+  });
 
   function updateCaret() {
     caretLayer.update();

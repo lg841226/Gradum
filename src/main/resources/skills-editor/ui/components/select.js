@@ -40,6 +40,7 @@ export function createSelect({label, options, value, onChange, portal} = {}) {
   host.appendChild(menu);
 
   const rows = new Map();
+  const disabled = new Set();
   for (const option of options) {
     const key = String(option.value);
     const row = createListItem({
@@ -50,6 +51,14 @@ export function createSelect({label, options, value, onChange, portal} = {}) {
     row.removeAttribute("title");
     row.setAttribute("role", "option");
     row.dataset.value = key;
+    if (option.font) {
+      row.style.fontFamily = option.font;
+    }
+    if (option.disabled === true) {
+      disabled.add(key);
+      row.setAttribute("aria-disabled", "true");
+      row.setAttribute("tabindex", "-1");
+    }
     rows.set(key, row);
     list.appendChild(row);
   }
@@ -117,6 +126,10 @@ export function createSelect({label, options, value, onChange, portal} = {}) {
     menu.style.top = `${top}px`;
   };
 
+  const items = () => [...rows.entries()]
+    .filter(([key]) => !disabled.has(key))
+    .map(([, row]) => row);
+
   const openMenu = (fromEnd = false) => {
     if (open) {
       return;
@@ -127,9 +140,9 @@ export function createSelect({label, options, value, onChange, portal} = {}) {
     trigger.setAttribute("aria-expanded", "true");
     place();
 
-    const items = [...rows.values()];
-    const selected = rows.get(current);
-    const target = fromEnd ? items[items.length - 1] : (selected ?? items[0]);
+    const selectable = items();
+    const selected = disabled.has(current) ? null : rows.get(current);
+    const target = fromEnd ? selectable[selectable.length - 1] : (selected ?? selectable[0]);
     target?.focus({preventScroll: true});
   };
 
@@ -147,7 +160,7 @@ export function createSelect({label, options, value, onChange, portal} = {}) {
   };
 
   const choose = (key) => {
-    if (!rows.has(key)) {
+    if (!rows.has(key) || disabled.has(key)) {
       return;
     }
     current = key;
@@ -182,18 +195,20 @@ export function createSelect({label, options, value, onChange, portal} = {}) {
     if (!row) {
       return;
     }
-    const items = [...rows.values()];
+    const selectable = [...rows.entries()]
+      .filter(([key]) => !disabled.has(key))
+      .map(([, item]) => item);
 
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       const step = event.key === "ArrowDown" ? 1 : -1;
-      const next = items[(items.indexOf(row) + step + items.length) % items.length];
+      const next = selectable[(selectable.indexOf(row) + step + selectable.length) % selectable.length];
       next.focus();
       return;
     }
     if (event.key === "Home" || event.key === "End") {
       event.preventDefault();
-      items[event.key === "Home" ? 0 : items.length - 1].focus();
+      selectable[event.key === "Home" ? 0 : selectable.length - 1].focus();
       return;
     }
     if (event.key === "Escape") {

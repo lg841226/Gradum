@@ -16,6 +16,30 @@
 import {STORAGE_KEYS} from "./storageKeys.js";
 import {readJsonStorage, writeStorage} from "./storage.js";
 import {pickLayout} from "./schema.js";
+import {CODE_FONT_FAMILIES, defaultFontFamily} from "./fonts.js";
+
+const FONT_KEYS = [["codeFontFamily", CODE_FONT_FAMILIES]];
+
+function migrateOpenFile(stored, picked) {
+  const openFile = stored.openFile;
+  if (typeof openFile === "string" && openFile && !openFile.includes("/")) {
+    picked.openFile = `skills/${openFile}`;
+    return true;
+  }
+  return false;
+}
+
+function migrateFonts(stored, picked) {
+  let migrated = false;
+  for (const [key, families] of FONT_KEYS) {
+    if (!(key in stored) || families.includes(stored[key])) {
+      continue;
+    }
+    picked[key] = defaultFontFamily();
+    migrated = true;
+  }
+  return migrated;
+}
 
 export function loadLayout() {
   const stored = readJsonStorage(STORAGE_KEYS.layout, null);
@@ -34,6 +58,10 @@ export function loadLayout() {
   }
   if (!("chatSplitRatio" in picked)) {
     picked.chatSplitRatio = picked.splitRatio ?? 0.5;
+  }
+  const openFileMigrated = migrateOpenFile(stored, picked);
+  if (migrateFonts(stored, picked) || openFileMigrated) {
+    writeStorage(STORAGE_KEYS.layout, JSON.stringify(picked));
   }
   return picked;
 }

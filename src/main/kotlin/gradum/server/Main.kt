@@ -14,6 +14,7 @@ import gradum.skill.external.ExternalSkillDirectoryScanner
 import gradum.skill.external.ExternalSkillDirectoryWatcher
 import gradum.skill.external.ExternalSkillHost
 import gradum.utils.CommandFilterRuntime
+import gradum.workspace.*
 import kotlinx.coroutines.runBlocking
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -64,6 +65,17 @@ private fun initRuntime(): StartupRuntime {
   ExternalSkillHost.scanner = skillScanner
 
   skillScanner.scan()
+
+  val uiDirectory = skillScanner.skillsDirectory.parentFile.resolve(UI_ROOT)
+  if (!uiDirectory.exists()) {
+    uiDirectory.mkdirs()
+  }
+  WorkspaceHost.workspace = Workspace(
+    listOf(
+      WorkspaceRoot(SKILLS_ROOT, skillScanner.skillsDirectory),
+      WorkspaceRoot(UI_ROOT, uiDirectory),
+    )
+  )
 
   val resolvedApiKey: String? =
     ServerSettingsStore.resolveApiKeyFromFile(settings.apiKeyFile)

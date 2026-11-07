@@ -97,7 +97,7 @@
     --weight-medium: 520;
     --weight-regular: 500;
     --weight-semibold: 600;
-    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --font-code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
     /* Motion */
@@ -123,7 +123,7 @@
     --settings-nav-width: calc(208px * var(--ui-scale));
     /* The floating settings island may be resized down to the nav column plus
        one readable row column, and no further. */
-    --settings-min-width: calc(var(--settings-nav-width) + 300px * var(--ui-scale));
+    --settings-min-width: calc(var(--settings-nav-width) + 370px * var(--ui-scale) + 2 * var(--space-4) + 2 * var(--space-3) + var(--space-2));
     --settings-min-height: calc(320px * var(--ui-scale));
     /* The island stops growing at two comfortable content columns beside the
        nav (2 x 360px), so resizing never turns it into a full-screen sheet. */

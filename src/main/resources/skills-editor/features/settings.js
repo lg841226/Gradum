@@ -1,20 +1,16 @@
-// The settings window: a floating island over the workspace rather than a
-// modal, built from the same list rows, buttons and fields as the rest of the
-// editor. It owns two things that no other feature does: the four
-// interface-scale ratios on the root, and the single place the theme is
-// switched from (the menu bar calls theme.setMode too, so both entries read
-// the same preference).
-//
-// The scale variables are CSS custom properties on the editor root. Their
-// defaults live in tokens.css; index.html pre-paints the saved values so a
-// refresh never flashes the defaults first, and this feature is the only writer
-// after boot.
 import {createIconButton} from "../ui/components/button.js";
 import {createListItem} from "../ui/components/list.js";
 import {createSegmented, setSegmentedValue} from "../ui/components/segmented.js";
 import {createSelect} from "../ui/components/select.js";
 import {createSwitch, setSwitchValue} from "../ui/components/switch.js";
 import {copy} from "../ui/copy.js";
+import {
+  applyCodeFontFamily,
+  CODE_FONT_FAMILIES,
+  defaultFontFamily,
+  fontAvailability,
+  remeasureAfterFonts,
+} from "../core/fonts.js";
 
 const SCALES = [0.9, 1, 1.1, 1.25];
 const UI_FONT_SIZES = [12, 13, 14, 15, 16];
@@ -23,8 +19,15 @@ const CODE_FONT_SIZES = [12, 13, 14, 15, 16, 17, 18];
 const UI_FONT_BASE = 14;
 const CODE_FONT_BASE = 13;
 
+// The same condition styles/layout.css uses for its floating-panel layout:
+// touch input, or a viewport narrower than that file's 720px breakpoint. The
+// settings island becomes a full-screen surface under it, so the JS guards and
+// the CSS block share this one breakpoint rather than defining their own.
+const COMPACT_QUERY = "(hover: none), (pointer: coarse), (max-width: 720px)";
+
 export function mountSettings(store, {canvas, theme}) {
   const constraints = copy.settings;
+  const compactQuery = window.matchMedia(COMPACT_QUERY);
 
   const win = document.createElement("div");
   win.className = "settings-window";
@@ -50,6 +53,13 @@ export function mountSettings(store, {canvas, theme}) {
   const heading = document.createElement("h2");
   heading.className = "settings-heading";
 
+  const back = createIconButton({
+    icon: "chevron-right",
+    tooltip: constraints.back,
+    onClick: () => hide(),
+  });
+  back.classList.add("settings-back");
+
   const collapse = createIconButton({
     icon: "hide",
     tooltip: constraints.collapse,
@@ -64,10 +74,10 @@ export function mountSettings(store, {canvas, theme}) {
   const body = document.createElement("div");
   body.className = "settings-body";
 
-  header.append(heading, collapse);
+  header.append(back, heading, collapse);
   main.append(header, body);
 
-  // ---- Appearance -------------------------------------------------------
+  // ---- preference controls ---------------------------------------------
 
   const scaleSelect = createSelect({
     label: constraints.appearance.scale,
@@ -92,7 +102,7 @@ export function mountSettings(store, {canvas, theme}) {
   });
 
   const codeFontSelect = createSelect({
-    label: constraints.appearance.codeFont,
+    label: constraints.editor.codeFont,
     options: CODE_FONT_SIZES.map((value) => ({
       value,
       label: constraints.value.pixels(value),
@@ -102,7 +112,31 @@ export function mountSettings(store, {canvas, theme}) {
     onChange: (value) => store.setState({codeFontSize: Number(value)}),
   });
 
-  const selects = [scaleSelect, uiFontSelect, codeFontSelect];
+  const availability = fontAvailability();
+
+  const codeFamilyPicker = createSelect({
+    label: constraints.editor.codeFontFamily,
+    options: CODE_FONT_FAMILIES.map((family) => ({
+      value: family,
+      label: family,
+      font: `"${family}", monospace`,
+      disabled: availability ? availability.get(family) === false : false,
+    })),
+    value: store.getState().codeFontFamily ?? defaultFontFamily(),
+    portal: canvas,
+    onChange: (value) => store.setState({codeFontFamily: value}),
+  });
+
+  const syncCodeFamily = (state) => {
+    codeFamilyPicker.setValue(state.codeFontFamily ?? defaultFontFamily());
+  };
+
+  const selects = [
+    scaleSelect,
+    uiFontSelect,
+    codeFontSelect,
+    codeFamilyPicker,
+  ];
   const closeMenus = () => {
     for (const select of selects) {
       select.close();
@@ -110,39 +144,75 @@ export function mountSettings(store, {canvas, theme}) {
   };
 
   const themeGroup = createSegmented({
+    className: "theme-segmented",
     label: constraints.appearance.theme,
     options: [
-      {value: "light", label: copy.theme.light},
-      {value: "dark", label: copy.theme.dark},
+      {value: "light", label: copy.theme.light, icon: "theme-light"},
+      {value: "dark", label: copy.theme.dark, icon: "theme-dark"},
+      {value: "system", label: copy.theme.system, icon: "theme-system"},
     ],
     value: theme.preference(),
     onChange: (value) => theme.setMode(value),
   });
 
   const indentSwitch = createSwitch({
-    label: constraints.appearance.indentGuides,
+    label: constraints.editor.indentGuides,
     checked: store.getState().indentGuides !== false,
     onChange: (value) => store.setState({indentGuides: value}),
   });
 
   const minimapSwitch = createSwitch({
-    label: constraints.appearance.minimap,
+    label: constraints.editor.minimap,
     checked: !store.getState().minimapHidden,
     onChange: (value) => store.setState({minimapHidden: !value}),
+  });
+
+  const startupViewGroup = createSegmented({
+    label: constraints.appearance.startupView,
+    options: [
+      {value: "last", label: constraints.appearance.startupLast},
+      {value: "developer", label: constraints.appearance.startupDeveloper},
+      {value: "agent", label: constraints.appearance.startupAgent},
+    ],
+    value: store.getState().startupView ?? "last",
+    onChange: (value) => store.setState({startupView: value}),
+  });
+
+  const restoreFileSwitch = createSwitch({
+    label: constraints.appearance.restoreFile,
+    checked: store.getState().restoreFile !== false,
+    onChange: (value) => store.setState({restoreFile: value}),
+  });
+
+  const performanceSwitch = createSwitch({
+    label: constraints.appearance.performanceMode,
+    checked: store.getState().performanceMode === true,
+    onChange: (value) => store.setState({performanceMode: value}),
+  });
+
+  const rememberSizeSwitch = createSwitch({
+    label: constraints.appearance.rememberSize,
+    checked: store.getState().rememberSize !== false,
+    onChange: (value) => store.setState(value
+      ? {rememberSize: true}
+      : {rememberSize: false, settingsW: null, settingsH: null, settingsX: null, settingsY: null}),
   });
 
   const appearance = document.createElement("div");
   appearance.className = "settings-category";
   appearance.append(
+    createCard(constraints.appearance.startupGroup, [
+      createRow(constraints.appearance.startupView, constraints.appearance.startupViewDetail, startupViewGroup),
+      createRow(constraints.appearance.restoreFile, constraints.appearance.restoreFileDetail, restoreFileSwitch),
+    ]),
     createCard(constraints.appearance.interfaceGroup, [
+      createRow(constraints.appearance.theme, "", themeGroup),
       createRow(constraints.appearance.scale, constraints.appearance.scaleDetail, scaleSelect.element),
       createRow(constraints.appearance.interfaceFont, constraints.appearance.interfaceFontDetail, uiFontSelect.element),
-      createRow(constraints.appearance.theme, constraints.appearance.themeDetail, themeGroup),
     ]),
-    createCard(constraints.appearance.editorGroup, [
-      createRow(constraints.appearance.codeFont, constraints.appearance.codeFontDetail, codeFontSelect.element),
-      createRow(constraints.appearance.indentGuides, constraints.appearance.indentGuidesDetail, indentSwitch),
-      createRow(constraints.appearance.minimap, constraints.appearance.minimapDetail, minimapSwitch),
+    createCard(constraints.appearance.behaviorGroup, [
+      createRow(constraints.appearance.performanceMode, constraints.appearance.performanceModeDetail, performanceSwitch),
+      createRow(constraints.appearance.rememberSize, constraints.appearance.rememberSizeDetail, rememberSizeSwitch),
     ]),
   );
 
@@ -161,12 +231,36 @@ export function mountSettings(store, {canvas, theme}) {
     onChange: (value) => store.setState({completionAuto: value}),
   });
 
+  const pairsSwitch = createSwitch({
+    label: constraints.editor.highlightPairs,
+    checked: store.getState().highlightPairs !== false,
+    onChange: (value) => store.setState({highlightPairs: value}),
+  });
+
+  const activeLineSwitch = createSwitch({
+    label: constraints.editor.highlightCurrentLine,
+    checked: store.getState().highlightCurrentLine !== false,
+    onChange: (value) => store.setState({highlightCurrentLine: value}),
+  });
+
   const editor = document.createElement("div");
   editor.className = "settings-category";
   editor.append(
-    createCard(constraints.editor.generalGroup, [
+    createCard(constraints.editor.displayGroup, [
+      createRow(constraints.editor.codeFont, constraints.editor.codeFontDetail, codeFontSelect.element),
+      createRow(
+        constraints.editor.codeFontFamily,
+        constraints.editor.codeFontFamilyDetail,
+        codeFamilyPicker.element,
+      ),
       createRow(constraints.editor.tabWidth, constraints.editor.tabWidthDetail, tabGroup),
+      createRow(constraints.editor.indentGuides, constraints.editor.indentGuidesDetail, indentSwitch),
+      createRow(constraints.editor.minimap, constraints.editor.minimapDetail, minimapSwitch),
+    ]),
+    createCard(constraints.editor.behaviorGroup, [
       createRow(constraints.editor.completion, constraints.editor.completionDetail, completionSwitch),
+      createRow(constraints.editor.highlightPairs, constraints.editor.highlightPairsDetail, pairsSwitch),
+      createRow(constraints.editor.highlightCurrentLine, constraints.editor.highlightCurrentLineDetail, activeLineSwitch),
     ]),
   );
 
@@ -182,11 +276,14 @@ export function mountSettings(store, {canvas, theme}) {
         constraints.about.versionValue,
       ),
       createValueRow(constraints.about.license, "", constraints.about.licenseValue),
+    ]),
+    createCard(constraints.about.thirdPartyGroup, [
       createValueRow(
         constraints.about.icons,
         constraints.about.iconsDetail,
         constraints.about.iconsValue,
       ),
+      createValueRow(constraints.about.license, "", constraints.about.iconsLicense),
     ]),
   );
 
@@ -243,6 +340,33 @@ export function mountSettings(store, {canvas, theme}) {
   win.append(side, main, resize);
   canvas.appendChild(win);
 
+  const syncHeadInset = () => {
+    main.style.setProperty("--settings-head", `${header.offsetHeight}px`);
+  };
+
+  new ResizeObserver(syncHeadInset).observe(header);
+
+  header.addEventListener("wheel", (event) => {
+    body.scrollTop += event.deltaY;
+  }, {passive: true});
+
+  const syncScrollMask = () => {
+    const top = body.scrollTop > 1;
+    const bottom = body.scrollTop + body.clientHeight < body.scrollHeight - 1;
+    if (top) {
+      body.setAttribute("data-scrolled", "true");
+    } else {
+      body.removeAttribute("data-scrolled");
+    }
+    if (bottom) {
+      body.setAttribute("data-scrolled-bottom", "true");
+    } else {
+      body.removeAttribute("data-scrolled-bottom");
+    }
+  };
+
+  body.addEventListener("scroll", syncScrollMask, {passive: true});
+
   let active = "appearance";
 
   function selectCategory(id) {
@@ -254,9 +378,28 @@ export function mountSettings(store, {canvas, theme}) {
     for (const [name, item] of navItems) {
       item.setAttribute("aria-selected", name === id ? "true" : "false");
     }
+    refreshSegmented();
+    syncScrollMask();
   }
 
   // ---- scale -----------------------------------------------------------
+
+  // Performance mode rides on the canvas, where the CSS reduced-motion rules
+  // look for it; applying it in sync makes the switch take effect at once.
+  let appliedMotion = null;
+
+  const applyMotion = (state) => {
+    const off = state.performanceMode === true;
+    if (off === appliedMotion) {
+      return;
+    }
+    appliedMotion = off;
+    if (off) {
+      canvas.dataset.motion = "off";
+    } else {
+      delete canvas.dataset.motion;
+    }
+  };
 
   let appliedScale = "";
 
@@ -291,13 +434,30 @@ export function mountSettings(store, {canvas, theme}) {
     }
   };
 
+  let appliedFonts = "";
+
+  const applyFonts = (state) => {
+    const key = state.codeFontFamily;
+    if (key === appliedFonts) {
+      return;
+    }
+    const booting = appliedFonts === "";
+    appliedFonts = key;
+    applyCodeFontFamily(canvas, state);
+    if (!booting) {
+      remeasureAfterFonts();
+    }
+  };
+
   // The nav folds to icons only. The category names then move into the
   // delegated tooltip: the label text is gone, and the native title would wait
   // a second and ignore the theme.
   let navCollapsed = null;
 
   const applyNavCollapsed = (state) => {
-    const collapsed = state.settingsNavCollapsed === true;
+    // The full-screen form always keeps the icon rail, whatever the desktop
+    // toggle was last set to; the saved choice is only read back on wide view.
+    const collapsed = compactQuery.matches || state.settingsNavCollapsed === true;
     if (collapsed === navCollapsed) {
       return;
     }
@@ -321,21 +481,36 @@ export function mountSettings(store, {canvas, theme}) {
   };
 
   const refreshSegmented = () => {
+    setSegmentedValue(startupViewGroup, store.getState().startupView ?? "last");
     setSegmentedValue(tabGroup, store.getState().tabWidth ?? 4);
     setSegmentedValue(themeGroup, theme.preference());
   };
 
+  win.addEventListener("animationend", (event) => {
+    if (event.target === win) {
+      refreshSegmented();
+    }
+  });
+
   const sync = (state) => {
+    applyFonts(state);
     applyScale(state);
+    applyMotion(state);
     applyNavCollapsed(state);
 
     scaleSelect.setValue(state.uiScale ?? 1);
     uiFontSelect.setValue(state.uiFontSize ?? UI_FONT_BASE);
     codeFontSelect.setValue(state.codeFontSize ?? CODE_FONT_BASE);
+    syncCodeFamily(state);
     refreshSegmented();
+    setSwitchValue(restoreFileSwitch, state.restoreFile !== false);
+    setSwitchValue(performanceSwitch, state.performanceMode === true);
+    setSwitchValue(rememberSizeSwitch, state.rememberSize !== false);
     setSwitchValue(indentSwitch, state.indentGuides !== false);
     setSwitchValue(minimapSwitch, !state.minimapHidden);
     setSwitchValue(completionSwitch, state.completionAuto !== false);
+    setSwitchValue(pairsSwitch, state.highlightPairs !== false);
+    setSwitchValue(activeLineSwitch, state.highlightCurrentLine !== false);
   };
 
   const syncTheme = ({preference}) => setSegmentedValue(themeGroup, preference);
@@ -420,8 +595,52 @@ export function mountSettings(store, {canvas, theme}) {
     y: box.top + (box.bottom - box.top - win.offsetHeight) / 2,
   });
 
+  // Desktop geometry, or nothing at all for the full-screen form. The latter
+  // clears every inline value the island may carry, so flipping back to a wide
+  // view starts from the saved (or default) box rather than a half-applied one.
+  const layoutWindow = () => {
+    if (compactQuery.matches) {
+      win.style.width = "";
+      win.style.height = "";
+      win.style.left = "";
+      win.style.top = "";
+      return;
+    }
+
+    const state = store.getState();
+    const box = canvasBox();
+    const remember = state.rememberSize !== false;
+
+    const size = remember ? storedSize(state) : null;
+    if (size) {
+      applySize(size.width, size.height, box);
+    } else {
+      win.style.width = "";
+      win.style.height = "";
+    }
+
+    const position = remember ? storedPosition(state) : null;
+    const target = position ?? centre(box);
+    const placed = placeAt(target.x, target.y);
+
+    const patch = {};
+    const settled = {width: win.offsetWidth, height: win.offsetHeight};
+    if (size && (settled.width !== size.width || settled.height !== size.height)) {
+      patch.settingsW = settled.width;
+      patch.settingsH = settled.height;
+    }
+    if (position && (placed.left !== position.x || placed.top !== position.y)) {
+      patch.settingsX = placed.left;
+      patch.settingsY = placed.top;
+    }
+    if (Object.keys(patch).length > 0) {
+      store.setState(patch);
+    }
+  };
+
   header.addEventListener("pointerdown", (event) => {
-    if (dragging || resizing || (event.pointerType === "mouse" && event.button !== 0)) {
+    if (compactQuery.matches || dragging || resizing ||
+      (event.pointerType === "mouse" && event.button !== 0)) {
       return;
     }
     closeMenus();
@@ -464,9 +683,10 @@ export function mountSettings(store, {canvas, theme}) {
       document.body.style.cursor = "";
       endDrag = null;
       dragging = false;
-      if (moved) {
+      if (moved && !compactQuery.matches && store.getState().rememberSize !== false) {
         store.setState({settingsX: left, settingsY: top});
       }
+      syncScrollMask();
     };
     endDrag = finish;
 
@@ -478,7 +698,8 @@ export function mountSettings(store, {canvas, theme}) {
   // Resizing only moves the right + bottom edges: left/top stay put, so the
   // room still available is measured from the island's own corner.
   resize.addEventListener("pointerdown", (event) => {
-    if (resizing || dragging || (event.pointerType === "mouse" && event.button !== 0)) {
+    if (compactQuery.matches || resizing || dragging ||
+      (event.pointerType === "mouse" && event.button !== 0)) {
       return;
     }
     closeMenus();
@@ -523,9 +744,11 @@ export function mountSettings(store, {canvas, theme}) {
       document.body.style.cursor = "";
       endResize = null;
       resizing = false;
-      if (moved) {
+      if (moved && !compactQuery.matches && store.getState().rememberSize !== false) {
         store.setState({settingsW: width, settingsH: height});
       }
+      refreshSegmented();
+      syncScrollMask();
     };
     endResize = finish;
 
@@ -540,42 +763,18 @@ export function mountSettings(store, {canvas, theme}) {
     endDrag?.();
     endResize?.();
     closeMenus();
+    body.removeAttribute("data-scrolled");
+    body.removeAttribute("data-scrolled-bottom");
     win.hidden = true;
   };
 
   const show = () => {
     win.hidden = false;
+    syncHeadInset();
     selectCategory(active);
-
-    const state = store.getState();
-    const box = canvasBox();
-
-    const size = storedSize(state);
-    if (size) {
-      applySize(size.width, size.height, box);
-    } else {
-      win.style.width = "";
-      win.style.height = "";
-    }
-
-    const position = storedPosition(state);
-    const target = position ?? centre(box);
-    const placed = placeAt(target.x, target.y);
-
-    const patch = {};
-    const settled = {width: win.offsetWidth, height: win.offsetHeight};
-    if (size && (settled.width !== size.width || settled.height !== size.height)) {
-      patch.settingsW = settled.width;
-      patch.settingsH = settled.height;
-    }
-    if (position && (placed.left !== position.x || placed.top !== position.y)) {
-      patch.settingsX = placed.left;
-      patch.settingsY = placed.top;
-    }
-    if (Object.keys(patch).length > 0) {
-      store.setState(patch);
-    }
+    layoutWindow();
     refreshSegmented();
+    syncScrollMask();
     win.focus();
   };
 
@@ -595,16 +794,42 @@ export function mountSettings(store, {canvas, theme}) {
     if (win.hidden || dragging || resizing) {
       return;
     }
-    const state = store.getState();
-    const box = canvasBox();
-    const size = storedSize(state);
-    if (size) {
-      applySize(size.width, size.height, box);
-    }
-    const position = storedPosition(state);
-    const target = position ?? centre(box);
-    placeAt(target.x, target.y);
+    layoutWindow();
     refreshSegmented();
+    syncHeadInset();
+    syncScrollMask();
+  });
+
+  // Crossing the breakpoint swaps the two forms live: the icon rail appears,
+  // geometry is dropped (full screen) or restored (floating island), and any
+  // gesture in flight is settled first so a drag cannot follow the old form.
+  const onCompactChange = () => {
+    if (dragging) {
+      endDrag?.();
+    }
+    if (resizing) {
+      endResize?.();
+    }
+    applyNavCollapsed(store.getState());
+    if (!win.hidden) {
+      layoutWindow();
+      syncHeadInset();
+      syncScrollMask();
+    }
+  };
+
+  if (compactQuery.addEventListener) {
+    compactQuery.addEventListener("change", onCompactChange);
+  } else {
+    // Safari before 14 only exposes the legacy listener.
+    compactQuery.addListener?.(onCompactChange);
+  }
+
+  win.addEventListener("transitionend", (event) => {
+    if (event.target === win && event.propertyName === "grid-template-columns") {
+      refreshSegmented();
+      syncScrollMask();
+    }
   });
 
   document.addEventListener("keydown", (event) => {

@@ -522,7 +522,7 @@ body.is-dragging .assistant .chat-pane {
     overflow: hidden;
     font-size: var(--font-size-code);
     line-height: var(--line-height-code);
-    font-family: var(--font-mono), monospace;
+    font-family: var(--font-code), monospace;
 }
 
 .gutter-inner {
@@ -572,7 +572,7 @@ body.is-dragging .assistant .chat-pane {
     font-size: var(--font-size-code);
     line-height: var(--line-height-code);
     padding: var(--space-3) var(--space-4);
-    font-family: var(--font-mono), monospace;
+    font-family: var(--font-code), monospace;
 }
 
 .highlight {
@@ -719,7 +719,7 @@ body.is-dragging .assistant .chat-pane {
     backdrop-filter: blur(var(--blur-popup));
     -webkit-backdrop-filter: blur(var(--blur-popup));
     font-size: var(--font-size-code);
-    font-family: var(--font-mono), monospace;
+    font-family: var(--font-code), monospace;
     box-shadow: var(--shadow-popup);
     border-radius: var(--radius-island);
     border: 1px solid var(--border);

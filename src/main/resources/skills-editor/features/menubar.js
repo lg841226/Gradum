@@ -4,7 +4,7 @@ import {createIcon} from "../ui/components/icon.js";
 import {copy} from "../ui/copy.js";
 import {isFloatLayout} from "./floatPanels.js";
 
-export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, onToggleSettings, theme}) {
+export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, onToggleSettings}) {
   const bar = document.createElement("nav");
   bar.className = "menubar";
 
@@ -155,14 +155,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, onTo
   leftGroup.className = "menubar-group menubar-left";
   leftGroup.append(viewsGroup);
 
-  const themeIcons = {light: "theme-light", dark: "theme-dark"};
-
-  const themeButton = createIconButton({
-    icon: themeIcons[theme.preference()],
-    tooltip: copy.theme.tooltip,
-    onClick: () => theme.cycle(),
-  });
-
   const minimapButton = createIconButton({
     icon: "minimap",
     tooltip: copy.tooltip.hideMinimap,
@@ -197,7 +189,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, onTo
     splitButton,
     splitDownButton,
     settingsButton,
-    themeButton,
     modesGroup,
   );
 
@@ -370,13 +361,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit, onTo
 
   new ResizeObserver(layout).observe(bar);
 
-  theme.subscribe(({preference}) => {
-    const tooltip = copy.theme.tooltip;
-    themeButton.dataset.tooltip = tooltip;
-    themeButton.setAttribute("aria-label", tooltip);
-    themeButton.replaceChildren(createIcon({name: themeIcons[preference]}));
-  });
-
   return {bar};
 }
 
@@ -417,5 +401,5 @@ function basename(path) {
 const SKILL_TAG = /skill(?=\d|\W|$)/gi;
 
 function displayName(name) {
-  return name.replace(/\.[^.]+$/, "").replace(SKILL_TAG, "");
+  return basename(name).replace(/\.[^.]+$/, "").replace(SKILL_TAG, "");
 }

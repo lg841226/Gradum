@@ -178,6 +178,35 @@ export const icons = {
     + 'C8 10.1046 7.10457 11 6 11C4.89543 11 4 10.1046 4 9ZM7 9C7 9.55228 6.55228 10'
     + ' 6 10C5.44772 10 5 9.55228 5 9C5 8.44772 5.44772 8 6 8C6.55228 8 7 8.44772 7 9Z"/>',
 
+  // expui/nodes/module.svg + module_dark.svg. The two are the same 16x16
+  // drawing and differ only in ink, so the light/dark values fold onto theme
+  // tokens: the badge plate reads --accent-selection, its ring --accent, the
+  // folder body --bg-raised, and the outline currentColor, which keeps the
+  // glyph visible on both themes. Apache 2.0, Copyright 2000-2022 JetBrains
+  // s.r.o. and contributors.
+  module: '<rect x="9.5" y="9.5" width="6" height="6" rx="1.5" stroke-width="1"'
+    + ' style="fill:var(--accent-selection);stroke:var(--accent)"/>'
+    + '<path fill-rule="evenodd" clip-rule="evenodd" d="M1 3.86667C1 2.83574 1.7835 2 2.75 2H6.03823'
+    + 'C6.29871 2 6.5489 2.10163 6.73559 2.28327L8.5 4L13 4C14.1046 4 15 4.89543 15 6V8.17071'
+    + 'C14.6872 8.06015 14.3506 8 14 8H11C9.34315 8 8 9.34315 8 11V14H2.75C1.7835 14 1 13.1643'
+    + ' 1 12.1333V3.86667Z" style="fill:var(--bg-raised)" stroke="none"/>'
+    + '<path fill-rule="evenodd" clip-rule="evenodd" d="M7.80265 4.71673L8.09379 5H8.5H13'
+    + 'C13.5523 5 14 5.44772 14 6V8C14.3506 8 14.6872 8.06015 15 8.17071V6C15 4.89543 14.1046 4'
+    + ' 13 4L8.5 4L6.73559 2.28327C6.5489 2.10163 6.29871 2 6.03823 2H2.75C1.7835 2 1 2.83574'
+    + ' 1 3.86667V12.1333C1 13.1643 1.7835 14 2.75 14H8V13H2.75C2.3956 13 2 12.6738 2 12.1333'
+    + 'V3.86667C2 3.32624 2.3956 3 2.75 3H6.03823L7.80265 4.71673Z" fill="currentColor" stroke="none"/>',
+
+  // expui CSS file mark, css.svg + css_dark.svg. Both are the same 16x16
+  // drawing and differ only in the plate's blue, which folds onto --accent;
+  // the lettering keeps the source's white. Apache 2.0, Copyright 2000-2024
+  // JetBrains s.r.o. and contributors.
+  css: '<path d="M7.99237 15L2.94069 13.6005L1.81494 1H14.1849L13.058 13.5985L7.99237 15Z"'
+    + ' style="fill:var(--accent)" stroke="none"/>'
+    + '<path d="M4.25747 5.1211L4.1167 3.57568H11.8739L11.5943 6.70361L11.5565 7.1186'
+    + 'L11.1693 11.4482L7.99978 12.3249L7.99266 12.327L4.82048 11.4482L4.60352 9.02173H6.15807'
+    + 'L6.26832 10.2543L7.993 10.719L7.99463 10.7186L9.7218 10.2533L9.90155 8.249L4.53431 8.249'
+    + 'L4.39551 6.70361H10.0358L10.1768 5.1211H4.25747Z" fill="white" stroke="none"/>',
+
   // The plugin's send mark (icons/send/send_dark.svg), its #CED0D6 stroke
   // rewritten to currentColor like the rest of the set.
   send: '<path d="M9.5 8H3.5L2.5 14.5L14.5 8L2.5 1.5L3.192 6" stroke-width="1"'
@@ -330,6 +359,12 @@ export const icons = {
   "theme-dark": '<path d="M14 8.53A6 6 0 1 1 7.47 2A4.67 4.67 0 0 0 14 8.53Z" stroke-width="1.2"'
     + ' stroke-linejoin="round"/>',
 
+  // Theme toggle: System, a disc split down the middle (expui/general/systemTheme.svg).
+  "theme-system": '<path d="M1.5 8C1.5 11.5899 4.41015 14.5 8 14.5V1.5C4.41015 1.5 1.5 4.41015 1.5 8Z"'
+    + ' fill="currentColor"/>'
+    + '<path d="M8 2V14" stroke-width="1"/>'
+    + '<circle cx="8" cy="8" r="6.5" stroke-width="1"/>',
+
   // expui/general/locked.svg / locked_dark.svg
   locked: '<path fill-rule="evenodd" clip-rule="evenodd"'
     + ' d="M5 5C5 3.34315 6.34315 2 8 2C9.65685 2 11 3.34315 11 5V6C12.1046 6 13 6.89543 13 8V12C13'
@@ -419,7 +454,7 @@ export const icons = {
   // Tool-call rows. Extracted verbatim from the IntelliJ Platform build in
   // PyCharm.app/Contents/lib/intellij.platform.ide.jar (expui/...), Apache 2.0,
   // Copyright 2000-2025 JetBrains s.r.o. and contributors. Only the platform's
-  // #6C707E grey is rewritten to currentColor and its 1px stroke is pinned, since
+  // #6C707E gray is rewritten to currentColor and its 1px stroke is pinned, since
   // the Icon component defaults to 1.5; the geometry is untouched.
 
   // expui/general/show.svg, AllIconsKeys.General.Show
@@ -513,7 +548,7 @@ export const icons = {
     + ' 4.12643 9.12639L5.75277 7.50004L4.12643 5.8737C3.93116 5.67843 3.93116 5.36185 4.12643 5.16659Z"/>',
 
   // The plugin's bullet-list mark (plugin resources icons/bullet-list/
-  // bullet-list.svg), GradumIcons.BulletList, grey rewritten to currentColor.
+  // bullet-list.svg), GradumIcons.BulletList, gray rewritten to currentColor.
   "bullet-list": '<path fill="currentColor" stroke="none"'
     + ' d="M3.5 3.25C3.91421 3.25 4.25 2.91421 4.25 2.5C4.25 2.08579 3.91421 1.75 3.5 1.75'
     + 'C3.08579 1.75 2.75 2.08579 2.75 2.5C2.75 2.91421 3.08579 3.25 3.5 3.25Z"/>'

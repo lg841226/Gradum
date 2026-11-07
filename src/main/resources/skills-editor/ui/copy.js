@@ -40,7 +40,7 @@ export const copy = {
   theme: {
     dark: "Dark",
     light: "Light",
-    tooltip: "Change theme",
+    system: "System",
   },
 
   chat: {
@@ -104,9 +104,9 @@ export const copy = {
   },
 
   rail: {
-    root: "skills",
     sessions: "Sessions",
-    title: "Skill Explorer",
+    title: "Explorer",
+    workspace: "workspace",
     sessionsRoot: "sessions",
     unknownTime: "Unknown Time",
     sessionDay: (date) => {
@@ -122,7 +122,7 @@ export const copy = {
 
   editor: {
     emptyTitle: "No skill is open",
-    emptyHint: "Choose a skill in Skill Explorer, or create a new one with the Add skill button.",
+    emptyHint: "Choose a file in Explorer, or create a new one with the Add button.",
   },
 
   completion: {
@@ -152,6 +152,7 @@ export const copy = {
 
   settings: {
     title: "Settings",
+    back: "Back",
     collapse: "Collapse settings",
     collapseNav: "Collapse categories",
     expandNav: "Expand categories",
@@ -160,43 +161,63 @@ export const copy = {
       system: "System",
     },
     categories: {
-      appearance: "Appearance",
+      appearance: "General",
       editor: "Editor",
       about: "About",
     },
     appearance: {
-      interfaceGroup: "User Interface",
-      editorGroup: "Editor View",
+      startupGroup: "Startup",
+      interfaceGroup: "Interface",
+      startupView: "Default view",
+      startupViewDetail: "Mode that opens when the workspace starts.",
+      startupLast: "Last session",
+      startupDeveloper: "Developer",
+      startupAgent: "Agent",
+      restoreFile: "Restore last opened file",
+      restoreFileDetail: "Off starts with an empty editor.",
+      theme: "Theme",
       scale: "Interface scale",
       scaleDetail: "Scales spacing, text and panels together.",
       interfaceFont: "Interface font size",
       interfaceFontDetail: "Menus, panels and dialogs.",
+      behaviorGroup: "Behavior",
+      performanceMode: "Performance mode",
+      performanceModeDetail: "Stops entrance animations, transitions and fades.",
+      rememberSize: "Remember panel size",
+      rememberSizeDetail: "Off reopens the settings panel at its default size, centered.",
+    },
+    editor: {
+      displayGroup: "Editor Display",
+      behaviorGroup: "Editing Behavior",
       codeFont: "Code font size",
       codeFontDetail: "Code, line numbers and the minimap.",
-      theme: "Theme",
-      themeDetail: "Also available from the menu bar.",
+      codeFontFamily: "Code font",
+      codeFontFamilyDetail: "Any font installed on this computer.",
+      tabWidth: "Tab width",
+      tabWidthDetail: "Columns a tab character advances.",
       indentGuides: "Indent guides",
       indentGuidesDetail: "Dashed lines marking each indentation level.",
       minimap: "Minimap",
       minimapDetail: "A scaled overview on the right edge of the editor.",
-    },
-    editor: {
-      generalGroup: "General Settings",
-      tabWidth: "Tab width",
-      tabWidthDetail: "Columns a tab character advances.",
       completion: "Suggest while typing",
-      completionDetail: "Ctrl+Space still opens the list when this is off.",
+      completionDetail: "Ctrl + Space still opens the list when this is off.",
+      highlightPairs: "Highlight matching brackets",
+      highlightPairsDetail: "Boxes the pair around a caret resting on a bracket.",
+      highlightCurrentLine: "Highlight current line",
+      highlightCurrentLineDetail: "A soft band follows the line with the caret.",
     },
     about: {
       applicationGroup: "Application",
+      thirdPartyGroup: "Third party notices",
       version: "Version",
       versionDetail: "Gradum Workspace",
       versionValue: "1.0.5",
       license: "License",
-      licenseValue: "Apache License 2.0",
+      licenseValue: "MIT License",
       icons: "Icon sources",
       iconsValue: "JetBrains IntelliJ Platform",
-      iconsDetail: "Apache 2.0, Copyright 2000-2025 JetBrains s.r.o. and contributors.",
+      iconsDetail: "Copyright 2000-2025 JetBrains s.r.o. and contributors.",
+      iconsLicense: "Apache 2.0",
     },
     value: {
       percent: (value) => `${Math.round(value * 100)}%`,
@@ -221,7 +242,7 @@ export const copy = {
     noSkillHint: "Open a skill to see its problems here.",
     staleHint: "Build or run the skill to check the edited text.",
     emptyHint: "Edit the buffer, then build or run the skill, to check a new version.",
-    empty: (name) => `The skill ${name} has no problems`,
+    empty: (name) => `The file ${name} has no problems`,
   },
 
   log: {
@@ -238,6 +259,18 @@ export const copy = {
         `compiling with the embedded Kotlin compiler, ` +
         `then reloading external skill registry so agent can pick it up.`
       ),
+
+    saving: (name, {lines, bytes}) =>
+      (
+        `Saving ${name}: writing editor buffer to the ui workspace ` +
+        `(${lines} ${plural(lines, "line")}, ${formatBytes(bytes)}). ` +
+        `No compile or skill registration is run for this root.`
+      ),
+
+    saved: (name, ms) => `Saved ${name} in ${ms} ms.`,
+
+    buildUnsupported: (name) =>
+      `Build only applies to skill sources under skills/, not ${name}.`,
 
     compiled: (fileName, warnings, ms) => {
       if (warnings > 0) {

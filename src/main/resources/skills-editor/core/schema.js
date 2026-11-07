@@ -4,24 +4,34 @@
 // state means one entry here instead of three files.
 
 import {clampShare} from "./layout.js";
+import {CODE_FONT_FAMILIES, defaultFontFamily} from "./fonts.js";
 
 const VIEWS = ["explorer", "problems", "output", "editor", "all", "session"];
 const PANELS = ["problems", "output"];
 const SPLIT_DIRECTIONS = ["right", "down"];
+const STARTUP_VIEWS = ["last", "developer", "agent"];
 
 export const STATE_SCHEMA = {
   log: {default: () => []},
   docs: {default: () => []},
   files: {default: () => []},
+  tree: {default: () => []},
   sessions: {default: () => []},
   nextId: {default: 1},
   indent: {default: 4},
   uiScale: {default: 1, layout: {type: "number", enum: [0.9, 1, 1.1, 1.25]}},
   uiFontSize: {default: 14, layout: {type: "number", enum: [12, 13, 14, 15, 16]}},
   codeFontSize: {default: 13, layout: {type: "number", enum: [12, 13, 14, 15, 16, 17, 18]}},
+  codeFontFamily: {default: defaultFontFamily(), layout: {type: "string", enum: CODE_FONT_FAMILIES}},
   indentGuides: {default: true, layout: {type: "boolean"}},
+  highlightPairs: {default: true, layout: {type: "boolean"}},
+  highlightCurrentLine: {default: true, layout: {type: "boolean"}},
   tabWidth: {default: 4, layout: {type: "number", enum: [2, 4]}},
   completionAuto: {default: true, layout: {type: "boolean"}},
+  startupView: {default: "last", layout: {type: "string", enum: STARTUP_VIEWS}},
+  restoreFile: {default: true, layout: {type: "boolean"}},
+  performanceMode: {default: false, layout: {type: "boolean"}},
+  rememberSize: {default: true, layout: {type: "boolean"}},
   settingsX: {default: null, layout: {type: "number", clamp: (value) => Math.max(0, value)}},
   settingsY: {default: null, layout: {type: "number", clamp: (value) => Math.max(0, value)}},
   settingsW: {default: null, layout: {type: "number", clamp: (value) => Math.max(0, value)}},

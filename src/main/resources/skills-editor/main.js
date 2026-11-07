@@ -3,7 +3,8 @@ import {formatTime} from "./core/dom.js";
 import {activeDoc, createStore} from "./core/store.js";
 import {mountRail} from "./features/rail.js";
 import {HttpError} from "./data/http.js";
-import {buildSkill, deploySkill, listSkills, loadSkill} from "./data/skillsApi.js";
+import {buildSkill} from "./data/skillsApi.js";
+import {deploySkill, fetchTree, filePaths, readFile, writeFile} from "./data/workspaceApi.js";
 import {createEditor} from "./createEditor.js";
 import {mountPanels} from "./features/panels.js";
 import {mountCompact} from "./features/compact.js";
@@ -19,24 +20,67 @@ import {mountTooltip} from "./ui/components/tooltip.js";
 import {mountDiagnostics} from "./features/diagnostics.js";
 import {createLayoutWriter, loadLayout} from "./core/persistence.js";
 import {createInitialState} from "./core/schema.js";
+import {applyCodeFontFamily, remeasureAfterFonts} from "./core/fonts.js";
 import {STORAGE_KEYS} from "./core/storageKeys.js";
 import {readStorage} from "./core/storage.js";
 
-const DEFAULT_SKILL = "HelloSkill.kt";
+const DEFAULT_SKILL = "skills/HelloSkill.kt";
+
+const userStyles = new Map();
+
+// ui/ stylesheets are plain files, so a reload is just re-reading them into the
+// style nodes they already own.
+async function reloadUserStyles(paths, prune = false) {
+  const cssPaths = paths.filter((path) => path.startsWith("ui/") && path.toLowerCase().endsWith(".css"));
+  if (prune) {
+    for (const [path, node] of userStyles) {
+      if (!cssPaths.includes(path)) {
+        node.remove();
+        userStyles.delete(path);
+      }
+    }
+  }
+  await Promise.all(cssPaths.map(async (path) => {
+    let node = userStyles.get(path);
+    if (!node) {
+      node = document.createElement("style");
+      node.dataset.workspaceStyle = path;
+      document.head.appendChild(node);
+      userStyles.set(path, node);
+    }
+    try {
+      const source = await readFile(path);
+      if (source !== null) {
+        node.textContent = source;
+      }
+    } catch (_error) {
+    }
+  }));
+}
 
 const canvas = document.getElementById("canvas");
 
 const readerMark = document.documentElement.getAttribute("data-reader");
 
+const layout = loadLayout();
+const startupMode = layout.startupView === "developer"
+  ? {chatOpen: false}
+  : layout.startupView === "agent"
+    ? {chatOpen: true}
+    : {};
+
 const store = createStore({
   ...createInitialState(),
   projectRoot: readStorage(STORAGE_KEYS.projectRoot, ""),
-  ...loadLayout(),
+  ...layout,
+  ...startupMode,
   authed: readerMark === null,
   reader: readerMark !== null,
 });
 
 store.subscribe(createLayoutWriter());
+
+applyCodeFontFamily(canvas, store.getState());
 
 // The host half of the editor: where a buffer comes from, what a new file starts
 // as + how a typed name becomes a real file. These are the only places this
@@ -44,15 +88,15 @@ store.subscribe(createLayoutWriter());
 const starter = document.getElementById("starterTemplate")?.textContent ?? "";
 
 const documents = {
-  async open(name) {
+  async open(path) {
     try {
-      const source = await loadSkill(name);
+      const source = await readFile(path);
       return {source: source === null ? starter : source};
     } catch (error) {
       if (error instanceof HttpError) {
         const text = error.status === 401 || error.status === 403
           ? copy.status.unauthorized
-          : copy.status.loadFailed(name, error.detail);
+          : copy.status.loadFailed(path, error.detail);
         return {error: text};
       }
       return {error: copy.status.unreachable};
@@ -60,18 +104,46 @@ const documents = {
   },
   create({files, names}) {
     let index = 1;
-    while (files.includes(`NewSkill${index}.kt`) || names.includes(`NewSkill${index}.kt`)) {
+    while (files.includes(`skills/NewSkill${index}.kt`) || names.includes(`skills/NewSkill${index}.kt`)) {
       index++;
     }
-    return {name: `NewSkill${index}.kt`, source: starter};
+    return {name: `skills/NewSkill${index}.kt`, source: starter};
   },
-  rename(rawName) {
-    const bare = String(rawName).trim().replace(/\.kt$/, "");
-    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(bare) ? `${bare}.kt` : null;
+  rename(rawName, currentPath) {
+    const raw = String(rawName).trim();
+    if (!raw) {
+      return null;
+    }
+    const currentRoot = String(currentPath || DEFAULT_SKILL).split("/")[0];
+    const slash = raw.indexOf("/");
+    const root = slash >= 0 ? raw.slice(0, slash) : currentRoot;
+    const relative = (slash >= 0 ? raw.slice(slash + 1) : raw).trim();
+    if (root === "skills") {
+      const bare = relative.replace(/\.kt$/, "");
+      return /^[A-Za-z_][A-Za-z0-9_]*$/.test(bare) ? `skills/${bare}.kt` : null;
+    }
+    if (root === "ui") {
+      const parts = relative.split("/");
+      if (!relative || relative.includes("\\")
+        || parts.some((part) => !part || part === "." || part === "..")) {
+        return null;
+      }
+      return `ui/${relative}`;
+    }
+    return null;
   },
-  save: (name, source) => deploySkill(name, source),
-  build: (name, source) => buildSkill(name, source),
-  list: listSkills,
+  async save(path, source) {
+    const root = String(path).split("/")[0];
+    const result = root === "skills"
+      ? await deploySkill(path, source)
+      : await writeFile(path, source);
+    if (root !== "skills" && result.ok && path.toLowerCase().endsWith(".css")) {
+      await reloadUserStyles([path]);
+    }
+    return result;
+  },
+  build: (path, source) => buildSkill(path.slice("skills/".length), source),
+  list: fetchTree,
 };
 
 const getActiveDoc = activeDoc;
@@ -129,7 +201,11 @@ const commands = [
     keys: [],
     run: () => {
       documents.list()
-        .then((files) => store.setState({files}))
+        .then((tree) => {
+          const files = filePaths(tree);
+          store.setState({tree, files});
+          return reloadUserStyles(files, true);
+        })
         .catch(() => {
         });
     },
@@ -189,11 +265,12 @@ try {
       assistant.setSplit(store.getState().split, store.getState().splitDirection);
     },
     onToggleSettings: () => settings.toggle(),
-    theme: editor.theme,
   });
   mountSplitters(store, {canvas, rail: rail.panel, bottom: panels.panel});
   mountStatusBar(store, {canvas, getActiveDoc});
   mountTooltip({container: canvas});
+
+  remeasureAfterFonts();
 
   const pinScroll = () => {
     if (window.scrollY !== 0 || window.scrollX !== 0) {
@@ -209,7 +286,9 @@ try {
 
   editor.commands.run("refresh-files");
 
-  void tabs.open(store.getState().openFile || DEFAULT_SKILL);
+  if (store.getState().restoreFile !== false) {
+    void tabs.open(store.getState().openFile || DEFAULT_SKILL);
+  }
 
   requestAnimationFrame(() => {
     requestAnimationFrame(() => canvas.classList.remove("is-booting"));

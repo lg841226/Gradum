@@ -1,9 +1,3 @@
-// Both layers are written from the same token run, so a line number + the
-// glyphs beside it can never fall out of step. The changed-line bars are
-// computed here because this is the one place the gutter's markup is rebuilt:
-// opening, typing + deploying all land in it, and a bar survives none of
-// them by accident.
-
 import {escapeText} from "../../core/safety.js";
 import {changedLines} from "../analysis.js";
 import {languageFor} from "../languages/registry.js";
@@ -134,12 +128,17 @@ export function createHighlightLayer({
   let renderedText = null;
   let renderedGuides = null;
   let renderedTab = null;
+  let renderedActive = null;
 
   function updateActiveLine() {
     const line = getText().slice(0, getActiveOffset()).split("\n").length;
 
     highlightCode.querySelector(".line.active")?.classList.remove("active");
     gutterInner.querySelector(".gutter-line.active")?.classList.remove("active");
+
+    if (store.getState().highlightCurrentLine === false) {
+      return;
+    }
 
     highlightCode.querySelector(`.line[data-line="${line}"]`)?.classList.add("active");
     gutterInner.querySelector(`.gutter-line[data-line="${line}"]`)?.classList.add("active");
@@ -156,6 +155,7 @@ export function createHighlightLayer({
     renderedText = text;
     renderedGuides = guidesOn;
     renderedTab = tabWidth;
+    renderedActive = state.highlightCurrentLine !== false;
 
     const marked = doc && doc.baseline != null ? changedLines(text, doc.baseline) : [];
     const runHtml = changedRuns(marked).map(({start, end}) => {
@@ -186,6 +186,12 @@ export function createHighlightLayer({
     const tabWidth = state.tabWidth || 4;
     if (guidesOn !== renderedGuides || tabWidth !== renderedTab) {
       render(renderedText);
+      return;
+    }
+    const activeOn = state.highlightCurrentLine !== false;
+    if (activeOn !== renderedActive) {
+      renderedActive = activeOn;
+      updateActiveLine();
     }
   });
 

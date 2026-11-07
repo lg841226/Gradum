@@ -28,6 +28,7 @@ export function createSegmented({label, options, value, onChange, className} = {
     const key = String(option.value);
     const button = createButton({
       label: option.label,
+      icon: option.icon,
       variant: "menu",
       onClick: () => onChange?.(option.value),
     });

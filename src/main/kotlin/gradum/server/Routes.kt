@@ -21,6 +21,8 @@ import gradum.task.JobOutcome
 import gradum.utils.ContextManager
 import gradum.utils.JsonUtil
 import gradum.vcs.SessionSnapshotManager
+import gradum.workspace.SKILLS_ROOT
+import gradum.workspace.WorkspaceHost
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.server.application.*
@@ -244,6 +246,9 @@ internal fun inferChatCompletionsPath(baseUrl: String): String {
 internal data class SkillDeployRequest(val name: String, val source: String)
 
 @Serializable
+internal data class WorkspaceFileRequest(val path: String, val content: String)
+
+@Serializable
 internal data class PairRequestBody(val code: String = "")
 
 @Serializable
@@ -264,8 +269,12 @@ internal data class TaskSubmitRequest(
  * - `POST /skills/deploy` : write one external skill source and return compile diagnostics.
  * - `POST /skills/build` : compile one external skill source without writing or loading it.
  * - `POST /skills/pair` : trade the five-character pairing code for the auth cookie.
- * - `GET /skills/sources` : list the external skill source names.
- * - `GET /skills/source`  : read one external skill source.
+ * - `GET /workspace/tree` : the workspace tree: the registered roots and their files.
+ * - `GET /workspace/file` : read one file by `root/relative/path`.
+ * - `POST /workspace/file` : write one file; never compiles or registers it.
+ * - `POST /workspace/deploy` : write one skills-root source, compile it, and register it.
+ * - `GET /skills/sources` : alias for the skills root listing.
+ * - `GET /skills/source`  : alias for reading a file under the skills root.
  * - `GET /skills/editor`  : the bundled skill editor page.
  * - `GET /skills/editor/{asset...}` : static assets for the editor page.
  */
@@ -1045,6 +1054,165 @@ fun Application.registerAllRoutes(
       )
     }
 
+    get("/workspace/tree") {
+      val workspace = WorkspaceHost.workspace
+      if (workspace == null) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "Workspace is not initialized")),
+          status = HttpStatusCode.ServiceUnavailable,
+          contentType = ContentType.Application.Json,
+        )
+        return@get
+      }
+      call.respondText(
+        text = JsonUtil.encodeMap(mapOf("roots" to workspace.tree())),
+        contentType = ContentType.Application.Json,
+      )
+    }
+
+    get("/workspace/file") {
+      val workspace = WorkspaceHost.workspace
+      if (workspace == null) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "Workspace is not initialized")),
+          status = HttpStatusCode.ServiceUnavailable,
+          contentType = ContentType.Application.Json,
+        )
+        return@get
+      }
+      val requestedPath: String? = call.request.queryParameters["path"]
+      if (requestedPath.isNullOrBlank()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "The path query parameter is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@get
+      }
+      val content: String? = try {
+        workspace.read(requestedPath)
+      } catch (invalidPath: IllegalArgumentException) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to (invalidPath.message ?: "Invalid workspace path"))),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@get
+      } catch (readFailure: Exception) {
+        logger.error("Workspace read failed for {}", requestedPath, readFailure)
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "Read failed: ${readFailure.message}")),
+          status = HttpStatusCode.InternalServerError,
+          contentType = ContentType.Application.Json,
+        )
+        return@get
+      }
+      if (content == null) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "Unknown workspace file: $requestedPath")),
+          status = HttpStatusCode.NotFound,
+          contentType = ContentType.Application.Json,
+        )
+        return@get
+      }
+      call.respondText(
+        text = JsonUtil.encodeMap(mapOf("path" to requestedPath, "content" to content)),
+        contentType = ContentType.Application.Json,
+      )
+    }
+
+    post("/workspace/file") {
+      val workspace = WorkspaceHost.workspace
+      if (workspace == null) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "Workspace is not initialized")),
+          status = HttpStatusCode.ServiceUnavailable,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+      val request: WorkspaceFileRequest = try {
+        call.receive<WorkspaceFileRequest>()
+      } catch (malformedBody: Exception) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "Invalid file request body: ${malformedBody.message}")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+      try {
+        workspace.write(request.path, request.content)
+      } catch (invalidPath: IllegalArgumentException) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to (invalidPath.message ?: "Invalid workspace path"))),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      } catch (writeFailure: Exception) {
+        logger.error("Workspace write failed for {}", request.path, writeFailure)
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "Write failed: ${writeFailure.message}")),
+          status = HttpStatusCode.InternalServerError,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+      call.respondText(
+        text = JsonUtil.encodeMap(mapOf("path" to request.path, "written" to true)),
+        contentType = ContentType.Application.Json,
+      )
+    }
+
+    post("/workspace/deploy") {
+      val workspace = WorkspaceHost.workspace
+      if (workspace == null) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "Workspace is not initialized")),
+          status = HttpStatusCode.ServiceUnavailable,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+      val request: WorkspaceFileRequest = try {
+        call.receive<WorkspaceFileRequest>()
+      } catch (malformedBody: Exception) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "Invalid deploy request body: ${malformedBody.message}")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+      val deployResult: DeployResult = try {
+        workspace.deploy(request.path, request.content)
+      } catch (invalidPath: IllegalArgumentException) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to (invalidPath.message ?: "Invalid workspace path"))),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      } catch (unavailable: IllegalStateException) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to (unavailable.message ?: "Skills are not initialized"))),
+          status = HttpStatusCode.ServiceUnavailable,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      } catch (deployFailure: Exception) {
+        logger.error("Workspace deploy failed for {}", request.path, deployFailure)
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "Deploy failed: ${deployFailure.message}")),
+          status = HttpStatusCode.InternalServerError,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+      call.respondSkillCompileResult(deployResult)
+    }
+
     get("/skills") {
       val skillRegistry = SkillRegistry
       call.respondText(
@@ -1064,7 +1232,9 @@ fun Application.registerAllRoutes(
     }
 
     get("/skills/sources") {
-      val sourceNames: List<String> = ExternalSkillHost.scanner?.listSourceNames().orEmpty()
+      val sourceNames: List<String> =
+        WorkspaceHost.workspace?.listFiles(SKILLS_ROOT, ".kt")
+          ?: ExternalSkillHost.scanner?.listSourceNames().orEmpty()
       call.respondText(
         text = JsonUtil.encodeMap(mapOf("sources" to sourceNames)),
         contentType = ContentType.Application.Json,
@@ -1073,7 +1243,20 @@ fun Application.registerAllRoutes(
 
     get("/skills/source") {
       val requestedName: String? = call.request.queryParameters["name"]
-      val source: String? = requestedName?.let { name -> ExternalSkillHost.scanner?.readSource(name) }
+      val source: String? = requestedName?.let { name ->
+        val workspace = WorkspaceHost.workspace
+        if (workspace != null) {
+          try {
+            workspace.read("$SKILLS_ROOT/$name")
+          } catch (_: IllegalArgumentException) {
+            null
+          } catch (_: Exception) {
+            null
+          }
+        } else {
+          ExternalSkillHost.scanner?.readSource(name)
+        }
+      }
       if (requestedName.isNullOrBlank() || source == null) {
         call.respondText(
           text = JsonUtil.encodeMap(mapOf("error" to "Unknown skill source: $requestedName")),
@@ -1111,7 +1294,12 @@ fun Application.registerAllRoutes(
         }
       val deployResult =
         try {
-          scanner.deploy(request.name, request.source)
+          val workspace = WorkspaceHost.workspace
+          if (workspace != null) {
+            workspace.deploy("$SKILLS_ROOT/${request.name}", request.source)
+          } else {
+            scanner.deploy(request.name, request.source)
+          }
         } catch (invalidName: IllegalArgumentException) {
           call.respondText(
             text = JsonUtil.encodeMap(mapOf("error" to (invalidName.message ?: "Invalid skill name"))),

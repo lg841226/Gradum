@@ -377,6 +377,15 @@
     background: var(--accent-selection);
 }
 
+.list-item[aria-disabled="true"] {
+    cursor: default;
+    opacity: .45;
+}
+
+.list-item[aria-disabled="true"]:hover {
+    background: transparent;
+}
+
 .list-item[data-muted="true"] .list-item-label {
     color: var(--text-dim);
     font-style: italic;
@@ -476,7 +485,7 @@
     justify-content: center;
     gap: var(--space-1);
     padding: 0 var(--space-6);
-    font-family: var(--font-mono), monospace;
+    font-family: var(--font-code);
 }
 
 .empty-state-title {
@@ -561,7 +570,7 @@
     color: var(--text-mute);
     font-size: var(--font-size-small);
     font-variant-numeric: tabular-nums;
-    font-family: var(--font-mono), monospace;
+    font-family: var(--font-code), monospace;
 }
 
 .problem-message {
@@ -573,7 +582,7 @@
 .output {
     font-size: var(--font-size-code);
     padding: var(--space-2) var(--space-3);
-    font-family: var(--font-mono), monospace;
+    font-family: var(--font-code);
 }
 
 .output-line {
@@ -681,6 +690,12 @@
     }
 }
 
+@keyframes settings-pop {
+    from {
+        opacity: 0;
+    }
+}
+
 .unlock-card {
     display: grid;
     gap: var(--space-3);
@@ -753,7 +768,7 @@
     background: var(--bg-raised);
     border-radius: var(--radius-control);
     border: 1px solid var(--border-strong);
-    font-family: var(--font-mono), monospace;
+    font-family: var(--font-code);
 }
 
 .unlock-code:focus {
@@ -821,6 +836,7 @@
     height: calc(var(--switch-height) - 4px * var(--ui-scale));
     background: var(--switch-thumb);
     border-radius: 999px;
+    transition: transform var(--motion-fast) var(--ease-standard);
 }
 
 .switch[aria-checked="true"] .switch-thumb {
@@ -910,6 +926,10 @@
     border-radius: 999px;
 }
 
+.settings-row-control .theme-segmented .btn {
+    padding: 2px var(--space-2);
+}
+
 .segmented .btn[aria-pressed="true"] {
     color: var(--text);
     font-weight: var(--weight-semibold);
@@ -932,38 +952,70 @@
     width var(--motion-fast) var(--ease-standard);
 }
 
+/* Performance mode writes data-motion="off" on the canvas and reuses the same
+   reduced-motion treatment as the OS preference below. Both paths only retime
+   existing motion by collapsing the two duration tokens to zero, with the few
+   literal durations dropped by hand; neither introduces a keyframe or a token. */
+.canvas[data-motion="off"] {
+    --motion-fast: 0ms;
+    --motion-slow: 0ms;
+}
+
+.canvas[data-motion="off"] .segmented-thumb.is-ready {
+    transition: none;
+}
+
+.canvas[data-motion="off"] .settings-window {
+    animation: none;
+}
+
+.canvas[data-motion="off"] .agent-widget-mark,
+.canvas[data-motion="off"] .agent-widget-mark.is-done .icon {
+    transition: none;
+    animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
+    .canvas {
+        --motion-fast: 0ms;
+        --motion-slow: 0ms;
+    }
+
     .segmented-thumb.is-ready {
         transition: none;
     }
+
+    .settings-window {
+        animation: none;
+    }
+
+    .agent-widget-mark,
+    .agent-widget-mark.is-done .icon {
+        transition: none;
+        animation: none;
+    }
 }
 
-/* The settings window is a floating island, not a modal: no scrim, no
-   outside-click dismissal, and only its own box takes pointer input. Its
-   entrance keeps the unlock dialog's pop keyframe. The z-order sits above the
-   workspace islands and below every surface that has to win over it: the
-   menubar's touch dropdown (20), tooltips (50) and the unlock dialog (60).
-   Native <select> popups paint above the page on their own. */
 .settings-window {
-    display: grid;
-    overflow: hidden;
-    position: fixed;
-    z-index: 12;
-    left: 0;
     top: 0;
+    left: 0;
+    z-index: 12;
+    display: grid;
+    position: fixed;
+    overflow: hidden;
+    background: transparent;
+    box-shadow: var(--shadow-popup);
+    border-radius: var(--radius-dialog);
+    min-width: var(--settings-min-width);
+    border: 1px solid var(--border-strong);
+    min-height: var(--settings-min-height);
     width: min(var(--settings-width), calc(100vw - 2 * var(--island-gap)));
     height: min(var(--settings-height), calc(100vh - 2 * var(--island-gap)));
-    min-width: var(--settings-min-width);
-    min-height: var(--settings-min-height);
     max-width: min(var(--settings-max-width), calc(100vw - 2 * var(--island-gap)));
     max-height: min(var(--settings-max-height), calc(100vh - 2 * var(--island-gap)));
     grid-template-columns: var(--settings-nav-width) minmax(0, 1fr);
-    background: var(--bg-popup);
-    box-shadow: var(--shadow-popup);
-    border-radius: var(--radius-dialog);
-    border: 1px solid var(--border-strong);
     transition: grid-template-columns var(--motion-fast) var(--ease-standard);
-    animation: unlock-pop var(--motion-fast) var(--ease-standard) var(--motion-fast) both;
+    animation: settings-pop var(--motion-slow) var(--ease-standard);
 }
 
 .settings-window.is-dragging,
@@ -979,9 +1031,6 @@
     outline: none;
 }
 
-/* min-width: 0 + overflow keep the column at its track width: without it the
-   side's min-content (nav padding + row + the 1px divider) can push the footer
-   past the fold edge. */
 .settings-side {
     display: grid;
     overflow: hidden;
@@ -1035,13 +1084,10 @@
     font-size: var(--font-size-small);
 }
 
-/* The chevron points at the nav when expanded (fold it left) and away from it
-   once folded (bring it back). Same transform transition the tree twisty uses. */
 .settings-nav-toggle {
     flex: 0 0 auto;
 }
 
-/* One step above the 16px default, the same 18px the menubar's icon buttons use. */
 .settings-nav-toggle .icon {
     width: 18px;
     height: 18px;
@@ -1080,29 +1126,48 @@
     display: grid;
     min-width: 0;
     min-height: 0;
-    grid-template-rows: auto minmax(0, 1fr);
+    position: relative;
+    background: var(--bg-popup);
+    --settings-head: 0px;
+    grid-template-rows: minmax(0, 1fr);
 }
 
 .settings-header {
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1;
     cursor: grab;
     display: flex;
-    position: relative;
-    align-items: center;
+    position: absolute;
     touch-action: none;
+    align-items: center;
+    pointer-events: none;
     gap: var(--space-2);
     padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+    backdrop-filter: blur(calc(var(--blur-popup) / 2));
+    -webkit-backdrop-filter: blur(calc(var(--blur-popup) / 2));
+    mask-image: linear-gradient(
+            to bottom,
+            #000 0,
+            #000 calc(var(--settings-head) - var(--space-3)),
+            transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+            to bottom,
+            #000 0,
+            #000 calc(var(--settings-head) - var(--space-3)),
+            transparent 100%
+    );
 }
 
 .settings-window.is-dragging .settings-header {
     cursor: grabbing;
 }
 
-/* The collapse control stays out of sight until the pointer is anywhere over
-   the island, and the keyboard reaches it the same way: :focus-visible reveals
-   it even though the panel is not hovered. Two classes, so the colour also
-   wins over .btn[data-variant="icon"]. */
 .settings-window .settings-collapse {
     opacity: 0;
+    pointer-events: auto;
     color: var(--text);
     transition: opacity var(--motion-fast) var(--ease-standard),
     background var(--motion-fast) var(--ease-standard),
@@ -1114,28 +1179,38 @@
     opacity: 1;
 }
 
+/* The full-screen form replaces the corner collapse button with a top-left
+   back arrow, so the desktop icon stays out of the way there. The arrow reuses
+   the existing chevron-right glyph, turned to point back. */
+.settings-back {
+    display: none;
+}
+
+.settings-back .icon {
+    transform: rotate(180deg);
+}
+
 @media (hover: none), (pointer: coarse) {
     .settings-collapse {
         opacity: 1;
     }
 }
 
-/* The corner grip uses the same invisible hit area as the touch layout's
-   floating panels: the cursor is the affordance, not a drawn mark. */
 .settings-resize {
     right: 0;
     bottom: 0;
     position: absolute;
-    width: var(--space-4);
-    height: var(--space-4);
     touch-action: none;
     cursor: nwse-resize;
+    width: var(--space-4);
+    height: var(--space-4);
 }
 
 .settings-heading {
     flex: 1;
-    min-width: 0;
     margin: 0;
+    min-width: 0;
+    pointer-events: auto;
     color: var(--text);
     font-size: var(--font-size-title);
     font-weight: var(--weight-semibold);
@@ -1147,7 +1222,39 @@
     min-height: 0;
     flex-direction: column;
     gap: var(--space-4);
-    padding: var(--space-4);
+    padding: var(--settings-head) var(--space-4) var(--space-4);
+    --fade-top: 0px;
+    --fade-bottom: 0px;
+    --fade-recover: 0px;
+    --fade-residual: 0.3;
+    mask-mode: alpha;
+    mask-repeat: no-repeat;
+    mask-size: 100% 100%;
+    mask-image: linear-gradient(
+            to bottom,
+            transparent 0,
+            rgb(0 0 0 / var(--fade-residual)) calc(var(--fade-top) * 0.5),
+            #000 calc(var(--fade-top) + var(--fade-recover)),
+            #000 calc(100% - var(--fade-bottom)),
+            transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+            to bottom,
+            transparent 0,
+            rgb(0 0 0 / var(--fade-residual)) calc(var(--fade-top) * 0.5),
+            #000 calc(var(--fade-top) + var(--fade-recover)),
+            #000 calc(100% - var(--fade-bottom)),
+            transparent 100%
+    );
+}
+
+.settings-body[data-scrolled="true"] {
+    --fade-top: var(--settings-head);
+    --fade-recover: var(--space-3);
+}
+
+.settings-body[data-scrolled-bottom="true"] {
+    --fade-bottom: var(--space-6);
 }
 
 .settings-category {
@@ -1222,4 +1329,91 @@
     color: var(--text-dim);
     font-size: var(--font-size-small);
     max-width: calc(280px * var(--ui-scale));
+}
+
+/* ---- Full-screen settings -------------------------------------------------
+   The island becomes the whole viewport on phones and on the narrow windows
+   layout.css already lays out as touch panels. It keeps the same body, fades
+   and icon rail; only the window chrome (border, radius, grip, drag, size
+   memory) steps aside. */
+@media (hover: none), (pointer: coarse), (max-width: 720px) {
+    .settings-window {
+        inset: 0;
+        width: auto;
+        height: auto;
+        min-width: 0;
+        min-height: 0;
+        max-width: none;
+        max-height: none;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        grid-template-columns: var(--settings-nav-collapsed) minmax(0, 1fr);
+    }
+
+    /* The icon rail is the only navigation here: no expand toggle, no version
+       foot, no corner collapse button. The back arrow replaces the latter. */
+    .settings-resize,
+    .settings-collapse,
+    .settings-nav-toggle,
+    .settings-side-foot {
+        display: none;
+    }
+
+    .settings-back {
+        flex: none;
+        display: inline-flex;
+        pointer-events: auto;
+    }
+
+    /* The title strip keeps its blur + fade, drops the grab cursor, and clears
+       the notch. */
+    .settings-header {
+        cursor: default;
+        padding-top: calc(var(--space-3) + env(safe-area-inset-top, 0px));
+        padding-left: var(--space-3);
+    }
+
+    .settings-nav {
+        padding-top: calc(var(--space-3) + env(safe-area-inset-top, 0px));
+        padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    }
+
+    /* One scroller, contained: the page behind never rubber-bands with it, and
+       the home indicator inset stays clear. Touch scrolling hides its bar, as
+       the editor's own scrollers do. */
+    .settings-body {
+        scrollbar-width: none;
+        overscroll-behavior: contain;
+        padding-left: var(--space-3);
+        padding-right: var(--space-3);
+        padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+    }
+
+    .settings-body::-webkit-scrollbar {
+        display: none;
+    }
+
+    .settings-card {
+        padding-left: var(--space-2);
+        padding-right: var(--space-2);
+    }
+
+    /* A segmented row cannot share its line with the text at 320px, so it
+       stacks below the label and takes the full row; the pill then uses the
+       same small type + tight padding the theme switch already uses in a row. */
+    .settings-row:has(.segmented) {
+        flex-wrap: wrap;
+        align-items: flex-start;
+    }
+
+    .settings-row:has(.segmented) .settings-row-text,
+    .settings-row:has(.segmented) .settings-row-control {
+        flex: 1 1 100%;
+    }
+
+    .settings-row .segmented .btn {
+        font-size: var(--font-size-small);
+        padding: 2px var(--space-2);
+    }
 }

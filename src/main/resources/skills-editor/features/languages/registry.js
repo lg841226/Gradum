@@ -10,11 +10,13 @@
 // Unknown extensions fall back to plaintext: plain rendering, no completion,
 // no diagnostics, no errors.
 
+import {css} from "./css.js";
 import {kotlin} from "./kotlin/index.js";
 import {plaintext} from "./plaintext.js";
 
 const LANGUAGES = [
   {extensions: ["kt", "kts"], language: kotlin},
+  {extensions: ["css"], language: css},
 ];
 
 export function languageFor(fileName) {

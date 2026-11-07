@@ -24,19 +24,26 @@
     } catch (storageError) {
       preference = null;
     }
-    if (preference !== "light" && preference !== "dark") preference = "dark";
+    if (preference !== "light" && preference !== "dark" && preference !== "system") {
+      preference = "dark";
+    }
+    if (preference === "system") {
+      preference = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    }
 
-    var layout = null;
+    let layout = null;
     try {
       layout = JSON.parse(window.localStorage.getItem("gradum.skillsEditor.layout") || "null");
     } catch (layoutError) {
       layout = null;
     }
-    var canvasRoot = document.getElementById("canvas");
-    var pick = function (key, allowed, fallback) {
-      var stored = layout && layout[key];
+    let canvasRoot = document.getElementById("canvas");
+
+    let pick = function (key, allowed, fallback) {
+      let stored = layout && layout[key];
       return allowed.indexOf(stored) === -1 ? fallback : stored;
     };
+
     canvasRoot.style.setProperty(
       "--ui-scale", String(pick("uiScale", [0.9, 1, 1.1, 1.25], 1)),
     );
@@ -48,6 +55,9 @@
     );
     canvasRoot.style.setProperty("--tab-width", String(pick("tabWidth", [2, 4], 4)));
     canvasRoot.dataset.theme = preference;
+    if (layout && layout.performanceMode === true) {
+      canvasRoot.dataset.motion = "off";
+    }
     canvasRoot.classList.add("is-booting");
   })();
 </script>

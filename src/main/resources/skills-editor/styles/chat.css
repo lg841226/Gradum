@@ -2,7 +2,7 @@
 
 .assistant {
     --composer-max: 700px;
-    font-family: Inter, var(--font-ui), system-ui;
+    font-family: var(--font-ui);
     min-height: 0;
     position: relative;
 }
@@ -229,6 +229,10 @@
     }
 }
 
+.canvas[data-motion="off"] .assistant .messages .chat-enter {
+    animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .assistant .messages .chat-enter {
         animation: none;
@@ -321,7 +325,7 @@
     color: var(--text-dim);
     margin: 0 0 var(--space-2);
     font-size: var(--font-size-small);
-    font-family: var(--font-mono), monospace;
+    font-family: var(--font-code);
 }
 
 .assistant .md-code code {
@@ -338,7 +342,7 @@
     color: var(--text);
     background: var(--bg-canvas);
     border: 1px solid var(--border);
-    font-family: var(--font-mono), monospace;
+    font-family: var(--font-code);
 }
 
 .assistant .md-link {
@@ -600,7 +604,7 @@
     word-break: break-word;
     color: var(--text-dim);
     font-size: var(--font-size-small);
-    font-family: var(--font-mono), monospace;
+    font-family: var(--font-code);
 }
 
 .assistant .ask-actions {
@@ -675,7 +679,7 @@
     border-radius: 16px;
     display: flex;
     position: absolute;
-    background: transparent;
+    background: var(--bg-popup);
     flex-direction: column;
     gap: var(--space-1);
     padding: var(--space-2);
@@ -684,17 +688,6 @@
     box-shadow: 0 2px 8px rgb(9 13 24 / 6%);
     width: min(calc(100% - 2 * var(--space-4)), var(--composer-max));
     transition: border-color var(--motion-fast) var(--ease-standard);
-}
-
-.assistant .composer::before {
-    inset: 0;
-    z-index: -1;
-    content: "";
-    position: absolute;
-    border-radius: inherit;
-    backdrop-filter: blur(20px) saturate(1.2);
-    -webkit-backdrop-filter: blur(20px) saturate(1.2);
-    background: color-mix(in srgb, var(--bg-popup) 72%, transparent);
 }
 
 .assistant .composer-scroll-bottom {

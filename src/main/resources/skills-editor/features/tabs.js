@@ -12,6 +12,17 @@ function isNameTaken(state, name, exceptId = null) {
   return state.docs.some((doc) => doc.id !== exceptId && doc.name === name);
 }
 
+function iconFor(name) {
+  return name.toLowerCase().endsWith(".kt") ? "kotlin" : null;
+}
+
+// The tab carries the file name; the root/relative path stays the document's
+// identity and rides along in the tooltip.
+function labelFor(name) {
+  const parts = String(name).split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? String(name);
+}
+
 // Owns the open documents: open, create, close, activate + rename. The tab
 // strip containers belong to the editor island and are handed in by the
 // assembly entry, one per editor pane, all listing the same documents. Each view
@@ -142,7 +153,8 @@ export function mountTabs(store, {strips, documents}) {
   }
 
   function rename(id, rawName) {
-    const name = documents.rename(rawName);
+    const current = findDoc(store.getState(), id);
+    const name = documents.rename(rawName, current?.name);
     if (!name) {
       store.setState({status: {text: copy.status.invalidName, tone: "error"}});
       return false;
@@ -195,9 +207,9 @@ export function mountTabs(store, {strips, documents}) {
 
     const tabModels = state.docs.map((doc) => ({
       id: doc.id,
-      icon: "kotlin",
+      icon: iconFor(doc.name),
       variant: "file",
-      label: doc.name,
+      label: labelFor(doc.name),
       dirty: doc.dirty,
       tooltip: doc.name,
       active: doc.id === state.activeId,

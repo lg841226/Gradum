@@ -8,10 +8,11 @@ import {copy} from "../ui/copy.js";
 const UNKNOWN_GROUP = "unknown-time";
 
 // A group row repeats the tree row markup because the shared createTreeRow pins
-// the folder glyph; a session group is a package instead. Every class name is
-// one the tree styles already target, so the twisty, the ellipsis and the
-// hover keep their existing look, and each nesting level keeps the indent.
-function createGroupRow({label, expanded, children, onToggle}) {
+// the folder glyph; the glyph is a parameter so a session group and a workspace
+// folder read as packages. Every class name is one the tree styles already
+// target, so the twisty, the ellipsis and the hover keep their existing look,
+// and each nesting level keeps the indent.
+function createGroupRow({label, icon = "package", expanded, children, onToggle}) {
   const item = document.createElement("div");
   item.className = "tree-item";
   item.setAttribute("role", "treeitem");
@@ -43,7 +44,7 @@ function createGroupRow({label, expanded, children, onToggle}) {
     paint(open);
   });
 
-  row.append(twisty, createIcon({name: "package"}), name);
+  row.append(twisty, createIcon({name: icon}), name);
   item.appendChild(row);
   item.appendChild(children);
   paint(expanded);
@@ -136,6 +137,41 @@ export function mountRail(store, {canvas, onOpen, onCreate, onOpenSession}) {
   canvas.appendChild(panel);
 
   const groupFolds = new Map();
+  const rootFolds = new Map();
+  const WORKSPACE_ROOT = "workspace";
+
+  const iconFor = (path) => {
+    const lower = path.toLowerCase();
+    if (lower.startsWith("ui/") && lower.endsWith(".css")) {
+      return "css";
+    }
+    return lower.endsWith(".kt") ? "kotlin" : null;
+  };
+
+  const renderNode = (node, activeName) => {
+    if (node.directory) {
+      const children = document.createElement("div");
+      children.className = "tree-children";
+      children.setAttribute("role", "group");
+      for (const child of node.children || []) {
+        children.appendChild(renderNode(child, activeName));
+      }
+      const expanded = groupFolds.has(node.path) ? groupFolds.get(node.path) : false;
+      return createGroupRow({
+        label: node.name,
+        icon: "module",
+        expanded,
+        children,
+        onToggle: (open) => groupFolds.set(node.path, open),
+      });
+    }
+    return createListItem({
+      label: node.name,
+      icon: iconFor(node.path),
+      active: node.path === activeName,
+      onClick: () => onOpen?.(node.path),
+    });
+  };
 
   let signature = null;
   const render = (state) => {
@@ -161,13 +197,7 @@ export function mountRail(store, {canvas, onOpen, onCreate, onOpenSession}) {
         state.projectRoot,
         state.treeCollapsed,
       ])
-      : JSON.stringify([
-        "skills",
-        [...new Set([...state.files, ...state.docs.map((doc) => doc.name)])],
-        activeName,
-        state.files,
-        state.treeCollapsed,
-      ]);
+      : JSON.stringify(["workspace", state.tree, activeName]);
     if (next === signature) {
       return;
     }
@@ -218,26 +248,32 @@ export function mountRail(store, {canvas, onOpen, onCreate, onOpenSession}) {
       return;
     }
 
-    const names = [...new Set([...state.files, ...state.docs.map((doc) => doc.name)])];
-    const branch = document.createElement("div");
-    branch.className = "tree-children";
-    branch.setAttribute("role", "group");
-    branch.hidden = state.treeCollapsed;
-    for (const name of names) {
-      branch.appendChild(createListItem({
-        label: name,
-        icon: "kotlin",
-        active: name === activeName,
-        muted: !state.files.includes(name),
-        onClick: () => onOpen?.(name),
+    const branches = document.createElement("div");
+    branches.className = "tree-children";
+    branches.setAttribute("role", "group");
+    for (const rootNode of state.tree || []) {
+      const children = document.createElement("div");
+      children.className = "tree-children";
+      children.setAttribute("role", "group");
+      for (const child of rootNode.children || []) {
+        children.appendChild(renderNode(child, activeName));
+      }
+      const expanded = rootFolds.has(rootNode.path) ? rootFolds.get(rootNode.path) : true;
+      branches.appendChild(createGroupRow({
+        label: rootNode.name,
+        icon: "folder",
+        expanded,
+        children,
+        onToggle: (open) => rootFolds.set(rootNode.path, open),
       }));
     }
-
-    list.appendChild(createTreeRow({
-      label: copy.rail.root,
-      expanded: !state.treeCollapsed,
-      onToggle: () => store.setState({treeCollapsed: !store.getState().treeCollapsed}),
-      children: branch,
+    const rootExpanded = rootFolds.has(WORKSPACE_ROOT) ? rootFolds.get(WORKSPACE_ROOT) : true;
+    list.appendChild(createGroupRow({
+      label: copy.rail.workspace,
+      icon: "module",
+      expanded: rootExpanded,
+      children: branches,
+      onToggle: (open) => rootFolds.set(WORKSPACE_ROOT, open),
     }));
   };
 

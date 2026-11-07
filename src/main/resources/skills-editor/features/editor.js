@@ -103,13 +103,18 @@ export function mountEditor(store, {canvas, showPanel, documents, getActiveDoc, 
     }
 
     const name = doc.name;
+    const isSkill = name.startsWith("skills/");
+    const shortName = isSkill ? name.slice("skills/".length) : name;
     const text = doc.source;
     const lines = text.split("\n").length;
     const bytes = new TextEncoder().encode(text).length;
 
     store.setState({busy: true, busyTask: "run"});
     showPanel?.("output");
-    logLine(copy.log.deploying(name, {lines, bytes}), "busy");
+    logLine(
+      isSkill ? copy.log.deploying(shortName, {lines, bytes}) : copy.log.saving(name, {lines, bytes}),
+      "busy",
+    );
 
     const startedAt = performance.now();
     try {
@@ -129,21 +134,31 @@ export function mountEditor(store, {canvas, showPanel, documents, getActiveDoc, 
         return;
       }
 
+      if (!isSkill) {
+        patchDoc(doc.id, {
+          baseline: doc.source,
+          dirty: false,
+          diagnostics: [],
+        });
+        logLine(copy.log.saved(name, ms), "ok");
+        runCommand("refresh-files");
+        return;
+      }
+
       const diagnostics = result.body.diagnostics || [];
       const errors = diagnostics.filter((item) => item.severity === "error").length;
       const warnings = diagnostics.filter((item) => item.severity === "warning").length;
 
       patchDoc(doc.id, {
-        name: result.body.fileName,
         baseline: doc.source,
         dirty: false,
         diagnostics,
       });
 
       if (errors === 0) {
-        logLine(copy.log.compiled(result.body.fileName, warnings, ms), "ok");
+        logLine(copy.log.compiled(shortName, warnings, ms), "ok");
       } else {
-        logLine(copy.log.failed(result.body.fileName, errors, warnings, ms), "error");
+        logLine(copy.log.failed(shortName, errors, warnings, ms), "error");
         for (const item of diagnostics.slice(0, MAX_LOG_PROBLEMS)) {
           logLine(copy.log.problem(item), "detail");
         }
@@ -177,6 +192,11 @@ export function mountEditor(store, {canvas, showPanel, documents, getActiveDoc, 
     }
 
     const name = doc.name;
+    if (!name.startsWith("skills/")) {
+      logLine(copy.log.buildUnsupported(name), "detail");
+      return;
+    }
+
     const text = doc.source;
     const lines = text.split("\n").length;
     const bytes = new TextEncoder().encode(text).length;

@@ -10,7 +10,7 @@
 
 import {matchPairs} from "../analysis.js";
 
-export function createSelectionLayer({source, highlightCode, advance, getTokenize}) {
+export function createSelectionLayer({source, highlightCode, advance, getTokenize, getState}) {
   let bands = [];
   let matches = [];
 
@@ -88,9 +88,11 @@ export function createSelectionLayer({source, highlightCode, advance, getTokeniz
       }
     }
 
-    for (const [open, close] of matchPairs(text, cursors, getTokenize())) {
-      drawMatch(text, open);
-      drawMatch(text, close);
+    if (getState().highlightPairs !== false) {
+      for (const [open, close] of matchPairs(text, cursors, getTokenize())) {
+        drawMatch(text, open);
+        drawMatch(text, close);
+      }
     }
 
     const byLine = new Map();
