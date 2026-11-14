@@ -269,7 +269,7 @@
     display: none;
 }
 
-/* Cards separate by their own surface + the gap between them, not an outline:
+/* Cards separate by their own surface and the gap between them, not an outline:
    the border read as a stack of dark boxes on the window surface. */
 .settings-card {
     background: var(--bg-canvas);
@@ -368,7 +368,7 @@
         pointer-events: auto;
     }
 
-    /* The title strip keeps its blur + fade, drops the grab cursor, and clears
+    /* The title strip keeps its blur and fade, drops the grab cursor, and clears
        the notch. */
     .settings-header {
         cursor: default;
@@ -403,7 +403,7 @@
 
     /* A segmented row cannot share its line with the text at 320px, so it
        stacks below the label and takes the full row; the pill then uses the
-       same small type + tight padding the theme switch already uses in a row. */
+       same small type and tight padding the theme switch already uses in a row. */
     .settings-row:has(.segmented) {
         flex-wrap: wrap;
         align-items: flex-start;

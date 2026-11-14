@@ -1,8 +1,8 @@
-// NDJSON framing, independent of fetch + the chat renderer.
+// NDJSON framing, independent of fetch and the chat renderer.
 //
 // A stream ends at EOF, not at a newline, so the parser owns a `flush()`: the
 // last frame is delivered even when the server wrote no trailing line break.
-// JSON decoding + frame handling are separate failures: a bad line is
+// JSON decoding and frame handling are separate failures: a bad line is
 // reported as a parse error, while a handler failure is the caller's problem
 // and is allowed to propagate rather than be labeled as undecodable.
 

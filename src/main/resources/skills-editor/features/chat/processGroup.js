@@ -1,4 +1,4 @@
-// The working-process group + its tool capsules. The group is a DOM concern:
+// The working-process group and its tool capsules. The group is a DOM concern:
 // it owns its fold state and reports a user toggle back to the chat model, so
 // the model can decide whether a settle may collapse it.
 

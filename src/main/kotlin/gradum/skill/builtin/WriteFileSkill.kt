@@ -681,7 +681,7 @@ class StaleContentError(val path: String) : Exception("File changed externally:$
 
 // Returns an error message when [bytes] are NOT valid UTF-8, or `null`
 // when they are. Editing a non-UTF-8 file (GBK, UTF-16, Latin-1…) with
-// `readText(Charsets.UTF_8)` + `writeText` silently corrupts every
+// `readText(Charsets.UTF_8)` and `writeText` silently corrupts every
 // non-ASCII byte (malformed input decodes to U+FFFD, then gets written
 // back verbatim). Reject those files up front instead of mangling them.
 private fun validateUtf8(bytes: ByteArray): String? {

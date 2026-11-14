@@ -12,7 +12,7 @@ import javax.swing.*
 
 /**
  * Settings tab: opens `~/.gradum/settings.json` in an editable text area,
- * validates the JSON on save (backup + atomic replace) and reloads. Changes
+ * validates the JSON on save (backup and atomic replace) and reloads. Changes
  * reach the running server only after a restart.
  */
 class SettingsEditorPanel : JPanel(BorderLayout()) {

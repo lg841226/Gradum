@@ -3,9 +3,9 @@
 // slides with the editor's own progress through the document, so the rectangle
 // travels the map top to bottom instead of resting in its middle, and pressing
 // or dragging anywhere in it scrolls the editor to that point, centred under the
-// pointer. The clone refreshes on every keystroke + document switches;
+// pointer. The clone refreshes on every keystroke and document switches;
 // squiggle bands are carried over as overview markers while the current-line
-// band + the selection + match boxes are dropped, because they belong to
+// band and the selection and match boxes are dropped, because they belong to
 // the editor pane alone.
 import {isDragging, onDragSettle} from "./splitter.js";
 

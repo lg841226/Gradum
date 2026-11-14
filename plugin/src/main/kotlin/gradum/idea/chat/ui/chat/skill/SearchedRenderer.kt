@@ -39,8 +39,8 @@ import java.util.concurrent.CompletableFuture
 
 /**
  * Default renderer for the server-side `search_web` skill (alias
- * "Searched"). Renders a single-line capsule header (web icon +
- * "Searched" and query + "N results" counter and chevron) that
+ * "Searched"). Renders a single-line capsule header (web icon and
+ * "Searched" and query and "N results" counter and chevron) that
  * expands/collapses to reveal the full result list below, each
  * result showing its favicon thumbnail and an external link.
  */

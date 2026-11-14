@@ -354,7 +354,7 @@ export function mountMenubar(store, {
   return {bar};
 }
 
-// A toggle button's pressed look + its tooltip move together, and the tooltip
+// A toggle button's pressed look and its tooltip move together, and the tooltip
 // is only rewritten when it actually changes, so the pointer sitting on the
 // button is not disturbed by a render that did not touch it.
 function setToggle(button, pressed, tooltip) {
@@ -385,7 +385,7 @@ function basename(path) {
 }
 
 // "HelloSkill.kt" reads as "Hello" in the widget: the file icon already says it
-// is a skill file, so the tag + the extension are noise. The tag is stripped
+// is a skill file, so the tag and the extension are noise. The tag is stripped
 // wherever it ends a word, so "NewSkill1" becomes "New1" and any casing counts,
 // while a name like "Skillful" is left alone.
 const SKILL_TAG = /skill(?=\d|\W|$)/gi;

@@ -12,7 +12,7 @@ const BRACKET_CLOSE = ")]}";
 // Every bracket outside a string or comment, with its buffer offset. The
 // match scan reads this list instead of the raw characters, so a paren the
 // overlay paints as part of a string is not a bracket at all. The list is
-// memoised on the text + the tokenizer, because the caret moves far more
+// memoised on the text and the tokenizer, because the caret moves far more
 // often than the buffer changes, but a tab switch can swap the language.
 let bracketCacheText = null;
 let bracketCacheTokenize = null;
@@ -126,7 +126,7 @@ export function matchPairs(text, cursors, tokenize) {
 }
 
 // The nesting a caret sits in: opens minus closes over the brackets before
-// it (strings + comments skipped by the same scan the match boxes use),
+// it (strings and comments skipped by the same scan the match boxes use),
 // so the caller can lay the next line at that level, one indent unit a level.
 // A run with more closes than opens reads as zero rather than a negative hang.
 export function bracketDepth(text, offset, tokenize) {
@@ -182,7 +182,7 @@ export function indentWidth(text) {
 
 // The lines an edit has touched since the buffer's baseline, as one-based
 // numbers in document order: a line counts as modified when the longest
-// common subsequence of baseline + buffer lines cannot claim it: an
+// common subsequence of baseline and buffer lines cannot claim it: an
 // insertion marks the new line, a rewrite marks the line that replaced the
 // old one, and the walk runs backwards so the answer comes out in order.
 // Skill files are small, so the table fits; a file big enough to make it a

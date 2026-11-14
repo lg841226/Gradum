@@ -21,12 +21,12 @@ import {
 import {recordEdit, redo as redoHistory, seedHistory, undo as undoHistory} from "./history.js";
 
 // One code surface: the gutter, the syntax overlay, the marker layer, the drawn
-// caret + the textarea that owns the real caret + selection. Two of these
+// caret and the textarea that owns the real caret and selection. Two of these
 // are mounted side by side to show the same buffer twice: each keeps its own
-// tab strip, scroll, selection + caret, and redraws only its own overlay.
+// tab strip, scroll, selection and caret, and redraws only its own overlay.
 //
 // The surface itself is assembled here; the three drawing layers live under
-// features/pane/ and are handed the elements + accessors they need, so none
+// features/pane/ and are handed the elements and accessors they need, so none
 // of them reaches for a second source of truth.
 export function createCodePane(store, {onInput, onFocus, getActiveDoc}) {
   const root = document.createElement("div");
@@ -101,7 +101,7 @@ export function createCodePane(store, {onInput, onFocus, getActiveDoc}) {
 
   // Writing the list to the textarea is the only way the platform can learn
   // about the primary range. The reverse read must not mistake that echo for a
-  // user action (the low + high edges compare equal), so the anchors
+  // user action (the low and high edges compare equal), so the anchors
   // behind them, and every caret after them, survive the round trip.
   function writeCursors() {
     const first = cursors[0];

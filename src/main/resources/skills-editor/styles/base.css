@@ -11,8 +11,8 @@ body {
    itself can never scroll, so a raised touch keyboard cannot drag the page
    out of view or leave the viewport half-restored when it folds away: the
    two mobile blank-space culprits. Inner scrolling stays with the message
-   column, the panels + the editor, which scroll their own boxes.
-   Colour + type live on .canvas, not here: the editor is embedded under the
+   column, the panels and the editor, which scroll their own boxes.
+   Colour and type live on .canvas, not here: the editor is embedded under the
    host's body, so this file only pins the geometry. */
 body {
     position: fixed;

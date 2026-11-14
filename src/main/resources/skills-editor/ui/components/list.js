@@ -50,7 +50,7 @@ export function createListItem({
   return item;
 }
 
-// The tree root: a twisty that folds a branch + a label. It stands for the
+// The tree root: a twisty that folds a branch and a label. It stands for the
 // directory the skills live in rather than a skill, so it is purely
 // presentational: no selection, no open callback, only the fold. The branch is
 // nested inside the tree item, as ARIA requires, so a collapsed root still owns

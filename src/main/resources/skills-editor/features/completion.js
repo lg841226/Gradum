@@ -56,8 +56,8 @@ export function createCompletion({
   const otherDocs = new Map();
 
   // One tokenizer run answers two questions about the buffer: which identifier
-  // runs it holds (the word source) and where the strings + comments sit
-  // (the zones the popup stays silent in). Memoized on the text + the
+  // runs it holds (the word source) and where the strings and comments sit
+  // (the zones the popup stays silent in). Memoized on the text and the
   // tokenizer, so a caret move through an unchanged buffer never re-tokenizes
   // while a tab switch to another language does.
   function scan(text, tokenize) {
@@ -122,7 +122,7 @@ export function createCompletion({
   // Where the caret stands, or null when it stands somewhere the popup must
   // not speak: inside a string or comment the typed run is content, not a
   // name. A dot just before the run switches the list to members (what can
-  // follow a dot) with no keywords + no snippets.
+  // follow a dot) with no keywords and no snippets.
   function contextAt(text, caret, tokenize) {
     const {guards} = scan(text, tokenize);
     for (const guard of guards) {

@@ -1,5 +1,5 @@
 // A single-line text input used for inline renaming. Enter commits, Escape
-// cancels + blur commits so the field never stays open by accident.
+// cancels and blur commits so the field never stays open by accident.
 export function createTextField({value = "", onCommit, onCancel} = {}) {
   const input = document.createElement("input");
   input.spellcheck = false;

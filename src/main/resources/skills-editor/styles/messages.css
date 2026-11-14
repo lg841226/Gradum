@@ -64,8 +64,8 @@
     white-space: pre-wrap;
     word-break: break-word;
     color: var(--text-dim);
-    font-family: var(--font-code);
     font-size: var(--font-size-ui);
+    font-family: var(--font-code), ui-monospace;
 }
 
 .assistant .failure-actions {

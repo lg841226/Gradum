@@ -1,4 +1,4 @@
-// Panels step aside when the window can no longer hold them + a usable editor
+// Panels step aside when the window can no longer hold them and a usable editor
 // at the same time: the rail gives up its width, and the bottom tool window its
 // height. What counts as too small comes from the panel sizes the state already
 // carries plus the layout tokens, so a panel dragged wider steps aside sooner

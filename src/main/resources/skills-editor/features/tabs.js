@@ -23,13 +23,13 @@ function labelFor(name) {
   return parts[parts.length - 1] ?? String(name);
 }
 
-// Owns the open documents: open, create, close, activate + rename. The tab
+// Owns the open documents: open, create, close, activate and rename. The tab
 // strip containers belong to the editor island and are handed in by the
 // assembly entry, one per editor pane, all listing the same documents. Each view
 // may bring its own close handler; a pane without one closes the document itself.
 //
 // The host owns everything the filesystem knows: how a name is opened, what a
-// new file is called + what it starts from, and how a name is normalized. This
+// new file is called and what it starts from, and how a name is normalized. This
 // file only tracks the tabs that result.
 export function mountTabs(store, {strips, documents}) {
   function activate(id) {

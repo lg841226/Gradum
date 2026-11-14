@@ -5,7 +5,7 @@ import {copy} from "../ui/copy.js";
 
 // Renders the Problems panel and asks each pane to draw its squiggle markers.
 // It never reaches into the pane's gutter, highlight or metrics: the pane owns
-// those nodes and exposes the drawing + reveal calls it needs.
+// those nodes and exposes the drawing and reveal calls it needs.
 export function mountDiagnostics(store, {body, editor, getActiveDoc}) {
   const list = document.createElement("div");
   list.className = "problem-list";

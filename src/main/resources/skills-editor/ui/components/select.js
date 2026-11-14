@@ -1,5 +1,5 @@
 // A dropdown that keeps the platform select out of the loop: the trigger is
-// the same chip the composer pickers use (current value + chevron), and the
+// the same chip the composer pickers use (current value and chevron), and the
 // menu is the same popup surface as the rest of the editor.
 //
 // The menu is portalled to the canvas rather than nested in the trigger, so

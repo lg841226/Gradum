@@ -1,6 +1,6 @@
 // Horizontal measurement against the rendered highlight overlay.
 //
-// The caret + the squiggles are drawn, not laid out by the text layer, so
+// The caret and the squiggles are drawn, not laid out by the text layer, so
 // their horizontal offsets are read back off the very glyphs on screen instead
 // of being predicted from a font. Neither counting columns nor measuring with
 // a canvas survives a fallback: a CJK glyph is drawn by whatever font the stack

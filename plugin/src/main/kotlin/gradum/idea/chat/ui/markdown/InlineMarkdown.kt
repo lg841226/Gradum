@@ -212,7 +212,7 @@ internal fun dollarLatexCodeSpanRanges(rawText: String): List<IntRange> {
   return codeSpanRanges
 }
 
-// Regex matching PUA chars in the pre-processed LaTeX marker range (U+E100–U+E2FF).
+// Regex matching PUA chars in the pre-processed LaTeX marker range (U+E100-U+E2FF).
 internal val INLINE_LATEX_PAREN_MARKER_REGEX: Regex = Regex(pattern = """[\uE100-\uE2FF]""")
 
 // Pure CommonMark -> `AnnotatedString` walk. Theme values passed in by the caller.

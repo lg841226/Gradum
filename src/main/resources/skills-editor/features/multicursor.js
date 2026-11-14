@@ -1,5 +1,5 @@
 // Multi-cursor arithmetic. Every function here is pure: it takes the buffer +
-// a cursor list and returns the next buffer + cursor list, so the pane
+// a cursor list and returns the next buffer and cursor list, so the pane
 // only has to decide *when* to edit, never *what* an edit does across several
 // carets at once. A cursor is {anchor, head}: the anchor is planted and the
 // head travels, which is what lets a backwards selection keep its direction
@@ -20,7 +20,7 @@ function rangeOf(cursor) {
 // Sorted by the low edge, clamped, overlap-free. The textarea mirrors the
 // first entry, so the lowest range leads. Two ranges that touch at a point or
 // overlap become one union, because two carets in the same place have nothing
-// between them; adjacent non-empty ranges stay apart: [0,5) + [5,10) are
+// between them; adjacent non-empty ranges stay apart: [0,5) and [5,10) are
 // two selections, not one. Direction survives everything but a merge, where
 // the union is freshly forward.
 function normalize(cursors, text) {
@@ -216,7 +216,7 @@ function insertText(text, cursors, insert) {
   return {text: buffer, cursors: next};
 }
 
-// Deletion shared by Backspace + Delete, forward + backward, at the
+// Deletion shared by Backspace and Delete, forward and backward, at the
 // character, word or line grain. A live selection is deleted first: that is
 // what the key would do alone: and only an empty cursor reaches for its
 // neighbors. A grain that finds nothing to delete leaves the caret put.

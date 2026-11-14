@@ -30,6 +30,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ChannelResult
 import kotlinx.serialization.Serializable
@@ -270,7 +271,7 @@ internal data class TaskSubmitRequest(
  * - `POST /sessions/merge`: merges at least two sessions into a new one.
  * - `GET /session/state`: the authoritative cold projection of one session.
  * - `POST /session/rename`: sets a session's title.
- * - `GET /health`: aggregated health: system resources + component status (cached snapshot).
+ * - `GET /health`: aggregated health: system resources and component status (cached snapshot).
  * - `GET /models`: discovered LLM models.
  * - `POST /provider/probe`: live connectivity check against a provider endpoint.
  * - `GET /workspace/tree`: the workspace tree: the registered roots and their files.
@@ -1151,6 +1152,9 @@ fun Application.registerAllRoutes(
       val request: WorkspaceFileRequest = try {
         call.receive<WorkspaceFileRequest>()
       } catch (malformedBody: Exception) {
+        if (malformedBody is CancellationException) {
+          currentCoroutineContext().ensureActive()
+        }
         call.respondText(
           text = JsonUtil.encodeMap(mapOf("error" to "Invalid file request body: ${malformedBody.message}")),
           status = HttpStatusCode.BadRequest,
@@ -1192,16 +1196,20 @@ fun Application.registerAllRoutes(
         )
         return@post
       }
-      val request: WorkspaceFileRequest = try {
-        call.receive<WorkspaceFileRequest>()
-      } catch (malformedBody: Exception) {
-        call.respondText(
-          text = JsonUtil.encodeMap(mapOf("error" to "Invalid deploy request body: ${malformedBody.message}")),
-          status = HttpStatusCode.BadRequest,
-          contentType = ContentType.Application.Json,
-        )
-        return@post
-      }
+      val request: WorkspaceFileRequest =
+        try {
+          call.receive<WorkspaceFileRequest>()
+        } catch (malformedBody: Exception) {
+          if (malformedBody is CancellationException) {
+            currentCoroutineContext().ensureActive()
+          }
+          call.respondText(
+            text = JsonUtil.encodeMap(mapOf("error" to "Invalid deploy request body: ${malformedBody.message}")),
+            status = HttpStatusCode.BadRequest,
+            contentType = ContentType.Application.Json,
+          )
+          return@post
+        }
       val deployResult: DeployResult = try {
         workspace.deploy(request.path, request.content)
       } catch (invalidPath: IllegalArgumentException) {
@@ -1244,6 +1252,9 @@ fun Application.registerAllRoutes(
         try {
           call.receive<SkillDeployRequest>()
         } catch (malformedBody: Exception) {
+          if (malformedBody is CancellationException) {
+            currentCoroutineContext().ensureActive()
+          }
           call.respondText(
             text = JsonUtil.encodeMap(mapOf("error" to "Invalid build request body: ${malformedBody.message}")),
             status = HttpStatusCode.BadRequest,
@@ -1630,7 +1641,7 @@ private fun projectDirectoryEntries(root: Path, directory: Path): List<Map<Strin
   return children.asSequence()
     .filter { child -> !child.name.startsWith(".") }
     .filter { child -> !Files.isSymbolicLink(child.toPath()) }
-    .sortedWith(compareBy<File>({ child -> !child.isDirectory }, { child -> child.name.lowercase() }))
+    .sortedWith(compareBy({ child -> !child.isDirectory }, { child -> child.name.lowercase() }))
     .mapNotNull { child ->
       val path: String = if (withinRoot) {
         root.relativize(child.toPath()).toString().replace(File.separatorChar, '/')

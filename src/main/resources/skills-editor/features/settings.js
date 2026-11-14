@@ -428,7 +428,7 @@ export function mountSettings(store, {canvas, theme}) {
     canvas.style.setProperty("--tab-width", String(state.tabWidth ?? 4));
 
     if (!booting) {
-      // The panes cache their line metrics + the menu bar caches its entry
+      // The panes cache their line metrics and the menu bar caches its entry
       // widths. Both recompute on the resize the editor already listens for.
       window.dispatchEvent(new Event("resize"));
     }
@@ -695,7 +695,7 @@ export function mountSettings(store, {canvas, theme}) {
     header.addEventListener("pointercancel", finish);
   });
 
-  // Resizing only moves the right + bottom edges: left/top stay put, so the
+  // Resizing only moves the right and bottom edges: left/top stay put, so the
   // room still available is measured from the island's own corner.
   resize.addEventListener("pointerdown", (event) => {
     if (compactQuery.matches || resizing || dragging ||

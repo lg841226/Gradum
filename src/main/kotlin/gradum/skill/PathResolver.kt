@@ -64,7 +64,7 @@ data class ResolvedProjectPath(
  * the tool returns "file not found": forcing the LLM to
  * re-explore the project and try again. The correction saves
  * one round-trip per occurrence. See the LLM trace in the
- * feature request: an `Explored` + a self-corrected `Read`
+ * feature request: an `Explored` and a self-corrected `Read`
  * immediately after a single failed `Read`.
  *
  * Security: `requireWithinProject`

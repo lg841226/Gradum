@@ -82,7 +82,7 @@ store.subscribe(createLayoutWriter());
 applyCodeFontFamily(canvas, store.getState());
 
 // The host half of the editor: where a buffer comes from, what a new file starts
-// as + how a typed name becomes a real file. These are the only places this
+// as and how a typed name becomes a real file. These are the only places this
 // shell touches the skill endpoints; the editor below only sees callbacks.
 const starter = document.getElementById("starterTemplate")?.textContent ?? "";
 
@@ -148,7 +148,7 @@ const documents = {
 const getActiveDoc = activeDoc;
 
 // Host commands. The editor container owns the listener; these entries say what
-// a key means + when it applies. Edit keys the code surface consumed never
+// a key means and when it applies. Edit keys the code surface consumed never
 // reach here, and the first enabled entry for a key wins.
 let assistant = null;
 
@@ -212,8 +212,8 @@ const commands = [
 ];
 
 // Features are wired here so they never import each other. The editor island
-// exposes its tab strip + code-surface API; the panels island exposes the two
-// body elements that diagnostics + the console render into.
+// exposes its tab strip and code-surface API; the panels island exposes the two
+// body elements that diagnostics and the console render into.
 //
 // The compact feature is mounted first so it is the first listener to run: it
 // settles the size-driven flags before the panels render from them.

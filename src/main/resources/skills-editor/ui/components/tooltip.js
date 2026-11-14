@@ -1,5 +1,5 @@
 // One tooltip for the whole document, driven by a [data-tooltip] attribute
-// rather than an instance bound to each control. The rail + the tab strip
+// rather than an instance bound to each control. The rail and the tab strip
 // rebuild their buttons on every render, and a delegated reader means a fresh
 // button answers the pointer the moment it is inserted, with nothing to bind +
 // nothing to clean up when it goes away.

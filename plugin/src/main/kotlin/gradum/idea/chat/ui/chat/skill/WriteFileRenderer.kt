@@ -19,7 +19,7 @@ import org.jetbrains.jewel.ui.icon.IconKey
  *
  *  - a replace edit: shows the file name plus a `+linesAdded` /
  *    `-linesRemoved` delta, and offers a `ViewDiff` action when the
- *    tool result carried an `originalContent` + `modifiedContent`
+ *    tool result carried an `originalContent` and `modifiedContent`
  *    payload (so the chat panel can launch an inline diff viewer);
  *  - a create/overwrite: shows the file name plus a `+totalLines`
  *    delta (e.g. "Build.kt +38") when the result carried a

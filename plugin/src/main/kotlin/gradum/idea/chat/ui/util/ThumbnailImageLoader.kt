@@ -28,7 +28,7 @@ private const val THUMBNAIL_HTTP_TIMEOUT_MS: Int = PluginConfig.THUMBNAIL_TIMEOU
 private const val LRU_MAX_ENTRIES: Int = PluginConfig.THUMBNAIL_LRU_MAX_ENTRIES
 
 // Hard cap on the bytes we will read from any single response. Real
-// favicons are 1–15 KB; an honest web image preview for a 16x16 box
+// favicons are 1-15 KB; an honest web image preview for a 16x16 box
 // is well under 100 KB even at the high end. Anything past 512 KB is
 // either a misconfigured server, a malicious zip-bomb surrogate, or
 // someone using this channel to exfiltrate data into the cache. We

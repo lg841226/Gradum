@@ -5,7 +5,7 @@
 //
 // The native caret can drift against the syntax overlay because the two layers
 // round their fractional line boxes apart, so it is hidden and these carets are
-// drawn from the same metrics the overlay + squiggles use.
+// drawn from the same metrics the overlay and squiggles use.
 
 import {displayColumns} from "../../core/dom.js";
 import {indentWidth} from "../analysis.js";

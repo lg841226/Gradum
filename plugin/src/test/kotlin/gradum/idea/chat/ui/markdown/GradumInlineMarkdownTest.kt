@@ -33,7 +33,7 @@ class GradumInlineMarkdownTest {
   // Unwrap the [InlineMarkdownRender] from the result of [render]. Fails
   // the test if the parser bailed: callers are tests that need a
   // non-null render. The bail path is exercised separately via [render]
-  // + null checks on `.render`.
+  // and null checks on `.render`.
   private fun inlineRender(text: String): InlineMarkdownRender =
     requireNotNull(render(text).render)
 
@@ -301,7 +301,7 @@ class GradumInlineMarkdownTest {
     // KDoc for why. The walker emits a `SpanStyle` with
     // `TextDecoration.Underline` for the link's text range so
     // the `Markdown(...)` fallback path (and the legacy
-    // `UrlAnnotation` + `pointerInput` path on the prose
+    // `UrlAnnotation` and `pointerInput` path on the prose
     // `Text`) paint a stable underline, even when the IDE LaF
     // hover scanState is unreliable. The hover-affordance is added
     // by the `ExternalLink` path via `LinkUnderlineBehavior`,

@@ -1,5 +1,5 @@
 /* Base component styles: icons, buttons, the menubar widgets, tabs, text
-   fields, lists + trees. Component factories in ui/components render markup
+   fields, lists and trees. Component factories in ui/components render markup
    with semantic attributes (data-variant, data-tone, aria-selected) and are
    styled in the stylesheets loaded after layout.css, never by the features. */
 
@@ -96,7 +96,7 @@
     color: var(--text);
 }
 
-/* Text-only highlight: full-brightness weight, no colour tint + no
+/* Text-only highlight: full-brightness weight, no colour tint and no
    background fill. The higher specificity keeps it bright even hovered. */
 .btn[data-variant="menu"][aria-pressed="true"] {
     color: var(--text);
@@ -232,8 +232,8 @@
     max-width: 16em;
 }
 
-/* The label + the actions are two zones, not one run of siblings: a hairline
-   rule + the wider gap keep the actions from reading as part of the name. */
+/* The label and the actions are two zones, not one run of siblings: a hairline
+   rule and the wider gap keep the actions from reading as part of the name. */
 .run-widget-actions {
     display: flex;
     align-items: center;

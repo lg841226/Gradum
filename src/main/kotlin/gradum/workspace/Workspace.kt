@@ -71,19 +71,6 @@ class Workspace(roots: List<WorkspaceRoot>) {
     return scanner.deploy(path.substringAfter('/'), text)
   }
 
-  fun listFiles(rootName: String, suffix: String? = null): List<String> {
-    val directory: File = rootDirectories[rootName]
-      ?: throw IllegalArgumentException("Unknown workspace root: '$rootName'")
-    val children: Array<File> = directory.listFiles() ?: return emptyList()
-    return children.asSequence()
-      .filter { child -> child.isFile && !Files.isSymbolicLink(child.toPath()) }
-      .filter { child -> !child.name.startsWith(".") }
-      .filter { child -> suffix == null || child.name.endsWith(suffix) }
-      .map { child -> child.name }
-      .sorted()
-      .toList()
-  }
-
   private fun listChildren(directory: File, pathPrefix: String): List<Map<String, Any?>> {
     val children: Array<File> = directory.listFiles() ?: return emptyList()
     return children.asSequence()

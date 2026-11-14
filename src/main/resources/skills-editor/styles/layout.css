@@ -471,7 +471,7 @@ body.is-dragging .assistant .chat-pane {
 }
 
 /* A code pane is one column of the split: its own tab strip above its own
-   gutter, code area + minimap. The right pane is mounted from the start and
+   gutter, code area and minimap. The right pane is mounted from the start and
    folded away here rather than added on demand, so both panes can be measured
    and drawn at any time. */
 .code-pane {

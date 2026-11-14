@@ -11,12 +11,12 @@ import {createCodePane} from "./pane.js";
 const MAX_LOG_PROBLEMS = 6;
 
 // The editor island: it owns the two code surfaces with their syntax overlays,
-// the problem counts + the run command. The surface is two panes over one
+// the problem counts and the run command. The surface is two panes over one
 // buffer: the right pane stays mounted and is folded away by CSS until the split
 // is switched on, so the pane list is fixed at two. Each pane carries its own
 // tab strip, so nothing sits above the panes at the panel level.
 //
-// File I/O + the identity of the active document come from the host: this
+// File I/O and the identity of the active document come from the host: this
 // island never learns where a buffer came from or how a build reaches a server.
 export function mountEditor(store, {canvas, showPanel, documents, getActiveDoc, runCommand}) {
   const panel = createPanel();

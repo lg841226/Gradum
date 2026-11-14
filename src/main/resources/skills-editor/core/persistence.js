@@ -1,5 +1,5 @@
 // The editor's layout choices outlive a reload: which view is selected, which
-// tool window sits at the bottom, whether the rail + the tree are folded,
+// tool window sits at the bottom, whether the rail and the tree are folded,
 // whether the editor is split into two views, whether the minimap strip shows,
 // how wide and tall the user dragged the panels, and whether the agent island is
 // open. Keeping them is what makes a refreshed page look the way it was left.

@@ -1,5 +1,5 @@
 // Connects the chat model to its view. This is the
-// only object the assistant island talks to: it owns no streaming state + no
+// only object the assistant island talks to: it owns no streaming state and no
 // DOM references of its own.
 
 import {createChatModel} from "../../domain/chat/model.js";

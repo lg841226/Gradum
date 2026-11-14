@@ -21,7 +21,7 @@ private val logger: Logger = LoggerFactory.getLogger("ThumbnailDiskCache")
 // Why a disk cache. The in-memory [ThumbnailImageLoader] LRU
 // forgets every URL on IDE restart, so the same favicon gets
 // re-fetched every time the user opens the project. Favicons are
-// small (1–15 KB) and effectively immutable from a 16x16 preview's
+// small (1-15 KB) and effectively immutable from a 16x16 preview's
 // point of view, so paying a few MB of disk for a cache that
 // survives restart is a clear win: especially for searches against
 // the same engine during the same development session.

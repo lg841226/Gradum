@@ -104,7 +104,7 @@ function groupSessions(sessions) {
 
 // The rail island. It owns the panel list and reports the selection back
 // through the callbacks wired in main.js. It serves two masters: the skill
-// tree by default + the assistant's session list while the chat view is
+// tree by default and the assistant's session list while the chat view is
 // open: same panel, same plus button, different content.
 export function mountRail(store, {panel, onOpen, onCreate, onOpenSession}) {
   const list = document.createElement("div");

@@ -19,8 +19,8 @@ import java.io.File
  * Thin facade over the IntelliJ Platform's native diff viewer. Used by the chat UI
  * to expose a "View Diff" action on successful `write_file` tool calls.
  *
- * Platform API surface is intentionally narrow: `DiffManager.showDiff` +
- * `DiffContentFactory.create` + `SimpleDiffRequest` + `DiffDialogHints.MODAL`;
+ * Platform API surface is intentionally narrow: `DiffManager.showDiff` and
+ * `DiffContentFactory.create` and `SimpleDiffRequest` and `DiffDialogHints.MODAL`;
  * these types have been stable since 2017 (2024.3/2025.x/2026.x).
  *
  * Side resolution falls back through three tiers:

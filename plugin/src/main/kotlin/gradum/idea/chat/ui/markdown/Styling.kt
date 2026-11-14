@@ -38,7 +38,7 @@ import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createListSty
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createOrderedListStyling
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createUnorderedListStyling
 
-// Padding applied to every heading block (H1–H6).
+// Padding applied to every heading block (H1-H6).
 //
 // Jewel's default is `PaddingValues(top = 24.dp, bottom = 16.dp)`,
 // which is GitHub-flavored spacing designed for a documentation

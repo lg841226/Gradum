@@ -1,4 +1,4 @@
-// The command layer sits between the container + the host: the host registers
+// The command layer sits between the container and the host: the host registers
 // what a command is, this module decides whether a key event reaches it. The
 // listener lives on the editor container, never on window, so embedding cannot
 // steal a shortcut from the surrounding page.
@@ -10,8 +10,8 @@
 // disabled key falls through to the next command or to the platform instead of
 // becoming a silent no-op.
 //
-// Key grammar: "Mod+N", "Mod+Enter". `Mod` is Cmd on macOS + Ctrl elsewhere;
-// Shift + Alt are matched exactly (absent means they must be up).
+// Key grammar: "Mod+N", "Mod+Enter". `Mod` is Cmd on macOS and Ctrl elsewhere;
+// Shift and Alt are matched exactly (absent means they must be up).
 
 const TEXT_ENTRY = "input, textarea, [contenteditable='true'], [contenteditable='']";
 

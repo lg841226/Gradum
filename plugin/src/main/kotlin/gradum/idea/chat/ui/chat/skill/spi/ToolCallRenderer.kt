@@ -15,7 +15,7 @@ import org.jetbrains.jewel.ui.icon.IconKey
  *   `"Written"`, `"Read"`, `"Explored"`, `"Planned"`,
  *   `"Completed"`). The alias must match the value emitted by the
  *   server-side `Skill.alias`.
- * - Parsing the server `arguments` + `result` JSON into a
+ * - Parsing the server `arguments` and `result` JSON into a
  *   [ToolCallContent] view-model via [parseContent].
  * - Choosing the row's icon ([iconKey]) and localized label
  *   ([labelKey], a Gradum resource-bundle key under
@@ -41,7 +41,7 @@ interface ToolCallRenderer {
   fun alias(): String
 
   /**
-   * Convert the server `arguments` + `result` JSON into a
+   * Convert the server `arguments` and `result` JSON into a
    * [ToolCallContent]. Returning an empty / minimal content is
    * valid; the registry will not retry with a different renderer.
    */

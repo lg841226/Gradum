@@ -21,7 +21,7 @@ import gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry.RENDERERS
  *   non-recoverable runtime crash.
  * - The EP cannot be defined per-alias in a way that's easy to
  *   discover: a third-party developer has to read the EP interface
- *   + the Gradum source to learn the convention.
+ *   and the Gradum source to learn the convention.
  *
  * A plain `val RENDERERS: List<ToolCallRenderer>` solves all three
  * problems at the cost of one line of code per new alias. Each

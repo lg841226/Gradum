@@ -47,7 +47,7 @@ data class ToolCallErrorInfo(
 // icon swaps to `Actions.Checked` until it resets. toolDetails is
 // built by [formatToolDetails] in `ToolCallBlock` from the underlying
 // `RenderBlock.ToolCall` (alias, arguments, result and error message
-// + error detail) so the user can paste a full debug snapshot without
+// and error detail) so the user can paste a full debug snapshot without
 // us hand-curating per-renderer error strings.
 @Composable
 internal fun ToolCallCapsule(

@@ -9,7 +9,7 @@
 //                                          org/jetbrains/kotlin/idea/icons/expui/kotlin_dark.svg
 //
 // Monochrome icons have their grey rewritten to currentColor so they follow
-// hover + selected states, drawn at the platform stroke width of 1. The
+// hover and selected states, drawn at the platform stroke width of 1. The
 // Kotlin brand mark is a filled sprite, so its two stops read the
 // --icon-kotlin-* tokens (via inline fill, since a presentation attribute
 // cannot hold var()) and flip with the theme; the coloured status icons keep
@@ -157,7 +157,7 @@ export const icons = {
     + 'L8.34547 8.73715C7.91311 8.34082 7.9131 7.65918 8.34547 7.26285L12.9958 3Z"'
     + ' stroke="none" style="fill:var(--icon-kotlin-body)"/>',
 
-  // expui/general/copy.svg + copy_dark.svg, AllIconsKeys.Actions.Copy. The two
+  // expui/general/copy.svg and copy_dark.svg, AllIconsKeys.Actions.Copy. The two
   // variants share one 16x16 drawing and differ only in ink, so both greys fold
   // onto currentColor and the frame keeps the platform's 1px stroke width. Apache
   // 2.0, Copyright 2000-2023 JetBrains s.r.o. and contributors.
@@ -171,8 +171,8 @@ export const icons = {
     + ' 11.1124 13.9998 10.4021 13.9998 9.6V3.4C13.9998 2.07452 12.9253 1 11.5998 1H6.39978'
     + 'C5.59677 1 4.88587 1.39437 4.4502 2H6.39978H11.0017Z" fill="currentColor" stroke="none"/>',
 
-  // expui/run/rerun.svg + rerun_dark.svg, AllIconsKeys.Run.Rerun. The two differ
-  // only in the green + ink values, so the arrow and play outline read
+  // expui/run/rerun.svg and rerun_dark.svg, AllIconsKeys.Run.Rerun. The two differ
+  // only in the green and ink values, so the arrow and play outline read
   // currentColor and the play's inner fill layer is dropped for monochrome use.
   // Apache 2.0, Copyright 2000-2023 JetBrains s.r.o. and contributors.
   rerun: '<path fill-rule="evenodd" clip-rule="evenodd" d="M9 9.50215C9 8.32441 10.2951'
@@ -197,7 +197,7 @@ export const icons = {
   // The Gradum chat bubble, copied from the plugin's chat-mode icon
   // (icons/chat-mode/chat-mode.svg): the same glyph GradumIcons.Chat draws
   // for session lists. Its fixed #6C707E stroke becomes currentColor so the
-  // tree rows dim + highlight with the theme like every other icon here.
+  // tree rows dim and highlight with the theme like every other icon here.
   session: '<path d="M4 2.5H12C12.8284 2.5 13.5 3.17157 13.5 4V13.96L9.3125 10.6094C9.22384'
     + ' 10.5384 9.11354 10.5 9 10.5H4C3.17157 10.5 2.5 9.82843 2.5 9V4C2.5 3.17157 3.17157'
     + ' 2.5 4 2.5Z" stroke-width="1" stroke-linejoin="round"/>',
@@ -216,7 +216,7 @@ export const icons = {
     + 'C8 10.1046 7.10457 11 6 11C4.89543 11 4 10.1046 4 9ZM7 9C7 9.55228 6.55228 10'
     + ' 6 10C5.44772 10 5 9.55228 5 9C5 8.44772 5.44772 8 6 8C6.55228 8 7 8.44772 7 9Z"/>',
 
-  // expui/nodes/module.svg + module_dark.svg. The two are the same 16x16
+  // expui/nodes/module.svg and module_dark.svg. The two are the same 16x16
   // drawing and differ only in ink, so the light/dark values fold onto theme
   // tokens: the badge plate reads --accent-selection, its ring --accent, the
   // folder body --bg-raised, and the outline currentColor, which keeps the
@@ -234,7 +234,7 @@ export const icons = {
     + ' 1 3.86667V12.1333C1 13.1643 1.7835 14 2.75 14H8V13H2.75C2.3956 13 2 12.6738 2 12.1333'
     + 'V3.86667C2 3.32624 2.3956 3 2.75 3H6.03823L7.80265 4.71673Z" fill="currentColor" stroke="none"/>',
 
-  // expui CSS file mark, css.svg + css_dark.svg. Both are the same 16x16
+  // expui CSS file mark, css.svg and css_dark.svg. Both are the same 16x16
   // drawing and differ only in the plate's blue, which folds onto --accent;
   // the lettering keeps the source's white. Apache 2.0, Copyright 2000-2024
   // JetBrains s.r.o. and contributors.
@@ -245,7 +245,7 @@ export const icons = {
     + 'L6.26832 10.2543L7.993 10.719L7.99463 10.7186L9.7218 10.2533L9.90155 8.249L4.53431 8.249'
     + 'L4.39551 6.70361H10.0358L10.1768 5.1211H4.25747Z" fill="white" stroke="none"/>',
 
-  // expui/fileTypes/html.svg + html_dark.svg. Both variants draw the same
+  // expui/fileTypes/html.svg and html_dark.svg. Both variants draw the same
   // brackets and differ only in green, which folds onto --ok. Apache 2.0,
   // Copyright 2000-2023 JetBrains s.r.o. and contributors.
   html: '<path d="M6.36812 4.9736C6.62969 4.77016 6.67681 4.39319 6.47337 4.13163'
@@ -259,7 +259,7 @@ export const icons = {
     + 'C9.3227 11.6068 9.36983 11.2298 9.63139 11.0264L13.5225 7.99999'
     + 'L9.63139 4.9736Z" style="fill:var(--ok)" stroke="none"/>',
 
-  // expui/fileTypes/java.svg + java_dark.svg. The two variants share the ink
+  // expui/fileTypes/java.svg and java_dark.svg. The two variants share the ink
   // pair, which folds onto --icon-node-word-bg / --icon-node-word-ink; the
   // rounded frame is kept from the light drawing. Apache 2.0,
   // Copyright 2000-2023 JetBrains s.r.o. and contributors.
@@ -283,7 +283,7 @@ export const icons = {
     + 'C15 4.78125 14.6424 5.32356 14.0909 5.55993L12.5 6.24173V2.5Z"'
     + ' style="stroke:var(--icon-node-word-ink)" stroke-width="1"/>',
 
-  // expui/fileTypes/javaScript.svg + javaScript_dark.svg. The two plates fold
+  // expui/fileTypes/javaScript.svg and javaScript_dark.svg. The two plates fold
   // onto --warning and the lettering onto --bg-canvas, so the mark reads as a
   // cut-out on both themes. Apache 2.0, Copyright 2000-2023 JetBrains s.r.o.
   // and contributors.
@@ -325,7 +325,7 @@ export const icons = {
     + 'C5.83882 10.7492 5.74762 10.8404 5.62792 10.906C5.51107 10.9687'
     + ' 5.37569 11 5.22179 11Z" style="fill:var(--bg-canvas)" stroke="none"/>',
 
-  // expui/fileTypes/json.svg + json_dark.svg. Both braces fold onto the purple
+  // expui/fileTypes/json.svg and json_dark.svg. Both braces fold onto the purple
   // token the platform already uses for the same family. Apache 2.0,
   // Copyright 2000-2023 JetBrains s.r.o. and contributors.
   json: '<path d="M3.98755 9.77751C3.99755 9.39251 3.87005 9.08501 3.60505 8.85501'
@@ -361,7 +361,7 @@ export const icons = {
     + ' 12.0445 11.57L12.0145 9.77751Z"'
     + ' style="fill:var(--icon-kotlin-body)" stroke="none"/>',
 
-  // expui/fileTypes/markdown.svg + markdown_dark.svg. Both blue variants fold
+  // expui/fileTypes/markdown.svg and markdown_dark.svg. Both blue variants fold
   // onto --accent. Apache 2.0, Copyright 2000-2022 JetBrains s.r.o. and
   // contributors.
   markdown: '<path fill-rule="evenodd" clip-rule="evenodd"'
@@ -374,7 +374,7 @@ export const icons = {
     + 'L2.34327 7.59732V11.9692H0.5V4.70001Z"'
     + ' style="fill:var(--accent)" stroke="none"/>',
 
-  // expui/fileTypes/image.svg + image_dark.svg. The plate and ink fold onto
+  // expui/fileTypes/image.svg and image_dark.svg. The plate and ink fold onto
   // --icon-node-type-bg / --icon-node-type-ink; strokes keep the platform's
   // width of 1. Apache 2.0, Copyright 2000-2023 JetBrains s.r.o. and
   // contributors.
@@ -590,7 +590,7 @@ export const icons = {
   // Completion row marks: the platform's own round letter icons, one per kind:
   // a property, a method, a class, a live template, a plain variable. These
   // keep their own palette instead of following currentColor, the way the Kotlin
-  // brand mark does: the disc + the ink each read an --icon-node-* token, so
+  // brand mark does: the disc and the ink each read an --icon-node-* token, so
   // the theme swap paints the _dark.svg twin of every mark.
   //
   // expui/nodes/property.svg / property_dark.svg

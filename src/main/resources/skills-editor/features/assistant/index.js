@@ -230,7 +230,7 @@ export function mountAssistant(store, {panel, onOpenFile}) {
 
   // The only writer of the pane DOM. Every entry point edits `workspace` or
   // `tabs` and then calls this once: split classes, pane contents, composer
-  // streaming state, tab strips + the stored tab list all derive from that
+  // streaming state, tab strips and the stored tab list all derive from that
   // model here, so a missed manual sync can no longer leave the panes +
   // strips disagreeing.
   function render() {

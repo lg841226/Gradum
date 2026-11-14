@@ -110,6 +110,7 @@
     /* Structure */
     --island-gap: calc(6px * var(--ui-scale));
     --rail-width: calc(208px * var(--ui-scale));
+    --tree-width: calc(208px * var(--ui-scale));
     --blur-popup: 10px;
     --composer-h: calc(96px * var(--ui-scale));
     --header-height: calc(36px * var(--ui-scale));
@@ -129,7 +130,7 @@
        nav (2 x 360px), so resizing never turns it into a full-screen sheet. */
     --settings-max-width: calc(var(--settings-nav-width) + 720px * var(--ui-scale));
     --settings-max-height: calc(720px * var(--ui-scale));
-    /* Icons-only nav: one 16px icon + 8px padding on each side for the row,
+    /* Icons-only nav: one 16px icon and 8px padding on each side for the row,
        plus the nav's own 8px padding on each side. */
     --settings-nav-collapsed: calc(var(--space-4) + 4 * var(--space-2));
     --switch-width: calc(34px * var(--ui-scale));
@@ -142,6 +143,7 @@
     /* Floating panels (touch layout): the dragged position and size of the
        rail and bottom windows, written from script at runtime. */
     --float-x: 12px;
+    --float-rx: 12px;
     --float-y: 64px;
     --float-w: min(320px, calc(100vw - 24px));
     --float-h: min(46vh, 420px);
@@ -150,7 +152,7 @@
 /* Light theme. The editor root carries data-theme="light" when the user picks
    Light; the dark values above remain the fallback for a canvas with no theme
    attribute (and for data-theme="dark"). Only colour tokens change here, so
-   radii, spacing, type + structure stay shared between the two palettes. */
+   radii, spacing, type and structure stay shared between the two palettes. */
 .canvas[data-theme="light"] {
     /* Surfaces invert: a grey backdrop with white panels. */
     --bg-popup: #ffffff;

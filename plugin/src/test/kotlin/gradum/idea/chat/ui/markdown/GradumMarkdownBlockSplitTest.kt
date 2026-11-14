@@ -22,7 +22,7 @@ class GradumMarkdownBlockSplitTest {
 
   @Test
   fun `paragraph followed by heading becomes Plain then NonProseBlock`() {
-    // This is the bug-2026-07-14 case: a 20-char paragraph + a
+    // This is the bug-2026-07-14 case: a 20-char paragraph and a
     // heading used to render as 20 chars (the heading was dropped).
     // The new splitter must emit two segments so both render.
     val segments: List<MarkdownSegment> = splitPlainAtBlocks("some prose\n\n## heading after")
@@ -109,8 +109,8 @@ class GradumMarkdownBlockSplitTest {
 
   @Test
   fun `multiple blocks in any order split correctly`() {
-    // The mixed content that triggered the bug: paragraph + list
-    // + heading + thematic break + paragraph.
+    // The mixed content that triggered the bug: paragraph and list
+    // and heading and thematic break and paragraph.
     val input: String =
       """
       |paragraph one with `code`
@@ -180,7 +180,7 @@ class GradumMarkdownBlockSplitTest {
 
   @Test
   fun `round-trip serializer preserves inline formatting`() {
-    // A paragraph with bold + italic + inline code + link is
+    // A paragraph with bold and italic and inline code and link is
     // re-serialized back to valid Markdown. The exact whitespace
     // may differ from the original (commonmark normalizes), but
     // the structure must survive.
@@ -247,7 +247,7 @@ class GradumMarkdownBlockSplitTest {
 
   @Test
   fun `nested list with paragraph and code block child preserves the code block`() {
-    // A list item containing a paragraph + a fenced code block
+    // A list item containing a paragraph and a fenced code block
     // must serialize with the code block indented 4 columns past
     // the marker (CommonMark rule for continuation blocks inside
     // list items). 2-space indent is NOT enough: CommonMark would

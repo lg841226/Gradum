@@ -2,7 +2,7 @@ import {copy} from "../copy.js";
 import {createIcon} from "./icon.js";
 import {clear} from "../../core/dom.js";
 
-// variant: "file" | "panel". File tabs carry a dirty dot + a close control;
+// variant: "file" | "panel". File tabs carry a dirty dot and a close control;
 // panel tabs are plain tool-window labels.
 export function createTab({
                             id,
