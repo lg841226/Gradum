@@ -9,10 +9,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import gradum.idea.chat.ui.common.IconTooltipButton
 import gradum.idea.editor.AttachedContext
+import gradum.idea.ui.SwingIcon
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
@@ -43,7 +43,7 @@ fun AttachmentBar(
         horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
         modifier = Modifier.padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.sm)
       ) {
-        Icon(
+        SwingIcon(
           icon = attachedContext.icon,
           contentDescription = attachedContext.displayName,
           modifier = Modifier.size(16.dp)

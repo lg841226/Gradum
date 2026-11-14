@@ -9,10 +9,9 @@ import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.platform.icons.Icon
-import com.intellij.platform.icons.swing.toNewIcon
 import com.intellij.util.IconUtil
 import gradum.idea.chat.editor.GradumChatVirtualFile
+import javax.swing.Icon
 
 data class EditorContext(
   val projectDir: VirtualFile?,
@@ -26,7 +25,7 @@ data class EditorContext(
 
 
 /** Icon the IDE shows for a plain text file; also the fallback for icon-less file types. */
-val TextFileIcon: Icon by lazy { AllIcons.FileTypes.Text.toNewIcon() }
+val TextFileIcon: Icon by lazy { AllIcons.FileTypes.Text }
 
 /**
  * The icon the IDE itself shows for [file]: the file type icon for regular files,
@@ -35,7 +34,7 @@ val TextFileIcon: Icon by lazy { AllIcons.FileTypes.Text.toNewIcon() }
  * read action like the rest of our platform reads.
  */
 fun fileIcon(file: VirtualFile): Icon = ReadAction.compute<Icon, RuntimeException> {
-  IconUtil.getIcon(file, 0, null).toNewIcon()
+  IconUtil.getIcon(file, 0, null)
 }
 
 /**
@@ -48,7 +47,7 @@ fun languageIcon(language: String?): Icon =
   extensionIcon(extension = EditorUtils.extensionForLanguage(language.orEmpty().trim().lowercase()))
 
 private fun extensionIcon(extension: String): Icon =
-  FileTypeManager.getInstance().getFileTypeByExtension(extension).icon?.toNewIcon() ?: TextFileIcon
+  FileTypeManager.getInstance().getFileTypeByExtension(extension).icon ?: TextFileIcon
 
 object EditorUtils {
 

@@ -2,10 +2,10 @@
 
 plugins {
   id("java")
-  id("org.jetbrains.kotlin.jvm") version "2.3.0"
-  id("org.jetbrains.kotlin.plugin.serialization") version "2.3.0"
+  id("org.jetbrains.kotlin.jvm") version "2.4.21"
+  id("org.jetbrains.kotlin.plugin.serialization") version "2.4.21"
   id("org.jetbrains.intellij.platform") version "2.16.0"
-  id("org.jetbrains.kotlin.plugin.compose") version "2.3.0"
+  id("org.jetbrains.kotlin.plugin.compose") version "2.4.21"
   id("org.jetbrains.changelog") version "2.3.0"
 }
 
@@ -30,7 +30,7 @@ repositories {
 
 dependencies {
   intellijPlatform {
-    create("IU", "2026.2")
+    create("IU", "2026.3")
     bundledPlugin("com.intellij.modules.platform")
     bundledPlugin("com.intellij.java")
     bundledPlugin("org.jetbrains.kotlin")

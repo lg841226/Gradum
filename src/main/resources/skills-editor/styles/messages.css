@@ -1,0 +1,296 @@
+.assistant .pending-status {
+    font-weight: 500;
+}
+
+.assistant .ask-error {
+    color: var(--error);
+}
+
+.assistant .bubble-failure {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-island);
+    background: color-mix(in srgb, var(--error) 14%, var(--bg-popup));
+    white-space: normal;
+}
+
+.assistant .failure-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+.assistant .failure-head {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+}
+
+.assistant .failure-head[data-expandable="true"] {
+    cursor: pointer;
+}
+
+.assistant .failure-head .icon {
+    flex: none;
+    width: var(--space-4);
+    height: var(--space-4);
+}
+
+.assistant .failure-title {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-ui);
+    font-weight: var(--weight-semibold);
+}
+
+.assistant .failure-detail {
+    width: 100%;
+    max-height: 200px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text-dim);
+    font-family: var(--font-code);
+    font-size: var(--font-size-ui);
+}
+
+.assistant .failure-actions {
+    display: flex;
+    flex: none;
+    gap: var(--space-2);
+    white-space: nowrap;
+}
+
+.assistant .failure-actions .btn:hover {
+    background: color-mix(in srgb, var(--error) 12%, transparent);
+}
+
+.assistant details.thinking > summary {
+    display: flex;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) 0;
+    color: var(--text-dim);
+}
+
+.assistant details.thinking > summary > svg:first-child {
+    flex: none;
+    color: var(--text-mute);
+}
+
+.assistant .thinking-label {
+    font-weight: 500;
+    font-feature-settings: "tnum";
+}
+
+.assistant .thinking:not([data-done="true"]) .thinking-label {
+    min-width: 96px;
+}
+
+.assistant details.thinking > summary > svg:last-child {
+    color: var(--text-mute);
+    flex: none;
+    transition: transform var(--motion-fast) ease;
+}
+
+.assistant details.thinking:not([open]) > summary > svg:last-child {
+    transform: rotate(-90deg);
+}
+
+.assistant .thinking-body {
+    padding: var(--space-1) 0 var(--space-2);
+    color: var(--text-dim);
+    line-height: 1.6;
+}
+
+.assistant .thinking-body > * {
+    margin: 0 0 var(--space-2);
+}
+
+.assistant .thinking-body > :first-child {
+    margin-top: 0;
+}
+
+.assistant .thinking-body > :last-child {
+    margin-bottom: 0;
+}
+
+.assistant details.thinking[data-capped] .thinking-body {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.assistant .thinking-body {
+    overflow-x: hidden;
+}
+
+.assistant .thinking-body pre code {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.assistant details.tool-group > summary {
+    display: flex;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    align-items: center;
+    color: var(--text);
+    gap: var(--space-2);
+    padding: var(--space-1) 0;
+}
+
+.assistant details.tool-group > summary > svg {
+    flex: none;
+    color: var(--text-mute);
+    transition: transform var(--motion-fast) ease;
+}
+
+.assistant details.tool-group:not([open]) > summary > svg {
+    transform: rotate(-90deg);
+}
+
+.assistant .tool-group-label {
+    font-weight: 500;
+}
+
+.assistant .tool-group-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-2) 0 var(--space-2) var(--space-4);
+}
+
+.assistant .tool-capsule {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.assistant .tool-capsule > svg {
+    flex: none;
+    color: var(--text-mute);
+}
+
+.assistant .tool-capsule-label {
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.assistant .tool-capsule-detail {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-mute);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.assistant .tool-capsule[data-failed] .tool-capsule-label {
+    color: var(--error);
+}
+
+.assistant .ask-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    box-shadow: var(--shadow-popup);
+    border-radius: var(--radius-island);
+    background: color-mix(in srgb, var(--bg-raised) 45%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.assistant .ask-title {
+    font-weight: var(--weight-semibold);
+}
+
+.assistant .ask-details {
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text-dim);
+    font-size: var(--font-size-small);
+    font-family: var(--font-code), ui-monospace;
+}
+
+.assistant .ask-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.assistant .ask-button {
+    font: inherit;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-dim);
+    padding: 0 var(--space-3);
+    height: var(--control-height);
+    border: 1px solid var(--border);
+    font-size: var(--font-size-small);
+    font-weight: var(--weight-medium);
+    border-radius: var(--radius-control);
+    transition: background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.assistant .ask-button:hover {
+    color: var(--text);
+    background: var(--bg-raised);
+}
+
+.assistant .ask-button[data-semantics="allow_once"],
+.assistant .ask-button[data-semantics="allow_always"] {
+    color: var(--ok);
+    border-color: var(--ok);
+}
+
+.assistant .ask-button[data-semantics="reject"] {
+    color: var(--error);
+    border-color: var(--error);
+}
+
+.assistant .ask-answered {
+    margin: 0;
+    color: var(--text-mute);
+    font-size: var(--font-size-small);
+}
+
+.assistant .ask-input {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.assistant .ask-input input {
+    flex: 1;
+    min-width: 0;
+    outline: none;
+    font: inherit;
+    color: var(--text);
+    padding: 0 var(--space-2);
+    background: var(--bg-canvas);
+    height: var(--control-height);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+}
+
+.assistant .ask-input input:focus {
+    border-color: var(--accent);
+}

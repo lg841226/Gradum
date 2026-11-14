@@ -1,0 +1,324 @@
+.assistant .composer {
+    bottom: 0;
+    z-index: 10;
+    inset-inline: 0;
+    border-radius: 16px;
+    display: flex;
+    position: absolute;
+    background: var(--bg-popup);
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-2);
+    margin: 0 auto var(--space-6);
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgb(9 13 24 / 6%);
+    width: min(calc(100% - 2 * var(--space-4)), var(--composer-max));
+    transition: border-color var(--motion-fast) var(--ease-standard);
+}
+
+.assistant .composer-scroll-bottom {
+    right: 0;
+    padding: 0;
+    z-index: 11;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    position: absolute;
+    border: 1px solid var(--border);
+    bottom: calc(100% + var(--space-3));
+    box-shadow: 0 2px 8px rgb(9 13 24 / 6%);
+    backdrop-filter: blur(20px) saturate(1.2);
+    -webkit-backdrop-filter: blur(20px) saturate(1.2);
+    background: color-mix(in srgb, var(--bg-popup) 72%, transparent);
+    animation: scroll-bottom-in var(--motion-slow) var(--ease-standard);
+}
+
+.assistant .composer-scroll-bottom:hover {
+    border-color: var(--border-strong);
+}
+
+@keyframes scroll-bottom-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px) scale(0.9);
+    }
+}
+
+.assistant .composer-scroll-bottom[hidden] {
+    display: none;
+}
+
+.assistant .composer:hover {
+    border-color: var(--border-strong);
+}
+
+.assistant .composer:focus-within {
+    border-color: var(--accent-outline);
+}
+
+.assistant .composer-flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--space-1);
+    max-height: 240px;
+    overflow-y: auto;
+    position: relative;
+    padding: var(--space-1) 0 var(--space-1) var(--space-2);
+}
+
+.assistant .composer-placeholder {
+    position: absolute;
+    left: var(--space-2);
+    top: var(--space-1);
+    color: var(--text-mute);
+    line-height: 1.45;
+    pointer-events: none;
+}
+
+.assistant .composer-segment {
+    resize: none;
+    border: 0;
+    outline: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    line-height: 1.45;
+    background: transparent;
+    color: var(--text);
+    caret-color: var(--accent);
+    overflow: hidden;
+    min-width: 2px;
+    max-width: 100%;
+}
+
+.assistant .composer-segment::selection {
+    background: var(--accent-selection);
+}
+
+.assistant .composer-attach {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+    padding: 0;
+    display: inline-flex;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    color: var(--text-dim);
+    background: transparent;
+    transition: background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.assistant .composer-attach:hover,
+.assistant .composer-attach[data-open] {
+    color: var(--text);
+    background: var(--bg-raised);
+}
+
+.assistant .path-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 24px;
+    min-width: 0;
+    max-width: 260px;
+    border-radius: 999px;
+    color: var(--text-dim);
+    background: var(--bg-menu);
+    padding: 0 var(--space-1) 0 var(--space-2);
+    font-size: var(--font-size-small);
+}
+
+.assistant .path-chip-label {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.assistant .path-chip-name {
+    gap: 0;
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: center;
+}
+
+.assistant .composer-path {
+    height: 1.45em;
+    gap: var(--space-1);
+    padding: 0 var(--space-1);
+    border-radius: var(--radius-control);
+    color: var(--text);
+    background: var(--bg-canvas);
+    font-size: var(--font-size-ui);
+    line-height: 1.45;
+}
+
+.assistant .composer-path:hover {
+    background: var(--bg-raised);
+}
+
+.assistant .composer-path .path-chip-label {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.assistant .path-chip-ext {
+    flex: 0 0 auto;
+}
+
+.assistant .bubble-path {
+    height: auto;
+    padding: 0 var(--space-2);
+    vertical-align: middle;
+    cursor: pointer;
+}
+
+.assistant .bubble-path .icon {
+    width: 14px;
+    height: 14px;
+}
+
+.assistant .composer-foot {
+    display: flex;
+    position: relative;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.assistant .chip-group {
+    gap: 2px;
+    min-width: 0;
+    display: flex;
+    margin-right: auto;
+    align-items: center;
+}
+
+.assistant .model-chip,
+.assistant .perm-chip {
+    min-width: 0;
+    height: 24px;
+    flex: 0 1 auto;
+    overflow: hidden;
+    max-width: 320px;
+    border-radius: 999px;
+    color: var(--text-dim);
+    padding: 0 var(--space-2);
+    font-size: var(--font-size-small);
+}
+
+.assistant .model-chip .icon:last-child,
+.assistant .perm-chip .icon:last-child {
+    transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.assistant .model-chip[data-open] .icon:last-child,
+.assistant .perm-chip[data-open] .icon:last-child {
+    transform: rotate(180deg);
+}
+
+.assistant .model-chip-label,
+.assistant .perm-chip-label {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.assistant .model-menu,
+.assistant .perm-menu {
+    left: 0;
+    z-index: 13;
+    min-width: 240px;
+    max-width: 360px;
+    position: absolute;
+    padding: var(--space-1) 0;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-popup);
+    bottom: calc(100% + var(--space-2));
+    border-radius: var(--radius-island);
+    backdrop-filter: blur(var(--blur-popup));
+    -webkit-backdrop-filter: blur(var(--blur-popup));
+    background: color-mix(in srgb, var(--bg-popup) 65%, transparent);
+}
+
+.assistant .model-menu[hidden] {
+    display: none;
+}
+
+.assistant .model-menu-list {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-1);
+}
+
+.assistant .model-menu-list > :not(:last-child) {
+    margin-bottom: var(--space-1);
+}
+
+.assistant .perm-item {
+    height: auto;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+}
+
+.assistant .perm-item-text {
+    gap: 2px;
+    min-width: 0;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+}
+
+.assistant .perm-item .list-item-label {
+    white-space: nowrap;
+}
+
+.assistant .perm-item-info {
+    line-height: 1.35;
+    color: var(--text-mute);
+    font-size: var(--font-size-small);
+}
+
+.assistant .composer-send {
+    padding: 0;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    align-items: center;
+    display: inline-flex;
+    background: transparent;
+    justify-content: center;
+    color: var(--text-dim);
+    width: var(--control-height);
+    height: var(--control-height);
+    transition: color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard);
+}
+
+.assistant .composer-send:disabled {
+    opacity: .5;
+    cursor: default;
+}
+
+.assistant .composer-send:hover {
+    color: var(--text);
+    background: var(--bg-raised);
+}
+
+.assistant .composer-send:active {
+    background: var(--bg-raised);
+}
+
+.canvas:not([data-theme="light"]) .assistant details.thinking > summary > svg,
+.canvas:not([data-theme="light"]) .assistant details.tool-group > summary > svg,
+.canvas:not([data-theme="light"]) .assistant .tool-capsule > svg,
+.canvas:not([data-theme="light"]) .statusbar .statusbar-path > .icon {
+    color: var(--text-dim);
+}

@@ -305,6 +305,25 @@
     background: none;
 }
 
+.statusbar-monitor {
+    gap: var(--space-1);
+    cursor: default;
+}
+
+.monitor-track {
+    flex: none;
+    display: flex;
+    overflow: hidden;
+    height: var(--space-1);
+    background: var(--border);
+    width: calc(36px * var(--ui-scale));
+    border-radius: calc(2px * var(--ui-scale));
+}
+
+.monitor-fill {
+    background: var(--text-dim);
+}
+
 .statusbar-right {
     display: flex;
     margin-left: auto;
@@ -479,70 +498,6 @@ body.is-dragging .assistant .chat-pane {
     flex: 1 1 auto;
     position: relative;
 }
-
-.code-pane[data-pane="right"] {
-    opacity: 0;
-    flex-grow: 0;
-    flex-basis: 0;
-    overflow: hidden;
-    visibility: hidden;
-    transition: flex-basis var(--motion-fast) var(--ease-standard),
-    flex-grow var(--motion-fast) var(--ease-standard),
-    opacity var(--motion-fast) var(--ease-standard),
-    visibility var(--motion-fast) var(--ease-standard);
-}
-
-.editor-body.is-split .code-pane[data-pane="right"] {
-    opacity: 1;
-    flex-basis: 0;
-    visibility: visible;
-    flex-grow: calc(1 - var(--split-ratio, 0.5));
-}
-
-.editor-body.is-split .code-pane[data-pane="left"] {
-    flex-grow: var(--split-ratio, 0.5);
-}
-
-.editor-body.is-split-down {
-    flex-direction: column;
-}
-
-.editor-body.is-split-down .code-pane {
-    min-height: 0;
-}
-
-.editor-body.is-split-down .pane-divider::after {
-    inset: -3px 0;
-}
-
-.pane-divider {
-    flex: 0 0 0;
-    z-index: 5;
-    position: relative;
-    visibility: hidden;
-    cursor: col-resize;
-    touch-action: none;
-    align-self: stretch;
-    background: color-mix(in srgb, var(--border) 45%, transparent);
-    transition: flex-basis var(--motion-fast) var(--ease-standard),
-    visibility var(--motion-fast) var(--ease-standard);
-}
-
-.editor-body.is-split-down .pane-divider {
-    cursor: row-resize;
-}
-
-.editor-body.is-split .pane-divider {
-    flex-basis: 1px;
-    visibility: visible;
-}
-
-.pane-divider::after {
-    content: "";
-    inset: 0 -3px;
-    position: absolute;
-}
-
 
 .editor-body.is-empty .code-pane,
 .editor-body.is-empty .pane-divider {

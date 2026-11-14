@@ -27,7 +27,8 @@ export function createComposer({chips = [], menus = [], onAttach, onSend, onStop
   let composing = false;
   let focused = false;
   let streaming = false;
-  let sync = () => {};
+  let sync = () => {
+  };
 
   const measure = document.createElement("canvas").getContext("2d");
 
@@ -203,7 +204,7 @@ export function createComposer({chips = [], menus = [], onAttach, onSend, onStop
     if (event.key === "Enter") {
       if (!event.shiftKey) {
         event.preventDefault();
-        if (!streaming) {
+        if (!streaming && sendEnabled) {
           onSend?.();
         }
       }
@@ -333,8 +334,10 @@ export function createComposer({chips = [], menus = [], onAttach, onSend, onStop
     refreshPlaceholder();
   });
 
+  let sendEnabled = true;
+
   sync = () => {
-    sendButton.disabled = streaming || !text().trim();
+    sendButton.disabled = streaming || !sendEnabled || !text().trim();
     sendButton.hidden = streaming;
     stopButton.hidden = !streaming;
   };
@@ -355,6 +358,10 @@ export function createComposer({chips = [], menus = [], onAttach, onSend, onStop
     text,
     setStreaming(next) {
       streaming = Boolean(next);
+      sync();
+    },
+    setSendEnabled(next) {
+      sendEnabled = Boolean(next);
       sync();
     },
     setAttachOpen(open) {

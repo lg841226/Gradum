@@ -23,7 +23,7 @@ private val logger: Logger = LoggerFactory.getLogger("ServerAuth")
  *
  * The server binds to loopback by default, but loopback does not stop
  * other local processes (or a DNS-rebinding browser page) from calling
- * the dangerous routes (`POST /skills/deploy`, `POST /events`). Every
+ * the dangerous routes (`POST /workspace/deploy`, `POST /events`). Every
  * request therefore has to carry a per-machine token, and the `Host`
  * header has to name this machine: a loopback name always, and once
  * `server.allowRemote` lifts the bind past loopback, the machine's own

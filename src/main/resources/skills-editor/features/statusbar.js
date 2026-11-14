@@ -244,5 +244,5 @@ export function mountStatusBar(store, {canvas, getActiveDoc}) {
 
   store.subscribe(render);
   render(store.getState());
-  return {container: bar};
+  return {container: bar, right};
 }

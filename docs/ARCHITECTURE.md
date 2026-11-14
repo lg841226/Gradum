@@ -289,7 +289,6 @@ flowchart TD
     R -->|"/session/rewind"| RW[truncate session context to a message]
     R -->|"/health"| H2[version + uptime]
     R -->|"/models"| M2[ModelIdentity.discoverModels]
-    R -->|"/skills"| S2[SkillRegistry.getAllSkills]
     R1 --> A["Agent.executeTask(userInput, loadContext, toolCallXml?, attachments?)"]
 
     subgraph AGENT_FLOW["Agent execution flow"]
@@ -855,7 +854,7 @@ flowchart TD
 
 #### Routes.kt
 
-`registerAllRoutes()` registers fourteen routes:
+`registerAllRoutes()` registers ten routes:
 
 ```mermaid
 flowchart TD
@@ -867,10 +866,6 @@ flowchart TD
     R --> GH[GET /health]
     R --> GM[GET /models]
     R --> PP[POST /provider/probe]
-    R --> GS[GET /skills]
-    R --> SSRC[GET /skills/sources]
-    R --> SSN[GET /skills/source]
-    R --> SDEP[POST /skills/deploy]
     R --> SED[GET /skills/editor]
     R --> SEDA["GET /skills/editor/{asset...}"]
     POST --> P1["Deserialize EventsRequestBody<br/>{message, projectRoot, loadContext, model?,<br/>toolMode?, sessionId?, messageId?, promptVariant?,<br/>attachments?, toolCallXml?, config?}"]
@@ -887,10 +882,6 @@ flowchart TD
     M1 --> M2["Return JSON<br/>{models: [...]}"]
     PP --> P6["ModelIdentity.probeProvider(kind, baseUrl, apiKey)<br/>real-time, uncached<br/>httpProbe with 5s timeout"]
     P6 --> P7["Return JSON<br/>{status: ok|unreachable|auth|failed,<br/>latencyMs, error}"]
-    GS --> S2["Return JSON<br/>{skills: [{name, description, alias}]}"]
-    SSRC --> X1["Return JSON<br/>{sources: [...]} (sorted ~/.gradum/skills/*.kt names"]
-    SSN --> X2["Return JSON {name, source}<br/>404 on unknown name<br/>normalizeSourceName() blocks traversal"]
-    SDEP --> X3["400 bad body/name · 503 scanner missing<br/>write source + synchronous reconcile<br/>-> {fileName, compiled, diagnostics}"]
     SED --> X4["Serve bundled skills-editor/index.html<br/>auth: valid ?token= sets HttpOnly cookie,<br/>else 401 with recovery hint"]
     SEDA --> X5["Serve bundled css/js/svg/html asset<br/>per-segment traversal guard · 404 else"]
     style POST fill: #d4f1d4
@@ -901,10 +892,6 @@ flowchart TD
     style GH fill: #c1daf4
     style GM fill: #f4e1c1
     style PP fill: #e1c1f4
-    style GS fill: #c1f4c1
-    style SSRC fill: #c1f4c1
-    style SSN fill: #c1f4c1
-    style SDEP fill: #d4f1d4
     style SED fill: #c1daf4
     style SEDA fill: #c1daf4
 ```
@@ -1613,7 +1600,7 @@ registered through the `SkillStore` path.
 | McpToolsSkill       | materialized tool name + tool arguments                       | whatever the backing MCP server returns (wrapped as a `SkillResult`)                                                                                                                                                       | `INVALID_PARAMETER, IO_ERROR`                                                                                                             | One materialized skill per remote tool; round cap `DEFAULT_MAX_ROUNDS = 8`; servers from `settings.json` `mcpServers` |
 
 External skills (`~/.gradum/skills/*.kt`) appear in the same registry with whatever schema their source declares:
-`GET /skills` and `getSchemas` cannot tell them apart from built-ins.
+`getSchemas` cannot tell them apart from built-ins.
 
 ---
 
@@ -1962,7 +1949,7 @@ plugin (IntelliJ Plugin)
     │
     └─── Gradum Server (runtime, HTTP only)
             └── POST /events, POST /events/respond, POST /stop, POST /session/delete,
-                POST /session/rewind, GET /health, GET /models, GET /skills, POST /provider/probe
+                POST /session/rewind, GET /health, GET /models, POST /provider/probe
 ```
 
 Jewel and Compose are deliberately shipped **on the plugin classloader** (see the comments in
@@ -1981,7 +1968,7 @@ to third-party plugins at all, so they ship too.
 │  ModelSelectorBar   │ <══════════════════════════════>│  Agent + Skills     │
 │  AssistantChatBubble│   POST /events/respond (ask)    │  LLM Client         │
 │  AskCard            │ <───────────────────────────────│  CommandFilter      │
-│  GradumApiClient    │   GET /models, GET /skills      │  AskScope           │
+│  GradumApiClient    │   GET /models                   │  AskScope           │
 │  ProviderProbe      │   POST /provider/probe          │                     │
 │                     │   POST /stop,                   │                     │
 │                     │   POST /session/delete,         │                     │
@@ -2004,8 +1991,7 @@ to third-party plugins at all, so they ship too.
   result, response, token usage), plus `isRunning` / `runId` for the live run and the live extras `pendingAsks` /
   `subAgents`. A message's index is its 0-based position and `since` asks for the delta after it. The plugin decodes
   this projection when a stream `gap` is seen or a session is reopened, instead of trusting its event-stream assembly.
-- `GET /models`, `GET /health`, and `GET /skills` support model polling, server liveness checks, and capability
-  discovery
+- `GET /models` and `GET /health` support model polling and server liveness checks
 - `POST /provider/probe` is the settings-page connectivity check: the plugin forwards `{kind, baseUrl, apiKey}` to the
   server, which dials the provider and returns `{status, latencyMs}`. On `ok`, the plugin immediately refreshes the
   model list instead of waiting for the next poll tick.

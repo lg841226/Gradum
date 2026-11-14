@@ -9,6 +9,7 @@ import {mountCompact} from "./features/compact.js";
 import {mountConsole} from "./features/console.js";
 import {mountMenubar} from "./features/menubar.js";
 import {mountMinimap} from "./features/minimap.js";
+import {mountMonitor} from "./features/monitor.js";
 import {mountSettings} from "./features/settings.js";
 import {mountStatusBar} from "./features/statusbar.js";
 import {createPanelRegistry, mountPanelRegistry} from "./features/panelRegistry.js";
@@ -281,7 +282,8 @@ try {
     },
     onToggleSettings: () => settings.toggle(),
   });
-  mountStatusBar(store, {canvas, getActiveDoc});
+  const statusBar = mountStatusBar(store, {canvas, getActiveDoc});
+  mountMonitor({host: statusBar.right});
   mountTooltip({container: canvas});
 
   remeasureAfterFonts();

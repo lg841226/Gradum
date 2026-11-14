@@ -11,9 +11,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import gradum.idea.editor.AttachedContext
+import gradum.idea.ui.SwingIcon
 import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 
 /**
@@ -59,7 +59,7 @@ private fun AttachmentChip(attachment: AttachedContext) {
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
   ) {
-    Icon(
+    SwingIcon(
       icon = attachment.icon,
       contentDescription = null,
       modifier = Modifier.size(14.dp)

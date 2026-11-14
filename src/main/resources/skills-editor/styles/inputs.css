@@ -1,0 +1,181 @@
+.switch {
+    border: 0;
+    padding: 0;
+    flex: none;
+    cursor: pointer;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: var(--switch-width);
+    height: var(--switch-height);
+    background: var(--border-strong);
+    border-radius: 999px;
+}
+
+.switch:focus-visible {
+    outline: 1px solid var(--accent-outline);
+    outline-offset: 2px;
+}
+
+.switch[aria-checked="true"] {
+    background: var(--accent);
+}
+
+.switch-thumb {
+    flex: none;
+    display: block;
+    border-radius: 999px;
+    background: var(--switch-thumb);
+    margin-left: calc(2px * var(--ui-scale));
+    width: calc(var(--switch-height) - 4px * var(--ui-scale));
+    height: calc(var(--switch-height) - 4px * var(--ui-scale));
+    transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.switch[aria-checked="true"] .switch-thumb {
+    transform: translateX(calc(var(--switch-width) - var(--switch-height)));
+}
+
+/* The select trigger copies the composer pickers: the current value followed
+   by a chevron, reading as a chip rather than a text field. */
+.select-trigger {
+    min-width: 0;
+    border-radius: 999px;
+    overflow: hidden;
+    gap: var(--space-2);
+    color: var(--text-dim);
+    padding: 0 var(--space-2);
+    font-size: var(--font-size-small);
+    max-width: calc(320px * var(--ui-scale));
+    height: calc(var(--control-height) - var(--space-1));
+}
+
+.select-trigger .icon:last-child {
+    transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.select-trigger[data-open] .icon:last-child {
+    transform: rotate(180deg);
+}
+
+.select-trigger-label {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* The same popup surface as the composer menus (.model-menu): shared border,
+   radius, shadow and blur, with the list component's rows inside. */
+.select-menu {
+    position: fixed;
+    z-index: 13;
+    min-width: calc(160px * var(--ui-scale));
+    max-width: calc(280px * var(--ui-scale));
+    max-height: calc(280px * var(--ui-scale));
+    overflow-y: auto;
+    padding: var(--space-1) 0;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-popup);
+    border-radius: var(--radius-island);
+    backdrop-filter: blur(var(--blur-popup));
+    -webkit-backdrop-filter: blur(var(--blur-popup));
+    background: color-mix(in srgb, var(--bg-popup) 65%, transparent);
+}
+
+.select-menu[hidden] {
+    display: none;
+}
+
+.select-menu-list {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-1);
+}
+
+.select-menu-list > :not(:last-child) {
+    margin-bottom: var(--space-1);
+}
+
+.segmented {
+    padding: 2px;
+    border-radius: 999px;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    background: var(--bg-raised);
+}
+
+.segmented .btn {
+    z-index: 1;
+    position: relative;
+    height: auto;
+    justify-content: center;
+    padding: 2px var(--space-3);
+    border-radius: 999px;
+}
+
+.settings-row-control .theme-segmented .btn {
+    padding: 2px var(--space-2);
+}
+
+.segmented .btn[aria-pressed="true"] {
+    color: var(--text);
+    font-weight: var(--weight-semibold);
+}
+
+.segmented-thumb {
+    top: 0;
+    left: 0;
+    position: absolute;
+    pointer-events: none;
+    border-radius: 999px;
+    background: var(--bg-popup);
+    box-shadow: 0 1px 3px rgb(9 13 24 / 22%);
+}
+
+/* The transition only exists after the first placement, so the initial render
+   snaps into place instead of sliding in from the left edge. */
+.segmented-thumb.is-ready {
+    transition: transform var(--motion-fast) var(--ease-standard),
+    width var(--motion-fast) var(--ease-standard);
+}
+
+.canvas[data-motion="off"] {
+    --motion-fast: 0ms;
+    --motion-slow: 0ms;
+}
+
+.canvas[data-motion="off"] .segmented-thumb.is-ready {
+    transition: none;
+}
+
+.canvas[data-motion="off"] .settings-window {
+    animation: none;
+}
+
+.canvas[data-motion="off"] .agent-widget-mark,
+.canvas[data-motion="off"] .agent-widget-mark.is-done .icon {
+    transition: none;
+    animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .canvas {
+        --motion-fast: 0ms;
+        --motion-slow: 0ms;
+    }
+
+    .segmented-thumb.is-ready {
+        transition: none;
+    }
+
+    .settings-window {
+        animation: none;
+    }
+
+    .agent-widget-mark,
+    .agent-widget-mark.is-done .icon {
+        transition: none;
+        animation: none;
+    }
+}

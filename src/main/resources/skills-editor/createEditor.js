@@ -5,10 +5,10 @@ import {createTheme} from "./core/theme.js";
 import {copy} from "./ui/copy.js";
 
 // The editor's assembly entry. A host builds one of these with the pieces the
-// core cannot know: how documents are opened + saved, how the active document
-// is resolved, which commands it wants on the container + the theme it wants
-// painted. Everything below this file is the editor itself; main.js stays a
-// shell that mounts the panels around it.
+// core cannot know: how documents are opened and saved, how the active document
+// is resolved, which commands it wants on the container and the theme it wants
+// to be painted. Everything below this file is the editor itself; main.js stays a
+// shell that mounts the surrounding panels.
 export function createEditor(store, {
   canvas,
   showPanel,

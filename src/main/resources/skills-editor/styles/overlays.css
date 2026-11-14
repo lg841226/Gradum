@@ -1,0 +1,187 @@
+.btn.is-busy .icon {
+    animation: spin 1s linear infinite;
+    transform-origin: center;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+
+.tooltip {
+    top: 0;
+    left: 0;
+    opacity: 0;
+    z-index: 50;
+    line-height: 1.4;
+    position: fixed;
+    visibility: hidden;
+    white-space: nowrap;
+    pointer-events: none;
+    color: var(--text);
+    background: var(--bg-popup);
+    font-size: var(--font-size-ui);
+    box-shadow: var(--shadow-popup);
+    border-radius: var(--radius-control);
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--border-strong);
+    transform-origin: center var(--tooltip-origin, bottom);
+    transform: translateY(var(--tooltip-shift, 0)) scale(.96);
+    transition: opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard),
+    visibility 0s linear var(--motion-fast);
+}
+
+.tooltip.is-visible {
+    opacity: 1;
+    transform: none;
+    visibility: visible;
+    transition: opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.unlock-backdrop {
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    position: fixed;
+    place-items: center;
+    padding: var(--space-4);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    animation: unlock-fade var(--motion-fast) var(--ease-standard);
+}
+
+.unlock-backdrop[hidden] {
+    display: none;
+}
+
+@keyframes unlock-fade {
+    from {
+        opacity: 0;
+    }
+}
+
+@keyframes unlock-pop {
+    from {
+        opacity: 0;
+        scale: .95;
+    }
+}
+
+@keyframes settings-pop {
+    from {
+        opacity: 0;
+    }
+}
+
+.unlock-card {
+    display: grid;
+    gap: var(--space-3);
+    width: min(440px, 100%);
+    padding: var(--space-6);
+    background: var(--bg-popup);
+    box-shadow: var(--shadow-popup);
+    border-radius: var(--radius-dialog);
+    border: 1px solid var(--border-strong);
+    animation: unlock-pop var(--motion-fast) var(--ease-standard) var(--motion-fast) both;
+}
+
+.unlock-title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.unlock-title-row .icon {
+    color: var(--accent);
+}
+
+.unlock-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.unlock-hint {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: var(--font-size-ui);
+}
+
+.unlock-input {
+    width: 100%;
+    color: var(--text);
+    padding: 6px var(--space-2);
+    background: var(--bg-raised);
+    font-size: var(--font-size-ui);
+    border-radius: var(--radius-control);
+    border: 1px solid var(--border-strong);
+}
+
+.unlock-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.unlock-codes {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-2);
+}
+
+.unlock-codes[hidden] {
+    display: none;
+}
+
+.unlock-code {
+    padding: 0;
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+    text-align: center;
+    text-transform: uppercase;
+    color: var(--text);
+    background: var(--bg-raised);
+    border-radius: var(--radius-control);
+    border: 1px solid var(--border-strong);
+    font-family: var(--font-code), ui-monospace;
+}
+
+.unlock-code:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.unlock-error {
+    margin: 0;
+    color: var(--error);
+    font-size: var(--font-size-ui);
+}
+
+.unlock-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+}
+
+.unlock-submit {
+    color: #ffffff;
+    background: var(--accent);
+}
+
+.unlock-submit:hover {
+    background: var(--accent-hover);
+}
+
+.unlock-submit:disabled,
+.unlock-submit.btn:disabled:hover {
+    color: #ffffff;
+    opacity: .5;
+    cursor: default;
+    background: var(--accent);
+}

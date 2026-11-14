@@ -12,7 +12,6 @@ import gradum.logging.EventStreamDump
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.server.persistence.*
 import gradum.skill.PendingQuestions
-import gradum.skill.SkillRegistry
 import gradum.skill.external.DeployResult
 import gradum.skill.external.ExternalDiagnosticSeverity
 import gradum.skill.external.ExternalSkillHost
@@ -22,7 +21,6 @@ import gradum.task.JobOutcome
 import gradum.utils.ContextManager
 import gradum.utils.JsonUtil
 import gradum.vcs.SessionSnapshotManager
-import gradum.workspace.SKILLS_ROOT
 import gradum.workspace.WorkspaceHost
 import io.ktor.http.*
 import io.ktor.http.content.*
@@ -264,21 +262,31 @@ internal data class TaskSubmitRequest(
 /**
  * Registers every HTTP route the Gradum server exposes:
  * - `POST /events`: streams an agent run as NDJSON.
- * - `POST /stop`  : aborts an active agent session.
- * - `GET /health` : liveness probe.
- * - `GET /models` : discovered LLM models.
- * - `GET /skills` : registered Skill implementations.
- * - `POST /skills/deploy` : write one external skill source and return compile diagnostics.
- * - `POST /skills/build` : compile one external skill source without writing or loading it.
- * - `POST /skills/pair` : trade the five-character pairing code for the auth cookie.
- * - `GET /workspace/tree` : the workspace tree: the registered roots and their files.
- * - `GET /workspace/file` : read one file by `root/relative/path`.
- * - `POST /workspace/file` : write one file; never compiles or registers it.
- * - `POST /workspace/deploy` : write one skills-root source, compile it, and register it.
- * - `GET /skills/sources` : alias for the skills root listing.
- * - `GET /skills/source`  : alias for reading a file under the skills root.
- * - `GET /skills/editor`  : the bundled skill editor page.
- * - `GET /skills/editor/{asset...}` : static assets for the editor page.
+ * - `POST /events/respond`: delivers an answer to a pending ask interaction.
+ * - `POST /stop`: aborts an active agent session.
+ * - `POST /session/delete`: removes one stored session directory.
+ * - `POST /session/rewind`: truncates a session's stored context to a message.
+ * - `GET /sessions`: the stored sessions of a project root.
+ * - `POST /sessions/merge`: merges at least two sessions into a new one.
+ * - `GET /session/state`: the authoritative cold projection of one session.
+ * - `POST /session/rename`: sets a session's title.
+ * - `GET /health`: aggregated health: system resources + component status (cached snapshot).
+ * - `GET /models`: discovered LLM models.
+ * - `POST /provider/probe`: live connectivity check against a provider endpoint.
+ * - `GET /workspace/tree`: the workspace tree: the registered roots and their files.
+ * - `GET /workspace/file`: read one file by `root/relative/path`.
+ * - `POST /workspace/file`: write one file; never compiles or registers it.
+ * - `POST /workspace/deploy`: write one skills-root source, compile it, and register it.
+ * - `POST /skills/build`: compile one external skill source without writing or loading it.
+ * - `POST /skills/pair`: trade the five-character pairing code for the auth cookie.
+ * - `GET /skills/editor`: the bundled skill editor page.
+ * - `GET /skills/editor/{asset...}`: static assets for the editor page.
+ * - `POST /tasks`: submit a background shell task for a session.
+ * - `GET /tasks`: list the background tasks of a session.
+ * - `GET /tasks/{taskId}`: one background task's status and output.
+ * - `DELETE /tasks/{taskId}`: cancel a running background task.
+ * - `GET /legatus`: the Legatus workspace page (registered in LegatusRoutes.kt).
+ * - `GET /legatus/{asset...}`: static assets for the Legatus page.
  */
 fun Application.registerAllRoutes(
   pairingState: PairingState = PairingState(),
@@ -943,14 +951,17 @@ fun Application.registerAllRoutes(
 
     get("/health") {
       val uptimeSeconds: Long = Duration.between(serverStartTime, LocalDateTime.now()).seconds
+      val aggregate: Map<String, Any?> = HealthMonitor.snapshot()
 
       call.respondText(
         text = JsonUtil.encodeMap(
           mapOf(
-            "status" to "healthy",
+            "status" to aggregate["status"],
             "uptimeSeconds" to uptimeSeconds,
             "version" to Version.GRADUM_VERSION,
-            "timestamp" to LocalDateTime.now().toString()
+            "timestamp" to LocalDateTime.now().toString(),
+            "system" to aggregate["system"],
+            "components" to aggregate["components"]
           )
         ),
         contentType = ContentType.Application.Json
@@ -959,8 +970,7 @@ fun Application.registerAllRoutes(
 
     get("/models") {
       val discoveredModels: List<ModelEntry> = ModelIdentity.discoverModels()
-      // One catalog per distinct base URL so a second configured host probes
-      // against its own address (both catalog caches are keyed by base URL).
+
       val ollamaCatalogs: Map<String, OllamaModelCatalog> = discoveredModels
         .filter { it.providerType == Provider.OLLAMA.wireType }
         .map { it.serverUrl }
@@ -1217,110 +1227,6 @@ fun Application.registerAllRoutes(
         )
         return@post
       }
-      call.respondSkillCompileResult(deployResult)
-    }
-
-    get("/skills") {
-      val skillRegistry = SkillRegistry
-      call.respondText(
-        text = JsonUtil.encodeMap(
-          mapOf(
-            "skills" to skillRegistry.getAllSkills().map { skill ->
-              mapOf(
-                "name" to skill.skillName,
-                "description" to skill.description,
-                "alias" to skill.alias
-              )
-            },
-          )
-        ),
-        contentType = ContentType.Application.Json
-      )
-    }
-
-    get("/skills/sources") {
-      val sourceNames: List<String> =
-        WorkspaceHost.workspace?.listFiles(SKILLS_ROOT, ".kt")
-          ?: ExternalSkillHost.scanner?.listSourceNames().orEmpty()
-      call.respondText(
-        text = JsonUtil.encodeMap(mapOf("sources" to sourceNames)),
-        contentType = ContentType.Application.Json,
-      )
-    }
-
-    get("/skills/source") {
-      val requestedName: String? = call.request.queryParameters["name"]
-      val source: String? = requestedName?.let { name ->
-        val workspace = WorkspaceHost.workspace
-        if (workspace != null) {
-          try {
-            workspace.read("$SKILLS_ROOT/$name")
-          } catch (_: IllegalArgumentException) {
-            null
-          } catch (_: Exception) {
-            null
-          }
-        } else {
-          ExternalSkillHost.scanner?.readSource(name)
-        }
-      }
-      if (requestedName.isNullOrBlank() || source == null) {
-        call.respondText(
-          text = JsonUtil.encodeMap(mapOf("error" to "Unknown skill source: $requestedName")),
-          status = HttpStatusCode.NotFound,
-          contentType = ContentType.Application.Json,
-        )
-        return@get
-      }
-      call.respondText(
-        text = JsonUtil.encodeMap(mapOf("name" to requestedName, "source" to source)),
-        contentType = ContentType.Application.Json,
-      )
-    }
-
-    post("/skills/deploy") {
-      val scanner = ExternalSkillHost.scanner
-      if (scanner == null) {
-        call.respondText(
-          text = JsonUtil.encodeMap(mapOf("error" to "External skills directory is not initialized")),
-          status = HttpStatusCode.ServiceUnavailable,
-          contentType = ContentType.Application.Json,
-        )
-        return@post
-      }
-      val request: SkillDeployRequest =
-        try {
-          call.receive<SkillDeployRequest>()
-        } catch (malformedBody: Exception) {
-          call.respondText(
-            text = JsonUtil.encodeMap(mapOf("error" to "Invalid deploy request body: ${malformedBody.message}")),
-            status = HttpStatusCode.BadRequest,
-            contentType = ContentType.Application.Json,
-          )
-          return@post
-        }
-      val deployResult =
-        try {
-          val workspace = WorkspaceHost.workspace
-          workspace?.deploy("$SKILLS_ROOT/${request.name}", request.source) ?: scanner.deploy(request.name, request.source)
-        } catch (invalidName: IllegalArgumentException) {
-          call.respondText(
-            text = JsonUtil.encodeMap(mapOf("error" to (invalidName.message ?: "Invalid skill name"))),
-            status = HttpStatusCode.BadRequest,
-            contentType = ContentType.Application.Json,
-          )
-          return@post
-        } catch (deployFailure: Exception) {
-          logger.error("Skill deploy failed for {}", request.name, deployFailure)
-          call.respondText(
-            text = JsonUtil.encodeMap(
-              mapOf("error" to "Deploy failed: ${deployFailure.message ?: deployFailure.toString()}")
-            ),
-            status = HttpStatusCode.InternalServerError,
-            contentType = ContentType.Application.Json,
-          )
-          return@post
-        }
       call.respondSkillCompileResult(deployResult)
     }
 

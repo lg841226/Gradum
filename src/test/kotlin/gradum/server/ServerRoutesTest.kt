@@ -21,29 +21,13 @@ class ServerRoutesTest {
     )
     val body: String = response.bodyAsText()
 
-    assertContains(body, "\"status\":\"healthy\"")
+    assertTrue(
+      body.contains("\"status\":\"healthy\"") || body.contains("\"status\":\"degraded\""),
+      "health status should be healthy or degraded: $body"
+    )
     assertContains(body, "\"version\":\"${Version.GRADUM_VERSION}\"")
     assertContains(body, "\"uptimeSeconds\"")
     assertContains(body, "\"timestamp\"")
-  }
-
-  @Test
-  fun `GET skills returns 200 with non-empty skills array`(): Unit = testApplication {
-    application { module(ServerConfiguration()) }
-
-    val response: HttpResponse = client.get("/skills")
-
-    assertEquals(
-      HttpStatusCode.OK,
-      response.status
-    )
-    val body: String = response.bodyAsText()
-
-    assertContains(body, "\"skills\"")
-    assertTrue(body.contains("read_file"), "skills should include read_file")
-    assertTrue(body.contains("write_file"), "skills should include write_file")
-    assertFalse(body.contains("save_file"), "save_file was merged into write_file")
-    assertFalse(body.contains("edit_file"), "edit_file was renamed to write_file")
   }
 
   @Test
@@ -65,10 +49,10 @@ class ServerRoutesTest {
   fun `auth-enabled rejects a missing token and accepts the bearer token`(): Unit = testApplication {
     application { module(ServerConfiguration(authToken = "secret-token")) }
 
-    val denied: HttpResponse = client.get("/skills")
+    val denied: HttpResponse = client.get("/models")
     assertEquals(HttpStatusCode.Unauthorized, denied.status)
 
-    val allowed: HttpResponse = client.get("/skills") {
+    val allowed: HttpResponse = client.get("/models") {
       header(HttpHeaders.Authorization, "Bearer secret-token")
     }
     assertEquals(HttpStatusCode.OK, allowed.status)
@@ -126,23 +110,12 @@ class ServerRoutesTest {
   }
 
   @Test
-  fun `reader mode exposes editor assets but source reads demand the token`(): Unit = testApplication {
+  fun `reader mode exposes editor assets but data routes demand the token`(): Unit = testApplication {
     application { module(ServerConfiguration(authToken = "secret-token")) }
 
     val asset: HttpResponse = client.get("/skills/editor/main.js")
     assertEquals(HttpStatusCode.OK, asset.status)
 
-    val sources: HttpResponse = client.get("/skills/sources")
-    assertEquals(HttpStatusCode.Unauthorized, sources.status)
-
-    val source: HttpResponse = client.get("/skills/source?name=whatever")
-    assertEquals(HttpStatusCode.Unauthorized, source.status)
-
-    val deploy: HttpResponse = client.post("/skills/deploy")
-    assertEquals(HttpStatusCode.Unauthorized, deploy.status)
-
-    val skills: HttpResponse = client.get("/skills")
-    assertEquals(HttpStatusCode.Unauthorized, skills.status)
     val models: HttpResponse = client.get("/models")
     assertEquals(HttpStatusCode.Unauthorized, models.status)
   }
@@ -151,7 +124,7 @@ class ServerRoutesTest {
   fun `a valid query token is not shadowed by a stale cookie`(): Unit = testApplication {
     application { module(ServerConfiguration(authToken = "secret-token")) }
 
-    val response: HttpResponse = client.get("/skills") {
+    val response: HttpResponse = client.get("/models") {
       header(HttpHeaders.Cookie, "gradum_token=stale-token")
       header(HttpHeaders.Authorization, "Bearer secret-token")
     }

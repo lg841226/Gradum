@@ -9,8 +9,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.editor.fileIcon
+import gradum.idea.ui.SwingIcon
 import gradum.idea.utils.GradumSpacing
-import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 
 /**
@@ -31,7 +31,7 @@ fun FileItem(
       .padding(vertical = GradumSpacing.xs),
     verticalAlignment = Alignment.CenterVertically
   ) {
-    Icon(
+    SwingIcon(
       icon = icon,
       contentDescription = file.fileType.name,
       modifier = Modifier

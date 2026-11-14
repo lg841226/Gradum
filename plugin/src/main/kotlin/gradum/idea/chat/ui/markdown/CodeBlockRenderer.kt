@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import gradum.idea.chat.ui.chat.copyToClipboard
 import gradum.idea.editor.languageIcon
 import gradum.idea.settings.LocalEnableStickySections
+import gradum.idea.ui.SwingIcon
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.CoroutineScope
@@ -378,7 +379,7 @@ private fun CodeBlockToolbar(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
   ) {
-    Icon(
+    SwingIcon(
       contentDescription = displayLanguage,
       icon = languageIcon(language)
     )

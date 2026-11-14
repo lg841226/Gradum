@@ -64,6 +64,7 @@ function selectRow(list, value) {
 export function createModelPicker({onOtherOpen} = {}) {
   let value = "";
   let currentLabel = copy.chat.runtimeDefault;
+  let hasModels = true;
 
   const chip = document.createElement("button");
   chip.type = "button";
@@ -98,10 +99,12 @@ export function createModelPicker({onOtherOpen} = {}) {
     menu,
     close: () => control.close(),
     value: () => value,
+    hasModels: () => hasModels,
     applyModels(models) {
       const usable = models.filter((model) => model.available);
-      if (usable.length === 0) {
-        chip.disabled = true;
+      hasModels = usable.length > 0;
+      chip.disabled = !hasModels;
+      if (!hasModels) {
         label.textContent = copy.chat.noModels;
         return;
       }

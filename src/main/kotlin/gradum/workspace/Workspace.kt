@@ -30,6 +30,8 @@ class Workspace(roots: List<WorkspaceRoot>) {
     }
   }
 
+  fun registeredRoots(): List<WorkspaceRoot> = roots
+
   fun tree(): List<Map<String, Any?>> = roots.map { root ->
     mapOf(
       "name" to root.name,

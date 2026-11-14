@@ -1,0 +1,62 @@
+.split-host > .split-pane[data-pane="right"] {
+    opacity: 0;
+    flex-grow: 0;
+    flex-basis: 0;
+    overflow: hidden;
+    visibility: hidden;
+    transition: flex-basis var(--motion-fast) var(--ease-standard),
+    flex-grow var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard),
+    visibility var(--motion-fast) var(--ease-standard);
+}
+
+.split-host.is-split > .split-pane[data-pane="right"] {
+    opacity: 1;
+    flex-basis: 0;
+    visibility: visible;
+    flex-grow: calc(1 - var(--split-ratio, 0.5));
+}
+
+.split-host.is-split > .split-pane[data-pane="left"] {
+    flex-grow: var(--split-ratio, 0.5);
+}
+
+.split-host.is-split-down {
+    flex-direction: column;
+}
+
+.split-host.is-split-down > .split-pane {
+    min-height: 0;
+}
+
+.pane-divider {
+    flex: 0 0 0;
+    z-index: 5;
+    position: relative;
+    visibility: hidden;
+    cursor: col-resize;
+    touch-action: none;
+    align-self: stretch;
+    background: color-mix(in srgb, var(--border) 45%, transparent);
+    transition: flex-basis var(--motion-fast) var(--ease-standard),
+    visibility var(--motion-fast) var(--ease-standard);
+}
+
+.split-host.is-split .pane-divider {
+    flex-basis: 1px;
+    visibility: visible;
+}
+
+.split-host.is-split-down .pane-divider {
+    cursor: row-resize;
+}
+
+.pane-divider::after {
+    content: "";
+    inset: 0 -3px;
+    position: absolute;
+}
+
+.split-host.is-split-down .pane-divider::after {
+    inset: -3px 0;
+}

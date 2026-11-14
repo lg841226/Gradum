@@ -59,7 +59,7 @@ export const copy = {
     placeholder: "Ask a question, or hand off a task for this project",
     attach: "Attach a file path",
     attachEmpty: "This folder is empty",
-    attachLoading: "Loading files...",
+    attachLoading: "Loading files",
     attachNoRoot: "Set the project root in the status bar first",
     answerFailed: (message) => `Could not answer: ${message}`,
     thoughtFor: (seconds) => `Thought for ${seconds.toFixed(1)}s`,
@@ -167,6 +167,10 @@ export const copy = {
     positionTip: (line, column) => `Caret at line ${line}, column ${column}`,
     selection: (count, lineCount) =>
       `${count} ${plural(count, "char")}, ${lineCount} ${plural(lineCount, "break")}`,
+    memory: (used, max) => `${used} / ${max}M`,
+    memoryTip: (used, max) => `Heap ${used} / ${max} MB`,
+    cpuTip: (cpu, cores) => ` & CPU ${cpu}% on ${plural(cores, "core")}`,
+    monitorOffline: "Cannot reach the server",
   },
 
   settings: {

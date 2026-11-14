@@ -20,12 +20,12 @@ import androidx.compose.ui.unit.dp
 import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.editor.AttachedContext
 import gradum.idea.editor.AttachedImage
+import gradum.idea.ui.SwingIcon
 import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.HorizontallyScrollableContainer
-import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.skia.Image as SkiaImage
 
 private const val bubbleThumbnailEdgeDp: Int = 100
@@ -100,7 +100,7 @@ private fun ImageThumbnailChip(
       )
     )
   } else {
-    Icon(
+    SwingIcon(
       modifier = chipModifier,
       contentDescription = null,
       icon = imageAttachment.icon

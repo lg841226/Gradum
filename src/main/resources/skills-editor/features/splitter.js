@@ -13,10 +13,6 @@ export function onDragSettle(handler) {
   return () => settleHandlers.delete(handler);
 }
 
-// A pointer drag that grabs the window rather than the handle, so the pointer
-// may leave the thin strip without dropping the drag. Shared by the rail width,
-// the bottom tool window + the editor's own split, so every handle takes hold
-// and let's go the same way.
 export function dragPointer(cursor, onMove, onEnd) {
   document.body.classList.add("is-dragging");
   document.body.style.cursor = cursor;

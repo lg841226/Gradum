@@ -9,8 +9,8 @@ import {createComposer} from "./composer.js";
 import {createModelPicker, createPermissionPicker} from "./pickers.js";
 import {createStreamController} from "./stream.js";
 import {isFloatLayout} from "../floatPanels.js";
-import {dragPointer, isDragging} from "../splitter.js";
-import {clampShare} from "../../core/layout.js";
+import {isDragging} from "../splitter.js";
+import {createSplitLayout} from "../splitLayout.js";
 
 function newSessionId() {
   if (typeof crypto.randomUUID === "function") {
@@ -33,33 +33,13 @@ export function mountAssistant(store, {panel, onOpenFile}) {
   const columns = document.createElement("div");
   columns.className = "chat-columns";
 
-  const divider = document.createElement("div");
-  divider.className = "pane-divider";
-  divider.setAttribute("role", "separator");
-  divider.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    const bounds = columns.getBoundingClientRect();
-    const down = store.getState().chatSplitDirection === "down";
-    const span = down ? bounds.height : bounds.width;
-    const start = down ? bounds.top : bounds.left;
-    if (!span) {
-      return;
-    }
-    let ratio = store.getState().chatSplitRatio ?? 0.5;
-    let moved = false;
-
-    dragPointer(down ? "row-resize" : "col-resize", (moveEvent) => {
-      const offset = (down ? moveEvent.clientY : moveEvent.clientX) - start;
-      ratio = clampShare(offset / span);
-      columns.style.setProperty("--split-ratio", String(ratio));
-      moved = true;
-    }, () => {
-      if (moved) {
-        store.setState({chatSplitRatio: ratio});
-      }
-    });
+  const split = createSplitLayout(store, {
+    container: columns,
+    panes: [left.pane, right.pane],
+    keys: {direction: "chatSplitDirection", ratio: "chatSplitRatio"},
+    isShown: splitShown,
   });
-
+  const {divider} = split;
 
   const vault = document.createElement("div");
   vault.hidden = true;
@@ -255,15 +235,9 @@ export function mountAssistant(store, {panel, onOpenFile}) {
   // strips disagreeing.
   function render() {
     const state = store.getState();
-    const splitOn = splitShown(state);
+    const splitOn = split.apply(state);
 
     repairOwnership(splitOn);
-
-    columns.classList.toggle("is-split", splitOn);
-    columns.classList.toggle("is-split-down", splitOn && state.chatSplitDirection === "down");
-    if (!isDragging()) {
-      columns.style.setProperty("--split-ratio", String(state.chatSplitRatio ?? 0.5));
-    }
 
     placePanes(splitOn);
     refreshScrollState(splitOn);
@@ -448,9 +422,14 @@ export function mountAssistant(store, {panel, onOpenFile}) {
         }
       })
       .catch((error) => {
-        if (tabs.get(tab.id) === tab && !tab.fresh) {
-          tab.chat.notice(copy.chat.loadFailed(error.message));
+        if (tabs.get(tab.id) !== tab || tab.fresh) {
+          return;
         }
+        if (error.status === 404) {
+          tab.chat.loadHistory([]);
+          return;
+        }
+        tab.chat.notice(copy.chat.loadFailed(error.message));
       });
   }
 
@@ -481,6 +460,9 @@ export function mountAssistant(store, {panel, onOpenFile}) {
       .then((models) => {
         ui.modelPicker.applyModels(models);
         splitUi.modelPicker.applyModels(models);
+        const sendable = ui.modelPicker.hasModels();
+        ui.composer.setSendEnabled(sendable);
+        splitUi.composer.setSendEnabled(sendable);
       })
       .catch(() => {
       });
@@ -494,6 +476,10 @@ export function mountAssistant(store, {panel, onOpenFile}) {
     const {projectRoot} = store.getState();
     if (!projectRoot) {
       tab.chat.notice(copy.chat.rootMissing);
+      return;
+    }
+    if (!forUi.modelPicker.hasModels()) {
+      tab.chat.notice(copy.chat.noModels);
       return;
     }
 

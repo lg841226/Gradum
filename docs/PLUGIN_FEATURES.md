@@ -15,7 +15,7 @@ For the server-side protocol, the agent loop, and the Skill contract see
 |----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Tool-window / chat UI components | 2 tool windows (chat + Git analysis)                                                                                                                                                                                                                                                                                                                             |
 | Project-level services           | 1 (`GradumChatSession`)                                                                                                                                                                                                                                                                                                                                          |
-| HTTP endpoints consumed          | 7 (`/events`, `/events/respond`, `/stop`, `/models`, `/session/delete`, `/session/rewind`, `/provider/probe`): the server's `/health` and `/skills` are for liveness/capability polling outside the chat UI                                                                                                                                                      |
+| HTTP endpoints consumed          | 7 (`/events`, `/events/respond`, `/stop`, `/models`, `/session/delete`, `/session/rewind`, `/provider/probe`): the server's `/health` is for liveness polling outside the chat UI                                                                                                                                                                                |
 | Wire event types handled         | 9 main (`session_start` / `session_end` / `response` / `thinking` / `tool_call_start` / `tool_call` / `tool_expect_mismatch` / `error` / `ask_interaction`) + 5 sub-agent (`sub_agent:start` / `sub_agent:response` / `sub_agent:tool_call` / `sub_agent:error` / `sub_agent:session_end`): `guardrail` and `mission_revoked` are not yet rendered by the plugin |
 | Server skills rendered           | 11 renderers under `ui/chat/skill/` (read, written, ran, explored, grep, glob, searched, planned, completed, delegated, wildcard default)                                                                                                                                                                                                                        |
 
@@ -716,7 +716,7 @@ Source: [`GradumChatSession.kt`](../plugin/src/main/kotlin/gradum/idea/chat/stat
 
 `GradumApiClient` is a thin wrapper around the JDK 11 `HttpClient`. The plugin calls `POST /events`,
 `POST /events/respond`, `POST /stop`, `GET /models`, `POST /session/delete`, `POST /session/rewind`, and
-`POST /provider/probe`. (`GET /health` and `GET /skills` exist on the server but are not part of the chat UI today.)
+`POST /provider/probe`. (`GET /health` exists on the server but is not part of the chat UI today.)
 
 ### 12.1 `GET /models`
 

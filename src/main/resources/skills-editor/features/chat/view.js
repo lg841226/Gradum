@@ -1,10 +1,3 @@
-// Projects the chat model's effects onto the message column.
-//
-// This module owns DOM nodes, not chat facts: the model decides what exists,
-// the view builds the matching element once and then updates it in place. A
-// node reference that goes stale is replaced by the next `*:start` effect, so
-// a reset can never leave the renderer writing into a detached bubble.
-
 import {renderMarkdown} from "../../ui/markdown.js";
 import {copy} from "../../ui/copy.js";
 import {createIconButton} from "../../ui/components/button.js";
@@ -187,12 +180,12 @@ export function createChatView({messages, onGroupToggle, onRetry, onOpenFile}) {
     return lines.join("\n");
   };
 
-  const createFailureBanner = (effect) => {
+  const createFailureBanner = (effect, plain) => {
     const banner = document.createElement("div");
     banner.className = "bubble bubble-failure";
     banner.setAttribute("role", "alert");
 
-    const detail = failureDetail(effect);
+    const detail = plain ? "" : failureDetail(effect);
     const row = document.createElement("div");
     row.className = "failure-row";
 
@@ -250,7 +243,7 @@ export function createChatView({messages, onGroupToggle, onRetry, onOpenFile}) {
     }
 
     retireRetry();
-    if (onRetry) {
+    if (!plain && onRetry) {
       retryButton = createIconButton({
         icon: "rerun",
         tooltip: copy.chat.retry,
@@ -372,13 +365,9 @@ export function createChatView({messages, onGroupToggle, onRetry, onOpenFile}) {
         break;
       }
 
-      case "notice": {
-        const bubble = document.createElement("div");
-        bubble.className = "bubble bubble-error";
-        bubble.textContent = effect.text;
-        append(bubble);
+      case "notice":
+        append(createFailureBanner({message: effect.text}, true));
         break;
-      }
 
       case "reset":
         thinking?.stop();
