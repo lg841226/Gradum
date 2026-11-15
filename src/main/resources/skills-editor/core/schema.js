@@ -52,7 +52,7 @@ export const STATE_SCHEMA = {
   split: {default: false, layout: {type: "boolean"}},
   chatSplit: {default: false, layout: {type: "boolean"}},
   chatOpen: {default: false, layout: {type: "boolean"}},
-  treePanelOpen: {default: false},
+  treePanelOpen: {default: false, layout: {type: "boolean"}},
   chatBusy: {default: false},
   autoRail: {default: false},
   collapsed: {default: false, layout: {type: "boolean"}},

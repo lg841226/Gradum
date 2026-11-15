@@ -24,17 +24,17 @@
 }
 
 .assistant .failure-head {
-    display: flex;
-    flex: 1 1 auto;
-    align-items: center;
-    gap: var(--space-2);
-    min-width: 0;
     padding: 0;
+    min-width: 0;
     border: none;
-    background: none;
-    color: var(--text);
+    display: flex;
     font: inherit;
+    flex: 1 1 auto;
     text-align: left;
+    background: none;
+    align-items: center;
+    color: var(--text);
+    gap: var(--space-2);
 }
 
 .assistant .failure-head[data-expandable="true"] {
@@ -48,11 +48,11 @@
 }
 
 .assistant .failure-title {
-    flex: 0 1 auto;
     min-width: 0;
+    flex: 0 1 auto;
     overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
+    text-overflow: ellipsis;
     font-size: var(--font-size-ui);
     font-weight: var(--weight-semibold);
 }
@@ -69,8 +69,8 @@
 }
 
 .assistant .failure-actions {
-    display: flex;
     flex: none;
+    display: flex;
     gap: var(--space-2);
     white-space: nowrap;
 }
@@ -86,8 +86,8 @@
     user-select: none;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-1) 0;
     color: var(--text-dim);
+    padding: var(--space-1) 0;
 }
 
 .assistant details.thinking > summary > svg:first-child {
@@ -105,8 +105,8 @@
 }
 
 .assistant details.thinking > summary > svg:last-child {
-    color: var(--text-mute);
     flex: none;
+    color: var(--text-mute);
     transition: transform var(--motion-fast) ease;
 }
 
@@ -115,9 +115,9 @@
 }
 
 .assistant .thinking-body {
-    padding: var(--space-1) 0 var(--space-2);
-    color: var(--text-dim);
     line-height: 1.6;
+    color: var(--text-dim);
+    padding: var(--space-1) 0 var(--space-2);
 }
 
 .assistant .thinking-body > * {
@@ -198,9 +198,9 @@
 .assistant .tool-capsule-detail {
     min-width: 0;
     overflow: hidden;
-    color: var(--text-mute);
     white-space: nowrap;
     text-overflow: ellipsis;
+    color: var(--text-mute);
 }
 
 .assistant .tool-capsule[data-failed] .tool-capsule-label {

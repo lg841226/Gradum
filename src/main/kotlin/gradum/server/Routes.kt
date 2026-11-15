@@ -605,7 +605,10 @@ fun Application.registerAllRoutes(
       // token configured, only a request carrying the auth cookie may delete.
       val authToken: String? = serverConfiguration.authToken?.takeIf { it.isNotEmpty() }
       if (authToken != null &&
-        !ServerAuth.tokenMatches(call.request.cookies[ServerAuth.TOKEN_COOKIE_NAME], authToken)
+        ServerAuth.sessionRemainingSeconds(
+          call.request.cookies[ServerAuth.SESSION_COOKIE_NAME],
+          authToken,
+        ) == null
       ) {
         call.respondText(
           status = HttpStatusCode.Unauthorized,
@@ -954,6 +957,8 @@ fun Application.registerAllRoutes(
       val uptimeSeconds: Long = Duration.between(serverStartTime, LocalDateTime.now()).seconds
       val aggregate: Map<String, Any?> = HealthMonitor.snapshot()
 
+      val presence: HealthMonitor.Presence =
+        HealthMonitor.recordPresence(call.request.local.remoteHost)
       call.respondText(
         text = JsonUtil.encodeMap(
           mapOf(
@@ -961,6 +966,8 @@ fun Application.registerAllRoutes(
             "uptimeSeconds" to uptimeSeconds,
             "version" to Version.GRADUM_VERSION,
             "timestamp" to LocalDateTime.now().toString(),
+            "onlineDevices" to presence.total,
+            "onlineExternal" to presence.external,
             "system" to aggregate["system"],
             "components" to aggregate["components"]
           )
@@ -1298,7 +1305,10 @@ fun Application.registerAllRoutes(
       }
       val authToken: String? = serverConfiguration.authToken?.takeIf { it.isNotEmpty() }
       if (authToken != null) {
-        call.response.header(HttpHeaders.SetCookie, ServerAuth.authCookieHeader(authToken))
+        call.response.header(
+          HttpHeaders.SetCookie,
+          ServerAuth.sessionCookieHeader(authToken, serverConfiguration.sessionTtlSeconds),
+        )
       }
       call.respondText(
         text = JsonUtil.encodeMap(mapOf("ok" to true)),
@@ -1313,11 +1323,6 @@ fun Application.registerAllRoutes(
           text = "Skill editor page is missing from the server resources",
           status = HttpStatusCode.NotFound,
         )
-        return@get
-      }
-
-      if (call.request.queryParameters["lock"] == "1") {
-        call.respondWorkspacePage(editorHtml, serverConfiguration, forceReaderMarker = true)
         return@get
       }
 

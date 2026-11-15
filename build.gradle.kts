@@ -78,6 +78,7 @@ tasks.named<JavaExec>("run") {
   isIgnoreExitValue = true
 
   jvmArgs(
+    "-Xmx1024m", "-Xms512m",
     "-Dfile.encoding=UTF-8",
     "-Dstdout.encoding=UTF-8",
     "-Dstderr.encoding=UTF-8",
@@ -344,7 +345,7 @@ tasks.register("serverPackage", Exec::class.java) {
       "--input", stagingDir.absolutePath,
       "--main-jar", packagedFatJar.name,
       "--main-class", "gradum.server.MainKt",
-      "--java-options", "-Xmx2048m",
+      "--java-options", "-Xmx1024m",
       "--java-options", "-Xms512m",
       "--dest", destDir.absolutePath
     )
@@ -370,7 +371,7 @@ tasks.register("dev") {
 
     val serverProcess: Process = ProcessBuilder(
       javaBin,
-      "-Xmx2048m", "-Xms512m",
+      "-Xmx1024m", "-Xms512m",
       "-jar", serverFatJarFile.absolutePath,
     )
       .also { processBuilder ->

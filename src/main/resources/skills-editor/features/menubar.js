@@ -53,6 +53,14 @@ export function mountMenubar(store, {
       order: 5,
       select: (state) => ({view: "session", railCollapsed: !state.railCollapsed}),
     },
+    {
+      name: "all",
+      label: copy.control.all,
+      mnemonic: 0,
+      modes: ["agent"],
+      order: 7,
+      select: () => ({view: "all", railCollapsed: false, collapsed: false, treePanelOpen: true}),
+    },
     ...panelMenus,
   ].sort((left, right) => left.order - right.order);
 
@@ -65,7 +73,7 @@ export function mountMenubar(store, {
       if (!mode) {
         return;
       }
-      store.setState(mode.select(store.getState()));
+      store.setState(mode.select());
       closeNav();
     },
   });

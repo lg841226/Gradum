@@ -10,6 +10,7 @@ import {mountConsole} from "./features/console.js";
 import {mountMenubar} from "./features/menubar.js";
 import {mountMinimap} from "./features/minimap.js";
 import {mountMonitor} from "./features/monitor.js";
+import {mountOffline} from "./features/offline.js";
 import {mountSettings} from "./features/settings.js";
 import {mountStatusBar} from "./features/statusbar.js";
 import {createPanelRegistry, mountPanelRegistry} from "./features/panelRegistry.js";
@@ -282,8 +283,15 @@ try {
     },
     onToggleSettings: () => settings.toggle(),
   });
-  const statusBar = mountStatusBar(store, {canvas, getActiveDoc});
+  const sessionRemaining = document.documentElement.getAttribute("data-session-remaining");
+  const statusBar = mountStatusBar(store, {
+    canvas,
+    getActiveDoc,
+    scope: document.documentElement.getAttribute("data-session-scope"),
+    sessionRemaining: sessionRemaining === null ? null : Number(sessionRemaining),
+  });
   mountMonitor({host: statusBar.right});
+  mountOffline({canvas});
   mountTooltip({container: canvas});
 
   remeasureAfterFonts();

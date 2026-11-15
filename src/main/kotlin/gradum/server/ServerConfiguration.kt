@@ -36,6 +36,13 @@ data class ServerConfiguration(
    */
   val authToken: String? = null,
 
+  /**
+   * Lifetime of a browser session ticket (see ServerAuth.sessionCookieHeader).
+   * When it runs out the editor reloads into reader mode and the device has
+   * to pair again.
+   */
+  val sessionTtlSeconds: Long = DEFAULT_SESSION_TTL_SECONDS,
+
   /** Server-wide default LLM base URL (mirrors AgentConfiguration.DEFAULT_OLLAMA_BASE_URL). */
   val defaultBaseUrl: String = DEFAULT_BASE_URL,
 
@@ -52,9 +59,10 @@ data class ServerConfiguration(
   val plugins: Map<String, Map<String, Any?>> = emptyMap(),
 ) {
   companion object {
-    const val DEFAULT_HOST_ADDRESS: String = "localhost"
     const val DEFAULT_PORT_NUMBER: Int = 8765
+    const val DEFAULT_HOST_ADDRESS: String = "localhost"
     const val DEFAULT_BASE_URL: String = "http://localhost:11434"
+    const val DEFAULT_SESSION_TTL_SECONDS: Long = 5L * 60L * 60L
 
     // Env-var lookup order for server-wide fallback API key.
     // Per-provider vars (BIGMODEL_API_KEY, DEEPSEEK_API_KEY, MiniMax_API_KEY)

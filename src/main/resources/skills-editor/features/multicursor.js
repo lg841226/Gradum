@@ -273,7 +273,7 @@ function deleteRanges(text, cursors, direction, grain) {
 // commit, one undo step for both), and a closer already sitting in front of an
 // empty caret is stepped over, so typing ')' completes the pair instead of
 // doubling it. A selection types over itself and never steps; cursors that
-// disagree on the spot take the mixed road, the ones before a closer travelling
+// disagree on the spot take the mixed road, the ones before a closer traveling
 // and the rest inserting. Deletion is deliberately left ordinary: taking out
 // one bracket never reaches for its partner. Returns null for any key that is
 // not a bracket.

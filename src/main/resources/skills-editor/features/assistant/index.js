@@ -264,14 +264,14 @@ export function mountAssistant(store, {panel, onOpenFile}) {
   function placePanes(splitOn) {
     const rightTab = splitOn ? tabs.get(workspace.right) : null;
     const hosts = [
-      [left.pane, ui.composer.root, workspace.left],
-      [right.pane, splitUi.composer.root, splitOn ? workspace.right : null],
+      [left.pane, ui.composer, workspace.left],
+      [right.pane, splitUi.composer, splitOn ? workspace.right : null],
     ];
 
-    for (const [pane, composerRoot, id] of hosts) {
+    for (const [pane, composer, id] of hosts) {
       const tab = tabs.get(id);
       if (tab && tab.messages.parentElement !== pane) {
-        pane.append(tab.messages, composerRoot);
+        pane.append(tab.messages, composer.root, composer.bar);
       }
     }
 
@@ -370,7 +370,6 @@ export function mountAssistant(store, {panel, onOpenFile}) {
     }));
 
     for (const [side, strip] of [["left", left.strip], ["right", right.strip]]) {
-      strip.hidden = tabs.size < 2;
       renderTabStrip(strip, items.map((item) => ({
         ...item,
         active: item.id === workspace[side],
@@ -496,7 +495,7 @@ export function mountAssistant(store, {panel, onOpenFile}) {
     }
 
     tab.lastUser = text;
-    tab.title ??= firstLineTitle(text);
+    tab.title = firstLineTitle(text);
     if (retry) {
       tab.chat.discardTurn();
     } else {

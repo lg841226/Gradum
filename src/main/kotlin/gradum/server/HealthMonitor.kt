@@ -8,26 +8,40 @@ import gradum.workspace.WorkspaceHost
 import java.lang.management.ManagementFactory
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.round
 
-/**
- * Aggregated health snapshot behind `GET /health`: JVM system resources plus
- * provider / legatus / workspace component probes. The whole block is cached
- * for a short TTL so polling stays cheap; provider reachability itself comes
- * from [ModelIdentity]'s 60s discovery cache, never from fresh HTTP dials.
- */
 internal object HealthMonitor {
 
   private const val SNAPSHOT_TTL_MS: Long = 4_000L
 
   private const val BYTES_PER_MB: Long = 1024L * 1024L
 
+  private const val PRESENCE_WINDOW_MS: Long = 15_000L
+
+  private val seenAt: ConcurrentHashMap<String, Long> = ConcurrentHashMap()
+
+  data class Presence(val total: Int, val external: Int)
+
+  fun recordPresence(remoteHost: String): Presence {
+    val now: Long = System.currentTimeMillis()
+    seenAt[remoteHost] = now
+    seenAt.entries.removeAll { entry -> now - entry.value > PRESENCE_WINDOW_MS * 4 }
+    val live: List<String> = seenAt
+      .filterValues { at -> now - at <= PRESENCE_WINDOW_MS }
+      .keys
+      .toList()
+    return Presence(
+      total = live.size,
+      external = live.count { host -> !ServerAuth.isLoopback(host) },
+    )
+  }
+
   private data class Snapshot(val timestamp: Long, val payload: Map<String, Any?>)
 
   @Volatile
   private var snap: Snapshot? = null
 
-  /** Cached `status` / `system` / `components` block; request-scoped fields stay in the route. */
   fun snapshot(): Map<String, Any?> {
     val now: Long = System.currentTimeMillis()
     snap?.takeIf { now - it.timestamp < SNAPSHOT_TTL_MS }?.let { return it.payload }
@@ -53,48 +67,43 @@ internal object HealthMonitor {
     )
   }
 
-  // One entry per distinct (providerType, serverUrl) reported by discovery,
-  // which is served by the 60s HealthCache inside ModelIdentity.discoverModels().
-  // The cache tracks no latency, so `latencyMs` stays null.
-  private fun probeProviders(): List<Map<String, Any?>> = try {
-    ModelIdentity.discoverModels()
-      .groupBy { entry: ModelEntry -> entry.providerType to entry.serverUrl }
-      .map { (server, entries) ->
-        val reachable: Boolean = entries.any { entry -> entry.available }
+  private fun probeProviders(): List<Map<String, Any?>> =
+    try {
+      ModelIdentity.discoverModels()
+        .groupBy { entry: ModelEntry -> entry.providerType to entry.serverUrl }
+        .map { (server, entries) ->
+          val reachable: Boolean = entries.any { entry -> entry.available }
+          mapOf(
+            "kind" to server.first,
+            "server" to server.second,
+            "ok" to reachable,
+            "latencyMs" to null,
+            "error" to if (reachable) null
+            else entries.firstNotNullOfOrNull { entry -> entry.unavailableReason?.name }
+              ?: "server responded but no model is available",
+          )
+        }
+    } catch (failure: Exception) {
+      listOf(
         mapOf(
-          "kind" to server.first,
-          "server" to server.second,
-          "ok" to reachable,
+          "kind" to "discovery",
+          "server" to "",
+          "ok" to false,
           "latencyMs" to null,
-          "error" to if (reachable) null
-          else entries.firstNotNullOfOrNull { entry -> entry.unavailableReason?.name }
-            ?: "server responded but no model is available",
+          "error" to (failure.message ?: failure.javaClass.simpleName),
         )
-      }
-  } catch (failure: Exception) {
-    listOf(
-      mapOf(
-        "kind" to "discovery",
-        "server" to "",
-        "ok" to false,
-        "latencyMs" to null,
-        "error" to (failure.message ?: failure.javaClass.simpleName),
       )
-    )
-  }
+    }
 
-  // Cheapest read through the same entry as `GET /sessions`: listing session
-  // transcripts under the server's default root (the process working directory).
-  private fun probeLegatus(): Map<String, Any?> = try {
-    val defaultRoot: Path = Paths.get(System.getProperty("user.dir") ?: ".")
-    SessionTranscriptWriter.listSessions(projectRoot = defaultRoot)
-    mapOf("ok" to true, "error" to null)
-  } catch (failure: Exception) {
-    mapOf("ok" to false, "error" to (failure.message ?: failure.javaClass.simpleName))
-  }
+  private fun probeLegatus(): Map<String, Any?> =
+    try {
+      val defaultRoot: Path = Paths.get(System.getProperty("user.dir") ?: ".")
+      SessionTranscriptWriter.listSessions(projectRoot = defaultRoot)
+      mapOf("ok" to true, "error" to null)
+    } catch (failure: Exception) {
+      mapOf("ok" to false, "error" to (failure.message ?: failure.javaClass.simpleName))
+    }
 
-  // Directory-existence check per registered root; a null workspace mirrors
-  // the 503 `GET /workspace/tree` answers when the workspace is not initialized.
   private fun probeWorkspace(): Map<String, Any?> {
     val workspace: Workspace = WorkspaceHost.workspace
       ?: return mapOf(

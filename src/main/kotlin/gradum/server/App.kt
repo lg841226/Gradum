@@ -110,13 +110,17 @@ private fun Application.installRequestGuard(serverConfiguration: ServerConfigura
       }
     }
 
-    val candidates: List<String?> = listOf(
-      bearerToken(call.request),
-      call.request.cookies[ServerAuth.TOKEN_COOKIE_NAME],
-      call.request.queryParameters[ServerAuth.TOKEN_QUERY_PARAM]
-    )
-    val authorized: Boolean = candidates.any { ServerAuth.tokenMatches(it, authToken) }
-    if (!authorized) {
+    val tokenPresented: Boolean =
+      ServerAuth.tokenMatches(bearerToken(call.request), authToken) ||
+        ServerAuth.tokenMatches(
+          call.request.queryParameters[ServerAuth.TOKEN_QUERY_PARAM],
+          authToken,
+        )
+    val sessionValid: Boolean = ServerAuth.sessionRemainingSeconds(
+      call.request.cookies[ServerAuth.SESSION_COOKIE_NAME],
+      authToken,
+    ) != null
+    if (!tokenPresented && !sessionValid) {
       call.respondText(
         status = HttpStatusCode.Unauthorized,
         contentType = ContentType.Application.Json,

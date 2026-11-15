@@ -15,6 +15,8 @@ import java.nio.file.attribute.PosixFilePermissions
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.*
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 private val logger: Logger = LoggerFactory.getLogger("ServerAuth")
 
@@ -47,8 +49,11 @@ object ServerAuth {
   /** Query parameter that carries the token when opening the editor page. */
   const val TOKEN_QUERY_PARAM: String = "token"
 
-  /** Cookie the editor page sets so its static assets pass auth. */
-  const val TOKEN_COOKIE_NAME: String = "gradum_token"
+  /**
+   * Browser session cookie: a signed `<expiry>.<hmac>` ticket, never the
+   * token itself. See [sessionCookieHeader] and [sessionRemainingSeconds].
+   */
+  const val SESSION_COOKIE_NAME: String = "gradum_session"
 
   /** The POST that trades a pairing code for the auth cookie. */
   const val PAIR_PATH: String = "/skills/pair"
@@ -215,11 +220,70 @@ object ServerAuth {
   }
 
   /**
-   * The auth cookie every credential path sets: host-only, invisible to
-   * scripts, and closed to cross-site requests.
+   * The session cookie every credential path sets: host-only, invisible to
+   * scripts, closed to cross-site requests, and dead at [ttlSeconds] from
+   * now. The value is a signed ticket, so the token itself never reaches
+   * the browser's cookie jar.
    */
-  fun authCookieHeader(authToken: String): String =
-    "$TOKEN_COOKIE_NAME=$authToken; Path=/; HttpOnly; SameSite=Strict"
+  fun sessionCookieHeader(secret: String, ttlSeconds: Long): String {
+    val expiresEpochSeconds: Long = System.currentTimeMillis() / 1000L + ttlSeconds
+    return "$SESSION_COOKIE_NAME=${sessionTicket(secret, expiresEpochSeconds)};" +
+      " Path=/; HttpOnly; SameSite=Strict; Max-Age=$ttlSeconds"
+  }
+
+  /**
+   * A session ticket for [expiresEpochSeconds]: `<expiry>.<base64url hmac>`
+   * keyed by [secret]. Tests mint expired tickets directly; production
+   * paths go through [sessionCookieHeader].
+   */
+  fun sessionTicket(secret: String, expiresEpochSeconds: Long): String =
+    "$expiresEpochSeconds.${sessionSignature(secret, expiresEpochSeconds)}"
+
+  /**
+   * Seconds left on a candidate ticket, or null when it is blank, forged,
+   * malformed, or past expiry. The signature is recomputed from [secret]
+   * and compared in constant time; an attacker without the token cannot
+   * extend a session or mint a new one.
+   */
+  fun sessionRemainingSeconds(candidate: String?, secret: String): Long? {
+    if (candidate.isNullOrEmpty()) return null
+    val dot: Int = candidate.indexOf('.')
+    if (dot <= 0 || dot == candidate.length - 1) return null
+    val expiresEpochSeconds: Long = candidate.substring(0, dot).toLongOrNull() ?: return null
+    val signature: String = candidate.substring(dot + 1)
+    if (!MessageDigest.isEqual(
+        signature.toByteArray(Charsets.UTF_8),
+        sessionSignature(secret, expiresEpochSeconds).toByteArray(Charsets.UTF_8)
+      )
+    ) {
+      return null
+    }
+    val remaining: Long = expiresEpochSeconds - System.currentTimeMillis() / 1000L
+    return remaining.takeIf { it > 0L }
+  }
+
+  private fun sessionSignature(secret: String, expiresEpochSeconds: Long): String {
+    val mac = Mac.getInstance("HmacSHA256")
+    mac.init(SecretKeySpec(secret.toByteArray(Charsets.UTF_8), "HmacSHA256"))
+    return base64UrlEncoder.encodeToString(
+      mac.doFinal(expiresEpochSeconds.toString().toByteArray(Charsets.UTF_8))
+    )
+  }
+
+  /**
+   * True when the TCP connection to the server originated on the server's
+   * own machine. The workspace page stamps this as `data-session-scope` so
+   * the browser can say "Local" or "Remote" from the only source that
+   * actually knows: where the request came from, not what the address bar
+   * shows (tunnels and LAN IPs make hostname checks unreliable).
+   */
+  fun isLoopback(remoteHost: String?): Boolean {
+    if (remoteHost.isNullOrEmpty()) return false
+    if (remoteHost == "::1" || remoteHost == "0:0:0:0:0:0:0:1") return true
+    if (remoteHost.startsWith("127.")) return true
+    if (remoteHost.startsWith("::ffff:127.")) return true
+    return remoteHost.equals("localhost", ignoreCase = true)
+  }
 
   // Extracts the host name from a `Host` header, dropping the port.
   private fun extractHostName(hostHeader: String): String {

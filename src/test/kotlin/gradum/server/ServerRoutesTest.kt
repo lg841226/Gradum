@@ -94,19 +94,44 @@ class ServerRoutesTest {
     assertEquals(HttpStatusCode.OK, wrong.status)
     assertContains(wrong.bodyAsText(), "data-reader=\"invalid\"")
 
-    // A valid query token: the full page plus the auth cookie.
+    // A valid query token: the full page plus a session ticket cookie.
     val allowed: HttpResponse = client.get("/skills/editor?token=secret-token")
     assertEquals(HttpStatusCode.OK, allowed.status)
     assertFalse(allowed.bodyAsText().contains("data-reader"))
+    assertContains(allowed.bodyAsText(), "data-session-remaining")
+    assertContains(allowed.bodyAsText(), "data-session-scope=\"local\"")
     val setCookie: String = assertNotNull(allowed.headers[HttpHeaders.SetCookie])
-    assertContains(setCookie, "gradum_token=secret-token")
+    assertContains(setCookie, "gradum_session=")
+    assertNotContains(setCookie, "secret-token")
+    assertContains(setCookie, "Max-Age=")
 
-    // A browser already holding the cookie gets the full page too.
+    // A browser already holding a valid ticket gets the full page too.
+    val ticket: String = setCookie.substringBefore(";")
     val withCookie: HttpResponse = client.get("/skills/editor") {
-      header(HttpHeaders.Cookie, "gradum_token=secret-token")
+      header(HttpHeaders.Cookie, ticket)
     }
     assertEquals(HttpStatusCode.OK, withCookie.status)
     assertFalse(withCookie.bodyAsText().contains("data-reader"))
+  }
+
+  @Test
+  fun `an expired session ticket boots the reader view and blocks data routes`(): Unit = testApplication {
+    application { module(ServerConfiguration(authToken = "secret-token")) }
+
+    val expired: String = ServerAuth.sessionTicket(
+      secret = "secret-token",
+      expiresEpochSeconds = System.currentTimeMillis() / 1000L - 1L,
+    )
+
+    val page: HttpResponse = client.get("/skills/editor") {
+      header(HttpHeaders.Cookie, "gradum_session=$expired")
+    }
+    assertContains(page.bodyAsText(), "data-reader")
+
+    val models: HttpResponse = client.get("/models") {
+      header(HttpHeaders.Cookie, "gradum_session=$expired")
+    }
+    assertEquals(HttpStatusCode.Unauthorized, models.status)
   }
 
   @Test
@@ -125,29 +150,30 @@ class ServerRoutesTest {
     application { module(ServerConfiguration(authToken = "secret-token")) }
 
     val response: HttpResponse = client.get("/models") {
-      header(HttpHeaders.Cookie, "gradum_token=stale-token")
+      header(
+        HttpHeaders.Cookie,
+        "gradum_session=${ServerAuth.sessionTicket("other-secret", Long.MAX_VALUE / 2)}",
+      )
       header(HttpHeaders.Authorization, "Bearer secret-token")
     }
     assertEquals(HttpStatusCode.OK, response.status)
   }
 
   @Test
-  fun `lock query forces the reader view even for a valid cookie`(): Unit = testApplication {
+  fun `a valid ticket boots the full view with its own deadline`(): Unit = testApplication {
     application { module(ServerConfiguration(authToken = "secret-token")) }
 
+    val ticket: String = "gradum_session=" + ServerAuth.sessionTicket(
+      secret = "secret-token",
+      expiresEpochSeconds = System.currentTimeMillis() / 1000L + 600L,
+    )
+
     val full: HttpResponse = client.get("/skills/editor") {
-      header(HttpHeaders.Cookie, "gradum_token=secret-token")
+      header(HttpHeaders.Cookie, ticket)
     }
     assertEquals(HttpStatusCode.OK, full.status)
     assertFalse(full.bodyAsText().contains("data-reader"))
-
-    val forced: HttpResponse = client.get("/skills/editor?lock=1") {
-      header(HttpHeaders.Cookie, "gradum_token=secret-token")
-    }
-    assertEquals(HttpStatusCode.OK, forced.status)
-    assertContains(forced.bodyAsText(), "data-reader")
-    assertContains(forced.bodyAsText(), "data-default-root")
-    assertNull(forced.headers[HttpHeaders.SetCookie])
+    assertContains(full.bodyAsText(), "data-session-remaining")
   }
 
   @Test
@@ -169,17 +195,18 @@ class ServerRoutesTest {
     }
     assertEquals(HttpStatusCode.OK, allowed.status)
     val setCookie: String = assertNotNull(allowed.headers[HttpHeaders.SetCookie])
-    assertContains(setCookie, "gradum_token=secret-token")
+    assertContains(setCookie, "gradum_session=")
     assertContains(setCookie, "HttpOnly")
 
+    val cookie: String = setCookie.substringBefore(";")
     val page: HttpResponse = client.get("/skills/editor") {
-      header(HttpHeaders.Cookie, "gradum_token=secret-token")
+      header(HttpHeaders.Cookie, cookie)
     }
     assertEquals(HttpStatusCode.OK, page.status)
     assertFalse(page.bodyAsText().contains("data-reader"))
 
     val deploy: HttpResponse = client.post("/skills/build") {
-      header(HttpHeaders.Cookie, "gradum_token=secret-token")
+      header(HttpHeaders.Cookie, cookie)
     }
     assertNotEquals(HttpStatusCode.Unauthorized, deploy.status)
   }

@@ -23,16 +23,18 @@ class LegatusRoutesTest {
     assertContains(denied.bodyAsText(), "data-default-root")
     assertNull(denied.headers[HttpHeaders.SetCookie])
 
-    // A valid query token: the full app plus the auth cookie.
+    // A valid query token: the full app plus a session ticket cookie.
     val allowed: HttpResponse = client.get("/legatus?token=secret-token")
     assertEquals(HttpStatusCode.OK, allowed.status)
     assertFalse(allowed.bodyAsText().contains("data-reader"))
+    assertContains(allowed.bodyAsText(), "data-session-remaining")
     val setCookie: String = assertNotNull(allowed.headers[HttpHeaders.SetCookie])
-    assertContains(setCookie, "gradum_token=secret-token")
+    assertContains(setCookie, "gradum_session=")
+    assertNotContains(setCookie, "secret-token")
 
-    // A browser already holding the cookie gets the full app too.
+    // A browser already holding a valid ticket gets the full app too.
     val withCookie: HttpResponse = client.get("/legatus") {
-      header(HttpHeaders.Cookie, "gradum_token=secret-token")
+      header(HttpHeaders.Cookie, setCookie.substringBefore(";"))
     }
     assertEquals(HttpStatusCode.OK, withCookie.status)
     assertFalse(withCookie.bodyAsText().contains("data-reader"))
@@ -76,7 +78,7 @@ class LegatusRoutesTest {
     assertEquals(HttpStatusCode.OK, right.status)
     assertTrue(Json.parseToJsonElement(right.bodyAsText()).jsonObject.containsKey("ok"))
     val setCookie: String = assertNotNull(right.headers[HttpHeaders.SetCookie])
-    assertContains(setCookie, "gradum_token=secret-token")
+    assertContains(setCookie, "gradum_session=")
 
     // The cookie from pairing boots the full app without a query token.
     val paired: HttpResponse = client.get("/legatus") {

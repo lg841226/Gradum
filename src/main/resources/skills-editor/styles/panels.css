@@ -39,8 +39,8 @@
     mask-repeat: repeat-x;
     -webkit-mask-size: 6px 3px;
     mask-position: left bottom;
-    background-color: currentColor;
     -webkit-mask-repeat: repeat-x;
+    background-color: currentColor;
     -webkit-mask-position: left bottom;
     mask-image: var(--squiggle);
     -webkit-mask-image: var(--squiggle);
@@ -66,10 +66,10 @@
     flex: 0 0 auto;
     cursor: pointer;
     align-items: baseline;
-    grid-template-columns: auto auto minmax(0, 1fr);
     column-gap: var(--space-3);
     border-radius: var(--radius-control);
     padding: var(--space-1) var(--space-2);
+    grid-template-columns: auto auto minmax(0, 1fr);
     transition: background var(--motion-fast) var(--ease-standard);
 }
 
@@ -136,6 +136,6 @@
 }
 
 .output-time {
-    margin-right: var(--space-2);
     color: var(--text-mute);
+    margin-right: var(--space-2);
 }

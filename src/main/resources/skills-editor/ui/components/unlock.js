@@ -6,6 +6,9 @@ const LOOPBACK_HOSTNAME = /^(localhost|127(?:\.\d{1,3}){3}|\[::1]|::1)$/i;
 const CODE_LENGTH = 5;
 
 export function unlockMode() {
+  const scope = document.documentElement.dataset.sessionScope;
+  if (scope === "local") return "token";
+  if (scope === "remote") return "code";
   return LOOPBACK_HOSTNAME.test(window.location.hostname) ? "token" : "code";
 }
 

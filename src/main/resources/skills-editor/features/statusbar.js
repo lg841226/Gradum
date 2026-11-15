@@ -3,6 +3,50 @@ import {createIcon} from "../ui/components/icon.js";
 import {createUnlock} from "../ui/components/unlock.js";
 import {copy} from "../ui/copy.js";
 
+const mobileItems = [];
+const stripChips = new Map();
+
+let strip = null;
+
+export function registerStatusItem(entry) {
+  mobileItems.push(entry);
+  mobileItems.sort((a, b) => a.order - b.order);
+  refreshStatusMobile();
+}
+
+export function refreshStatusMobile() {
+  if (!strip) {
+    return;
+  }
+  for (const item of mobileItems) {
+    const compact = item.compact ? item.compact() : null;
+    let chip = stripChips.get(item.id);
+    if (!chip) {
+      const text = document.createElement("span");
+      const root = document.createElement(item.onSelect ? "button" : "span");
+      if (item.onSelect) {
+        root.type = "button";
+        root.addEventListener("click", () => item.onSelect());
+      }
+      root.className = "statusbar-strip-item";
+      chip = {root, text, icon: null};
+      stripChips.set(item.id, chip);
+      strip.appendChild(root);
+    }
+    if (compact) {
+      if (chip.icon !== compact.icon) {
+        chip.icon = compact.icon;
+        chip.root.replaceChildren(createIcon({name: compact.icon}), chip.text);
+      }
+      const label = compact.text ?? "";
+      if (chip.text.textContent !== label) {
+        chip.text.textContent = label;
+      }
+    }
+    chip.root.hidden = compact === null;
+  }
+}
+
 // A problem counter: a hollow severity icon beside its count. Both marks are
 // drawn in the strip's own gray rather than a severity color, so the counts
 // stay quiet and the shape alone tells the two apart.
@@ -46,10 +90,14 @@ function splitPath(path) {
   return parts;
 }
 
-export function mountStatusBar(store, {canvas, getActiveDoc}) {
+export function mountStatusBar(store, {canvas, getActiveDoc, scope = null, sessionRemaining = null}) {
   const bar = document.createElement("footer");
   bar.className = "statusbar";
   bar.setAttribute("aria-label", copy.statusBar.label);
+
+  strip = document.createElement("div");
+  strip.className = "statusbar-strip";
+  bar.appendChild(strip);
 
   const errors = createCount({tone: "error", icon: "error-outline"});
   const warnings = createCount({tone: "warning", icon: "warning-outline"});
@@ -125,8 +173,8 @@ export function mountStatusBar(store, {canvas, getActiveDoc}) {
 
   const lock = document.createElement("button");
   lock.type = "button";
-  lock.className = "statusbar-item statusbar-lock";
-  right.appendChild(lock);
+  lock.className = "statusbar-item statusbar-session";
+  left.prepend(lock);
 
   const unlock = createUnlock({
     container: canvas,
@@ -146,40 +194,160 @@ export function mountStatusBar(store, {canvas, getActiveDoc}) {
     },
   });
 
-  const renderLock = (state) => {
-    const locked = Boolean(state.reader);
-    const tip = locked ? copy.statusBar.lockedTip : copy.statusBar.unlockedTip;
+  const sessionLabel = document.createElement("span");
+  lock.replaceChildren(
+    createIcon({name: scope === "remote" ? "webServer" : "desktop"}),
+    sessionLabel,
+  );
+
+  const deadline = sessionRemaining === null
+    ? null : Date.now() + sessionRemaining * 1000;
+  let shownLabel = null;
+  let sessionShown = null;
+  let ended = false;
+
+  const secondsLeft = () =>
+    deadline === null ? null : Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+
+  const formatLeft = (seconds) => {
+    const pad = (value) => String(value).padStart(2, "0");
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds % 60)}` : `${minutes}:${pad(seconds % 60)}`;
+  };
+
+  const renderSession = (state) => {
+    const seconds = secondsLeft();
+    const label = !state.authed
+      ? copy.statusBar.locked
+      : seconds === null ? "" : formatLeft(seconds);
+    if (shownLabel !== label) {
+      shownLabel = label;
+      sessionLabel.textContent = label;
+    }
+    const signature = `${state.authed}:${label}`;
+    if (sessionShown !== signature) {
+      sessionShown = signature;
+      refreshStatusMobile();
+    }
+    const tip = !state.authed
+      ? copy.statusBar.sessionLockedTip
+      : seconds !== null
+        ? copy.statusBar.sessionTip(formatLeft(seconds))
+        : copy.statusBar.sessionOpenTip;
     if (lock.dataset.tooltip !== tip) {
       lock.dataset.tooltip = tip;
       lock.setAttribute("aria-label", tip);
-      lock.replaceChildren(createIcon({name: locked ? "locked" : "unlocked"}));
+    }
+    if (state.authed && seconds === 0 && !ended) {
+      ended = true;
+      if (document.documentElement.dataset.offline !== "true") {
+        location.reload();
+      }
     }
   };
 
   lock.addEventListener("click", () => {
-    const state = store.getState();
-    if (!state.authed) {
+    if (!store.getState().authed) {
       unlock.show();
-      return;
     }
-    store.setState({reader: !state.reader});
   });
 
-  store.subscribe(renderLock);
-  renderLock(store.getState());
+  store.subscribe(renderSession);
+  renderSession(store.getState());
+
+  registerStatusItem({
+    id: "session",
+    order: 1,
+    compact: () => {
+      const state = store.getState();
+      const seconds = secondsLeft();
+      if (state.authed && seconds === null) {
+        return null;
+      }
+      return {
+        icon: scope === "remote" ? "webServer" : "desktop",
+        text: !state.authed ? copy.statusBar.locked : formatLeft(seconds),
+      };
+    },
+    onSelect: () => {
+      if (!store.getState().authed) {
+        unlock.show();
+      }
+    },
+  });
+
+  if (deadline !== null) {
+    setInterval(() => renderSession(store.getState()), 1000);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        renderSession(store.getState());
+      }
+    });
+  }
 
   if (document.documentElement.getAttribute("data-reader") === "invalid") {
     unlock.show(copy.unlock.invalid, "token");
   }
 
+  const fileLock = document.createElement("button");
+  fileLock.type = "button";
+  fileLock.className = "statusbar-item statusbar-lock";
+  right.appendChild(fileLock);
+
+  let fileLockShown = null;
+
+  const renderFileLock = (state) => {
+    fileLock.hidden = !state.authed;
+    const locked = Boolean(state.reader);
+    const signature = `${state.authed}:${locked}`;
+    if (fileLockShown !== signature) {
+      fileLockShown = signature;
+      refreshStatusMobile();
+    }
+    const tip = locked ? copy.statusBar.lockedTip : copy.statusBar.unlockedTip;
+    if (fileLock.dataset.tooltip !== tip) {
+      fileLock.dataset.tooltip = tip;
+      fileLock.setAttribute("aria-label", tip);
+      fileLock.replaceChildren(createIcon({name: locked ? "locked" : "unlocked"}));
+    }
+  };
+
+  fileLock.addEventListener("click", () => {
+    const state = store.getState();
+    if (state.authed) {
+      store.setState({reader: !state.reader});
+    }
+  });
+
+  store.subscribe(renderFileLock);
+  renderFileLock(store.getState());
+
+  registerStatusItem({
+    id: "lock",
+    order: 2,
+    compact: () => {
+      const state = store.getState();
+      if (!state.authed) {
+        return null;
+      }
+      return {icon: state.reader ? "locked" : "unlocked"};
+    },
+    onSelect: () => {
+      const state = store.getState();
+      if (state.authed) {
+        store.setState({reader: !state.reader});
+      }
+    },
+  });
+
   const render = (state) => {
     const doc = getActiveDoc(state);
     const chat = state.chatOpen === true;
 
-    left.hidden = !doc && !chat;
-    errors.item.hidden = chat;
-    warnings.item.hidden = chat;
-    rootField.hidden = !chat;
+    errors.item.hidden = chat || !doc;
+    warnings.item.hidden = chat || !doc;
+    rootField.hidden = !chat || !doc;
     position.hidden = chat;
     indent.hidden = chat;
     lineEnding.hidden = chat;

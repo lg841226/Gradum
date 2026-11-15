@@ -228,6 +228,10 @@
         touch-action: none;
         cursor: nwse-resize;
     }
+
+    .canvas {
+        --statusbar-height: calc(20px * var(--ui-scale) + env(safe-area-inset-bottom, 0px));
+    }
 }
 
 @media (hover: hover) and (pointer: fine) and (min-width: 721px) {
@@ -298,6 +302,23 @@
     display: none;
 }
 
+.statusbar-session {
+    gap: 4px;
+    border: 0;
+    display: inline-flex;
+    align-items: center;
+    font: inherit;
+    color: inherit;
+    background: none;
+    font-variant-numeric: tabular-nums;
+}
+
+.statusbar-online {
+    gap: var(--space-1);
+    cursor: default;
+    font-variant-numeric: tabular-nums;
+}
+
 .statusbar-lock {
     border: 0;
     font: inherit;
@@ -335,6 +356,55 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
+}
+
+.statusbar-strip {
+    gap: var(--space-3);
+    display: none;
+    align-items: center;
+}
+
+.statusbar-strip-item {
+    gap: 4px;
+    border: 0;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 var(--space-2);
+    font: inherit;
+    color: var(--text-dim);
+    background: none;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    border-radius: var(--radius-control);
+}
+
+button.statusbar-strip-item {
+    cursor: pointer;
+}
+
+button.statusbar-strip-item:hover {
+    color: var(--text);
+    background: var(--bg-menu);
+}
+
+.statusbar-strip-item[hidden] {
+    display: none;
+}
+
+@media (hover: none), (pointer: coarse), (max-width: 720px) {
+    .statusbar {
+        align-items: flex-start;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    .statusbar-left,
+    .statusbar-right {
+        display: none;
+    }
+
+    .statusbar-strip {
+        display: flex;
+    }
 }
 
 .status-count {
@@ -804,24 +874,14 @@ body.is-dragging .assistant .chat-pane {
     transform-origin: 0 0;
 }
 
-/* The glyph frames are a reading aid for code at full size; at the map's scale
-   they shrink to a sub-pixel haze over every CJK run, so the clone drops them. */
 .minimap-content .glyph-box {
     outline: none;
 }
 
-/* Indent guides are a full-size reading aid too: at the map's scale they
-   collapse onto the text, so the clone drops them as well. */
 .minimap-content .indent-guide {
     display: none;
 }
 
-/* The slider over the visible code. It rides above the scaled clone, so it never
-   scales with it, and reads as a plain scrollbar thumb: a square translucent grey
-   block with no accent tint or outline to compete with the code beneath. It takes
-   the pointer (the strip below it handles every gesture the same way) and firms
-   up under hover, the grey standing heavier the way a thumb does when the mouse
-   finds it. */
 .minimap-viewport {
     top: 0;
     left: 1px;
@@ -871,4 +931,117 @@ body.is-dragging .assistant .chat-pane {
     .canvas.rail-collapsed.tree-open {
         grid-template-columns: 0 0 1fr;
     }
+}
+
+.offline-page {
+    display: flex;
+    grid-row: 1 / -1;
+    grid-column: 1 / -1;
+    min-height: 0;
+    align-items: center;
+    flex-direction: column;
+    justify-content: center;
+    gap: calc(2 * var(--space-4));
+    color: var(--text-dim);
+    background: var(--bg-island);
+    border-radius: var(--radius-island);
+}
+
+.offline-hero {
+    display: flex;
+    width: min(360px, 70%);
+    position: relative;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+    color: var(--text-dim);
+}
+
+.offline-hero .icon {
+    flex: none;
+}
+
+.offline-wire {
+    flex: 1;
+    height: 0;
+    border-top: 1px dashed var(--border);
+}
+
+.offline-state {
+    flex: none;
+    position: relative;
+    width: calc(24px * var(--ui-scale));
+    height: calc(24px * var(--ui-scale));
+}
+
+.offline-spinner {
+    inset: 0;
+    position: absolute;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    border-top-color: var(--text-dim);
+    animation: offline-spin calc(3 * var(--motion-slow)) linear infinite;
+    transition: opacity var(--motion-slow) var(--ease-standard);
+}
+
+.offline-check {
+    inset: 0;
+    display: flex;
+    opacity: 0;
+    position: absolute;
+    align-items: center;
+    color: var(--ok);
+    justify-content: center;
+    transition: opacity var(--motion-slow) var(--ease-standard);
+}
+
+.offline-count {
+    inset: 0;
+    display: flex;
+    position: absolute;
+    align-items: center;
+    font-size: calc(11px * var(--ui-scale));
+    color: var(--text-dim);
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
+    transition: opacity var(--motion-slow) var(--ease-standard);
+}
+
+.offline-hero.is-given-up .offline-spinner {
+    animation: none;
+}
+
+.offline-hero.is-restored .offline-wire {
+    border-top-style: solid;
+}
+
+.offline-hero.is-restored .offline-spinner {
+    opacity: 0;
+}
+
+.offline-hero.is-restored .offline-count {
+    opacity: 0;
+}
+
+.offline-hero.is-restored .offline-check {
+    opacity: 1;
+}
+
+@keyframes offline-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.offline-title {
+    color: var(--text);
+    font-size: calc(14px * var(--ui-scale));
+    font-weight: var(--weight-semibold);
+}
+
+.offline-hint {
+    color: var(--text-dim);
+    font-size: calc(14px * var(--ui-scale));
+    padding-inline: var(--space-4);
+    text-wrap: balance;
 }

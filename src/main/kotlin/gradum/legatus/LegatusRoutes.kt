@@ -83,47 +83,61 @@ private fun readBundledResource(resourcePath: String): String? =
  * Serves the shared workspace page with its boot stamps. Both entry points
  * (`/legatus` and `/skills/editor`) answer through here so the token check,
  * the reader marker, and the `data-default-root` / `data-home` stamps can
- * never drift apart. A `?token=` that matches re-issues the auth cookie;
- * anything else boots the page in reader mode.
+ * never drift apart. A `?token=` that matches re-issues a session ticket
+ * cookie; a still-valid ticket keeps its own deadline (no sliding extension).
+ * Authenticated boots carry `data-session-remaining` seconds for the page's
+ * countdown; anything else boots in reader mode.
  */
 internal suspend fun ApplicationCall.respondWorkspacePage(
   pageHtml: String,
   serverConfiguration: ServerConfiguration,
-  forceReaderMarker: Boolean = false,
 ) {
   val defaultRoot: String = System.getProperty("user.dir") ?: ""
   val home: String = System.getProperty("user.home") ?: ""
-  val marker: String = if (forceReaderMarker) " data-reader" else ""
+  val scope: String = if (ServerAuth.isLoopback(request.local.remoteHost)) "local" else "remote"
   val markedHtml: String = pageHtml.replaceFirst(
     "<html",
     "<html data-default-root=\"${defaultRoot.replace("\"", "&quot;")}\"" +
-      " data-home=\"${home.replace("\"", "&quot;")}\"$marker",
+      " data-home=\"${home.replace("\"", "&quot;")}\"" +
+      " data-session-scope=\"$scope\"",
   )
 
-  if (!forceReaderMarker) {
-    val authToken: String? = serverConfiguration.authToken?.takeIf { it.isNotEmpty() }
-    if (authToken != null) {
-      val queryToken: String? = request.queryParameters[ServerAuth.TOKEN_QUERY_PARAM]
-      val cookieToken: String? = request.cookies[ServerAuth.TOKEN_COOKIE_NAME]
-      val queryMatches: Boolean = ServerAuth.tokenMatches(queryToken, authToken)
-      val cookieMatches: Boolean = ServerAuth.tokenMatches(cookieToken, authToken)
+  val authToken: String? = serverConfiguration.authToken?.takeIf { it.isNotEmpty() }
+  if (authToken != null) {
+    val queryToken: String? = request.queryParameters[ServerAuth.TOKEN_QUERY_PARAM]
+    val queryMatches: Boolean = ServerAuth.tokenMatches(queryToken, authToken)
+    val sessionRemaining: Long? = ServerAuth.sessionRemainingSeconds(
+      request.cookies[ServerAuth.SESSION_COOKIE_NAME],
+      authToken,
+    )
 
-      if (!queryMatches && !cookieMatches) {
-        val invalidMarker: String =
-          if (queryToken != null) " data-reader=\"invalid\""
-          else " data-reader"
+    if (!queryMatches && sessionRemaining == null) {
+      val invalidMarker: String =
+        if (queryToken != null) " data-reader=\"invalid\""
+        else " data-reader"
 
-        response.header(HttpHeaders.CacheControl, "no-store")
-        respondText(
-          text = markedHtml.replaceFirst("<html", "<html$invalidMarker"),
-          contentType = ContentType.Text.Html,
-        )
-        return
-      }
-      if (queryMatches) {
-        response.header(HttpHeaders.SetCookie, ServerAuth.authCookieHeader(authToken))
-      }
+      response.header(HttpHeaders.CacheControl, "no-store")
+      respondText(
+        text = markedHtml.replaceFirst("<html", "<html$invalidMarker"),
+        contentType = ContentType.Text.Html,
+      )
+      return
     }
+
+    val remaining: Long = sessionRemaining ?: run {
+      response.header(
+        HttpHeaders.SetCookie,
+        ServerAuth.sessionCookieHeader(authToken, serverConfiguration.sessionTtlSeconds),
+      )
+      serverConfiguration.sessionTtlSeconds
+    }
+
+    response.header(HttpHeaders.CacheControl, "no-store")
+    respondText(
+      text = markedHtml.replaceFirst("<html", "<html data-session-remaining=\"$remaining\""),
+      contentType = ContentType.Text.Html,
+    )
+    return
   }
   response.header(HttpHeaders.CacheControl, "no-store")
   respondText(text = markedHtml, contentType = ContentType.Text.Html)

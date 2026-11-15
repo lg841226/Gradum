@@ -571,6 +571,73 @@ export const icons = {
     + ' 7.5 8.72386 7.5 9V11C7.5 11.2761 7.72386 11.5 8 11.5C8.27614 11.5 8.5 11.2761 8.5 11'
     + ' V9C8.5 8.72386 8.27614 8.5 8 8.5Z" fill="currentColor" stroke="none"/>',
 
+  // expui/nodes/desktop.svg / desktop_dark.svg: the machine you are on.
+  desktop: '<path d="M2 13.5C2 13.2239 2.22386 13 2.5 13L13.5 13C13.7761 13 14 13.2239 14 13.5C14'
+    + ' 13.7761 13.7761 14 13.5 14L2.5 14C2.22386 14 2 13.7761 2 13.5Z" fill="currentColor" stroke="none"/>'
+    + '<path d="M13.5 4L13.5 10C13.5 10.8284 12.8284 11.5 12 11.5L4 11.5C3.17157 11.5 2.5 10.8284 2.5'
+    + ' 10L2.5 4C2.5 3.17157 3.17157 2.5 4 2.5L12 2.5C12.8284 2.5 13.5 3.17157 13.5 4Z"'
+    + ' fill="none" stroke="currentColor" stroke-width="1"/>',
+
+  // expui/toolwindows/webServer.svg / webServer_dark.svg: a server on another machine.
+  webServer: '<path d="M4 4H6V5H4V4Z" fill="currentColor" stroke="none"/>'
+    + '<path fill-rule="evenodd" clip-rule="evenodd" d="M2 3V6C2 6.55228 2.44772 7 3 7H13C13.5523 7 14'
+    + ' 6.55228 14 6V3C14 2.44772 13.5523 2 13 2H3C2.44772 2 2 2.44772 2 3ZM3 6V3H13L13 6H3Z"'
+    + ' fill="currentColor" stroke="none"/>'
+    + '<path d="M6 11H4V12H6V11Z" fill="currentColor" stroke="none"/>'
+    + '<path fill-rule="evenodd" clip-rule="evenodd" d="M2 10V13C2 13.5523 2.44772 14 3 14H13C13.5523 14'
+    + ' 14 13.5523 14 13V10C14 9.44772 13.5523 9 13 9H3C2.44772 9 2 9.44771 2 10ZM3 13V10H13L13 13H3Z"'
+    + ' fill="currentColor" stroke="none"/>',
+
+  // expui/codeWithMe/cwmUsers.svg: two people, the platform's "connected
+  // users" mark. Gray rewritten to currentColor like every entry here.
+  users: '<path fill-rule="evenodd" clip-rule="evenodd" d="M8.5 4.5C8.5 5.88071 7.38071 7 6 7C4.61929 7'
+    + ' 3.5 5.88071 3.5 4.5C3.5 3.11929 4.61929 2 6 2C7.38071 2 8.5 3.11929 8.5 4.5ZM7.5 4.5C7.5 5.32843'
+    + ' 6.82843 6 6 6C5.17157 6 4.5 5.32843 4.5 4.5C4.5 3.67157 5.17157 3 6 3C6.82843 3 7.5 3.67157 7.5'
+    + ' 4.5Z" fill="currentColor" stroke="none"/>'
+    + '<path fill-rule="evenodd" clip-rule="evenodd" d="M1.90099 13H10.099C10.6614 13 11.1039 12.5357'
+    + ' 10.9786 11.9878C10.6448 10.5267 9.55331 8 5.99687 8C2.43936 8 1.35225 10.5282 1.02104'
+    + ' 11.9891C0.896888 12.5367 1.3392 13 1.90099 13ZM9.95087 12H2.04872C2.20872 11.401 2.50316 10.696'
+    + ' 3.03189 10.1276C3.59414 9.52324 4.48671 9 5.99687 9C7.50663 9 8.40044 9.52299 8.96416'
+    + ' 10.1277C9.49402 10.696 9.78976 11.401 9.95087 12Z" fill="currentColor" stroke="none"/>'
+    + '<path d="M9.99992 7C9.54449 7 9.11751 6.87822 8.74976 6.66545C8.95564 6.40435 9.12514 6.11323'
+    + ' 9.2506 5.79972C9.47108 5.9271 9.72699 6 9.99992 6C10.8284 6 11.4999 5.32843 11.4999 4.5C11.4999'
+    + ' 3.67157 10.8284 3 9.99992 3C9.72699 3 9.47108 3.0729 9.2506 3.20028C9.12514 2.88677 8.95564'
+    + ' 2.59565 8.74976 2.33455C9.11751 2.12178 9.54449 2 9.99992 2C11.3806 2 12.4999 3.11929 12.4999'
+    + ' 4.5C12.4999 5.88071 11.3806 7 9.99992 7Z" fill="currentColor" stroke="none"/>'
+    + '<path d="M13.9508 12H11.9927C12.0321 12.3731 11.9566 12.7117 11.8025 13H14.0989C14.6613 13'
+    + ' 15.1038 12.5357 14.9786 11.9878C14.6447 10.5267 13.5532 8 9.9968 8C9.84635 8 9.70032 8.00452'
+    + ' 9.55859 8.01329C9.88392 8.23753 10.1727 8.49069 10.4275 8.76407C10.5111 8.85368 10.5905 8.94488'
+    + ' 10.6659 9.03724C11.7801 9.16688 12.4892 9.61829 12.9641 10.1277C13.4939 10.696 13.7897 11.401'
+    + ' 13.9508 12Z" fill="currentColor" stroke="none"/>',
+
+  // expui/actions/overhead.svg, AllIconsKeys.Actions.OverHead: the platform's
+  // performance gauge, borrowed for the heap indicator. Its #6C707E fill is
+  // rewritten to currentColor. Apache 2.0, Copyright 2000-2022 JetBrains s.r.o.
+  // and contributors.
+  overhead: '<path fill-rule="evenodd" clip-rule="evenodd" d="M12.157 7.20214C12.4154 6.99461'
+    + ' 12.4566 6.61695 12.249 6.35861C12.0415 6.10028 11.6638 6.0591 11.4055 6.26663L8.92772'
+    + ' 8.25717C8.6568 8.09391 8.33937 8 8.00001 8C7.0059 8 6.20001 8.80589 6.20001 9.8C6.20001'
+    + ' 10.7941 7.0059 11.6 8.00001 11.6C8.99412 11.6 9.80001 10.7941 9.80001 9.8C9.80001'
+    + ' 9.58321 9.76169 9.37538 9.69144 9.18289L12.157 7.20214ZM8.80001 9.8C8.80001 10.2418'
+    + ' 8.44184 10.6 8.00001 10.6C7.55818 10.6 7.20001 10.2418 7.20001 9.8C7.20001 9.35817'
+    + ' 7.55818 9 8.00001 9C8.44184 9 8.80001 9.35817 8.80001 9.8Z" fill="currentColor" stroke="none"/>'
+    + '<path fill-rule="evenodd" clip-rule="evenodd" d="M8 3.5C4.41015 3.5 1.5 6.41015 1.5 10C1.5'
+    + ' 10.8909 1.76974 12.0874 2.13917 13H13.8608C14.2303 12.0874 14.5 10.8909 14.5 10C14.5'
+    + ' 6.41015 11.5899 3.5 8 3.5ZM0.5 10C0.5 5.85786 3.85786 2.5 8 2.5C12.1421 2.5 15.5 5.85786'
+    + ' 15.5 10C15.5 11.1604 15.1228 12.6805 14.6336 13.7304C14.5554 13.8984 14.3841 14 14.1987'
+    + ' 14H1.80126C1.61594 14 1.44463 13.8984 1.36637 13.7304C0.877241 12.6805 0.5 11.1604 0.5 10Z"'
+    + ' fill="currentColor" stroke="none"/>',
+
+  // expui/codeWithMe/cwmScreenInBrowserOn.svg: the browser window with its
+  // stand, the blue arrow and light fill dropped for monochrome use.
+  browser: '<path fill-rule="evenodd" clip-rule="evenodd" d="M14 4C14 2.89543 13.1046 2'
+    + ' 12 2H4C2.89543 2 2 2.89543 2 4V10C2 11.1046 2.89543 12 4 12H12C13.1046 12 14 11.1046'
+    + ' 14 10V4ZM13 10L13 4C13 3.44772 12.5523 3 12 3L4 3C3.44772 3 3 3.44772 3 4L3 10C3 10.5523'
+    + ' 3.44772 11 4 11H12C12.5523 11 13 10.5523 13 10Z" fill="currentColor" stroke="none"/>'
+    + '<path d="M4.00002 13.5C4.00003 13.2238 4.22388 13 4.50002 13L11.5 13C11.7761 13 12 13.2239'
+    + ' 12 13.5C12 13.7761 11.7761 14 11.5 14H4.50002C4.22387 14 4.00001 13.7761 4.00002 13.5Z"'
+    + ' fill="currentColor" stroke="none"/>',
+
   // expui/status/infoOutline.svg / infoOutline_dark.svg: the hollow info
   // mark. The platform grays it per theme; the gray is rewritten to
   // currentColor so whoever hosts it decides the paint.

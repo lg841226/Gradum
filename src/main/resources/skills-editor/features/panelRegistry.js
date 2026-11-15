@@ -348,7 +348,6 @@ export function createPanelRegistry({
       defaultOpen: defaultOf("chatOpen"),
       modes: ["agent"],
       openClass: "chat-open",
-      hide: true,
     },
     floating: false,
     render: ({panel}) => mountAssistant(store, {panel, onOpenFile}),

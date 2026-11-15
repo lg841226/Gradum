@@ -2,6 +2,7 @@
     line-height: 1.55;
     white-space: pre-wrap;
     word-break: break-word;
+    text-wrap: pretty;
     border-radius: var(--radius-island);
     padding: var(--space-2) var(--space-3);
 }

@@ -56,7 +56,7 @@ export const copy = {
     askTitle: "Gradum needs your input",
     answerPlaceholder: "Type your answer",
     answered: (label) => `Answered: ${label}`,
-    placeholder: "Ask a question, or hand off a task for this project",
+    placeholder: "Ask Gradum anything",
     attach: "Attach a file path",
     attachEmpty: "This folder is empty",
     attachLoading: "Loading files",
@@ -167,10 +167,23 @@ export const copy = {
     positionTip: (line, column) => `Caret at line ${line}, column ${column}`,
     selection: (count, lineCount) =>
       `${count} ${plural(count, "char")}, ${lineCount} ${plural(lineCount, "break")}`,
-    memory: (used, max) => `${used} / ${max}M`,
-    memoryTip: (used, max) => `Heap ${used} / ${max} MB`,
+    memory: (used, max) => `${used} / ${max} MB`,
+    memoryTip: (used, max) => `Heap ${used} of ${max} MB`,
     cpuTip: (cpu, cores) => ` & CPU ${cpu}% on ${plural(cores, "core")}`,
+    onlineTip: (count, external) => (external > 0
+      ? `${count} ${plural(count, "device")} polling the server, ${external} from outside this machine`
+      : `${count} local ${plural(count, "device")} polling the server`),
     monitorOffline: "Cannot reach the server",
+    locked: "Locked",
+    sessionLockedTip: "No active session, click to unlock",
+    sessionOpenTip: "Full access from this device",
+    sessionTip: (remaining) => `Session ends in ${remaining} and reloads read only`,
+  },
+
+  offline: {
+    title: (time) => `Your connection lost at ${time}`,
+    hint: "Retrying automatically, please don't close this page",
+    givenUp: "Retrying stopped, start the server again and reload this page",
   },
 
   settings: {

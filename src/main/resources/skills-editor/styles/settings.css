@@ -46,8 +46,8 @@
 .settings-nav {
     display: flex;
     overflow-y: auto;
-    min-height: 0;
     flex-direction: column;
+    min-height: 0;
     gap: var(--space-1);
     padding: var(--space-3) var(--space-2);
 }
@@ -97,10 +97,6 @@
     transition: transform var(--motion-fast) var(--ease-standard);
 }
 
-/* Folded: the version line is gone, so the 47px content column holds only the
-   28px button. Drop the horizontal padding (it was sized for the wide nav) and
-   center the button; it now clears the divider by ~9px. The bottom padding
-   equals the dialog radius so the button also clears the rounded corner. */
 .settings-window.is-nav-collapsed .settings-side-foot {
     gap: 0;
     justify-content: center;
@@ -181,9 +177,6 @@
     opacity: 1;
 }
 
-/* The full-screen form replaces the corner collapse button with a top-left
-   back arrow, so the desktop icon stays out of the way there. The arrow reuses
-   the existing chevron-right glyph, turned to point back. */
 .settings-back {
     display: none;
 }
@@ -269,8 +262,6 @@
     display: none;
 }
 
-/* Cards separate by their own surface and the gap between them, not an outline:
-   the border read as a stack of dark boxes on the window surface. */
 .settings-card {
     background: var(--bg-canvas);
     border-radius: var(--radius-island);
@@ -333,11 +324,6 @@
     max-width: calc(280px * var(--ui-scale));
 }
 
-/* ---- Full-screen settings -------------------------------------------------
-   The island becomes the whole viewport on phones and on the narrow windows
-   layout.css already lays out as touch panels. It keeps the same body, fades
-   and icon rail; only the window chrome (border, radius, grip, drag, size
-   memory) steps aside. */
 @media (hover: none), (pointer: coarse), (max-width: 720px) {
     .settings-window {
         inset: 0;
@@ -353,8 +339,6 @@
         grid-template-columns: var(--settings-nav-collapsed) minmax(0, 1fr);
     }
 
-    /* The icon rail is the only navigation here: no expand toggle, no version
-       foot, no corner collapse button. The back arrow replaces the latter. */
     .settings-resize,
     .settings-collapse,
     .settings-nav-toggle,
@@ -368,8 +352,6 @@
         pointer-events: auto;
     }
 
-    /* The title strip keeps its blur and fade, drops the grab cursor, and clears
-       the notch. */
     .settings-header {
         cursor: default;
         padding-top: calc(var(--space-3) + env(safe-area-inset-top, 0px));
@@ -381,9 +363,6 @@
         padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
     }
 
-    /* One scroller, contained: the page behind never rubber-bands with it, and
-       the home indicator inset stays clear. Touch scrolling hides its bar, as
-       the editor's own scrollers do. */
     .settings-body {
         scrollbar-width: none;
         overscroll-behavior: contain;
@@ -401,9 +380,6 @@
         padding-right: var(--space-2);
     }
 
-    /* A segmented row cannot share its line with the text at 320px, so it
-       stacks below the label and takes the full row; the pill then uses the
-       same small type and tight padding the theme switch already uses in a row. */
     .settings-row:has(.segmented) {
         flex-wrap: wrap;
         align-items: flex-start;

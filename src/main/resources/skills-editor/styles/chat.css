@@ -7,10 +7,34 @@
     font-family: var(--font-ui), ui-monospace;
 }
 
-.canvas.chat-open .editor,
 .canvas.chat-open .bottom,
 .canvas.chat-open .splitter-h {
     display: none;
+}
+
+.editor,
+.assistant {
+    transition: opacity var(--motion-slow) var(--ease-standard),
+    transform var(--motion-slow) var(--ease-standard),
+    visibility 0s;
+}
+
+.canvas.chat-open .editor,
+.canvas:not(.chat-open) .assistant {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity var(--motion-slow) var(--ease-standard),
+    transform var(--motion-slow) var(--ease-standard),
+    visibility 0s linear var(--motion-slow);
+}
+
+.canvas.chat-open .editor {
+    transform: translateX(calc(-1 * var(--space-3)));
+}
+
+.canvas:not(.chat-open) .assistant {
+    transform: translateX(var(--space-3));
 }
 
 .canvas.chat-open {

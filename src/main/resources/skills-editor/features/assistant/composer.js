@@ -45,6 +45,9 @@ export function createComposer({chips = [], menus = [], onAttach, onSend, onStop
   };
 
   const fit = (el) => {
+    if (el.offsetParent === null) {
+      return;
+    }
     const style = getComputedStyle(el);
     measure.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
     let width = 0;
@@ -288,6 +291,10 @@ export function createComposer({chips = [], menus = [], onAttach, onSend, onStop
   chipGroup.className = "chip-group";
   chipGroup.append(...chips);
 
+  const bar = document.createElement("div");
+  bar.className = "composer-bar";
+  bar.append(chipGroup);
+
   const attachButton = document.createElement("button");
   attachButton.type = "button";
   attachButton.className = "composer-attach";
@@ -312,8 +319,8 @@ export function createComposer({chips = [], menus = [], onAttach, onSend, onStop
   sendButton.dataset.tooltip = copy.chat.send;
   sendButton.appendChild(createIcon({name: "send", size: 16}));
 
-  foot.append(chipGroup, ...menus, attachButton, stopButton, sendButton);
-  root.append(flow, foot);
+  foot.append(attachButton, stopButton, sendButton);
+  root.append(flow, foot, ...menus);
 
   flow.addEventListener("click", (event) => {
     if (event.target === flow || event.target === placeholder) {
@@ -349,10 +356,11 @@ export function createComposer({chips = [], menus = [], onAttach, onSend, onStop
   render();
   sync();
   requestAnimationFrame(fitAll);
-  window.addEventListener("resize", fitAll);
+  new ResizeObserver(() => fitAll()).observe(root);
 
   return {
     root,
+    bar,
     stopButton,
     sendButton,
     text,
