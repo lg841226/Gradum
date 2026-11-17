@@ -13,8 +13,10 @@ import java.util.concurrent.atomic.AtomicLong
  * Without this, a stalled client silently rebuilds an incomplete conversation
  * and never knows it drifted.
  *
- * One instance belongs to one `/events` request. The producer emits from a
- * single logical stream, so atomic counters suffice. Per event:
+ * One instance belongs to one run, not one connection: the run outlives a
+ * refresh, and the seq numbers are what a reconnecting client replays from.
+ * The producer emits from a single logical stream, so atomic counters suffice.
+ * Per event:
  * [claimSequence], then [recordDrop] if the transport refuses it or
  * [markDelivered] once it is out, so [pendingGap] counts exactly the drops
  * since the last delivery.

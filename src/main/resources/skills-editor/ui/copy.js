@@ -179,6 +179,16 @@ export const copy = {
     sessionOpenTip: "Full access from this device",
     sessionTip: (remaining) => `Session ends in ${remaining} and reloads read only`,
   },
+  notification: {
+    close: "Dismiss notification",
+    sourceWorkspace: "Gradum Workspace",
+    sourceRuntime: "Gradum Runtime",
+    sourceV8: "V8 Interpreter",
+    sessionDeletedTitle: "Session Deleted",
+    sessionDeletedBody: "The Legatus session was deleted while the terminal was inactive. Start a new chat to run Legatus again.",
+    sessionExpiringTitle: "Session Expiring",
+    sessionExpiring: (remaining) => `The remote session ends in ${remaining}, editor will switch to read only.`,
+  },
 
   offline: {
     title: (time) => `Your connection lost at ${time}`,

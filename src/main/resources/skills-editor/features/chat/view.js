@@ -48,17 +48,28 @@ function createPathChip(path, onOpenFile) {
 }
 
 function renderUserText(bubble, text, onOpenFile) {
-  const pattern = /(^|\s)@(\S+)/g;
+  const pattern = /@(\S+)/g;
   let cursor = 0;
   let match;
   bubble.replaceChildren();
   while ((match = pattern.exec(text)) !== null) {
-    const at = match.index + match[1].length;
+    const at = match.index;
+    if (at > 0 && /[\w\-.:/]/.test(text[at - 1])) {
+      continue;
+    }
+    let path = match[2];
+    const trailing = /[),.;:!?'")，。、；：！？）】》」』”’]+$/.exec(path);
+    if (trailing) {
+      path = path.slice(0, -trailing[0].length);
+    }
+    if (!path) {
+      continue;
+    }
     if (at > cursor) {
       bubble.append(text.slice(cursor, at));
     }
-    bubble.append(createPathChip(match[2], onOpenFile));
-    cursor = at + 1 + match[2].length;
+    bubble.append(createPathChip(path, onOpenFile));
+    cursor = at + 1 + path.length;
   }
   if (cursor < text.length) {
     bubble.append(text.slice(cursor));
@@ -74,8 +85,7 @@ export function createChatView({messages, onGroupToggle, onRetry, onOpenFile}) {
   let retryButton = null;
 
   // Entry state lives on the column, not on the block element: the parser
-  // replaces every block it cannot reuse, so a per-target cursor is the only
-  // marker that survives a rewrite. The class is dropped on animationend.
+  // replaces every block it cannot reuse, so a per-target cursor survives rewrites.
   const entries = new WeakMap();
 
   messages.addEventListener("animationend", (event) => {

@@ -7,7 +7,8 @@ import {createTabStrip, renderTabStrip} from "../../ui/components/tab.js";
 import {createChat} from "../chat/index.js";
 import {createComposer} from "./composer.js";
 import {createModelPicker, createPermissionPicker} from "./pickers.js";
-import {createStreamController} from "./stream.js";
+import {createStreamController, readRunId} from "./stream.js";
+import {notify} from "../notifications.js";
 import {isFloatLayout} from "../floatPanels.js";
 import {isDragging} from "../splitter.js";
 import {createSplitLayout} from "../splitLayout.js";
@@ -70,6 +71,7 @@ export function mountAssistant(store, {panel, onOpenFile}) {
       onAttach: toggleAttach,
       onSend: () => send(ui),
       onStop: () => tabs.get(paneTabId(ui))?.stream.stop(),
+      onChange: () => saveDraft(ui),
     });
     return ui;
   };
@@ -98,6 +100,52 @@ export function mountAssistant(store, {panel, onOpenFile}) {
 
   function paneTabId(forUi) {
     return workspace[sideOf(forUi)];
+  }
+
+  const draftKey = (sessionId) => `gradum.draft.${sessionId}`;
+
+  function saveDraft(forUi) {
+    const sessionId = paneTabId(forUi);
+    if (!sessionId) {
+      return;
+    }
+    const saved = forUi.composer.serialize();
+    if (saved === null) {
+      sessionStorage.removeItem(draftKey(sessionId));
+      return;
+    }
+    sessionStorage.setItem(draftKey(sessionId), JSON.stringify(saved));
+  }
+
+  function readDraft(sessionId) {
+    const raw = sessionStorage.getItem(draftKey(sessionId));
+    if (!raw) {
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function applyDraft(tab) {
+    const saved = readDraft(tab.id);
+    if (!saved) {
+      return;
+    }
+    const side = workspace.left === tab.id
+      ? "left"
+      : workspace.right === tab.id ? "right" : null;
+    if (!side) {
+      return;
+    }
+    const forUi = side === "left" ? ui : splitUi;
+    if (forUi.composer.text().trim()) {
+      return;
+    }
+    forUi.composer.restore(saved);
   }
 
   function detach(id) {
@@ -154,7 +202,7 @@ export function mountAssistant(store, {panel, onOpenFile}) {
     store.setState({
       sessions: sessions.map((item) => ({
         ...item,
-        title: usableTitle(item.title) ?? known.get(item.id) ?? "",
+        title: known.get(item.id) ?? usableTitle(item.title) ?? "",
       })),
     });
   }
@@ -193,9 +241,6 @@ export function mountAssistant(store, {panel, onOpenFile}) {
     workspace.focused = payload.focused;
   }
 
-  // Ownership invariants, applied at the start of every render: a stale id is
-  // dropped, a tab never belongs to both panes, the left pane takes the first
-  // free tab, and the right pane holds a second tab only while split is shown.
   function repairOwnership(splitOn) {
     for (const side of SIDES) {
       if (workspace[side] != null && !tabs.has(workspace[side])) {
@@ -228,11 +273,6 @@ export function mountAssistant(store, {panel, onOpenFile}) {
     }
   }
 
-  // The only writer of the pane DOM. Every entry point edits `workspace` or
-  // `tabs` and then calls this once: split classes, pane contents, composer
-  // streaming state, tab strips and the stored tab list all derive from that
-  // model here, so a missed manual sync can no longer leave the panes +
-  // strips disagreeing.
   function render() {
     const state = store.getState();
     const splitOn = split.apply(state);
@@ -318,6 +358,19 @@ export function mountAssistant(store, {panel, onOpenFile}) {
     const line = String(text).split("\n").find((part) => part.trim().length > 0);
     const trimmed = line?.trim() ?? "";
     return trimmed ? Array.from(trimmed).slice(0, 48).join("") : null;
+  }
+
+  function syncSessionTitle(id, title) {
+    const sessions = store.getState().sessions ?? [];
+    if (sessions.some((item) => item.id === id)) {
+      if (sessions.find((item) => item.id === id).title !== title) {
+        store.setState({
+          sessions: sessions.map((item) => (item.id === id ? {...item, title} : item)),
+        });
+      }
+      return;
+    }
+    store.setState({sessions: [...sessions, {id, title}]});
   }
 
   function labelFor(tab) {
@@ -409,6 +462,23 @@ export function mountAssistant(store, {panel, onOpenFile}) {
     return tab;
   }
 
+  function resumeRun(tab, messages, runId) {
+    const cut = messages.map((item) => item.role).lastIndexOf("user");
+    if (cut >= 0) {
+      tab.chat.loadHistory(messages.slice(0, cut));
+      tab.chat.beginUserTurn(messages[cut].content ?? "");
+      tab.lastUser = messages[cut].content ?? "";
+    } else {
+      tab.chat.loadHistory(messages);
+    }
+    tab.started = true;
+    tab.stream.resume(runId, tab.id).catch((error) => {
+      if (error.status === 404 && tabs.get(tab.id) === tab) {
+        tab.chat.loadHistory(messages);
+      }
+    });
+  }
+
   function loadHistory(tab) {
     const {projectRoot} = store.getState();
     if (!projectRoot) {
@@ -416,8 +486,23 @@ export function mountAssistant(store, {panel, onOpenFile}) {
     }
     sessionState(projectRoot, tab.id)
       .then((state) => {
-        if (tabs.get(tab.id) === tab) {
-          tab.chat.loadHistory(state?.messages ?? []);
+        if (tabs.get(tab.id) !== tab) {
+          return;
+        }
+        const messages = state?.messages ?? [];
+        const runId = readRunId(tab.id);
+        if (runId && !tab.stream.streaming) {
+          resumeRun(tab, messages, runId);
+        } else {
+          tab.chat.loadHistory(messages);
+        }
+
+        const lastUser = [...messages].reverse().find((item) => item.role === "user");
+        const title = firstLineTitle(lastUser?.content ?? "");
+        if (title) {
+          tab.title = title;
+          syncSessionTitle(tab.id, title);
+          renderTabs();
         }
       })
       .catch((error) => {
@@ -425,10 +510,21 @@ export function mountAssistant(store, {panel, onOpenFile}) {
           return;
         }
         if (error.status === 404) {
+          notify({
+            severity: "error",
+            title: copy.notification.sessionDeletedTitle,
+            body: copy.notification.sessionDeletedBody,
+            source: copy.notification.sourceRuntime,
+          });
           tab.chat.loadHistory([]);
           return;
         }
         tab.chat.notice(copy.chat.loadFailed(error.message));
+      })
+      .finally(() => {
+        if (tabs.get(tab.id) === tab) {
+          applyDraft(tab);
+        }
       });
   }
 
@@ -495,7 +591,11 @@ export function mountAssistant(store, {panel, onOpenFile}) {
     }
 
     tab.lastUser = text;
-    tab.title = firstLineTitle(text);
+    const title = firstLineTitle(text);
+    if (title) {
+      tab.title = title;
+      syncSessionTitle(tab.id, title);
+    }
     if (retry) {
       tab.chat.discardTurn();
     } else {

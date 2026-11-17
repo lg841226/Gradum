@@ -1,6 +1,7 @@
 import {pair} from "../data/skillsApi.js";
 import {createIcon} from "../ui/components/icon.js";
 import {createUnlock} from "../ui/components/unlock.js";
+import {notify} from "./notifications.js";
 import {copy} from "../ui/copy.js";
 
 const mobileItems = [];
@@ -8,6 +9,15 @@ const stripChips = new Map();
 
 let strip = null;
 
+// Mobile status API. Entries affect the compact strip only; the desktop
+// bar keeps mounting its full items as before. Contract for registrants:
+// - {id, order, compact, onSelect?}: sorted by order, every entry with a
+//   non-null compact renders, one chip each.
+// - compact() must be an idempotent pure read returning {icon, text} or
+//   null when there is nothing to show. The icon is mandatory — a bare
+//   number tells nobody what it counts — and text stays plain, <=8 chars.
+// - onSelect is the chip's only gesture; omit it for read-only numbers.
+// - providers call refreshStatusMobile() whenever their data changes.
 export function registerStatusItem(entry) {
   mobileItems.push(entry);
   mobileItems.sort((a, b) => a.order - b.order);
@@ -47,9 +57,6 @@ export function refreshStatusMobile() {
   }
 }
 
-// A problem counter: a hollow severity icon beside its count. Both marks are
-// drawn in the strip's own gray rather than a severity color, so the counts
-// stay quiet and the shape alone tells the two apart.
 function createCount({tone, icon}) {
   const item = document.createElement("span");
   item.className = "status-count";
@@ -62,8 +69,6 @@ function createCount({tone, icon}) {
   return {item, value};
 }
 
-// Counts only change on a compile, so the DOM is left alone unless the number
-// actually differs.
 function updateCount(count, value, label) {
   const text = String(value);
   if (count.value.textContent === text) {
@@ -73,10 +78,6 @@ function updateCount(count, value, label) {
   count.item.setAttribute("aria-label", label);
 }
 
-// The root arrives as one string, so the split has to keep the shape of the
-// path: an absolute prefix becomes its own first segment because no arrow goes
-// before it; repeated and trailing separators collapse; `.`/`..`, drive
-// letters and names with spaces or CJK survive untouched.
 function splitPath(path) {
   if (!path) {
     return [];
@@ -205,6 +206,7 @@ export function mountStatusBar(store, {canvas, getActiveDoc, scope = null, sessi
   let shownLabel = null;
   let sessionShown = null;
   let ended = false;
+  let warned = false;
 
   const secondsLeft = () =>
     deadline === null ? null : Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
@@ -238,6 +240,15 @@ export function mountStatusBar(store, {canvas, getActiveDoc, scope = null, sessi
     if (lock.dataset.tooltip !== tip) {
       lock.dataset.tooltip = tip;
       lock.setAttribute("aria-label", tip);
+    }
+    if (state.authed && !warned && seconds !== null && seconds > 0 && seconds <= 60) {
+      warned = true;
+      notify({
+        severity: "warning",
+        title: copy.notification.sessionExpiringTitle,
+        body: copy.notification.sessionExpiring(formatLeft(seconds)),
+        source: copy.notification.sourceWorkspace,
+      });
     }
     if (state.authed && seconds === 0 && !ended) {
       ended = true;

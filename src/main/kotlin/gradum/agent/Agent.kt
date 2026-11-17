@@ -219,6 +219,8 @@ class Agent(
       messageId = resolvedMessageId
     )
 
+    persistProgress()
+
     if (toolCallXml != null) {
       playToolCallScenario(toolCallXml)
       sessionManager.finish()
@@ -291,6 +293,7 @@ class Agent(
         tokenUsage = result.tokenUsage,
         processedCalls
       )
+      persistProgress()
 
       for ((index: Int, processedCall: ProcessedToolCall) in processedCalls.withIndex())
         toolExecutor.executeSingleTool(
@@ -298,11 +301,19 @@ class Agent(
           isLastToolCall = index == processedCalls.lastIndex
         )
 
+      persistProgress()
+
       if (sessionManager.isAborted) break
     }
 
     if (configuration.taskDescription == null) {
       sessionManager.finish()
+      contextManager.saveContext(messages = conversationHistory.toList(), configuration.modelName)
+    }
+  }
+
+  private fun persistProgress() {
+    if (configuration.taskDescription == null) {
       contextManager.saveContext(messages = conversationHistory.toList(), configuration.modelName)
     }
   }

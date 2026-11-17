@@ -32,7 +32,6 @@ import io.ktor.utils.io.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.ChannelResult
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -55,6 +54,62 @@ import java.util.concurrent.Executors.newFixedThreadPool
 private val logger: Logger = LoggerFactory.getLogger("GradumServerRoutes")
 
 private const val EVENTS_CHANNEL_CAPACITY: Int = 2048
+
+// A finished run stays replayable this long: a refresh landing just after the
+// end must still get the whole turn from the buffer instead of a 404.
+private const val FINISHED_RUN_RETENTION_MILLIS: Long = 5 * 60 * 1000L
+
+/** One agent run detached from any HTTP connection: the buffer is the durable
+ * replay view; [subscriber] is a transient tap — a newer attach replaces the older. */
+private class ActiveRun(val runId: String) {
+  private val lock = Any()
+  private val frames: MutableList<Pair<Long, String>> = mutableListOf()
+  private var subscriber: Channel<String>? = null
+
+  var finished: Boolean = false
+    private set
+
+  var finishedAtMillis: Long = 0L
+    private set
+
+  /** Buffers the frame and forwards it to the live subscriber. Returns false only when
+   * an attached subscriber's full channel drops the frame — the `gap` signal. */
+  fun publish(seq: Long, frame: String): Boolean = synchronized(lock) {
+    frames.add(seq to frame)
+    subscriber?.trySend(frame)?.isSuccess ?: true
+  }
+
+  /** Takes over as the live subscriber and, atomically, returns the buffered frames
+   * after [since]: one step, so no frame lands in both replay and live feed, or neither. */
+  fun subscribe(since: Long, channel: Channel<String>): List<String> = synchronized(lock) {
+    subscriber?.close()
+    subscriber = channel
+    val replayed: List<String> =
+      frames.filter { (seq, _) -> seq > since }.map { (_, frame) -> frame }
+    if (finished) {
+      subscriber = null
+      channel.close()
+    }
+    replayed
+  }
+
+  fun unsubscribe(channel: Channel<String>) {
+    synchronized(lock) {
+      if (subscriber === channel) {
+        subscriber = null
+      }
+    }
+  }
+
+  fun markFinished() {
+    synchronized(lock) {
+      finished = true
+      finishedAtMillis = System.currentTimeMillis()
+      subscriber?.close()
+      subscriber = null
+    }
+  }
+}
 
 private data class SessionEntry(
   val agent: Agent,
@@ -262,7 +317,9 @@ internal data class TaskSubmitRequest(
 
 /**
  * Registers every HTTP route the Gradum server exposes:
- * - `POST /events`: streams an agent run as NDJSON.
+ * - `POST /events`: streams an agent run as NDJSON; the run is detached from
+ *   the connection, and `?runId=&since=` reconnects to a live or recently
+ *   finished run by replaying its buffered frames (404 once it is reclaimed).
  * - `POST /events/respond`: delivers an answer to a pending ask interaction.
  * - `POST /stop`: aborts an active agent session.
  * - `POST /session/delete`: removes one stored session directory.
@@ -297,6 +354,45 @@ fun Application.registerAllRoutes(
   val serverStartTime: LocalDateTime = LocalDateTime.now()
   val activeSessions: ConcurrentHashMap<String, SessionEntry> = ConcurrentHashMap()
 
+  // Runs must outlive the request that started them: the call scope dies with a
+  // page refresh, so they launch in the scope that lives as long as the server.
+  val runScope: CoroutineScope = this
+  val activeRuns: ConcurrentHashMap<String, ActiveRun> = ConcurrentHashMap()
+
+  // Lazy sweep on register and on reconnect lookup: finished runs older than the
+  // retention window leave the registry.
+  fun purgeExpiredRuns() {
+    val now: Long = System.currentTimeMillis()
+    activeRuns.entries.removeIf { entry: Map.Entry<String, ActiveRun> ->
+      entry.value.finished && now - entry.value.finishedAtMillis > FINISHED_RUN_RETENTION_MILLIS
+    }
+  }
+
+  // Streams the buffered frames after `since`, then the live feed, as one NDJSON
+  // response. Whatever ends the connection, the handler detaches and the run keeps going.
+  suspend fun respondAsSubscriber(call: ApplicationCall, run: ActiveRun, since: Long) {
+    val subscriber: Channel<String> = Channel(capacity = EVENTS_CHANNEL_CAPACITY)
+    val replayed: List<String> = run.subscribe(since, subscriber)
+    try {
+      call.respond(object : OutgoingContent.WriteChannelContent() {
+        override val contentType: ContentType = ContentType.parse("application/x-ndjson")
+
+        override suspend fun writeTo(channel: ByteWriteChannel) {
+          for (frame in replayed) {
+            channel.writeStringUtf8(frame)
+            channel.flush()
+          }
+          for (frame in subscriber) {
+            channel.writeStringUtf8(frame)
+            channel.flush()
+          }
+        }
+      })
+    } finally {
+      run.unsubscribe(subscriber)
+    }
+  }
+
   val backgroundTaskWorkers: ExecutorService =
     newFixedThreadPool(4) { runnable ->
       Thread(runnable, "gradum-bg-task").apply { isDaemon = true }
@@ -311,6 +407,24 @@ fun Application.registerAllRoutes(
     legatusRoutes(serverConfiguration = serverConfiguration)
 
     post("/events") {
+      val reconnectRunId: String? =
+        call.request.queryParameters["runId"]?.trim()?.takeIf { it.isNotEmpty() }
+      if (reconnectRunId != null) {
+        val since: Long = call.request.queryParameters["since"]?.toLongOrNull() ?: 0L
+        purgeExpiredRuns()
+        val reconnectRun: ActiveRun? = activeRuns[reconnectRunId]
+        if (reconnectRun == null) {
+          call.respondText(
+            status = HttpStatusCode.NotFound,
+            contentType = ContentType.Application.Json,
+            text = JsonUtil.encodeMap(mapOf("status" to "not_found", "runId" to reconnectRunId)),
+          )
+          return@post
+        }
+        respondAsSubscriber(call = call, run = reconnectRun, since = since)
+        return@post
+      }
+
       val requestBody: EventsRequestBody = call.receive<EventsRequestBody>()
       val runId: String = UUID.randomUUID().toString()
 
@@ -339,8 +453,10 @@ fun Application.registerAllRoutes(
       }
 
       val resolvedSessionId: String = requestBody.sessionId?.trim()?.takeIf { it.isNotEmpty() } ?: SessionIds.next()
-      val eventsChannel: Channel<String> = Channel(capacity = EVENTS_CHANNEL_CAPACITY)
       val eventSequencer = EventStreamSequencer()
+      val run = ActiveRun(runId)
+      purgeExpiredRuns()
+      activeRuns[runId] = run
       val configOverrides: ConfigOverrides = fromRequestMap(requestBody.config)
       val resolvedToolMode: ToolMode =
         if (requestBody.toolCallXml != null) ToolMode.AGENT
@@ -394,7 +510,7 @@ fun Application.registerAllRoutes(
         serverApiKey = serverConfiguration.authToken
       )
 
-      launch(Dispatchers.IO) {
+      runScope.launch(Dispatchers.IO) {
         try {
           val registerChildSession: (String, Agent) -> Unit = { childId: String, childAgent: Agent ->
             val childEntry = SessionEntry(
@@ -430,23 +546,24 @@ fun Application.registerAllRoutes(
                   activeSessions[runId]?.subAgents?.clear()
               }
 
+              val seq: Long = eventSequencer.claimSequence()
               val eventFrame: Map<String, Any?> = mapOf(
                 "data" to data,
                 "type" to eventType,
                 "runId" to runId,
                 "sessionId" to resolvedSessionId,
                 "gap" to eventSequencer.pendingGap(),
-                "seq" to eventSequencer.claimSequence(),
+                "seq" to seq,
                 "timestamp" to LocalDateTime.now().toString()
               )
               val ndjsonLine: String = JsonUtil.encodeMap(eventFrame) + "\n"
               EventStreamDump.append(ndjsonLine)
-              val sendResult: ChannelResult<Unit> = eventsChannel.trySend(ndjsonLine)
-              if (sendResult.isFailure) {
+              // The frame is always buffered; only the live tap can drop it.
+              if (!run.publish(seq, ndjsonLine)) {
                 eventSequencer.recordDrop()
                 logger.warn(
                   "Events channel full for run $runId \u2014 dropping event " +
-                    "'$eventType' (client is not draining; streaming is already stalled)"
+                    "'$eventType' (client is not draining; a reconnect replays from the buffer)"
                 )
               } else {
                 eventSequencer.markDelivered()
@@ -489,20 +606,11 @@ fun Application.registerAllRoutes(
             )
           }
           activeSessions.remove(runId)
-          eventsChannel.close()
+          run.markFinished()
         }
       }
 
-      call.respond(object : OutgoingContent.WriteChannelContent() {
-        override val contentType: ContentType = ContentType.parse("application/x-ndjson")
-
-        override suspend fun writeTo(channel: ByteWriteChannel) {
-          for (ndjsonLine: String in eventsChannel) {
-            channel.writeStringUtf8(ndjsonLine)
-            channel.flush()
-          }
-        }
-      })
+      respondAsSubscriber(call = call, run = run, since = 0L)
     }
 
     post("/events/respond") {
@@ -562,6 +670,8 @@ fun Application.registerAllRoutes(
       val targetEntry = activeSessions.remove(runId)
 
       if (targetEntry != null) {
+        // A stopped turn is never worth reconnecting to: drop it from the replay registry.
+        activeRuns.remove(runId)
         val agentsToStop: MutableList<Agent> = mutableListOf(targetEntry.agent)
         val childIdsToRemove: MutableList<String> = mutableListOf()
 
@@ -601,8 +711,6 @@ fun Application.registerAllRoutes(
     }
 
     post("/session/delete") {
-      // Deletion is a managing action: remote readers never get it. With a
-      // token configured, only a request carrying the auth cookie may delete.
       val authToken: String? = serverConfiguration.authToken?.takeIf { it.isNotEmpty() }
       if (authToken != null &&
         ServerAuth.sessionRemainingSeconds(

@@ -24,6 +24,15 @@ import {readStorage} from "./core/storage.js";
 
 const DEFAULT_SKILL = "skills/HelloSkill.kt";
 
+// The ?token= query is a one-time credential: once the page boots, the
+// session cookie carries the auth. Drop the token from the URL immediately,
+// or every later reload (the countdown reload especially) would replay the
+// query, re-issue a fresh ticket and silently extend the session forever.
+const bootUrl = new URL(location.href);
+if (bootUrl.searchParams.delete("token")) {
+  history.replaceState(null, "", bootUrl);
+}
+
 const userStyles = new Map();
 
 // ui/ stylesheets are plain files, so a reload is just re-reading them into the

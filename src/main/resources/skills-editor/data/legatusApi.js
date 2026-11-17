@@ -33,8 +33,11 @@ export async function stop(runId) {
   });
 }
 
-export async function streamEvents(body, {onEvent, signal, onParseError}) {
-  const response = await reachableFetch("/events", {
+export async function streamEvents(body, {onEvent, signal, onParseError, runId, since}) {
+  const query = runId
+    ? `?runId=${encodeURIComponent(runId)}&since=${encodeURIComponent(String(since ?? 0))}`
+    : "";
+  const response = await reachableFetch(`/events${query}`, {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify(body),

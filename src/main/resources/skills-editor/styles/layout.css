@@ -391,6 +391,102 @@ button.statusbar-strip-item:hover {
     display: none;
 }
 
+.notifications {
+    z-index: 45;
+    gap: var(--space-2);
+    display: flex;
+    position: fixed;
+    flex-direction: column;
+    pointer-events: none;
+    right: var(--space-3);
+    bottom: calc(var(--statusbar-height) + var(--space-3));
+    width: min(360px, calc(100vw - 2 * var(--space-3)));
+}
+
+.notification {
+    gap: var(--space-2);
+    display: flex;
+    padding: var(--space-3);
+    position: relative;
+    align-items: flex-start;
+    background: var(--bg-popup);
+    box-shadow: var(--shadow-popup);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-island);
+    pointer-events: auto;
+    animation: notification-in var(--motion-slow) var(--ease-standard);
+    transition: opacity var(--motion-slow) var(--ease-standard),
+    transform var(--motion-slow) var(--ease-standard);
+}
+
+.notification[data-severity="error"] {
+    color: var(--error);
+}
+
+.notification[data-severity="warning"] {
+    color: var(--warning);
+}
+
+.notification[data-severity="info"] {
+    color: var(--accent);
+}
+
+.notification-text {
+    gap: var(--space-1);
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    color: var(--text);
+}
+
+.notification-title {
+    font-weight: 600;
+}
+
+.notification-source {
+    color: var(--text-mute);
+}
+
+.notification > svg {
+    margin-top: 2px;
+}
+
+.notification-close {
+    opacity: 0;
+    top: var(--space-2);
+    right: var(--space-2);
+    position: absolute;
+    transition: opacity var(--motion-fast) var(--ease-standard);
+}
+
+.notification:hover .notification-close,
+.notification:focus-within .notification-close {
+    opacity: 1;
+}
+
+.notification-close:hover {
+    color: var(--text);
+    background: var(--bg-menu);
+}
+
+@media (hover: none), (pointer: coarse) {
+    .notification-close {
+        opacity: 1;
+    }
+}
+
+.notification.is-leaving {
+    opacity: 0;
+    transform: translateX(var(--space-3));
+}
+
+@keyframes notification-in {
+    from {
+        opacity: 0;
+        transform: translateX(var(--space-3));
+    }
+}
+
 @media (hover: none), (pointer: coarse), (max-width: 720px) {
     .statusbar {
         align-items: flex-start;

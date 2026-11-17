@@ -1,6 +1,7 @@
 // The composer row: textarea, the picker pills and menus, and
 // the send/stop pair. It owns only its own controls; whether a run is active is
-// pushed in through `setStreaming`.
+// pushed in through `setStreaming`. Content changes are reported through
+// `onChange` so the host can keep a draft; state-only updates never fire it.
 
 import {createIcon, fileTypeIcon} from "../../ui/components/icon.js";
 import {copy} from "../../ui/copy.js";
@@ -11,7 +12,7 @@ function pathName(path) {
   return cut >= 0 ? trimmed.slice(cut + 1) : trimmed;
 }
 
-export function createComposer({chips = [], menus = [], onAttach, onSend, onStop} = {}) {
+export function createComposer({chips = [], menus = [], onAttach, onSend, onStop, onChange} = {}) {
   const root = document.createElement("div");
   root.className = "composer";
 
@@ -157,6 +158,7 @@ export function createComposer({chips = [], menus = [], onAttach, onSend, onStop
       focusAt(el, 0);
     }
     sync();
+    onChange?.();
   }
 
   function eatForward(el, index) {
@@ -170,6 +172,7 @@ export function createComposer({chips = [], menus = [], onAttach, onSend, onStop
     render();
     focusAt(el, caret);
     sync();
+    onChange?.();
   }
 
   function insertPath(path) {
@@ -191,13 +194,24 @@ export function createComposer({chips = [], menus = [], onAttach, onSend, onStop
     const index = partIndex(el);
     const start = el.selectionStart ?? el.value.length;
     const end = el.selectionEnd ?? start;
-    const rightEl = createSegment(el.value.slice(end));
-    const left = el.value.slice(0, start);
+    let left = el.value.slice(0, start);
+    let right = el.value.slice(end);
+
+    if (left && !/\s$/.test(left)) {
+      left += " ";
+    }
+
+    if (!/^\s/.test(right)) {
+      right = ` ${right}`;
+    }
+
+    const rightEl = createSegment(right);
     el.value = left;
     parts.splice(index + 1, 0, {kind: "path", path}, {kind: "text", el: rightEl});
     render();
-    focusAt(rightEl, 0);
+    focusAt(rightEl, right.startsWith(" ") ? 1 : 0);
     sync();
+    onChange?.();
   }
 
   function handleKey(el, event) {
@@ -264,6 +278,7 @@ export function createComposer({chips = [], menus = [], onAttach, onSend, onStop
       place();
       refreshPlaceholder();
       sync();
+      onChange?.();
     });
     el.addEventListener("compositionstart", () => {
       composing = true;
@@ -380,11 +395,42 @@ export function createComposer({chips = [], menus = [], onAttach, onSend, onStop
       }
     },
     insertPath,
+
+    serialize() {
+      const empty = parts.length === 1
+        && parts[0].kind === "text"
+        && parts[0].el.value.length === 0;
+      if (empty) {
+        return null;
+      }
+      return parts.map((part) => (part.kind === "path"
+        ? {kind: "path", path: part.path}
+        : {kind: "text", value: part.el.value}));
+    },
+    restore(saved) {
+      if (!Array.isArray(saved) || saved.length === 0) {
+        return;
+      }
+      parts.length = 0;
+      for (const item of saved) {
+        if (item?.kind === "path" && typeof item.path === "string") {
+          parts.push({kind: "path", path: item.path});
+        } else if (item?.kind === "text") {
+          parts.push({kind: "text", el: createSegment(String(item.value ?? ""))});
+        }
+      }
+      if (textParts().length === 0) {
+        addTextPart("");
+      }
+      render();
+      sync();
+    },
     clear() {
       parts.length = 0;
       addTextPart("");
       render();
       sync();
+      onChange?.();
     },
     focus() {
       const target = textParts().at(-1)?.el;

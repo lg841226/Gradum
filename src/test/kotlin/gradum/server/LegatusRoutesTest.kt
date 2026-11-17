@@ -30,7 +30,7 @@ class LegatusRoutesTest {
     assertContains(allowed.bodyAsText(), "data-session-remaining")
     val setCookie: String = assertNotNull(allowed.headers[HttpHeaders.SetCookie])
     assertContains(setCookie, "gradum_session=")
-    assertNotContains(setCookie, "secret-token")
+    assertFalse(setCookie.contains("secret-token"))
 
     // A browser already holding a valid ticket gets the full app too.
     val withCookie: HttpResponse = client.get("/legatus") {

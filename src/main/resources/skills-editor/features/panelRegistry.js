@@ -184,14 +184,14 @@ export function mountPanelRegistry(store, {canvas, panels}) {
 }
 
 export function createPanelRegistry({
-  store,
-  onOpen,
-  onCreate,
-  onOpenSession,
-  listDirectory,
-  onPick,
-  onOpenFile,
-}) {
+                                      store,
+                                      onOpen,
+                                      onCreate,
+                                      onOpenSession,
+                                      listDirectory,
+                                      onPick,
+                                      onOpenFile,
+                                    }) {
   const rail = {
     id: "rail",
     title: (state) => (state.chatOpen === true ? copy.rail.sessions : copy.rail.title),

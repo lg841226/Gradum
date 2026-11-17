@@ -102,7 +102,7 @@ class ServerRoutesTest {
     assertContains(allowed.bodyAsText(), "data-session-scope=\"local\"")
     val setCookie: String = assertNotNull(allowed.headers[HttpHeaders.SetCookie])
     assertContains(setCookie, "gradum_session=")
-    assertNotContains(setCookie, "secret-token")
+    assertFalse(setCookie.contains("secret-token"))
     assertContains(setCookie, "Max-Age=")
 
     // A browser already holding a valid ticket gets the full page too.
