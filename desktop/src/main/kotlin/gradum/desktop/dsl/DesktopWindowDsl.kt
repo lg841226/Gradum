@@ -6,6 +6,7 @@ internal data class DesktopWindowConfig(
   val contentWidth: Double,
   val contentHeight: Double,
   val transparentTitleBar: Boolean,
+  val trafficLightOffsetY: Double,
   val menus: List<DesktopMenuSpec>
 )
 
@@ -29,6 +30,7 @@ class DesktopWindowBuilder internal constructor(private val url: String) {
   private var contentWidth: Double = 1280.0
   private var contentHeight: Double = 800.0
   private var transparentTitleBar: Boolean = false
+  private var trafficLightOffsetY: Double = 0.0
   private val menus: MutableList<DesktopMenuSpec> = mutableListOf()
 
   fun size(width: Int, height: Int) {
@@ -44,6 +46,10 @@ class DesktopWindowBuilder internal constructor(private val url: String) {
     transparentTitleBar = enabled
   }
 
+  fun trafficLightOffset(points: Double) {
+    trafficLightOffsetY = points
+  }
+
   fun menu(block: DesktopMenuBuilder.() -> Unit) {
     menus += DesktopMenuBuilder().apply(block).specs
   }
@@ -54,6 +60,7 @@ class DesktopWindowBuilder internal constructor(private val url: String) {
     contentWidth = contentWidth,
     contentHeight = contentHeight,
     transparentTitleBar = transparentTitleBar,
+    trafficLightOffsetY = trafficLightOffsetY,
     menus = menus.toList(),
   )
 }

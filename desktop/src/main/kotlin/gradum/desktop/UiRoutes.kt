@@ -13,7 +13,7 @@ private const val LEGATUS_PATH: String = "/legatus"
 
 private const val EDITOR_PATH: String = "/skills/editor"
 
-private const val RESOURCE_ROOT: String = "/skills-editor"
+private const val RESOURCE_ROOT: String = "/legatus"
 
 private object UiResources
 

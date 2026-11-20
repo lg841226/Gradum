@@ -11,11 +11,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlin.test.*
 
-/**
- * Wire behaviour of the editor UI the desktop shell installs onto the
- * engine: page boot states, assets and the pairing flow, for both the
- * /legatus entry point and the legacy /skills/editor alias.
- */
 class EditorUiRoutesTest {
 
   private fun uiConfig(authToken: String = "secret-token"): ServerConfiguration =

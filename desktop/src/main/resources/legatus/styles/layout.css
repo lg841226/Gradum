@@ -90,6 +90,10 @@
     min-width: 0;
 }
 
+html.desktop-shell .menubar {
+    padding-left: 76px;
+}
+
 .menubar-left {
     flex: 1 1 0;
     overflow: hidden;

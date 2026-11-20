@@ -25,11 +25,12 @@ fun main() {
 
   awaitListening(handle.port)
 
-  val website = "http://localhost:${handle.port}/legatus?${ServerAuth.TOKEN_QUERY_PARAM}=${handle.token}"
+  val website = "http://localhost:${handle.port}/legatus?${ServerAuth.TOKEN_QUERY_PARAM}=${handle.token}&shell=desktop"
   val windowConfig = gradumDesktopWindow(website) {
     size(1280, 800)
     title("Gradum")
     transparentTitleBar()
+    trafficLightOffset(-3.0)
     menu {
       applicationMenu("Gradum")
       editMenu()

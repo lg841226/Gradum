@@ -46,6 +46,11 @@ internal object ObjCRuntime {
     JAVA_DOUBLE.withName("height"),
   )
 
+  val NS_POINT: MemoryLayout = MemoryLayout.structLayout(
+    JAVA_DOUBLE.withName("x"),
+    JAVA_DOUBLE.withName("y"),
+  )
+
   private val selectorCache = HashMap<String, MemorySegment>()
 
   fun sel(name: String): MemorySegment = selectorCache.getOrPut(name) {
@@ -102,12 +107,29 @@ internal object ObjCRuntime {
   fun send1(receiver: MemorySegment, selector: String, arg: MemorySegment): MemorySegment =
     guard { NativeBindings.sendId1Handle.invoke(receiver, sel(selector), arg) } as MemorySegment
 
+  fun sendObjectLong(receiver: MemorySegment, selector: String, arg: Long): MemorySegment =
+    guard { NativeBindings.sendIdLongHandle.invoke(receiver, sel(selector), arg) } as MemorySegment
+
+  fun frameOf(view: MemorySegment): MemorySegment =
+    guard { NativeBindings.frameHandle.invoke(globalArena, view, sel("frame")) } as MemorySegment
+
+  fun setOrigin(view: MemorySegment, x: Double, y: Double) {
+    val point = globalArena.allocate(NS_POINT)
+    point.set(JAVA_DOUBLE, 0, x)
+    point.set(JAVA_DOUBLE, 8, y)
+    guard { NativeBindings.setFrameOriginHandle.invoke(view, sel("setFrameOrigin:"), point) }
+  }
+
   fun void0(receiver: MemorySegment, selector: String) {
     guard { NativeBindings.sendVoid0Handle.invoke(receiver, sel(selector)) }
   }
 
   fun void1(receiver: MemorySegment, selector: String, arg: MemorySegment) {
     guard { NativeBindings.sendVoid1Handle.invoke(receiver, sel(selector), arg) }
+  }
+
+  fun void2(receiver: MemorySegment, selector: String, arg1: MemorySegment, arg2: MemorySegment) {
+    guard { NativeBindings.sendVoid2Handle.invoke(receiver, sel(selector), arg1, arg2) }
   }
 
   fun voidLong(receiver: MemorySegment, selector: String, arg: Long) {

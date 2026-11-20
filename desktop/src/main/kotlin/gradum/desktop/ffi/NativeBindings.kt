@@ -4,12 +4,7 @@ import java.lang.foreign.FunctionDescriptor
 import java.lang.foreign.ValueLayout.*
 import java.lang.invoke.MethodHandle
 
-/**
- * Every native downcall handle in one place, so the call sites stay readable.
- * Loading this object forces ObjCRuntime's dlopen pass first.
- */
 internal object NativeBindings {
-  // Objective-C runtime entry points.
   val selRegisterNameHandle: MethodHandle = ObjCRuntime.downcall(
     "sel_registerName", FunctionDescriptor.of(ADDRESS, ADDRESS)
   )
@@ -32,7 +27,6 @@ internal object NativeBindings {
     "objc_autoreleasePoolPop", FunctionDescriptor.ofVoid(ADDRESS)
   )
 
-  // objc_msgSend shapes used by the send/void helpers.
   val sendId0Handle: MethodHandle = ObjCRuntime.msgSendHandle(
     FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS)
   )
@@ -45,6 +39,11 @@ internal object NativeBindings {
   val sendVoid1Handle: MethodHandle = ObjCRuntime.msgSendHandle(
     FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS)
   )
+
+  // addScriptMessageHandler:name: and other (v@:@@) two-object void messages.
+  val sendVoid2Handle: MethodHandle = ObjCRuntime.msgSendHandle(
+    FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS, ADDRESS)
+  )
   val sendVoidLongHandle: MethodHandle = ObjCRuntime.msgSendHandle(
     FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_LONG)
   )
@@ -52,7 +51,21 @@ internal object NativeBindings {
     FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_BYTE)
   )
 
-  // Framework initializers with struct or mixed-layout arguments.
+  // standardWindowButton:(NSWindowButton) -> NSButton; the enum is NSUInteger.
+  val sendIdLongHandle: MethodHandle = ObjCRuntime.msgSendHandle(
+    FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, JAVA_LONG)
+  )
+
+  // -[NSView frame] returns a struct by value (NSRect).
+  val frameHandle: MethodHandle = ObjCRuntime.msgSendHandle(
+    FunctionDescriptor.of(ObjCRuntime.NS_RECT, ADDRESS, ADDRESS)
+  )
+
+  // -[NSView setFrameOrigin:] takes a struct by value (NSPoint).
+  val setFrameOriginHandle: MethodHandle = ObjCRuntime.msgSendHandle(
+    FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ObjCRuntime.NS_POINT)
+  )
+
   val initWindowHandle: MethodHandle = ObjCRuntime.msgSendHandle(
     FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ObjCRuntime.NS_RECT, JAVA_LONG, JAVA_LONG, JAVA_BYTE)
   )

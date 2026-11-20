@@ -882,7 +882,7 @@ flowchart TD
     M1 --> M2["Return JSON<br/>{models: [...]}"]
     PP --> P6["ModelIdentity.probeProvider(kind, baseUrl, apiKey)<br/>real-time, uncached<br/>httpProbe with 5s timeout"]
     P6 --> P7["Return JSON<br/>{status: ok|unreachable|auth|failed,<br/>latencyMs, error}"]
-    SED --> X4["Serve bundled skills-editor/index.html<br/>auth: valid ?token= sets HttpOnly cookie,<br/>else 401 with recovery hint"]
+    SED --> X4["Serve bundled legatus/index.html<br/>auth: valid ?token= sets HttpOnly cookie,<br/>else 401 with recovery hint"]
     SEDA --> X5["Serve bundled css/js/svg/html asset<br/>per-segment traversal guard · 404 else"]
     style POST fill: #d4f1d4
     style RESP fill: #d4f1d4
