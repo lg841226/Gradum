@@ -31,6 +31,7 @@ fun main() {
       editMenu()
     }
   }
+
   val cocoaApp = CocoaApp(windowConfig)
   cocoaApp.show()
   cocoaApp.run()

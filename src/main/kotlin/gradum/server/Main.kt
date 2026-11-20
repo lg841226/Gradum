@@ -93,23 +93,16 @@ private fun initRuntime(): StartupRuntime {
   )
 }
 
-/**
- * Everything a started-but-not-yet-blocked server needs: the desktop shell
- * keeps this. The engine type stays hidden behind these three methods so
- * consumers do not need Ktor on their compile classpath.
- */
 class GradumServerHandle internal constructor(
-  private val server: GradumServer,
   val port: Int,
   val token: String,
-  val runtime: GradumRuntime
+  val runtime: GradumRuntime,
+  private val server: GradumServer
 ) {
-  /** Run the engine until it stops (CLI path). */
   fun startBlocking() {
     server.start(wait = true)
   }
 
-  /** Launch the engine and return (desktop path); may throw BindException. */
   fun startAsync() {
     server.start(wait = false)
   }
@@ -119,12 +112,6 @@ class GradumServerHandle internal constructor(
   }
 }
 
-/**
- * Shared boot path for the CLI and the desktop shell: runtime init, bind-host
- * validation, port auto-detection, server configuration and the shutdown
- * hook, without blocking. Returns null (after cleanup) when startup cannot
- * proceed.
- */
 fun bootServer(
   lineSink: (String) -> Unit = ::println,
   showBanner: Boolean = true,
@@ -230,12 +217,12 @@ fun bootServer(
   val server: GradumServer = createServerInstance(serverConfiguration)
 
   if (logLegatusUrl) {
-    // One product, one entry: /skills/editor is a legacy alias of /legatus
-    // (both answer through respondWorkspacePage), so only /legatus is printed.
     val legatusPath = "/legatus?${ServerAuth.TOKEN_QUERY_PARAM}=$authToken"
-    logger.info("Gradum Legatus (this machine): http://localhost:$resolvedPort$legatusPath")
     val lanAddresses: List<String> = ServerAuth.localAddresses()
     val primaryLan: String? = preferredLanAddress(lanAddresses)
+
+    logger.info("Gradum Legatus (this machine): http://localhost:$resolvedPort$legatusPath")
+
     if (primaryLan != null) {
       if (!exposedToNetwork) {
         logger.info(
@@ -254,7 +241,7 @@ fun bootServer(
     logger.info("Gradum Server has been shut down successfully")
   })
 
-  return GradumServerHandle(server, resolvedPort, authToken, runtime)
+  return GradumServerHandle(resolvedPort, authToken, runtime, server)
 }
 
 private fun startHttp(arguments: Array<String>) {
@@ -392,11 +379,6 @@ private fun printStartupBanner(
 
 private fun rightCell(text: String, width: Int): String = text.take(width).padEnd(width)
 
-// Picks the LAN address most likely to reach this machine from another
-// device. A UDP "connection" to a public address has no packets on the wire
-// but the OS picks the default-route interface for it, which is the one a
-// phone on the same Wi-Fi can answer; virtual adapters (vmnet and friends)
-// never carry the default route. Falls back to site-local IPv4 heuristics.
 private fun preferredLanAddress(addresses: List<String>): String? {
   val outbound: String? = try {
     DatagramSocket().use { socket: DatagramSocket ->

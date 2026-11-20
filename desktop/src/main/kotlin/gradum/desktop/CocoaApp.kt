@@ -39,6 +39,7 @@ internal class CocoaApp(private val config: DesktopWindowConfig) {
         ),
         FunctionDescriptor.of(JAVA_BYTE, ADDRESS, ADDRESS, ADDRESS),
       )
+
       ObjCRuntime.addImp(
         delegateClass,
         "applicationDidFinishLaunching:",
@@ -53,6 +54,7 @@ internal class CocoaApp(private val config: DesktopWindowConfig) {
         ),
         FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS),
       )
+
       ObjCRuntime.finishClass(delegateClass)
       delegate = ObjCRuntime.allocInit(delegateClass)
       ObjCRuntime.void1(application, "setDelegate:", delegate)
@@ -61,7 +63,7 @@ internal class CocoaApp(private val config: DesktopWindowConfig) {
 
   fun launch() {
     ObjCRuntime.autorelease {
-      val frame = ObjCRuntime.rect(120.0, 120.0, config.contentWidth, config.contentHeight)
+      val frame = ObjCRuntime.nsRect(120.0, 120.0, config.contentWidth, config.contentHeight)
       window = AppKit.initWithContentRect(
         ObjCRuntime.alloc(ObjCRuntime.classNamed("NSWindow")),
         frame,
@@ -70,6 +72,7 @@ internal class CocoaApp(private val config: DesktopWindowConfig) {
         defer = 0,
       )
       check(window != MemorySegment.NULL) { "NSWindow creation failed" }
+
       if (config.transparentTitleBar) {
         ObjCRuntime.voidByte(window, "setTitlebarAppearsTransparent:", 1)
         ObjCRuntime.voidLong(window, "setTitleVisibility:", 1)
@@ -90,15 +93,15 @@ internal class CocoaApp(private val config: DesktopWindowConfig) {
 
   private fun buildMenu() {
     val mainMenu = ObjCRuntime.allocInit("NSMenu")
-    for (menuSpec in config.menus) {
+    for ((title, items) in config.menus) {
       val holder = ObjCRuntime.allocInit("NSMenuItem")
       ObjCRuntime.void1(mainMenu, "addItem:", holder)
       val submenu = ObjCRuntime.allocInit("NSMenu")
       ObjCRuntime.void1(holder, "setSubmenu:", submenu)
-      if (menuSpec.title.isNotEmpty()) {
-        ObjCRuntime.void1(submenu, "setTitle:", ObjCRuntime.nsString(menuSpec.title))
+      if (title.isNotEmpty()) {
+        ObjCRuntime.void1(submenu, "setTitle:", ObjCRuntime.nsString(title))
       }
-      for (itemSpec in menuSpec.items) addItemTo(submenu, itemSpec)
+      for (itemSpec in items) addItemTo(submenu, itemSpec)
     }
     ObjCRuntime.void1(application, "setMainMenu:", mainMenu)
   }
@@ -114,23 +117,31 @@ internal class CocoaApp(private val config: DesktopWindowConfig) {
   private fun installNavigationDelegate() {
     val callbackType = MethodType.methodType(
       Void.TYPE,
-      MemorySegment::class.java, MemorySegment::class.java, MemorySegment::class.java, MemorySegment::class.java,
+      MemorySegment::class.java,
+      MemorySegment::class.java,
+      MemorySegment::class.java,
+      MemorySegment::class.java
     )
+
     val callbackSignature = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS, ADDRESS)
     val lookup = MethodHandles.lookup()
     val delegateClass = ObjCRuntime.beginClass("GradumNavigationDelegate")
+
     ObjCRuntime.addImp(
       delegateClass, "webView:didFinishNavigation:", "v@:@@",
       lookup.findStatic(NativeCallbacks::class.java, "didFinishNavigation", callbackType), callbackSignature
     )
+
     ObjCRuntime.addImp(
       delegateClass, "webView:didFailProvisionalNavigation:withError:", "v@:@@@",
       lookup.findStatic(NativeCallbacks::class.java, "didFailNavigation", callbackType), callbackSignature
     )
+
     ObjCRuntime.addImp(
       delegateClass, "webView:didFailNavigation:withError:", "v@:@@@",
       lookup.findStatic(NativeCallbacks::class.java, "didFailNavigation", callbackType), callbackSignature
     )
+
     ObjCRuntime.finishClass(delegateClass)
     navigationDelegate = ObjCRuntime.allocInit(delegateClass)
     ObjCRuntime.void1(webView, "setNavigationDelegate:", navigationDelegate)
@@ -180,10 +191,10 @@ internal object NativeCallbacks {
   @JvmStatic
   @Suppress("unused_parameter")
   fun didFailNavigation(
-    self: MemorySegment,
     cmd: MemorySegment,
-    webView: MemorySegment,
+    self: MemorySegment,
     error: MemorySegment,
+    webView: MemorySegment,
   ) {
     System.err.println(
       "Gradum desktop: page load failed: " +

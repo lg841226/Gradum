@@ -6,22 +6,22 @@ internal data class DesktopWindowConfig(
   val contentWidth: Double,
   val contentHeight: Double,
   val transparentTitleBar: Boolean,
-  val menus: List<DesktopMenuSpec>,
+  val menus: List<DesktopMenuSpec>
 )
 
 internal data class DesktopMenuSpec(val title: String, val items: List<DesktopMenuItemSpec>)
 
 internal data class DesktopMenuItemSpec(
   val title: String,
-  val keyEquivalent: String,
-  val modifierMask: Long,
   val action: String,
-  val isSeparator: Boolean = false,
+  val modifierMask: Long,
+  val keyEquivalent: String,
+  val isSeparator: Boolean = false
 )
 
 internal fun gradumDesktopWindow(
   url: String,
-  configure: DesktopWindowBuilder.() -> Unit,
+  configure: DesktopWindowBuilder.() -> Unit
 ): DesktopWindowConfig = DesktopWindowBuilder(url).apply(configure).build()
 
 class DesktopWindowBuilder internal constructor(private val url: String) {
@@ -80,33 +80,11 @@ class DesktopMenuBuilder internal constructor() {
     )
   }
 
-  fun menu(name: String, block: DesktopMenuItemListBuilder.() -> Unit) {
-    specs += DesktopMenuSpec(name, DesktopMenuItemListBuilder().apply(block).items)
-  }
-
   private fun commandItem(title: String, key: String, action: String): DesktopMenuItemSpec =
-    DesktopMenuItemSpec(title, key, COMMAND_KEY_MASK, action)
+    DesktopMenuItemSpec(title, action, COMMAND_KEY_MASK, key)
 
   private fun separator(): DesktopMenuItemSpec =
     DesktopMenuItemSpec("", "", 0, "", isSeparator = true)
-
-  private companion object {
-    const val COMMAND_KEY_MASK: Long = 1L shl 20
-  }
-}
-
-class DesktopMenuItemListBuilder internal constructor() {
-  internal val items: MutableList<DesktopMenuItemSpec> = mutableListOf()
-
-  fun item(title: String, keyEquivalent: String, action: String, command: Boolean = true) {
-    items += DesktopMenuItemSpec(
-      title, keyEquivalent, if (command) COMMAND_KEY_MASK else 0, action,
-    )
-  }
-
-  fun separator() {
-    items += DesktopMenuItemSpec("", "", 0, "", isSeparator = true)
-  }
 
   private companion object {
     const val COMMAND_KEY_MASK: Long = 1L shl 20
