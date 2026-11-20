@@ -22,12 +22,6 @@ private val logger: Logger = LoggerFactory.getLogger("GradumServer")
 // Liveness route that stays reachable without a token.
 private const val HEALTH_PATH: String = "/health"
 
-// Editor page route; it decides full access vs. reader mode (see Routes.kt).
-private const val EDITOR_PAGE_PATH: String = "/skills/editor"
-
-// Legatus page route; it decides full app vs. pairing view (see LegatusRoutes.kt).
-private const val LEGATUS_PAGE_PATH: String = "/legatus"
-
 typealias GradumServer = EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>
 
 fun createServerInstance(serverConfiguration: ServerConfiguration): GradumServer {
@@ -100,15 +94,13 @@ private fun Application.installRequestGuard(serverConfiguration: ServerConfigura
     if (requestPath == HEALTH_PATH) return@intercept
     if (requestPath == ServerAuth.PAIR_PATH) return@intercept
 
-    val isGet = call.request.httpMethod == HttpMethod.Get
-    if (isGet) {
-      if (requestPath == EDITOR_PAGE_PATH || requestPath.startsWith("$EDITOR_PAGE_PATH/")) {
-        return@intercept
+    // GET requests under a host-claimed UI page prefix skip the bearer guard:
+    // the page routes themselves decide token / session ticket / reader mode.
+    if (call.request.httpMethod == HttpMethod.Get &&
+      serverConfiguration.uiPagePrefixes.any { prefix ->
+        requestPath == prefix || requestPath.startsWith("$prefix/")
       }
-      if (requestPath == LEGATUS_PAGE_PATH || requestPath.startsWith("$LEGATUS_PAGE_PATH/")) {
-        return@intercept
-      }
-    }
+    ) return@intercept
 
     val tokenPresented: Boolean =
       ServerAuth.tokenMatches(bearerToken(call.request), authToken) ||

@@ -15,6 +15,7 @@ import gradum.skill.external.ExternalSkillDirectoryWatcher
 import gradum.skill.external.ExternalSkillHost
 import gradum.utils.CommandFilterRuntime
 import gradum.workspace.*
+import io.ktor.server.routing.*
 import kotlinx.coroutines.runBlocking
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -116,7 +117,8 @@ fun bootServer(
   lineSink: (String) -> Unit = ::println,
   showBanner: Boolean = true,
   bannerColored: Boolean = true,
-  logLegatusUrl: Boolean = true
+  uiRoutes: ((ServerConfiguration, Routing) -> Unit)? = null,
+  uiPagePrefixes: List<String> = emptyList()
 ): GradumServerHandle? {
   val startup = initRuntime()
   val runtime = startup.runtime
@@ -211,12 +213,15 @@ fun bootServer(
     defaultBaseUrl = settings.defaultBaseUrl,
     defaultModelName = settings.defaultModelName,
     defaultThinkEnabled = settings.defaultThinkEnabled,
-    defaultKeepAliveMinutes = settings.defaultKeepAliveMinutes
+    defaultKeepAliveMinutes = settings.defaultKeepAliveMinutes,
+    uiRoutes = uiRoutes,
+    uiPagePrefixes = uiPagePrefixes
   )
 
   val server: GradumServer = createServerInstance(serverConfiguration)
 
-  if (logLegatusUrl) {
+  // The Legatus links only make sense for hosts that serve the UI.
+  if (uiRoutes != null) {
     val legatusPath = "/legatus?${ServerAuth.TOKEN_QUERY_PARAM}=$authToken"
     val lanAddresses: List<String> = ServerAuth.localAddresses()
     val primaryLan: String? = preferredLanAddress(lanAddresses)

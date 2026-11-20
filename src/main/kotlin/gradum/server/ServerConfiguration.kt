@@ -1,6 +1,7 @@
 package gradum.server
 
 import gradum.AgentConfiguration
+import io.ktor.server.routing.*
 
 /**
  * Configuration for the Gradum embedded HTTP server.
@@ -57,6 +58,18 @@ data class ServerConfiguration(
 
   /** Per-skill plugin config sections (plugins.<skillName>), carried to each Agent session. */
   val plugins: Map<String, Map<String, Any?>> = emptyMap(),
+
+  /**
+   * Host-application hook: installs product-level routes (the editor UI in
+   * the desktop shell) after the API routes. Null = pure API engine (CLI).
+   */
+  val uiRoutes: ((ServerConfiguration, Routing) -> Unit)? = null,
+
+  /**
+   * GET path prefixes exempt from the bearer guard, claimed by [uiRoutes]
+   * (its page routes run their own token/session/reader logic).
+   */
+  val uiPagePrefixes: List<String> = emptyList(),
 ) {
   companion object {
     const val DEFAULT_PORT_NUMBER: Int = 8765

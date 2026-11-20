@@ -8,7 +8,11 @@ import java.net.Socket
 import kotlin.system.exitProcess
 
 fun main() {
-  val handle = bootServer(showBanner = false, logLegatusUrl = false) ?: exitProcess(1)
+  val handle = bootServer(
+    showBanner = false,
+    uiRoutes = ::installUiRoutes,
+    uiPagePrefixes = UI_PAGE_PREFIXES,
+  ) ?: exitProcess(1)
 
   try {
     handle.startAsync()

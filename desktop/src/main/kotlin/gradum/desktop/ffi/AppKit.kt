@@ -2,17 +2,13 @@ package gradum.desktop.ffi
 
 import java.lang.foreign.MemorySegment
 
-/**
- * Designated initializers of the AppKit/WebKit objects the shell uses; their
- * handles live in [NativeBindings].
- */
 internal object AppKit {
   fun initWithContentRect(
-    window: MemorySegment,
-    frame: MemorySegment,
-    styleMask: Long,
-    backing: Long,
     defer: Byte,
+    backing: Long,
+    styleMask: Long,
+    frame: MemorySegment,
+    window: MemorySegment
   ): MemorySegment = ObjCRuntime.guard {
     NativeBindings.initWindowHandle.invoke(
       window, ObjCRuntime.sel("initWithContentRect:styleMask:backing:defer:"), frame, styleMask, backing, defer
@@ -20,9 +16,9 @@ internal object AppKit {
   } as MemorySegment
 
   fun initWithFrameConfiguration(
-    webView: MemorySegment,
     frame: MemorySegment,
-    configuration: MemorySegment,
+    webView: MemorySegment,
+    configuration: MemorySegment
   ): MemorySegment = ObjCRuntime.guard {
     NativeBindings.initWebViewHandle.invoke(webView, ObjCRuntime.sel("initWithFrame:configuration:"), frame, configuration)
   } as MemorySegment

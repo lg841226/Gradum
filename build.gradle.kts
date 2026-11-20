@@ -52,10 +52,6 @@ ktor {
   }
 }
 
-tasks.named<ProcessResources>("processResources") {
-  exclude("skills-editor/.idea/**")
-}
-
 /**
  * Keep the `run` task usable in `--continuous` mode: hand the JVM our
  * stdin so SIGTERM (from Gradle's file-watch restart) propagates to the

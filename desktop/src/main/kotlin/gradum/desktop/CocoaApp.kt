@@ -65,8 +65,8 @@ internal class CocoaApp(private val config: DesktopWindowConfig) {
     ObjCRuntime.autorelease {
       val frame = ObjCRuntime.nsRect(120.0, 120.0, config.contentWidth, config.contentHeight)
       window = AppKit.initWithContentRect(
-        ObjCRuntime.alloc(ObjCRuntime.classNamed("NSWindow")),
-        frame,
+        window = ObjCRuntime.alloc(ObjCRuntime.classNamed("NSWindow")),
+        frame = frame,
         styleMask = 15 or (1 shl 15),
         backing = 2,
         defer = 0,

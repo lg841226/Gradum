@@ -6,8 +6,6 @@ import gradum.agent.Agent
 import gradum.agent.AttachmentPayload
 import gradum.agent.GradumEventType
 import gradum.client.*
-import gradum.legatus.legatusRoutes
-import gradum.legatus.respondWorkspacePage
 import gradum.logging.EventStreamDump
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.server.persistence.*
@@ -339,8 +337,6 @@ fun Application.registerAllRoutes(
   )
 
   routing {
-    legatusRoutes(serverConfiguration = serverConfiguration)
-
     post("/events") {
       val reconnectRunId: String? =
         call.request.queryParameters["runId"]?.trim()?.takeIf { it.isNotEmpty() }
@@ -1351,72 +1347,6 @@ fun Application.registerAllRoutes(
       )
     }
 
-    get("/skills/editor") {
-      val editorHtml: String? = readBundledResource("/skills-editor/index.html")
-      if (editorHtml == null) {
-        call.respondText(
-          text = "Skill editor page is missing from the server resources",
-          status = HttpStatusCode.NotFound,
-        )
-        return@get
-      }
-
-      call.respondWorkspacePage(editorHtml, serverConfiguration)
-    }
-
-    get("/skills/editor/{asset...}") {
-      val segments: List<String> = call.parameters.getAll("asset").orEmpty()
-      val asset: String = segments.joinToString("/")
-      val contentType: ContentType? =
-        when {
-          asset.endsWith(".css") -> ContentType.Text.CSS
-          asset.endsWith(".js") -> ContentType.Text.JavaScript
-          asset.endsWith(".svg") -> ContentType.Image.SVG
-          asset.endsWith(".png") -> ContentType.Image.PNG
-          asset.endsWith(".html") -> ContentType.Text.Html
-          else -> null
-        }
-
-      val isSafe: Boolean = segments.isNotEmpty() && segments.all { segment ->
-        segment.isNotBlank() && segment != "." && segment != ".." && !segment.contains('\\')
-      }
-
-      if (!isSafe || contentType == null) {
-        call.respondText(
-          status = HttpStatusCode.NotFound,
-          text = "Unknown editor asset: $asset"
-        )
-        return@get
-      }
-
-      if (asset.endsWith(".png")) {
-        val bytes: ByteArray? = readBundledBytes("/skills-editor/$asset")
-        if (bytes == null) {
-          call.respondText(
-            status = HttpStatusCode.NotFound,
-            text = "Unknown editor asset: $asset"
-          )
-          return@get
-        }
-
-        call.response.header(HttpHeaders.CacheControl, "no-cache")
-        call.respondBytes(bytes = bytes, contentType = contentType)
-        return@get
-      }
-
-      val body: String? = readBundledResource("/skills-editor/$asset")
-
-      if (body == null) {
-        call.respondText(
-          status = HttpStatusCode.NotFound,
-          text = "Unknown editor asset: $asset"
-        )
-        return@get
-      }
-      call.response.header(HttpHeaders.CacheControl, "no-cache")
-      call.respondText(text = body, contentType = contentType)
-    }
-
     post("/tasks") {
       val requestBody = call.receive<TaskSubmitRequest>()
       val sessionId: String = requestBody.sessionId.trim()
@@ -1581,6 +1511,10 @@ fun Application.registerAllRoutes(
         contentType = ContentType.Application.Json,
       )
     }
+
+    // Product-level UI routes (editor pages) are installed by the host
+    // application; the engine itself serves only the API.
+    serverConfiguration.uiRoutes?.invoke(serverConfiguration, this)
   }
 }
 
@@ -1605,15 +1539,6 @@ private suspend fun ApplicationCall.respondSkillCompileResult(result: DeployResu
     contentType = ContentType.Application.Json,
   )
 }
-
-private fun readBundledResource(resourcePath: String): String? =
-  SkillDeployRequest::class.java.getResourceAsStream(resourcePath)
-    ?.bufferedReader()
-    ?.use { reader -> reader.readText() }
-
-private fun readBundledBytes(resourcePath: String): ByteArray? =
-  SkillDeployRequest::class.java.getResourceAsStream(resourcePath)
-    ?.use { stream -> stream.readBytes() }
 
 private suspend fun respondProjectDirectory(call: ApplicationCall, projectRoot: String) {
   val rootPath: Path = try {

@@ -8,9 +8,9 @@ internal object WebView {
   fun create(frame: MemorySegment, url: String): MemorySegment {
     val configuration = ObjCRuntime.allocInit("WKWebViewConfiguration")
     val webView = AppKit.initWithFrameConfiguration(
-      ObjCRuntime.alloc(ObjCRuntime.classNamed("WKWebView")),
-      frame,
-      configuration,
+      webView = ObjCRuntime.alloc(ObjCRuntime.classNamed("WKWebView")),
+      frame = frame,
+      configuration = configuration,
     )
     check(webView != MemorySegment.NULL) { "WKWebView creation failed" }
     ObjCRuntime.void1(webView, "loadRequest:", urlRequest(url))
