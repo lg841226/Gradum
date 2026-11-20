@@ -155,8 +155,17 @@ export function createCodePane(store, {onInput, onFocus, getActiveDoc}) {
     onCaretMove: () => completion?.onCaretMove(),
   });
 
+  const selectionListeners = [];
+
+  function onSelection(listener) {
+    selectionListeners.push(listener);
+  }
+
   function updateSelection() {
     selectionLayer.render(cursors);
+    for (const listener of selectionListeners) {
+      listener(cursors, source.value);
+    }
   }
 
   let renderedPairs = store.getState().highlightPairs !== false;
@@ -324,6 +333,7 @@ export function createCodePane(store, {onInput, onFocus, getActiveDoc}) {
     revealLine,
     advance: measure.advance,
     syncCursors: syncCursorsFromSource,
+    onSelection,
   };
 
   function currentDocId() {

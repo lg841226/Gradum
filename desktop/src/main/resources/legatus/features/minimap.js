@@ -1,15 +1,8 @@
-// The scale fits the visible code width to the strip, so a line that fills the
-// code pane reaches the far edge of the strip and longer lines clip. The strip
-// slides with the editor's own progress through the document, so the rectangle
-// travels the map top to bottom instead of resting in its middle, and pressing
-// or dragging anywhere in it scrolls the editor to that point, centred under the
-// pointer. The clone refreshes on every keystroke and document switches;
-// squiggle bands are carried over as overview markers while the current-line
-// band and the selection and match boxes are dropped, because they belong to
-// the editor pane alone.
 import {isDragging, onDragSettle} from "./splitter.js";
 
-export function mountMinimap(store, {container, source, highlightCode, getActiveDoc}) {
+const MAX_OCCURRENCES = 500;
+
+export function mountMinimap(store, {container, source, highlightCode, getActiveDoc, pane}) {
   const strip = document.createElement("div");
   strip.className = "minimap";
 
@@ -33,7 +26,83 @@ export function mountMinimap(store, {container, source, highlightCode, getActive
     content.querySelectorAll(".active").forEach((lineNode) => {
       lineNode.classList.remove("active");
     });
+    drawOccurrences();
     update();
+  }
+
+  let occurrenceBoxes = [];
+
+  function drawOccurrences() {
+    for (const box of occurrenceBoxes) {
+      box.remove();
+    }
+    occurrenceBoxes = [];
+
+    if (strip.hidden) {
+      return;
+    }
+    const text = source.value;
+    const start = source.selectionStart;
+    const end = source.selectionEnd;
+    if (end <= start) {
+      return;
+    }
+    const needle = text.slice(start, end);
+    if (!needle.trim() || needle.includes("\n")) {
+      return;
+    }
+
+    let lineNumber = 1;
+    let lineStart = 0;
+    let at = text.indexOf(needle);
+    let count = 0;
+
+    while (at !== -1 && count < MAX_OCCURRENCES) {
+      let next = text.indexOf("\n", lineStart);
+      while (next !== -1 && next < at) {
+        lineNumber += 1;
+        lineStart = next + 1;
+        next = text.indexOf("\n", lineStart);
+      }
+
+      const lineNode = content.querySelector(`.line[data-line="${lineNumber}"]`);
+      if (lineNode) {
+        const left = pane.advance(lineNumber, at - lineStart);
+        const right = pane.advance(lineNumber, at - lineStart + needle.length);
+        if (right > left) {
+          const box = document.createElement("span");
+          box.className = "minimap-match";
+          box.style.left = `${left}px`;
+          box.style.width = `${right - left}px`;
+          lineNode.appendChild(box);
+          occurrenceBoxes.push(box);
+        }
+      }
+
+      at = text.indexOf(needle, at + needle.length);
+      count += 1;
+    }
+  }
+
+  function caretToDocumentY(documentY) {
+    const {padTop, lineHeight} = pane.metrics;
+    if (!lineHeight) {
+      return;
+    }
+    const text = source.value;
+    const total = text.split("\n").length;
+    const lineIndex = Math.min(Math.max(Math.floor((documentY - padTop) / lineHeight), 0), total - 1);
+    let start = 0;
+    for (let line = 0; line < lineIndex; line++) {
+      start = text.indexOf("\n", start) + 1;
+    }
+
+    source.focus({preventScroll: true});
+    source.setSelectionRange(start, start);
+    pane.syncCursors();
+    pane.updateActiveLine();
+    pane.updateCaret();
+    pane.updateSelection();
   }
 
   function update() {
@@ -71,6 +140,7 @@ export function mountMinimap(store, {container, source, highlightCode, getActive
       0,
       Math.min(documentY - grabOffset, source.scrollHeight),
     );
+    caretToDocumentY(documentY);
   }
 
   strip.addEventListener("mousedown", (event) => {
@@ -89,6 +159,7 @@ export function mountMinimap(store, {container, source, highlightCode, getActive
     );
     update();
     grabOffset = (event.clientY - stripTop + windowOffset) / scale - source.scrollTop;
+    caretToDocumentY(documentY);
   });
   window.addEventListener("mousemove", (event) => {
     if (dragging) {
@@ -110,6 +181,7 @@ export function mountMinimap(store, {container, source, highlightCode, getActive
 
   source.addEventListener("input", () => clone());
   source.addEventListener("scroll", () => update());
+  pane.onSelection(drawOccurrences);
 
   let refreshPending = false;
   const refresh = () => {

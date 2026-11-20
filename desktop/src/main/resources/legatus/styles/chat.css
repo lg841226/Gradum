@@ -126,7 +126,7 @@
     height: auto;
     flex: 0 0 auto;
     overflow-x: auto;
-    padding: var(--space-2) var(--space-2) 0;
+    padding: var(--space-1) var(--space-1) 0;
 }
 
 .assistant .tab-strip[hidden] {

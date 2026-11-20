@@ -94,6 +94,22 @@ html.desktop-shell .menubar {
     padding-left: 76px;
 }
 
+/* Desktop shell: UI chrome must not behave like a selectable web page.
+   Real content (code, chat messages, text inputs) stays selectable. */
+html.desktop-shell body {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+html.desktop-shell input,
+html.desktop-shell textarea,
+html.desktop-shell [contenteditable="true"],
+html.desktop-shell .code-pane,
+html.desktop-shell .messages {
+    user-select: text;
+    -webkit-user-select: text;
+}
+
 .menubar-left {
     flex: 1 1 0;
     overflow: hidden;
@@ -293,9 +309,9 @@ html.desktop-shell .menubar {
     overflow: hidden;
     z-index: var(--z-float);
     top: var(--float-y, 64px);
-    left: var(--float-x, 12px);
+    left: var(--float-x, var(--island-gap));
     height: var(--float-h, min(46vh, 420px));
-    width: var(--float-w, min(320px, calc(100vw - 24px)));
+    width: var(--float-w, min(320px, calc(100vw - var(--island-gap) * 2)));
     background: var(--bg-popup);
     box-shadow: var(--shadow-popup);
     border: 1px solid var(--border);
@@ -304,7 +320,7 @@ html.desktop-shell .menubar {
 
 .canvas .slot-right.slot-float {
     left: auto;
-    right: var(--float-x, 12px);
+    right: var(--float-x, var(--island-gap));
 }
 
 .slot.slot-float.is-dragging {
@@ -481,7 +497,7 @@ html.desktop-shell .menubar {
 }
 
 .statusbar-strip {
-    gap: var(--space-3);
+    gap: var(--space-1);
     display: none;
     align-items: center;
 }
@@ -1021,6 +1037,11 @@ body.is-dragging .assistant .chat-pane {
     box-shadow: -6px 0 9px -6px rgba(0, 0, 0, .25);
 }
 
+.canvas[data-ligatures="off"] .code-pane {
+    font-variant-ligatures: none;
+    font-feature-settings: "calt" 0, "liga" 0, "dlig" 0;
+}
+
 .minimap-content {
     top: 0;
     left: 0;
@@ -1051,6 +1072,13 @@ body.is-dragging .assistant .chat-pane {
     background: var(--scroll-thumb-hover);
 }
 
+.minimap-match {
+    top: 0;
+    z-index: -1;
+    position: absolute;
+    height: var(--line-height-code);
+    background: color-mix(in srgb, var(--warning) 70%, transparent);
+}
 
 .kw {
     color: var(--syn-keyword);

@@ -240,6 +240,10 @@ export const copy = {
       codeFontDetail: "Code, line numbers and the minimap.",
       codeFontFamily: "Code font",
       codeFontFamilyDetail: "Any font installed on this computer.",
+      lineHeight: "Line height",
+      lineHeightDetail: "Leading as a multiple of the code font size.",
+      ligatures: "Font ligatures",
+      ligaturesDetail: "Merge pairs like => into a single glyph when the font draws them.",
       tabWidth: "Tab width",
       tabWidthDetail: "Columns a tab character advances.",
       indentGuides: "Indent guides",
@@ -269,6 +273,7 @@ export const copy = {
     value: {
       percent: (value) => `${Math.round(value * 100)}%`,
       pixels: (value) => `${value} px`,
+      multiple: (value) => `${value}x`,
     },
   },
 

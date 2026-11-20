@@ -4,25 +4,16 @@ import {createSegmented, setSegmentedValue} from "../ui/components/segmented.js"
 import {createSelect} from "../ui/components/select.js";
 import {createSwitch, setSwitchValue} from "../ui/components/switch.js";
 import {copy} from "../ui/copy.js";
-import {
-  applyCodeFontFamily,
-  CODE_FONT_FAMILIES,
-  defaultFontFamily,
-  fontAvailability,
-  remeasureAfterFonts,
-} from "../core/fonts.js";
+import {applyCodeFontFamily, CODE_FONT_FAMILIES, defaultFontFamily, remeasureAfterFonts,} from "../core/fonts.js";
 
 const SCALES = [0.9, 1, 1.1, 1.25];
 const UI_FONT_SIZES = [12, 13, 14, 15, 16];
 const CODE_FONT_SIZES = [12, 13, 14, 15, 16, 17, 18];
+const CODE_LINE_HEIGHTS = [1.2, 1.4, 1.5, 1.6, 1.8, 2];
 
 const UI_FONT_BASE = 14;
 const CODE_FONT_BASE = 13;
 
-// The same condition styles/layout.css uses for its floating-panel layout:
-// touch input, or a viewport narrower than that file's 720px breakpoint. The
-// settings island becomes a full-screen surface under it, so the JS guards and
-// the CSS block share this one breakpoint rather than defining their own.
 const COMPACT_QUERY = "(hover: none), (pointer: coarse), (max-width: 720px)";
 
 export function mountSettings(store, {canvas, theme}) {
@@ -112,15 +103,14 @@ export function mountSettings(store, {canvas, theme}) {
     onChange: (value) => store.setState({codeFontSize: Number(value)}),
   });
 
-  const availability = fontAvailability();
-
   const codeFamilyPicker = createSelect({
     label: constraints.editor.codeFontFamily,
+    // No availability graying: local font probing is unreliable in WKWebView,
+    // and a wrong gray is worse than picking a font that silently falls back.
     options: CODE_FONT_FAMILIES.map((family) => ({
       value: family,
       label: family,
       font: `"${family}", monospace`,
-      disabled: availability ? availability.get(family) === false : false,
     })),
     value: store.getState().codeFontFamily ?? defaultFontFamily(),
     portal: canvas,
@@ -131,11 +121,29 @@ export function mountSettings(store, {canvas, theme}) {
     codeFamilyPicker.setValue(state.codeFontFamily ?? defaultFontFamily());
   };
 
+  const lineHeightSelect = createSelect({
+    label: constraints.editor.lineHeight,
+    options: CODE_LINE_HEIGHTS.map((value) => ({
+      value,
+      label: constraints.value.multiple(value),
+    })),
+    value: store.getState().codeLineHeight ?? 1.5,
+    portal: canvas,
+    onChange: (value) => store.setState({codeLineHeight: Number(value)}),
+  });
+
+  const ligaturesSwitch = createSwitch({
+    label: constraints.editor.ligatures,
+    checked: store.getState().codeLigatures !== false,
+    onChange: (value) => store.setState({codeLigatures: value}),
+  });
+
   const selects = [
     scaleSelect,
     uiFontSelect,
     codeFontSelect,
     codeFamilyPicker,
+    lineHeightSelect,
   ];
   const closeMenus = () => {
     for (const select of selects) {
@@ -260,6 +268,8 @@ export function mountSettings(store, {canvas, theme}) {
         constraints.editor.codeFontFamilyDetail,
         codeFamilyPicker.element,
       ),
+      createRow(constraints.editor.lineHeight, constraints.editor.lineHeightDetail, lineHeightSelect.element),
+      createRow(constraints.editor.ligatures, constraints.editor.ligaturesDetail, ligaturesSwitch),
       createRow(constraints.editor.tabWidth, constraints.editor.tabWidthDetail, tabGroup),
       createRow(constraints.editor.indentGuides, constraints.editor.indentGuidesDetail, indentSwitch),
       createRow(constraints.editor.minimap, constraints.editor.minimapDetail, minimapSwitch),
@@ -415,6 +425,7 @@ export function mountSettings(store, {canvas, theme}) {
       state.uiScale ?? 1,
       state.uiFontSize ?? UI_FONT_BASE,
       state.codeFontSize ?? CODE_FONT_BASE,
+      state.codeLineHeight ?? 1.5,
       state.tabWidth ?? 4,
     ].join(":");
     if (key === appliedScale) {
@@ -432,11 +443,33 @@ export function mountSettings(store, {canvas, theme}) {
       "--code-font-ratio",
       String((state.codeFontSize ?? CODE_FONT_BASE) / CODE_FONT_BASE),
     );
+    canvas.style.setProperty("--code-line-height", String(state.codeLineHeight ?? 1.5));
     canvas.style.setProperty("--tab-width", String(state.tabWidth ?? 4));
 
     if (!booting) {
       // The panes cache their line metrics and the menu bar caches its entry
       // widths. Both recompute on the resize the editor already listens for.
+      window.dispatchEvent(new Event("resize"));
+    }
+  };
+
+  // Turning ligatures off changes how wide the glyphs lay out, so the drawn
+  // caret, the selection bands and the minimap all have to re-read the screen.
+  let appliedLigatures = null;
+
+  const applyLigatures = (state) => {
+    const off = state.codeLigatures === false;
+    if (off === appliedLigatures) {
+      return;
+    }
+    const booting = appliedLigatures === null;
+    appliedLigatures = off;
+    if (off) {
+      canvas.dataset.ligatures = "off";
+    } else {
+      delete canvas.dataset.ligatures;
+    }
+    if (!booting) {
       window.dispatchEvent(new Event("resize"));
     }
   };
@@ -502,12 +535,14 @@ export function mountSettings(store, {canvas, theme}) {
   const sync = (state) => {
     applyFonts(state);
     applyScale(state);
+    applyLigatures(state);
     applyMotion(state);
     applyNavCollapsed(state);
 
     scaleSelect.setValue(state.uiScale ?? 1);
     uiFontSelect.setValue(state.uiFontSize ?? UI_FONT_BASE);
     codeFontSelect.setValue(state.codeFontSize ?? CODE_FONT_BASE);
+    lineHeightSelect.setValue(state.codeLineHeight ?? 1.5);
     syncCodeFamily(state);
     refreshSegmented();
     setSwitchValue(restoreFileSwitch, state.restoreFile !== false);
@@ -519,6 +554,7 @@ export function mountSettings(store, {canvas, theme}) {
     setSwitchValue(completionSwitch, state.completionAuto !== false);
     setSwitchValue(pairsSwitch, state.highlightPairs !== false);
     setSwitchValue(activeLineSwitch, state.highlightCurrentLine !== false);
+    setSwitchValue(ligaturesSwitch, state.codeLigatures !== false);
   };
 
   const syncTheme = ({preference}) => setSegmentedValue(themeGroup, preference);

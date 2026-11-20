@@ -40,7 +40,6 @@ internal object NativeBindings {
     FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS)
   )
 
-  // addScriptMessageHandler:name: and other (v@:@@) two-object void messages.
   val sendVoid2Handle: MethodHandle = ObjCRuntime.msgSendHandle(
     FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS, ADDRESS)
   )
@@ -51,17 +50,14 @@ internal object NativeBindings {
     FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_BYTE)
   )
 
-  // standardWindowButton:(NSWindowButton) -> NSButton; the enum is NSUInteger.
   val sendIdLongHandle: MethodHandle = ObjCRuntime.msgSendHandle(
     FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, JAVA_LONG)
   )
 
-  // -[NSView frame] returns a struct by value (NSRect).
   val frameHandle: MethodHandle = ObjCRuntime.msgSendHandle(
     FunctionDescriptor.of(ObjCRuntime.NS_RECT, ADDRESS, ADDRESS)
   )
 
-  // -[NSView setFrameOrigin:] takes a struct by value (NSPoint).
   val setFrameOriginHandle: MethodHandle = ObjCRuntime.msgSendHandle(
     FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ObjCRuntime.NS_POINT)
   )

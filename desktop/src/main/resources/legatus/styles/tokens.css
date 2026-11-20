@@ -93,7 +93,8 @@
     --font-size-code: calc(13px * var(--ui-scale) * var(--code-font-ratio));
     --font-size-small: calc(13px * var(--ui-scale) * var(--ui-font-ratio));
     --font-size-title: calc(16px * var(--ui-scale) * var(--ui-font-ratio));
-    --line-height-code: calc(20px * var(--ui-scale) * var(--code-font-ratio));
+    --line-height-code: calc(var(--font-size-code) * var(--code-line-height));
+    --code-line-height: 1.5;
     --weight-medium: 520;
     --weight-regular: 500;
     --weight-semibold: 600;

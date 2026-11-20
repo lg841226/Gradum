@@ -42,14 +42,15 @@ function measureFamilies(families) {
   };
 
   const mono = width("monospace");
-  if (!(mono > 0)) {
+  const cursive = width("cursive");
+  if (!(mono > 0) || !(cursive > 0) || mono === cursive) {
     return null;
   }
 
   const found = new Map();
   for (const family of families) {
     const quoted = `"${family.replace(/["\\]/g, "")}"`;
-    found.set(family, width(`${quoted}, monospace`) !== mono);
+    found.set(family, width(`${quoted}, monospace`) === width(`${quoted}, cursive`));
   }
   return found;
 }

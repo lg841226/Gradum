@@ -35,12 +35,14 @@ function isOpen(descriptor, state, floating) {
   return open;
 }
 
-// Closing a panel is just hiding it: the flex dock collapses the space and
-// the paired splitter goes with it, so no layout state class is needed.
-function applyOpenState(descriptor, element, open) {
+function isSlotFloating(descriptor, state, layoutFloating) {
+  return layoutFloating === true || (descriptor.floatKey != null && state[descriptor.floatKey] === true);
+}
+
+function applyOpenState(descriptor, element, open, floating) {
   element.hidden = !open;
   if (descriptor.splitter) {
-    descriptor.splitter.hidden = !open;
+    descriptor.splitter.hidden = !open || floating === true;
   }
 }
 
@@ -343,6 +345,7 @@ function createSlots(store, {
       className: `slot slot-${view.spec.id}`,
       header: false,
       size: place.size,
+      floatKey: view.spec.floatKey,
       open: {
         key: view.spec.openKey,
         defaultOpen: defaultOf(view.spec.openKey),
@@ -396,7 +399,10 @@ export function mountPanelRegistry(store, {canvas, dock, dockRow, dockMain, pane
       bottom = descriptor;
     }
 
-    applyOpenState(descriptor, element, isOpen(descriptor, initialState, floating));
+    applyOpenState(
+      descriptor, element, isOpen(descriptor, initialState, floating),
+      isSlotFloating(descriptor, initialState, floating),
+    );
 
     const chrome = descriptor.header === false ? null : createHeader(descriptor, initialState);
     api[descriptor.id] = descriptor.render({panel: element, state: initialState, canvas}) ?? {};
@@ -423,7 +429,10 @@ export function mountPanelRegistry(store, {canvas, dock, dockRow, dockMain, pane
       if (descriptor.side === "bottom") {
         bottomOpen = open;
       }
-      applyOpenState(descriptor, descriptor.element, open);
+      applyOpenState(
+        descriptor, descriptor.element, open,
+        isSlotFloating(descriptor, state, floating),
+      );
       if (chrome) {
         const title = resolve(descriptor.title, state) ?? "";
         if (chrome.titleNode.textContent !== title) {

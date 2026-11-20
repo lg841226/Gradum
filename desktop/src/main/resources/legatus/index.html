@@ -61,6 +61,12 @@
       "--code-font-ratio", String(pick("codeFontSize", [12, 13, 14, 15, 16, 17, 18], 13) / 13),
     );
     canvasRoot.style.setProperty("--tab-width", String(pick("tabWidth", [2, 4], 4)));
+    canvasRoot.style.setProperty(
+      "--code-line-height", String(pick("codeLineHeight", [1.2, 1.4, 1.5, 1.6, 1.8, 2], 1.5)),
+    );
+    if (layout && layout.codeLigatures === false) {
+      canvasRoot.dataset.ligatures = "off";
+    }
     canvasRoot.dataset.theme = preference;
     if (layout && layout.performanceMode === true) {
       canvasRoot.dataset.motion = "off";

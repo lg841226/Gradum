@@ -268,6 +268,7 @@ try {
       source: pane.source,
       highlightCode: pane.highlightCode,
       getActiveDoc,
+      pane,
     });
   }
   const settings = mountSettings(store, {canvas, theme: editor.theme});

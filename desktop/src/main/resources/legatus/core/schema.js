@@ -23,6 +23,8 @@ export const STATE_SCHEMA = {
   uiFontSize: {default: 14, layout: {type: "number", enum: [12, 13, 14, 15, 16]}},
   codeFontSize: {default: 13, layout: {type: "number", enum: [12, 13, 14, 15, 16, 17, 18]}},
   codeFontFamily: {default: defaultFontFamily(), layout: {type: "string", enum: CODE_FONT_FAMILIES}},
+  codeLineHeight: {default: 1.5, layout: {type: "number", enum: [1.2, 1.4, 1.5, 1.6, 1.8, 2]}},
+  codeLigatures: {default: true, layout: {type: "boolean"}},
   indentGuides: {default: true, layout: {type: "boolean"}},
   highlightPairs: {default: true, layout: {type: "boolean"}},
   highlightCurrentLine: {default: true, layout: {type: "boolean"}},
