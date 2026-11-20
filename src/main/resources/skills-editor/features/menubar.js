@@ -3,15 +3,7 @@ import {createSegmented, setSegmentedValue} from "../ui/components/segmented.js"
 import {createIcon} from "../ui/components/icon.js";
 import {copy} from "../ui/copy.js";
 import {isFloatLayout} from "./floatPanels.js";
-import {slotEffectiveOpen, SLOTS} from "./slots.js";
-
-// Each slot button is drawn with the hairline bar on the side it toggles:
-// the wide outlined bars are the panes that stay, the thin one is the slot.
-const SLOT_ICONS = {
-  left: "compare3MiddleRight",
-  center: "compare3LeftRight",
-  right: "compare3LeftMiddle",
-};
+import {SLOT_ICONS, slotEffectiveOpen, SLOTS} from "./slots.js";
 
 export function mountMenubar(store, {
   canvas,
@@ -150,13 +142,9 @@ export function mountMenubar(store, {
     const button = createIconButton({
       icon: SLOT_ICONS[slot.id],
       tooltip: copy.tooltip[`slot${slot.id[0].toUpperCase()}${slot.id.slice(1)}`],
-      onClick: () => {
-        const state = store.getState();
-        const next = state[slot.openKey] !== true;
-        store.setState(next
-          ? {[slot.openKey]: true}
-          : {[slot.openKey]: false, [slot.viewKey]: null});
-      },
+      onClick: () => store.setState({
+        [slot.openKey]: store.getState()[slot.openKey] !== true,
+      }),
     });
     return {slot, button};
   });

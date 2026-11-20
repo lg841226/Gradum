@@ -8,7 +8,7 @@
     justify-content: center;
     gap: var(--space-1);
     padding: 0 var(--space-6);
-    font-family: var(--font-ui);
+    font-family: var(--font-ui), system-ui;
 }
 
 .empty-state-title {
@@ -93,7 +93,7 @@
     color: var(--text-mute);
     font-size: var(--font-size-small);
     font-variant-numeric: tabular-nums;
-    font-family: var(--font-code), monospace;
+    font-family: var(--font-ui);
 }
 
 .problem-message {
@@ -105,7 +105,7 @@
 .output {
     font-size: var(--font-size-code);
     padding: var(--space-2) var(--space-3);
-    font-family: var(--font-code), ui-monospace;
+    font-family: var(--font-code);
 }
 
 .output-line {

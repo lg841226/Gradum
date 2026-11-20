@@ -50,7 +50,7 @@ function begin(event, panel, handle, onMove) {
   dragGesture(panel, handle, event, onMove);
 }
 
-export function mountFloatPanels(store, {canvas, panels}) {
+export function mountFloatPanels(store, {panels}) {
   const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
   for (const descriptor of panels) {

@@ -102,11 +102,7 @@ function groupSessions(sessions) {
   return ordered;
 }
 
-// The rail island. It owns the panel list and reports the selection back
-// through the callbacks wired in main.js. It serves two masters: the skill
-// tree by default and the assistant's session list while the chat view is
-// open: same panel, same plus button, different content.
-export function mountRail(store, {panel, onOpen, onCreate, onOpenSession}) {
+export function mountRail(store, {panel, onOpen, onOpenSession, variant = "auto"}) {
   const list = document.createElement("div");
   list.className = "list";
   list.setAttribute("role", "tree");
@@ -152,7 +148,7 @@ export function mountRail(store, {panel, onOpen, onCreate, onOpenSession}) {
 
   let signature = null;
   const render = (state) => {
-    const chat = state.chatOpen === true;
+    const chat = variant === "sessions" ? true : variant === "skills" ? false : state.chatOpen === true;
     const activeName = state.docs.find((doc) => doc.id === state.activeId)?.name ?? null;
     const next = chat
       ? JSON.stringify([
@@ -171,11 +167,6 @@ export function mountRail(store, {panel, onOpen, onCreate, onOpenSession}) {
     clear(list);
 
     if (chat) {
-      // Three levels: the root row folds the whole panel, each local day is a
-      // package row, and the sessions hang off their day. Groups and sessions
-      // both run newest first; the unknown group closes the list. Only the
-      // newest day starts open, the older ones wait for a click, and the fold
-      // the user picks survives a redraw through groupFolds.
       const groups = groupSessions(state.sessions);
       const branch = document.createElement("div");
       branch.className = "tree-children";

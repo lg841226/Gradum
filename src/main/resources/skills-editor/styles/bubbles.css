@@ -79,7 +79,7 @@
     color: var(--text-dim);
     margin: 0 0 var(--space-2);
     font-size: var(--font-size-small);
-    font-family: var(--font-code), ui-monospace;
+    font-family: var(--font-code);
 }
 
 .assistant .md-code code {
@@ -96,7 +96,7 @@
     color: var(--text);
     background: var(--bg-canvas);
     border: 1px solid var(--border);
-    font-family: var(--font-code), ui-monospace;
+    font-family: var(--font-code);
 }
 
 .assistant .md-link {

@@ -10,7 +10,7 @@ import {mountFileTree} from "./fileTree.js";
 import {mountAssistant} from "./assistant/index.js";
 import {mountRail} from "./rail.js";
 import {isDragging, mountSplitters} from "./splitter.js";
-import {availableViews, filesVisible, showViewPatch, SLOTS, viewHasContent,} from "./slots.js";
+import {filesVisible, showViewPatch, SLOT_ICONS, SLOTS, viewHasContent, viewOptions} from "./slots.js";
 
 const resolve = (value, context) => (typeof value === "function" ? value(context) : value);
 const defaultOf = (key) => STATE_SCHEMA[key].default;
@@ -107,40 +107,48 @@ function createHeader(descriptor, state) {
 }
 
 const VIEW_LABELS = {
+  explorer: copy.rail.title,
+  sessions: copy.rail.sessions,
   problems: copy.control.problems,
   output: copy.control.output,
   files: copy.files.title,
 };
 
-// The sessions view is the old rail island: the skill tree in developer mode,
-// the session list in agent mode, so its title follows the active mode.
-function viewLabel(name, state) {
-  if (name === "sessions") {
-    return state.chatOpen === true ? copy.rail.sessions : copy.rail.title;
-  }
-  return VIEW_LABELS[name];
-}
-
 // The three slots are IDE tool windows: the left slot is the full-height left
 // column, the middle slot the bottom row, the right slot the full-height right
 // column. Opening a slot with no view shows an empty panel whose centred
 // "Open Tool" dropdown picks the view; once picked, the view's own panel
-// (header + body) replaces the slot content outright. Closing a slot clears
-// its view, so every open starts empty. Each view has exactly one host
-// element, moved between slots.
-function createSlots(store, {listDirectory, onPick, onOpen, onCreate, onOpenSession}) {
+// (header + body) replaces the slot content outright. Slots remember their
+// view: closing a slot only hides it, reopening restores the same view.
+// Each view has exactly one host element, moved between slots.
+function createSlots(store, {
+  listDirectory,
+  onPick,
+  onOpen,
+  onCreateSkill,
+  onCreateSession,
+  onOpenSession,
+}) {
   const createBody = () => {
     const body = document.createElement("div");
     body.className = "panel-body";
     return body;
   };
   const hosts = {
+    explorer: createBody(),
     sessions: createBody(),
     problems: createBody(),
     output: createBody(),
     files: createBody(),
   };
-  mountRail(store, {panel: hosts.sessions, onOpen, onCreate, onOpenSession});
+  // Explorer and Sessions are separate islands now: each pins one rail
+  // variant, so either can be open in any mode and both can coexist.
+  mountRail(store, {
+    panel: hosts.explorer, onOpen, onCreate: onCreateSkill, onOpenSession, variant: "skills",
+  });
+  mountRail(store, {
+    panel: hosts.sessions, onOpen, onCreate: onCreateSession, onOpenSession, variant: "sessions",
+  });
   mountFileTree(store, {panel: hosts.files, listDirectory, onPick, visible: filesVisible});
 
   let canvas = null;
@@ -156,29 +164,27 @@ function createSlots(store, {listDirectory, onPick, onOpen, onCreate, onOpenSess
     if (!canvas) {
       return;
     }
-    const chatMode = state.chatOpen === true;
     for (const view of views) {
       const {nodes} = view;
       if (!nodes) {
         continue;
       }
       const assigned = state[view.spec.viewKey] ?? null;
-
-      if (assigned && !viewHasContent(state, assigned)) {
-        store.setState({[view.spec.viewKey]: null});
-        continue;
-      }
-      nodes.empty.hidden = assigned !== null;
-      nodes.viewWrap.hidden = assigned === null;
-      nodes.hideEmpty.hidden = assigned !== null;
-      nodes.plus.hidden = assigned !== "sessions";
+      // A view that runs out of content only falls back to the empty panel;
+      // the assignment survives, so the view returns when its content does.
+      const active = assigned !== null && viewHasContent(state, assigned);
+      nodes.empty.hidden = active;
+      nodes.viewWrap.hidden = !active;
+      nodes.hideEmpty.hidden = active;
+      const creatable = active && (assigned === "explorer" || assigned === "sessions");
+      nodes.plus.hidden = !creatable;
       if (assigned) {
-        const title = viewLabel(assigned, state);
+        const title = VIEW_LABELS[assigned];
         if (nodes.titleNode.textContent !== title) {
           nodes.titleNode.textContent = title;
         }
-        if (assigned === "sessions") {
-          const tip = chatMode ? copy.tooltip.newChat : copy.tooltip.newSkill;
+        if (creatable) {
+          const tip = assigned === "sessions" ? copy.tooltip.newChat : copy.tooltip.newSkill;
           if (nodes.plus.dataset.tooltip !== tip) {
             nodes.plus.dataset.tooltip = tip;
             nodes.plus.setAttribute("aria-label", tip);
@@ -194,16 +200,20 @@ function createSlots(store, {listDirectory, onPick, onOpen, onCreate, onOpenSess
         view.host = null;
       }
 
-      const names = availableViews(state, view.spec.id);
-      const signature = `${names.join(",")}:${chatMode}`;
-      const options = names.map((name) => ({value: name, label: viewLabel(name, state)}));
+      const entries = viewOptions(state, view.spec.id);
+      const signature = entries.map((e) => `${e.view}${e.enabled ? 1 : 0}`).join(",");
+      const options = entries.map((e) => ({
+        value: e.view,
+        label: VIEW_LABELS[e.view],
+        disabled: !e.enabled,
+      }));
       if (signature !== view.signature) {
         view.signature = signature;
         nodes.select.setOptions(options, copy.slot.pick);
       } else {
         nodes.select.setValue(copy.slot.pick);
       }
-      nodes.select.element.disabled = options.length === 0;
+      nodes.select.element.disabled = !entries.some((e) => e.enabled);
     }
   };
 
@@ -225,23 +235,28 @@ function createSlots(store, {listDirectory, onPick, onOpen, onCreate, onOpenSess
     });
     const head = document.createElement("div");
     head.className = "slot-empty-head";
-    head.append(createIcon({name: "desktop", size: 24}), title);
+    head.append(createIcon({name: SLOT_ICONS[view.spec.id], size: 24}), title);
     empty.append(head, select.element);
 
     const hideEmpty = createIconButton({
       icon: "hide",
       tooltip: copy.tooltip.hide,
-      onClick: () => store.setState({
-        [view.spec.openKey]: false,
-        [view.spec.viewKey]: null,
-      }),
+      // Hides the slot; a remembered view (empty right now) stays assigned.
+      onClick: () => store.setState({[view.spec.openKey]: false}),
     });
     hideEmpty.classList.add("slot-empty-hide");
 
     const plus = createIconButton({
       icon: "plus",
       tooltip: copy.tooltip.newSkill,
-      onClick: () => onCreate?.(),
+      onClick: () => {
+        const assigned = store.getState()[view.spec.viewKey];
+        if (assigned === "sessions") {
+          onCreateSession?.();
+        } else {
+          onCreateSkill?.();
+        }
+      },
     });
     plus.hidden = true;
     const hide = createIconButton({
@@ -288,7 +303,7 @@ function createSlots(store, {listDirectory, onPick, onOpen, onCreate, onOpenSess
     },
   };
 
-  const descriptors = views.map((view) => {
+  return views.map((view) => {
     const place = sides[view.spec.id];
     return {
       id: `slot${view.spec.id[0].toUpperCase()}${view.spec.id.slice(1)}`,
@@ -305,8 +320,6 @@ function createSlots(store, {listDirectory, onPick, onOpen, onCreate, onOpenSess
       render: ({panel, canvas: host}) => render(view, panel, host),
     };
   });
-
-  return descriptors;
 }
 
 export function mountPanelRegistry(store, {canvas, dock, dockRow, dockMain, panels}) {
@@ -418,7 +431,8 @@ export function mountPanelRegistry(store, {canvas, dock, dockRow, dockMain, pane
 export function createPanelRegistry({
                                       store,
                                       onOpen,
-                                      onCreate,
+                                      onCreateSkill,
+                                      onCreateSession,
                                       onOpenSession,
                                       listDirectory,
                                       onPick,
@@ -428,7 +442,8 @@ export function createPanelRegistry({
     listDirectory,
     onPick,
     onOpen,
-    onCreate,
+    onCreateSkill,
+    onCreateSession,
     onOpenSession,
   });
 

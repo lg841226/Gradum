@@ -28,7 +28,7 @@ class RunDetachmentTest {
 
       val firstFrame: String = client.preparePost("/events") {
         contentType(ContentType.Application.Json)
-        setBody(scenarioBody(project, sessionId = "detach-session"))
+        setBody(scenarioBody(project))
       }.execute { response ->
         assertEquals(HttpStatusCode.OK, response.status)
         val channel: ByteReadChannel = response.bodyAsChannel()
@@ -93,7 +93,7 @@ class RunDetachmentTest {
     assertContains(response.bodyAsText(), "not_found")
   }
 
-  private fun scenarioBody(project: Path, sessionId: String): String {
+  private fun scenarioBody(project: Path): String {
     val scenarioXml = """
       <tls nam="detach_probe">
         <tt>Looking for the file.</tt>
@@ -107,7 +107,7 @@ class RunDetachmentTest {
     return """{
       "message": "play it back",
       "projectRoot": "${project.toAbsolutePath()}",
-      "sessionId": "$sessionId",
+      "sessionId": "detach-session",
       "toolCallXml": "$escaped"
     }"""
   }

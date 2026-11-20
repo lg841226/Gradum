@@ -145,34 +145,34 @@ export const icons = {
     + ' 2 12V4C2 2.89543 2.89543 2 4 2H7.5ZM7.5 13H4C3.44772 13 3 12.5523 3 12V4C3 3.44772'
     + ' 3.44772 3 4 3H7.5V13Z" fill="currentColor" stroke="none"/></g>',
 
-  // expui/diff/compare3*.svg, AllIconsKeys.Diff.Compare3*: three columns where
-  // the wide outlined bars mark the panes in view and the hairline the one
-  // hidden. The platform's #6C707E stroke folds onto currentColor at the
-  // inherited 1px width. Apache 2.0, Copyright 2000-2022 JetBrains s.r.o.
-  // and contributors.
-  compare3LeftMiddle: '<path d="M1.5 14V2C1.5 1.72386 1.72386 1.5 2 1.5H4C4.27614 1.5 4.5 1.72386'
-    + ' 4.5 2V14C4.5 14.2761 4.27614 14.5 4 14.5H2C1.72386 14.5 1.5 14.2761 1.5 14Z"'
-    + ' stroke-width="1"/>'
-    + '<path d="M6.5 14V2C6.5 1.72386 6.72386 1.5 7 1.5H9C9.27614 1.5 9.5 1.72386 9.5 2V14'
-    + 'C9.5 14.2761 9.27614 14.5 9 14.5H7C6.72386 14.5 6.5 14.2761 6.5 14Z" stroke-width="1"/>'
-    + '<path d="M13.5 4V12C13.5 12.2761 13.2761 12.5 13 12.5C12.7239 12.5 12.5 12.2761 12.5 12V4'
-    + 'C12.5 3.72386 12.7239 3.5 13 3.5C13.2761 3.5 13.5 3.72386 13.5 4Z" stroke-width="1"/>',
+  // Slot toggles, all from expui/actions/editorPreview{,Vertical}.svg
+  // (Apache 2.0, Copyright 2000-2023 JetBrains s.r.o. and contributors):
+  // left and right are the horizontal mark and its mirrored twin, the centre
+  // toggle is the vertical one with the pane resting along the bottom.
+  // Platform grey rewritten to currentColor.
+  panelLeft: '<rect x="10" y="3" width="5" height="1" rx="0.5" fill="currentColor" stroke="none"/>'
+    + '<rect x="10" y="6" width="5" height="1" rx="0.5" fill="currentColor" stroke="none"/>'
+    + '<rect x="10" y="9" width="5" height="1" rx="0.5" fill="currentColor" stroke="none"/>'
+    + '<rect x="10" y="12" width="5" height="1" rx="0.5" fill="currentColor" stroke="none"/>'
+    + '<path d="M7.5 4C7.5 3.17157 6.82843 2.5 6 2.5H3C2.17157 2.5 1.5 3.17157 1.5 4V12'
+    + 'C1.5 12.8284 2.17157 13.5 3 13.5H6C6.82843 13.5 7.5 12.8284 7.5 12V4Z"'
+    + ' stroke="currentColor" stroke-width="1"/>',
 
-  compare3LeftRight: '<path d="M1.5 14V2C1.5 1.72386 1.72386 1.5 2 1.5H4C4.27614 1.5 4.5 1.72386'
-    + ' 4.5 2V14C4.5 14.2761 4.27614 14.5 4 14.5H2C1.72386 14.5 1.5 14.2761 1.5 14Z"'
-    + ' stroke-width="1"/>'
-    + '<path d="M11.5 14V2C11.5 1.72386 11.7239 1.5 12 1.5H14C14.2761 1.5 14.5 1.72386 14.5 2V14'
-    + 'C14.5 14.2761 14.2761 14.5 14 14.5H12C11.7239 14.5 11.5 14.2761 11.5 14Z" stroke-width="1"/>'
-    + '<path d="M8.5 4V12C8.5 12.2761 8.27614 12.5 8 12.5C7.72386 12.5 7.5 12.2761 7.5 12V4'
-    + 'C7.5 3.72386 7.72386 3.5 8 3.5C8.27614 3.5 8.5 3.72386 8.5 4Z" stroke-width="1"/>',
+  panelBottom: '<path d="M2 2.5C2 2.22386 2.22386 2 2.5 2L13.5 2C13.7761 2 14 2.22386 14 2.5'
+    + 'C14 2.77614 13.7761 3 13.5 3L2.5 3C2.22386 3 2 2.77614 2 2.5Z" fill="currentColor" stroke="none"/>'
+    + '<path d="M2 5.5C2 5.22386 2.22386 5 2.5 5L13.5 5C13.7761 5 14 5.22386 14 5.5'
+    + 'C14 5.77614 13.7761 6 13.5 6L2.5 6C2.22386 6 2 5.77614 2 5.5Z" fill="currentColor" stroke="none"/>'
+    + '<path d="M12 8.5C12.8284 8.5 13.5 9.17157 13.5 10L13.5 12C13.5 12.8284 12.8284 13.5 12 13.5'
+    + 'L4 13.5C3.17157 13.5 2.5 12.8284 2.5 12L2.5 10C2.5 9.17157 3.17157 8.5 4 8.5L12 8.5Z"'
+    + ' stroke="currentColor" stroke-width="1"/>',
 
-  compare3MiddleRight: '<path d="M6.5 14V2C6.5 1.72386 6.72386 1.5 7 1.5H9C9.27614 1.5 9.5 1.72386'
-    + ' 9.5 2V14C9.5 14.2761 9.27614 14.5 9 14.5H7C6.72386 14.5 6.5 14.2761 6.5 14Z"'
-    + ' stroke-width="1"/>'
-    + '<path d="M11.5 14V2C11.5 1.72386 11.7239 1.5 12 1.5H14C14.2761 1.5 14.5 1.72386 14.5 2V14'
-    + 'C14.5 14.2761 14.2761 14.5 14 14.5H12C11.7239 14.5 11.5 14.2761 11.5 14Z" stroke-width="1"/>'
-    + '<path d="M3.5 4V12C3.5 12.2761 3.27614 12.5 3 12.5C2.72386 12.5 2.5 12.2761 2.5 12V4'
-    + 'C2.5 3.72386 2.72386 3.5 3 3.5C3.27614 3.5 3.5 3.72386 3.5 4Z" stroke-width="1"/>',
+  panelRight: '<rect x="1" y="3" width="5" height="1" rx="0.5" fill="currentColor" stroke="none"/>'
+    + '<rect x="1" y="6" width="5" height="1" rx="0.5" fill="currentColor" stroke="none"/>'
+    + '<rect x="1" y="9" width="5" height="1" rx="0.5" fill="currentColor" stroke="none"/>'
+    + '<rect x="1" y="12" width="5" height="1" rx="0.5" fill="currentColor" stroke="none"/>'
+    + '<path d="M8.5 4C8.5 3.17157 9.17157 2.5 10 2.5H13C13.8284 2.5 14.5 3.17157 14.5 4V12'
+    + 'C14.5 12.8284 13.8284 13.5 13 13.5H10C9.17157 13.5 8.5 12.8284 8.5 12V4Z"'
+    + ' stroke="currentColor" stroke-width="1"/>',
 
   // Kotlin plugin. The dark variant (expui/kotlin_dark.svg) shapes the sprite;
   // the light variant (expui/kotlin.svg) supplies the other token values.

@@ -5,7 +5,7 @@
 
 import {clampShare} from "./layout.js";
 import {CODE_FONT_FAMILIES, defaultFontFamily} from "./fonts.js";
-import {SLOT_VIEWS} from "../features/slots.js";
+import {SLOT_VIEW_NAMES} from "../features/slots.js";
 
 const VIEWS = ["explorer", "problems", "output", "editor", "all", "session"];
 const SPLIT_DIRECTIONS = ["right", "down"];
@@ -43,12 +43,12 @@ export const STATE_SCHEMA = {
   cursor: {default: () => ({line: 1, column: 1})},
   view: {default: "problems", layout: {type: "string", enum: VIEWS}},
   slotLeftOpen: {default: false, layout: {type: "boolean"}},
-  slotLeftView: {default: null, layout: {type: "string", enum: SLOT_VIEWS}},
+  slotLeftView: {default: null, layout: {type: "string", enum: SLOT_VIEW_NAMES}},
   slotLeftWidth: {default: 208, layout: {type: "number"}},
   slotCenterOpen: {default: false, layout: {type: "boolean"}},
-  slotCenterView: {default: null, layout: {type: "string", enum: SLOT_VIEWS}},
+  slotCenterView: {default: null, layout: {type: "string", enum: SLOT_VIEW_NAMES}},
   slotRightOpen: {default: false, layout: {type: "boolean"}},
-  slotRightView: {default: null, layout: {type: "string", enum: SLOT_VIEWS}},
+  slotRightView: {default: null, layout: {type: "string", enum: SLOT_VIEW_NAMES}},
   slotRightWidth: {default: 208, layout: {type: "number"}},
   status: {default: () => ({text: "", tone: "neutral"})},
   busyTask: {default: null},

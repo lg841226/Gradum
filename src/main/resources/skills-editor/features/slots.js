@@ -3,7 +3,24 @@
 // no DOM, no dependencies, so panelRegistry / menubar / assistant / main can
 // all import it safely.
 
-export const SLOT_VIEWS = ["sessions", "problems", "output", "files"];
+export const SLOT_VIEWS = [
+  {name: "explorer", placements: ["left", "right"]},
+  {name: "sessions", placements: ["left", "right"]},
+  {name: "files", placements: ["left", "right"]},
+  {name: "problems", placements: ["center"]},
+  {name: "output", placements: ["center"]},
+];
+
+export const SLOT_VIEW_NAMES = SLOT_VIEWS.map((view) => view.name);
+
+// editorPreview marks: the pane sits on the edge the slot docks against.
+export const SLOT_ICONS = {left: "panelLeft", center: "panelBottom", right: "panelRight"};
+
+export function viewFitsSlot(name, slotId) {
+  return SLOT_VIEWS.some(
+    (view) => view.name === name && view.placements.includes(slotId),
+  );
+}
 
 export const SLOTS = [
   {id: "left", openKey: "slotLeftOpen", viewKey: "slotLeftView"},
@@ -19,15 +36,12 @@ export function slotOfView(state, name) {
   return SLOTS.find((slot) => state[slot.viewKey] === name) ?? null;
 }
 
-// A view earns its place in a slot only when it has something to show:
-// an island that would render just its placeholder is dropped from the
-// dropdown, and an open slot holding one falls back to its empty panel.
 export function viewHasContent(state, name) {
   switch (name) {
+    case "explorer":
+      return (state.tree ?? []).length > 0;
     case "sessions":
-      return state.chatOpen === true
-        ? (state.sessions ?? []).length > 0
-        : (state.tree ?? []).length > 0;
+      return (state.sessions ?? []).length > 0;
     case "problems": {
       const doc = state.docs.find((item) => item.id === state.activeId);
       return (doc?.diagnostics ?? []).length > 0;
@@ -41,15 +55,13 @@ export function viewHasContent(state, name) {
   }
 }
 
-// Views this slot may offer: every view that has content and is not claimed
-// by another slot.
-export function availableViews(state, selfId) {
-  const taken = new Set(
-    SLOTS.filter((slot) => slot.id !== selfId)
-      .map((slot) => state[slot.viewKey])
-      .filter((view) => view != null),
-  );
-  return SLOT_VIEWS.filter((view) => !taken.has(view) && viewHasContent(state, view));
+export function viewOptions(state, selfId) {
+  return SLOT_VIEWS.map(({name}) => {
+    const holder = slotOfView(state, name);
+    const free = holder === null || holder.id === selfId;
+    const fits = viewFitsSlot(name, selfId);
+    return {view: name, enabled: fits && free && viewHasContent(state, name)};
+  });
 }
 
 export function showViewPatch(state, name) {
@@ -60,7 +72,9 @@ export function showViewPatch(state, name) {
   if (holder) {
     return {[holder.openKey]: true};
   }
-  const free = SLOTS.find((slot) => state[slot.viewKey] == null);
+  const free = SLOTS.find(
+    (slot) => state[slot.viewKey] == null && viewFitsSlot(name, slot.id),
+  );
   return free ? {[free.viewKey]: name, [free.openKey]: true} : {};
 }
 

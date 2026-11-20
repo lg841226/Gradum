@@ -65,7 +65,7 @@
     word-break: break-word;
     color: var(--text-dim);
     font-size: var(--font-size-ui);
-    font-family: var(--font-code), ui-monospace;
+    font-family: var(--font-code);
 }
 
 .assistant .failure-actions {
@@ -227,7 +227,7 @@
     word-break: break-word;
     color: var(--text-dim);
     font-size: var(--font-size-small);
-    font-family: var(--font-code), ui-monospace;
+    font-family: var(--font-code);
 }
 
 .assistant .ask-actions {

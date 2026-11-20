@@ -24,19 +24,16 @@ import {readStorage} from "./core/storage.js";
 
 const DEFAULT_SKILL = "skills/HelloSkill.kt";
 
-// The ?token= query is a one-time credential: once the page boots, the
-// session cookie carries the auth. Drop the token from the URL immediately,
-// or every later reload (the countdown reload especially) would replay the
-// query, re-issue a fresh ticket and silently extend the session forever.
+
 const bootUrl = new URL(location.href);
-if (bootUrl.searchParams.delete("token")) {
+
+if (bootUrl.searchParams.has("token")) {
+  bootUrl.searchParams.delete("token");
   history.replaceState(null, "", bootUrl);
 }
 
 const userStyles = new Map();
 
-// ui/ stylesheets are plain files, so a reload is just re-reading them into the
-// style nodes they already own.
 async function reloadUserStyles(paths, prune = false) {
   const cssPaths = paths.filter((path) => path.startsWith("ui/") && path.toLowerCase().endsWith(".css"));
   if (prune) {
@@ -239,7 +236,8 @@ try {
     panels: createPanelRegistry({
       store,
       onOpen: (name) => void tabs?.open(name),
-      onCreate: () => (store.getState().chatOpen ? assistant?.newChat() : tabs?.create()),
+      onCreateSkill: () => tabs?.create(),
+      onCreateSession: () => assistant?.newChat(),
       onOpenSession: (id) => assistant?.openSession(id),
       listDirectory: (path) => fetchDirectory(store.getState().projectRoot, path),
       onPick: (path) => assistant?.insertPath(path),

@@ -149,7 +149,7 @@
     background: var(--bg-raised);
     border-radius: var(--radius-control);
     border: 1px solid var(--border-strong);
-    font-family: var(--font-code), ui-monospace;
+    font-family: var(--font-code);
 }
 
 .unlock-code:focus {
