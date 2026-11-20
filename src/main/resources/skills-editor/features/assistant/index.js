@@ -12,6 +12,7 @@ import {notify} from "../notifications.js";
 import {isFloatLayout} from "../floatPanels.js";
 import {isDragging} from "../splitter.js";
 import {createSplitLayout} from "../splitLayout.js";
+import {filesVisible, toggleFilesPatch} from "../slots.js";
 
 function newSessionId() {
   if (typeof crypto.randomUUID === "function") {
@@ -59,7 +60,7 @@ export function mountAssistant(store, {panel, onOpenFile}) {
 
     const toggleAttach = () => {
       closePickers();
-      store.setState({treePanelOpen: !store.getState().treePanelOpen});
+      store.setState(toggleFilesPatch(store.getState()));
     };
     modelPicker = createModelPicker({onOtherOpen: closePickers});
     permissionPicker = createPermissionPicker({onOtherOpen: closePickers});
@@ -286,7 +287,7 @@ export function mountAssistant(store, {panel, onOpenFile}) {
     const rightTab = splitOn ? tabs.get(workspace.right) : null;
     splitUi.composer.setStreaming(rightTab?.stream.streaming ?? false);
 
-    const attachOpen = state.treePanelOpen === true;
+    const attachOpen = filesVisible(state);
     ui.composer.setAttachOpen(attachOpen);
     splitUi.composer.setAttachOpen(attachOpen);
 
@@ -778,9 +779,9 @@ export function mountAssistant(store, {panel, onOpenFile}) {
 
   store.subscribe(() => renderTabs());
 
-  let attachSignature = store.getState().treePanelOpen === true;
+  let attachSignature = filesVisible(store.getState());
   store.subscribe((state) => {
-    const open = state.treePanelOpen === true;
+    const open = filesVisible(state);
     if (open === attachSignature) {
       return;
     }

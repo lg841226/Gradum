@@ -55,13 +55,9 @@ private val logger: Logger = LoggerFactory.getLogger("GradumServerRoutes")
 
 private const val EVENTS_CHANNEL_CAPACITY: Int = 2048
 
-// A finished run stays replayable this long: a refresh landing just after the
-// end must still get the whole turn from the buffer instead of a 404.
 private const val FINISHED_RUN_RETENTION_MILLIS: Long = 5 * 60 * 1000L
 
-/** One agent run detached from any HTTP connection: the buffer is the durable
- * replay view; [subscriber] is a transient tap — a newer attach replaces the older. */
-private class ActiveRun(val runId: String) {
+private class ActiveRun() {
   private val lock = Any()
   private val frames: MutableList<Pair<Long, String>> = mutableListOf()
   private var subscriber: Channel<String>? = null
@@ -72,15 +68,11 @@ private class ActiveRun(val runId: String) {
   var finishedAtMillis: Long = 0L
     private set
 
-  /** Buffers the frame and forwards it to the live subscriber. Returns false only when
-   * an attached subscriber's full channel drops the frame — the `gap` signal. */
   fun publish(seq: Long, frame: String): Boolean = synchronized(lock) {
     frames.add(seq to frame)
     subscriber?.trySend(frame)?.isSuccess ?: true
   }
 
-  /** Takes over as the live subscriber and, atomically, returns the buffered frames
-   * after [since]: one step, so no frame lands in both replay and live feed, or neither. */
   fun subscribe(since: Long, channel: Channel<String>): List<String> = synchronized(lock) {
     subscriber?.close()
     subscriber = channel
@@ -153,42 +145,29 @@ data class EventsRequestBody(
   val message: String,
   val model: String? = null,
   val toolMode: String? = null,
-  /** Scopes persisted context to `.gradum/sessions/<sessionId>/`; blank falls back to legacy `context.json`. */
   val sessionId: String? = null,
-  /** Stamped onto the stored user message; the plugin reuses it to locate the message when withdrawing. */
   val messageId: String? = null,
   val loadContext: Boolean = true,
   val promptVariant: String? = null,
-  /** Display-only user input (no context markers), persisted for transcripts, never sent to the LLM. */
   val displayText: String? = null,
   val config: Map<String, String>? = null,
-  /** `low` / `medium` / `high`; null or unknown keeps the server default. */
   val thinkingLevel: String? = null,
-  /** Master thinking switch sent by the plugin; null keeps the server default. */
   val think: Boolean? = null,
-  /** Debug tool-call scenario XML (`<tls>`): executes through the real tool pipeline instead of the LLM. */
   val toolCallXml: String? = null,
-  /** Absolute path of the IDE-open project; root for every file/process tool this session. */
   val projectRoot: String? = null,
-  /** Image attachments; wire shape mirrors the plugin's `ApiImageAttachment`. */
   val attachments: List<AttachmentDto> = emptyList(),
 )
 
-/** One attachment element; `type` discriminates, only `image` is implemented today. */
 @Serializable
 data class AttachmentDto(
   val type: String,
-  /** Wire-mime; the plugin normalizes uploads to JPEG. */
   val mime: String? = null,
-  /** Base64 payload. */
   val data: String? = null,
-  /** Original file name; prompt and transcript hint only. */
   val filename: String? = null,
   val path: String? = null,
   val endLine: Int? = null,
   val startLine: Int? = null,
   val symbolName: String? = null,
-  /** Plugin-rendered model-facing reference tag; inserted verbatim, never parsed. */
   val attachmentText: String? = null,
   val errorCount: Int? = null
 )
@@ -198,7 +177,6 @@ data class StopRequestBody(
   val runId: String
 )
 
-/** Body for `POST /events/respond`: resolves an in-flight ask_interaction. */
 @Serializable
 data class RespondRequestBody(
   val sessionId: String,
@@ -208,13 +186,11 @@ data class RespondRequestBody(
   val cancelled: Boolean = false,
 )
 
-
 @Serializable
 data class DeleteSessionRequestBody(
   val projectRoot: String,
   val sessionId: String
 )
-
 
 @Serializable
 data class RenameSessionRequestBody(
@@ -223,14 +199,12 @@ data class RenameSessionRequestBody(
   val title: String
 )
 
-/** Body for `POST /sessions/merge`; the server numbers [baseTitle] per existing sessions. */
 @Serializable
 data class MergeSessionsRequestBody(
   val projectRoot: String,
   val sessionIds: List<String>,
   val baseTitle: String
 )
-
 
 @Serializable
 data class RewindSessionRequestBody(
@@ -239,7 +213,6 @@ data class RewindSessionRequestBody(
   val messageId: String
 )
 
-/** Typed view over the request's `config` map; build via [fromRequestMap]. */
 @Serializable
 data class ConfigOverrides(
   val numCtx: Int? = null,
@@ -255,7 +228,6 @@ data class ConfigOverrides(
   val chatCompletionsPath: String? = null
 ) {
   companion object {
-    /** Converts the raw string `config` map; null input yields an empty instance. */
     fun fromRequestMap(rawConfig: Map<String, String>?): ConfigOverrides {
       if (rawConfig == null) return ConfigOverrides()
       return ConfigOverrides(
@@ -315,37 +287,6 @@ internal data class TaskSubmitRequest(
   val timeoutSeconds: Long? = null
 )
 
-/**
- * Registers every HTTP route the Gradum server exposes:
- * - `POST /events`: streams an agent run as NDJSON; the run is detached from
- *   the connection, and `?runId=&since=` reconnects to a live or recently
- *   finished run by replaying its buffered frames (404 once it is reclaimed).
- * - `POST /events/respond`: delivers an answer to a pending ask interaction.
- * - `POST /stop`: aborts an active agent session.
- * - `POST /session/delete`: removes one stored session directory.
- * - `POST /session/rewind`: truncates a session's stored context to a message.
- * - `GET /sessions`: the stored sessions of a project root.
- * - `POST /sessions/merge`: merges at least two sessions into a new one.
- * - `GET /session/state`: the authoritative cold projection of one session.
- * - `POST /session/rename`: sets a session's title.
- * - `GET /health`: aggregated health: system resources and component status (cached snapshot).
- * - `GET /models`: discovered LLM models.
- * - `POST /provider/probe`: live connectivity check against a provider endpoint.
- * - `GET /workspace/tree`: the workspace tree: the registered roots and their files.
- * - `GET /workspace/file`: read one file by `root/relative/path`.
- * - `POST /workspace/file`: write one file; never compiles or registers it.
- * - `POST /workspace/deploy`: write one skills-root source, compile it, and register it.
- * - `POST /skills/build`: compile one external skill source without writing or loading it.
- * - `POST /skills/pair`: trade the five-character pairing code for the auth cookie.
- * - `GET /skills/editor`: the bundled skill editor page.
- * - `GET /skills/editor/{asset...}`: static assets for the editor page.
- * - `POST /tasks`: submit a background shell task for a session.
- * - `GET /tasks`: list the background tasks of a session.
- * - `GET /tasks/{taskId}`: one background task's status and output.
- * - `DELETE /tasks/{taskId}`: cancel a running background task.
- * - `GET /legatus`: the Legatus workspace page (registered in LegatusRoutes.kt).
- * - `GET /legatus/{asset...}`: static assets for the Legatus page.
- */
 fun Application.registerAllRoutes(
   pairingState: PairingState = PairingState(),
   serverConfiguration: ServerConfiguration = ServerConfiguration(),
@@ -354,13 +295,9 @@ fun Application.registerAllRoutes(
   val serverStartTime: LocalDateTime = LocalDateTime.now()
   val activeSessions: ConcurrentHashMap<String, SessionEntry> = ConcurrentHashMap()
 
-  // Runs must outlive the request that started them: the call scope dies with a
-  // page refresh, so they launch in the scope that lives as long as the server.
   val runScope: CoroutineScope = this
   val activeRuns: ConcurrentHashMap<String, ActiveRun> = ConcurrentHashMap()
 
-  // Lazy sweep on register and on reconnect lookup: finished runs older than the
-  // retention window leave the registry.
   fun purgeExpiredRuns() {
     val now: Long = System.currentTimeMillis()
     activeRuns.entries.removeIf { entry: Map.Entry<String, ActiveRun> ->
@@ -368,8 +305,6 @@ fun Application.registerAllRoutes(
     }
   }
 
-  // Streams the buffered frames after `since`, then the live feed, as one NDJSON
-  // response. Whatever ends the connection, the handler detaches and the run keeps going.
   suspend fun respondAsSubscriber(call: ApplicationCall, run: ActiveRun, since: Long) {
     val subscriber: Channel<String> = Channel(capacity = EVENTS_CHANNEL_CAPACITY)
     val replayed: List<String> = run.subscribe(since, subscriber)
@@ -454,7 +389,7 @@ fun Application.registerAllRoutes(
 
       val resolvedSessionId: String = requestBody.sessionId?.trim()?.takeIf { it.isNotEmpty() } ?: SessionIds.next()
       val eventSequencer = EventStreamSequencer()
-      val run = ActiveRun(runId)
+      val run = ActiveRun()
       purgeExpiredRuns()
       activeRuns[runId] = run
       val configOverrides: ConfigOverrides = fromRequestMap(requestBody.config)
@@ -558,7 +493,6 @@ fun Application.registerAllRoutes(
               )
               val ndjsonLine: String = JsonUtil.encodeMap(eventFrame) + "\n"
               EventStreamDump.append(ndjsonLine)
-              // The frame is always buffered; only the live tap can drop it.
               if (!run.publish(seq, ndjsonLine)) {
                 eventSequencer.recordDrop()
                 logger.warn(
@@ -670,7 +604,6 @@ fun Application.registerAllRoutes(
       val targetEntry = activeSessions.remove(runId)
 
       if (targetEntry != null) {
-        // A stopped turn is never worth reconnecting to: drop it from the replay registry.
         activeRuns.remove(runId)
         val agentsToStop: MutableList<Agent> = mutableListOf(targetEntry.agent)
         val childIdsToRemove: MutableList<String> = mutableListOf()
@@ -771,7 +704,6 @@ fun Application.registerAllRoutes(
         return@post
       }
 
-      // Deleting a session only drops its snapshot refs; the worktree must stay as-is.
       SessionSnapshotManager.discardSnapshot(
         sessionId = sessionKey,
         projectRoot = projectRootPath.toString()
@@ -1120,14 +1052,9 @@ fun Application.registerAllRoutes(
                   lmStudioCatalog != null -> {
                     val caps: LmStudioModelCapabilities = lmStudioCatalog.capabilitiesFor(modelName = entry.modelName)
                     entry.copy(
-                      // LM Studio's Responses API honors reasoning.effort when
-                      // the model exposes allowed_options. Advertise graded
-                      // levels so the UI selector enables the dial.
                       reasoning = caps.reasoningOptions.isNotEmpty(),
                       reasoningLevels = caps.reasoningOptions.isNotEmpty(),
                       toolCall = caps.supportsTools,
-                      // Union with the discovery-time v0 vision flag so a
-                      // failed capability probe never downgrades it.
                       attachment = caps.supportsVision || entry.attachment
                     )
                   }
@@ -1486,8 +1413,6 @@ fun Application.registerAllRoutes(
         )
         return@get
       }
-      // Editor assets iterate rapidly during development; revalidate each time
-      // so a rebuilt bundle is picked up without a hard refresh.
       call.response.header(HttpHeaders.CacheControl, "no-cache")
       call.respondText(text = body, contentType = contentType)
     }
@@ -1659,9 +1584,6 @@ fun Application.registerAllRoutes(
   }
 }
 
-// The single place that shapes a compile outcome for the wire. Both deploy and
-// build answer with this body, so the editor parses one result shape whichever
-// request it sent.
 private suspend fun ApplicationCall.respondSkillCompileResult(result: DeployResult) {
   respondText(
     text = JsonUtil.encodeMap(

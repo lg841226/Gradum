@@ -23,13 +23,9 @@ export const copy = {
   },
 
   control: {
-    all: "All",
     agent: "Agent",
-    editor: "Editor",
     output: "Console",
-    session: "Session",
     problems: "Problems",
-    explorer: "Explorer",
     developer: "Develop",
   },
 
@@ -107,6 +103,9 @@ export const copy = {
     splitDown: "Split editor down",
     build: "Build without installing",
     collapseTree: "Collapse this folder",
+    slotLeft: "Toggle the left panel slot",
+    slotCenter: "Toggle the middle panel slot",
+    slotRight: "Toggle the right panel slot",
   },
 
   status: {
@@ -135,13 +134,11 @@ export const copy = {
     title: "Files",
   },
 
-  bottom: {
-    title: "Diagnostics",
-  },
-
-  editor: {
-    emptyTitle: "No skill is open",
-    emptyHint: "Choose a file in Explorer, or create a new one with the Add skill button.",
+  slot: {
+    left: "Left Panel",
+    center: "Bottom Panel",
+    right: "Right Panel",
+    pick: "Open",
   },
 
   completion: {
@@ -231,6 +228,8 @@ export const copy = {
       performanceModeDetail: "Stops entrance animations, transitions and fades.",
       rememberSize: "Remember panel size",
       rememberSizeDetail: "Off reopens the settings panel at its default size, centered.",
+      wideLayout: "Wide layout",
+      wideLayoutDetail: "Bottom panel sits between the side panels.",
     },
     editor: {
       displayGroup: "Editor Display",

@@ -8,7 +8,7 @@
     justify-content: center;
     gap: var(--space-1);
     padding: 0 var(--space-6);
-    font-family: var(--font-code), ui-monospace;
+    font-family: var(--font-ui);
 }
 
 .empty-state-title {

@@ -39,41 +39,48 @@ export function createSelect({label, options, value, onChange, portal} = {}) {
   menu.append(list);
   host.appendChild(menu);
 
-  const rows = new Map();
-  const disabled = new Set();
-  for (const option of options) {
-    const key = String(option.value);
-    const row = createListItem({
-      label: option.label,
-      active: key === String(value),
-      onClick: () => choose(key),
-    });
-    row.removeAttribute("title");
-    row.setAttribute("role", "option");
-    row.dataset.value = key;
-    if (option.font) {
-      row.style.fontFamily = option.font;
-    }
-    if (option.disabled === true) {
-      disabled.add(key);
-      row.setAttribute("aria-disabled", "true");
-      row.setAttribute("tabindex", "-1");
-    }
-    rows.set(key, row);
-    list.appendChild(row);
-  }
-
+  let currentOptions = options;
   let current = String(value);
   let open = false;
+  let rows = new Map();
+  let disabled = new Set();
 
   const applySelection = () => {
     for (const [key, row] of rows) {
       row.setAttribute("aria-selected", key === current ? "true" : "false");
     }
-    const option = options.find((entry) => String(entry.value) === current);
+    const option = currentOptions.find((entry) => String(entry.value) === current);
     text.textContent = option ? option.label : current;
   };
-  applySelection();
+
+  const buildRows = (nextOptions) => {
+    currentOptions = nextOptions;
+    rows = new Map();
+    disabled = new Set();
+    for (const option of nextOptions) {
+      const key = String(option.value);
+      const row = createListItem({
+        label: option.label,
+        active: key === current,
+        onClick: () => choose(key),
+      });
+      row.removeAttribute("title");
+      row.setAttribute("role", "option");
+      row.dataset.value = key;
+      if (option.font) {
+        row.style.fontFamily = option.font;
+      }
+      if (option.disabled === true) {
+        disabled.add(key);
+        row.setAttribute("aria-disabled", "true");
+        row.setAttribute("tabindex", "-1");
+      }
+      rows.set(key, row);
+    }
+    list.replaceChildren(...rows.values());
+    applySelection();
+  };
+  buildRows(options);
 
   const bounds = () => {
     if (host === document.body) {
@@ -244,6 +251,13 @@ export function createSelect({label, options, value, onChange, portal} = {}) {
         current = key;
         applySelection();
       }
+    },
+    setOptions(nextOptions, nextValue) {
+      if (open) {
+        close();
+      }
+      current = String(nextValue);
+      buildRows(nextOptions);
     },
     close,
     isOpen: () => open,

@@ -3,6 +3,15 @@ import {createSegmented, setSegmentedValue} from "../ui/components/segmented.js"
 import {createIcon} from "../ui/components/icon.js";
 import {copy} from "../ui/copy.js";
 import {isFloatLayout} from "./floatPanels.js";
+import {slotEffectiveOpen, SLOTS} from "./slots.js";
+
+// Each slot button is drawn with the hairline bar on the side it toggles:
+// the wide outlined bars are the panes that stay, the thin one is the slot.
+const SLOT_ICONS = {
+  left: "compare3MiddleRight",
+  center: "compare3LeftRight",
+  right: "compare3LeftMiddle",
+};
 
 export function mountMenubar(store, {
   canvas,
@@ -28,41 +37,7 @@ export function mountMenubar(store, {
     },
   ];
 
-  const views = [
-    {
-      name: "editor",
-      label: copy.control.editor,
-      mnemonic: 1,
-      modes: ["developer"],
-      order: 3,
-      select: () => ({view: "editor", railCollapsed: true, collapsed: true}),
-    },
-    {
-      name: "all",
-      label: copy.control.all,
-      mnemonic: 0,
-      modes: ["developer"],
-      order: 4,
-      select: () => ({view: "all", railCollapsed: false, collapsed: false}),
-    },
-    {
-      name: "session",
-      label: copy.control.session,
-      mnemonic: 0,
-      modes: ["agent"],
-      order: 5,
-      select: (state) => ({view: "session", railCollapsed: !state.railCollapsed}),
-    },
-    {
-      name: "all",
-      label: copy.control.all,
-      mnemonic: 0,
-      modes: ["agent"],
-      order: 7,
-      select: () => ({view: "all", railCollapsed: false, collapsed: false, treePanelOpen: true}),
-    },
-    ...panelMenus,
-  ].sort((left, right) => left.order - right.order);
+  const views = [...panelMenus].sort((left, right) => left.order - right.order);
 
   const modesGroup = createSegmented({
     className: "menubar-group menubar-modes",
@@ -150,10 +125,6 @@ export function mountMenubar(store, {
 
   agentWidget.append(agentRepo, agentSep, agentMark, agentName);
 
-  const leftGroup = document.createElement("div");
-  leftGroup.className = "menubar-group menubar-left";
-  leftGroup.append(viewsGroup);
-
   const minimapButton = createIconButton({
     icon: "minimap",
     tooltip: copy.tooltip.hideMinimap,
@@ -174,6 +145,29 @@ export function mountMenubar(store, {
     onClick: () => onToggleSplit?.("down"),
   });
   splitDownButton.hidden = isFloatLayout();
+
+  const slotButtons = SLOTS.map((slot) => {
+    const button = createIconButton({
+      icon: SLOT_ICONS[slot.id],
+      tooltip: copy.tooltip[`slot${slot.id[0].toUpperCase()}${slot.id.slice(1)}`],
+      onClick: () => {
+        const state = store.getState();
+        const next = state[slot.openKey] !== true;
+        store.setState(next
+          ? {[slot.openKey]: true}
+          : {[slot.openKey]: false, [slot.viewKey]: null});
+      },
+    });
+    return {slot, button};
+  });
+
+  const slotGroup = document.createElement("div");
+  slotGroup.className = "menubar-group menubar-slots";
+  slotGroup.append(...slotButtons.map((entry) => entry.button));
+
+  const leftGroup = document.createElement("div");
+  leftGroup.className = "menubar-group menubar-left";
+  leftGroup.append(slotGroup, viewsGroup);
 
   const settingsButton = createIconButton({
     icon: "settings",
@@ -339,6 +333,15 @@ export function mountMenubar(store, {
       !state.minimapHidden,
       state.minimapHidden ? copy.tooltip.showMinimap : copy.tooltip.hideMinimap,
     );
+
+    const floating = isFloatLayout();
+    for (const {slot, button} of slotButtons) {
+      setToggle(
+        button,
+        slotEffectiveOpen(state, slot, floating),
+        copy.tooltip[`slot${slot.id[0].toUpperCase()}${slot.id.slice(1)}`],
+      );
+    }
 
     const scaleKey = `${state.uiScale ?? 1}:${state.uiFontSize ?? 14}`;
     if (scaleKey !== measuredScale) {

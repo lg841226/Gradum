@@ -1,15 +1,8 @@
-/* Assistant island: the Gradum chat. Scoped under .assistant / .assistant-rail. */
-
 .assistant {
     min-height: 0;
     --composer-max: 700px;
     position: relative;
     font-family: var(--font-ui), ui-monospace;
-}
-
-.canvas.chat-open .bottom,
-.canvas.chat-open .splitter-h {
-    display: none;
 }
 
 .editor,
@@ -19,53 +12,27 @@
     visibility 0s;
 }
 
-.canvas.chat-open .editor,
-.canvas:not(.chat-open) .assistant {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition: opacity var(--motion-slow) var(--ease-standard),
-    transform var(--motion-slow) var(--ease-standard),
-    visibility 0s linear var(--motion-slow);
-}
-
-.canvas.chat-open .editor {
-    transform: translateX(calc(-1 * var(--space-3)));
-}
-
-.canvas:not(.chat-open) .assistant {
-    transform: translateX(var(--space-3));
-}
-
-.canvas.chat-open {
-    grid-template-rows:
-        var(--menubar-height) var(--island-gap)
-        1fr 0 0 var(--island-gap) var(--statusbar-height);
-}
-
-
-.rail .list-hint {
+.slot .list-hint {
     padding: var(--space-1) var(--space-2);
     color: var(--text-mute);
     font-size: var(--font-size-small);
 }
 
-.rail .list-item > .icon {
+.slot .list-item > .icon {
     color: var(--text-dim);
 }
 
-.rail .list-item:hover,
-.tree-panel .list-item:hover {
+.slot .list-item:hover {
     background: var(--accent-selection);
 }
 
-.rail .list-item .btn[data-variant="icon"] {
+.slot .list-item .btn[data-variant="icon"] {
     width: 20px;
     height: 20px;
     visibility: hidden;
 }
 
-.rail .list-item:hover .btn[data-variant="icon"] {
+.slot .list-item:hover .btn[data-variant="icon"] {
     visibility: visible;
 }
 
@@ -189,9 +156,6 @@
     height: calc(var(--composer-h, 96px) * .5);
 }
 
-/* One entry per fresh Markdown block: the class is added when the parser
-   builds the block and removed on animationend, so a rebuilt block cannot
-   replay it. */
 .assistant .messages .chat-enter {
     transform-origin: left top;
     animation: chat-enter var(--motion-fast) var(--ease-standard) both;

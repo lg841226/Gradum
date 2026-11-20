@@ -86,7 +86,7 @@ function setLive(canvas, spec, value) {
   canvas.style.setProperty(spec.cssVar, `calc(${value}px * var(--ui-scale))`);
 }
 
-export function mountSplitters(store, {canvas, panels}) {
+export function mountSplitters(store, {canvas, dock, dockRow, dockMain, wide, panels}) {
   const siblings = {};
   for (const descriptor of panels) {
     siblings[descriptor.id] = descriptor;
@@ -102,7 +102,9 @@ export function mountSplitters(store, {canvas, panels}) {
     if (descriptor.size.splitterClass) {
       splitter.classList.add(descriptor.size.splitterClass);
     }
-    canvas.appendChild(splitter);
+
+    (vertical ? dockRow : wide ? dockMain : dock).appendChild(splitter);
+    descriptor.splitter = splitter;
 
     splitter.addEventListener("pointerdown", (event) => {
       event.preventDefault();

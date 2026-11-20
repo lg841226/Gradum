@@ -11,6 +11,8 @@ import {copy} from "./ui/copy.js";
 // shell that mounts the surrounding panels.
 export function createEditor(store, {
   canvas,
+  dockRow,
+  dockMain,
   showPanel,
   documents,
   getActiveDoc,
@@ -32,7 +34,8 @@ export function createEditor(store, {
   });
 
   editor = mountEditor(store, {
-    canvas,
+    dockRow,
+    dockMain,
     showPanel,
     documents,
     getActiveDoc,

@@ -91,9 +91,6 @@ store.subscribe(createLayoutWriter());
 
 applyCodeFontFamily(canvas, store.getState());
 
-// The host half of the editor: where a buffer comes from, what a new file starts
-// as and how a typed name becomes a real file. These are the only places this
-// shell touches the skill endpoints; the editor below only sees callbacks.
 const starter = document.getElementById("starterTemplate")?.textContent ?? "";
 
 const documents = {
@@ -161,7 +158,6 @@ const getActiveDoc = activeDoc;
 // a key means and when it applies. Edit keys the code surface consumed never
 // reach here, and the first enabled entry for a key wins.
 let assistant = null;
-
 const hasDocument = ({getActiveDoc: resolve, state}) => !state.reader && Boolean(resolve(state));
 
 const commands = [
@@ -221,23 +217,25 @@ const commands = [
   },
 ];
 
-// Features are wired here so they never import each other. The editor island
-// exposes its tab strip and code-surface API; the panels island exposes the two
-// body elements that diagnostics and the console render into.
-//
-// The compact feature is mounted first so it is the first listener to run: it
-// settles the size-driven flags before the panels render from them.
-//
-// The whole sequence sits in one try block. The mounts append as they run, so
-// an exception halfway would otherwise leave a plausible half of the interface
-// on screen with nothing saying it is broken. One failure wipes the page down
-// to a single line, black on white: a broken build never passes for a working
-// one, and the stack stays in the console.
 try {
   mountCompact(store, {canvas});
+
+  const dock = document.createElement("div");
+  dock.className = "dock";
+  const dockRow = document.createElement("div");
+  dockRow.className = "dock-row";
+  const dockMain = document.createElement("div");
+  dockMain.className = "dock-main";
+  dockRow.appendChild(dockMain);
+  dock.appendChild(dockRow);
+  canvas.appendChild(dock);
+
   let tabs = null;
   const panels = mountPanelRegistry(store, {
     canvas,
+    dock,
+    dockRow,
+    dockMain,
     panels: createPanelRegistry({
       store,
       onOpen: (name) => void tabs?.open(name),
@@ -254,7 +252,9 @@ try {
   });
   const editor = createEditor(store, {
     canvas,
-    showPanel: (name) => panels.api.bottom.show(name),
+    dockRow,
+    dockMain,
+    showPanel: (name) => panels.api.slotLeft.show(name),
     documents,
     getActiveDoc,
     commands,
@@ -262,8 +262,8 @@ try {
   tabs = editor.tabs;
   assistant = panels.api.assistant;
 
-  mountDiagnostics(store, {body: panels.api.bottom.problemsBody, editor, getActiveDoc});
-  mountConsole(store, {body: panels.api.bottom.outputBody});
+  mountDiagnostics(store, {body: panels.api.slotLeft.problemsBody, editor, getActiveDoc});
+  mountConsole(store, {body: panels.api.slotLeft.outputBody});
   for (const pane of editor.panes) {
     mountMinimap(store, {
       container: pane.main,

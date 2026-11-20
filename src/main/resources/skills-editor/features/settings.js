@@ -198,6 +198,12 @@ export function mountSettings(store, {canvas, theme}) {
       : {rememberSize: false, settingsW: null, settingsH: null, settingsX: null, settingsY: null}),
   });
 
+  const wideLayoutSwitch = createSwitch({
+    label: constraints.appearance.wideLayout,
+    checked: store.getState().wideLayout === true,
+    onChange: (value) => store.setState({wideLayout: value}),
+  });
+
   const appearance = document.createElement("div");
   appearance.className = "settings-category";
   appearance.append(
@@ -213,6 +219,7 @@ export function mountSettings(store, {canvas, theme}) {
     createCard(constraints.appearance.behaviorGroup, [
       createRow(constraints.appearance.performanceMode, constraints.appearance.performanceModeDetail, performanceSwitch),
       createRow(constraints.appearance.rememberSize, constraints.appearance.rememberSizeDetail, rememberSizeSwitch),
+      createRow(constraints.appearance.wideLayout, constraints.appearance.wideLayoutDetail, wideLayoutSwitch),
     ]),
   );
 
@@ -506,6 +513,7 @@ export function mountSettings(store, {canvas, theme}) {
     setSwitchValue(restoreFileSwitch, state.restoreFile !== false);
     setSwitchValue(performanceSwitch, state.performanceMode === true);
     setSwitchValue(rememberSizeSwitch, state.rememberSize !== false);
+    setSwitchValue(wideLayoutSwitch, state.wideLayout === true);
     setSwitchValue(indentSwitch, state.indentGuides !== false);
     setSwitchValue(minimapSwitch, !state.minimapHidden);
     setSwitchValue(completionSwitch, state.completionAuto !== false);

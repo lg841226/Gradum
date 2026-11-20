@@ -5,9 +5,9 @@
 
 import {clampShare} from "./layout.js";
 import {CODE_FONT_FAMILIES, defaultFontFamily} from "./fonts.js";
+import {SLOT_VIEWS} from "../features/slots.js";
 
 const VIEWS = ["explorer", "problems", "output", "editor", "all", "session"];
-const PANELS = ["problems", "output"];
 const SPLIT_DIRECTIONS = ["right", "down"];
 const STARTUP_VIEWS = ["last", "developer", "agent"];
 
@@ -42,7 +42,14 @@ export const STATE_SCHEMA = {
   sourceRevision: {default: 0},
   cursor: {default: () => ({line: 1, column: 1})},
   view: {default: "problems", layout: {type: "string", enum: VIEWS}},
-  panel: {default: "problems", layout: {type: "string", enum: PANELS}},
+  slotLeftOpen: {default: false, layout: {type: "boolean"}},
+  slotLeftView: {default: null, layout: {type: "string", enum: SLOT_VIEWS}},
+  slotLeftWidth: {default: 208, layout: {type: "number"}},
+  slotCenterOpen: {default: false, layout: {type: "boolean"}},
+  slotCenterView: {default: null, layout: {type: "string", enum: SLOT_VIEWS}},
+  slotRightOpen: {default: false, layout: {type: "boolean"}},
+  slotRightView: {default: null, layout: {type: "string", enum: SLOT_VIEWS}},
+  slotRightWidth: {default: 208, layout: {type: "number"}},
   status: {default: () => ({text: "", tone: "neutral"})},
   busyTask: {default: null},
   activeId: {default: null},
@@ -52,19 +59,14 @@ export const STATE_SCHEMA = {
   split: {default: false, layout: {type: "boolean"}},
   chatSplit: {default: false, layout: {type: "boolean"}},
   chatOpen: {default: false, layout: {type: "boolean"}},
-  treePanelOpen: {default: false, layout: {type: "boolean"}},
   chatBusy: {default: false},
-  autoRail: {default: false},
-  collapsed: {default: false, layout: {type: "boolean"}},
   autoBottom: {default: false},
   minimapHidden: {default: false, layout: {type: "boolean"}},
-  railCollapsed: {default: false, layout: {type: "boolean"}},
   treeCollapsed: {default: false, layout: {type: "boolean"}},
-  railWidth: {default: 208, layout: {type: "number"}},
-  treeWidth: {default: 208, layout: {type: "number"}},
   splitRatio: {default: 0.5, layout: {type: "number", clamp: clampShare}},
   chatSplitRatio: {default: 0.5, layout: {type: "number", clamp: clampShare}},
   bottomHeight: {default: 200, layout: {type: "number"}},
+  wideLayout: {default: false, layout: {type: "boolean"}},
   splitDirection: {default: "right", layout: {type: "string", enum: SPLIT_DIRECTIONS}},
   chatSplitDirection: {default: "right", layout: {type: "string", enum: SPLIT_DIRECTIONS}},
   openFile: {default: "", layout: {type: "string"}},

@@ -1,5 +1,5 @@
 // The editor's layout choices outlive a reload: which view is selected, which
-// tool window sits at the bottom, whether the rail and the tree are folded,
+// tool window sits in each panel slot, whether the tree is folded,
 // whether the editor is split into two views, whether the minimap strip shows,
 // how wide and tall the user dragged the panels, and whether the agent island is
 // open. Keeping them is what makes a refreshed page look the way it was left.
@@ -7,7 +7,7 @@
 // name, so a refresh comes back to the document the user was reading instead of
 // falling to the default skill.
 //
-// Only choices are kept. The size-driven overrides (autoRail / autoBottom) are
+// Only choices are kept. The size-driven override (autoBottom) is
 // recomputed from the window on every boot, and the documents come back from the
 // server, so neither belongs here. The theme has its own key in
 // core/storageKeys.js, because it has to be applied before the first paint;
@@ -47,9 +47,7 @@ export function loadLayout() {
     return {};
   }
   const picked = pickLayout(stored);
-  // Layouts saved before the two surfaces had their own split state carry a
-  // single split. The chat starts from that choice once; from then on the two
-  // pairs are written separately.
+
   if (!("chatSplit" in picked)) {
     picked.chatSplit = picked.split === true;
   }

@@ -145,6 +145,35 @@ export const icons = {
     + ' 2 12V4C2 2.89543 2.89543 2 4 2H7.5ZM7.5 13H4C3.44772 13 3 12.5523 3 12V4C3 3.44772'
     + ' 3.44772 3 4 3H7.5V13Z" fill="currentColor" stroke="none"/></g>',
 
+  // expui/diff/compare3*.svg, AllIconsKeys.Diff.Compare3*: three columns where
+  // the wide outlined bars mark the panes in view and the hairline the one
+  // hidden. The platform's #6C707E stroke folds onto currentColor at the
+  // inherited 1px width. Apache 2.0, Copyright 2000-2022 JetBrains s.r.o.
+  // and contributors.
+  compare3LeftMiddle: '<path d="M1.5 14V2C1.5 1.72386 1.72386 1.5 2 1.5H4C4.27614 1.5 4.5 1.72386'
+    + ' 4.5 2V14C4.5 14.2761 4.27614 14.5 4 14.5H2C1.72386 14.5 1.5 14.2761 1.5 14Z"'
+    + ' stroke-width="1"/>'
+    + '<path d="M6.5 14V2C6.5 1.72386 6.72386 1.5 7 1.5H9C9.27614 1.5 9.5 1.72386 9.5 2V14'
+    + 'C9.5 14.2761 9.27614 14.5 9 14.5H7C6.72386 14.5 6.5 14.2761 6.5 14Z" stroke-width="1"/>'
+    + '<path d="M13.5 4V12C13.5 12.2761 13.2761 12.5 13 12.5C12.7239 12.5 12.5 12.2761 12.5 12V4'
+    + 'C12.5 3.72386 12.7239 3.5 13 3.5C13.2761 3.5 13.5 3.72386 13.5 4Z" stroke-width="1"/>',
+
+  compare3LeftRight: '<path d="M1.5 14V2C1.5 1.72386 1.72386 1.5 2 1.5H4C4.27614 1.5 4.5 1.72386'
+    + ' 4.5 2V14C4.5 14.2761 4.27614 14.5 4 14.5H2C1.72386 14.5 1.5 14.2761 1.5 14Z"'
+    + ' stroke-width="1"/>'
+    + '<path d="M11.5 14V2C11.5 1.72386 11.7239 1.5 12 1.5H14C14.2761 1.5 14.5 1.72386 14.5 2V14'
+    + 'C14.5 14.2761 14.2761 14.5 14 14.5H12C11.7239 14.5 11.5 14.2761 11.5 14Z" stroke-width="1"/>'
+    + '<path d="M8.5 4V12C8.5 12.2761 8.27614 12.5 8 12.5C7.72386 12.5 7.5 12.2761 7.5 12V4'
+    + 'C7.5 3.72386 7.72386 3.5 8 3.5C8.27614 3.5 8.5 3.72386 8.5 4Z" stroke-width="1"/>',
+
+  compare3MiddleRight: '<path d="M6.5 14V2C6.5 1.72386 6.72386 1.5 7 1.5H9C9.27614 1.5 9.5 1.72386'
+    + ' 9.5 2V14C9.5 14.2761 9.27614 14.5 9 14.5H7C6.72386 14.5 6.5 14.2761 6.5 14Z"'
+    + ' stroke-width="1"/>'
+    + '<path d="M11.5 14V2C11.5 1.72386 11.7239 1.5 12 1.5H14C14.2761 1.5 14.5 1.72386 14.5 2V14'
+    + 'C14.5 14.2761 14.2761 14.5 14 14.5H12C11.7239 14.5 11.5 14.2761 11.5 14Z" stroke-width="1"/>'
+    + '<path d="M3.5 4V12C3.5 12.2761 3.27614 12.5 3 12.5C2.72386 12.5 2.5 12.2761 2.5 12V4'
+    + 'C2.5 3.72386 2.72386 3.5 3 3.5C3.27614 3.5 3.5 3.72386 3.5 4Z" stroke-width="1"/>',
+
   // Kotlin plugin. The dark variant (expui/kotlin_dark.svg) shapes the sprite;
   // the light variant (expui/kotlin.svg) supplies the other token values.
   kotlin: '<path d="M13.3337 12.6314C13.6699 12.9396 13.4519 13.5 12.9958 13.5H3C2.72386 13.5'

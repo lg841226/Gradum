@@ -6,7 +6,7 @@ function message(text) {
   return createListItem({label: text, muted: true});
 }
 
-export function mountFileTree(store, {panel, listDirectory, onPick} = {}) {
+export function mountFileTree(store, {panel, listDirectory, onPick, visible} = {}) {
   const tree = document.createElement("div");
   tree.className = "list tree-panel-tree";
   tree.setAttribute("role", "tree");
@@ -122,9 +122,7 @@ export function mountFileTree(store, {panel, listDirectory, onPick} = {}) {
   }
 
   const render = (state) => {
-    const open = state.chatOpen === true && state.treePanelOpen === true;
-
-    if (!open) {
+    if (visible(state) !== true) {
       return;
     }
 

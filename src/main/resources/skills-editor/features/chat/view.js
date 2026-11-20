@@ -58,7 +58,7 @@ function renderUserText(bubble, text, onOpenFile) {
       continue;
     }
     let path = match[2];
-    const trailing = /[),.;:!?'")，。、；：！？）】》」』”’]+$/.exec(path);
+    const trailing = /[),.;:!?'"，。、；：！？）】》」』”’]+$/.exec(path);
     if (trailing) {
       path = path.slice(0, -trailing[0].length);
     }

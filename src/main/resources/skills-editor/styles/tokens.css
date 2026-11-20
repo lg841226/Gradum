@@ -109,8 +109,8 @@
 
     /* Structure */
     --island-gap: calc(6px * var(--ui-scale));
-    --rail-width: calc(208px * var(--ui-scale));
-    --tree-width: calc(208px * var(--ui-scale));
+    --slot-left-width: calc(208px * var(--ui-scale));
+    --slot-right-width: calc(208px * var(--ui-scale));
     --blur-popup: 10px;
     --composer-h: calc(96px * var(--ui-scale));
     --header-height: calc(36px * var(--ui-scale));
@@ -140,10 +140,22 @@
     --menu-entry-width: 12em;
     --tooltip-origin: bottom;
 
+    /* Z layers: the only values allowed to compete at the viewport root.
+       Anything that lives inside a component's own stacking context keeps
+       plain small numbers; never hardcode a root-level z-index. */
+    --z-window: 20;
+    /* slot popups in narrow/touch layout */
+    --z-float: 30;
+    /* dropdowns, select portals, folded menubar nav: above every panel */
+    --z-popup: 40;
+    --z-notification: 50;
+    --z-tooltip: 60;
+    /* unlock backdrop: the one thing that is always on top */
+    --z-modal: 70;
+
     /* Floating panels (touch layout): the dragged position and size of the
-       rail and bottom windows, written from script at runtime. */
+       slot panels, written from script at runtime. */
     --float-x: 12px;
-    --float-rx: 12px;
     --float-y: 64px;
     --float-w: min(320px, calc(100vw - 24px));
     --float-h: min(46vh, 420px);

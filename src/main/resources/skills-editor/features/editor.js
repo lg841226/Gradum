@@ -1,5 +1,4 @@
 import {withDoc} from "../core/store.js";
-import {createEmptyState} from "../ui/components/feedback.js";
 import {createPanel} from "../ui/components/panel.js";
 import {copy} from "../ui/copy.js";
 import {onDragSettle} from "./splitter.js";
@@ -18,17 +17,12 @@ const MAX_LOG_PROBLEMS = 6;
 //
 // File I/O and the identity of the active document come from the host: this
 // island never learns where a buffer came from or how a build reaches a server.
-export function mountEditor(store, {canvas, showPanel, documents, getActiveDoc, runCommand}) {
+export function mountEditor(store, {dockRow, dockMain, showPanel, documents, getActiveDoc, runCommand}) {
   const panel = createPanel();
   panel.classList.add("editor");
 
   const body = document.createElement("div");
   body.className = "editor-body";
-
-  const emptyState = createEmptyState({
-    title: copy.editor.emptyTitle,
-    hint: copy.editor.emptyHint,
-  });
 
   let focusedPane;
   const panes = [];
@@ -68,9 +62,9 @@ export function mountEditor(store, {canvas, showPanel, documents, getActiveDoc, 
   });
   const {divider} = split;
 
-  body.append(leftPane.root, divider, rightPane.root, emptyState);
+  body.append(leftPane.root, divider, rightPane.root);
   panel.append(body);
-  canvas.appendChild(panel);
+  dockMain.appendChild(panel);
 
   function activePane() {
     return panes.find((pane) => pane.source === document.activeElement) ?? focusedPane;
@@ -328,8 +322,9 @@ export function mountEditor(store, {canvas, showPanel, documents, getActiveDoc, 
     }
 
     split.apply(state);
-    body.classList.toggle("is-empty", !doc);
-    emptyState.hidden = Boolean(doc);
+    panel.hidden = !doc || state.chatOpen === true;
+
+    dockRow.classList.toggle("no-main", !doc && state.chatOpen !== true);
 
     if (state.focusToken !== renderedFocus) {
       renderedFocus = state.focusToken;

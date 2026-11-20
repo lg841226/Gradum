@@ -36,13 +36,11 @@
     transform: translateX(calc(var(--switch-width) - var(--switch-height)));
 }
 
-/* The select trigger copies the composer pickers: the current value followed
-   by a chevron, reading as a chip rather than a text field. */
 .select-trigger {
     min-width: 0;
     border-radius: 999px;
     overflow: hidden;
-    gap: var(--space-2);
+    gap: var(--space-1);
     color: var(--text-dim);
     padding: 0 var(--space-2);
     font-size: var(--font-size-small);
@@ -64,11 +62,9 @@
     text-overflow: ellipsis;
 }
 
-/* The same popup surface as the composer menus (.model-menu): shared border,
-   radius, shadow and blur, with the list component's rows inside. */
 .select-menu {
     position: fixed;
-    z-index: 13;
+    z-index: var(--z-popup);
     min-width: calc(160px * var(--ui-scale));
     max-width: calc(280px * var(--ui-scale));
     max-height: calc(280px * var(--ui-scale));

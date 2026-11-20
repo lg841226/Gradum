@@ -1,7 +1,7 @@
 .settings-window {
     top: 0;
     left: 0;
-    z-index: 12;
+    z-index: var(--z-window);
     display: grid;
     position: fixed;
     overflow: hidden;

@@ -11,29 +11,50 @@
     -webkit-font-smoothing: antialiased;
     font: var(--weight-regular) var(--font-size-ui) / 1.5 var(--font-ui);
     background: radial-gradient(
-            560px 460px at calc(var(--island-gap) + var(--rail-width) + var(--island-gap) * .5) 180px,
+            560px 460px at calc(var(--island-gap) + var(--slot-left-width) + var(--island-gap) * .5) 180px,
             var(--glow),
             transparent 70%
     ),
     var(--bg-canvas);
-    grid-template-columns:
-        var(--rail-width) var(--island-gap) 1fr 0 0;
+
     grid-template-rows:
         var(--menubar-height) var(--island-gap)
-        1fr var(--island-gap) var(--bottom-height)
-        var(--island-gap) var(--statusbar-height);
-    transition: grid-template-columns var(--motion-fast) var(--ease-standard),
-    grid-template-rows var(--motion-fast) var(--ease-standard);
+        1fr var(--island-gap) var(--statusbar-height);
 }
 
-.panel {
-    background: var(--bg-island);
-    border-radius: var(--radius-island);
+.dock {
+    grid-row: 3;
+    min-height: 0;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.dock-row {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: row;
+}
+
+.dock-main {
+    order: 3;
+    flex: 1 1 0;
     min-height: 0;
     display: flex;
     flex-direction: column;
+    min-width: clamp(440px, 50%, 560px);
+}
+
+.panel {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
     overflow: hidden;
+    flex-direction: column;
+    background: var(--bg-island);
+    border-radius: var(--radius-island);
     transition: opacity var(--motion-fast) var(--ease-standard);
 }
 
@@ -55,7 +76,6 @@
 }
 
 .menubar {
-    grid-column: 1 / -1;
     grid-row: 1;
     display: flex;
     align-items: center;
@@ -71,14 +91,19 @@
 }
 
 .menubar-left {
-    overflow: hidden;
     flex: 1 1 0;
+    overflow: hidden;
 }
 
 .menubar-right {
     flex: 1 1 0;
+    gap: var(--space-2);
     min-width: max-content;
     justify-content: flex-end;
+}
+
+.menubar-slots {
+    flex: 0 0 auto;
     gap: var(--space-2);
 }
 
@@ -131,7 +156,7 @@
 
     .menubar .menubar-views {
         top: 100%;
-        z-index: 20;
+        z-index: var(--z-popup);
         min-width: 180px;
         display: none;
         position: absolute;
@@ -170,50 +195,37 @@
         opacity: 1;
     }
 
-    .canvas {
-        grid-template-columns: 0 0 1fr;
-        grid-template-rows:
-            var(--menubar-height) var(--island-gap)
-            1fr 0 0
-            var(--island-gap) var(--statusbar-height);
-    }
-
     .splitter-v,
     .splitter-h {
         display: none;
     }
 
-    .rail,
-    .bottom,
-    .tree-panel {
-        z-index: 40;
+    .canvas .slot {
         position: fixed;
-        left: var(--float-x, 12px);
-        top: var(--float-y, 64px);
-        width: var(--float-w, min(320px, calc(100vw - 24px)));
-        height: var(--float-h, min(46vh, 420px));
         overflow: hidden;
+        z-index: var(--z-float);
+        top: var(--float-y, 64px);
+        left: var(--float-x, 12px);
+        height: var(--float-h, min(46vh, 420px));
+        width: var(--float-w, min(320px, calc(100vw - 24px)));
         background: var(--bg-popup);
         box-shadow: var(--shadow-popup);
         border: 1px solid var(--border);
         border-radius: var(--radius-island);
     }
 
-    .tree-panel {
+    .canvas .slot-right {
         left: auto;
-        right: var(--float-rx, 12px);
+        right: var(--float-x, 12px);
     }
 
-    .rail.is-dragging,
-    .bottom.is-dragging,
-    .tree-panel.is-dragging {
+    .slot.is-dragging {
         border-color: var(--accent);
         box-shadow: 0 12px 32px var(--glow);
     }
 
-    .rail .panel-header,
-    .bottom .panel-header,
-    .tree-panel .panel-header {
+    .slot .panel-header,
+    .slot .slot-empty {
         cursor: grab;
         touch-action: none;
     }
@@ -240,29 +252,128 @@
     }
 }
 
-.rail {
-    grid-column: 1;
-    grid-row: 3 / 6;
-}
-
-.editor {
-    grid-row: 3;
-    grid-column: 3;
-}
-
+.editor,
 .assistant {
-    grid-row: 3;
-    grid-column: 3;
+    order: 1;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
 }
 
-.bottom {
-    grid-row: 5;
-    grid-column: 3;
+.slot-left {
+    order: 1;
+    flex: 0 1 var(--slot-left-width);
+    min-width: 140px;
+}
+
+.splitter-slot-left {
+    order: 2;
+}
+
+.slot-center {
+    order: 3;
+    flex: 0 0 var(--bottom-height);
+}
+
+.slot-right {
+    order: 5;
+    flex: 0 1 var(--slot-right-width);
+    min-width: 140px;
+}
+
+.splitter-slot-right {
+    order: 4;
+}
+
+.dock-row.no-main .slot-right {
+    flex: 1 1 0;
+}
+
+.dock-row.no-main .splitter-slot-right {
+    display: none;
+}
+
+.dock-row.no-main:not(:has(.slot-right:not([hidden]))) .slot-left {
+    flex: 1 1 0;
+}
+
+.dock-row.no-main:not(:has(.slot-right:not([hidden]))) .splitter-slot-left {
+    display: none;
+}
+
+.dock-row.no-main:has(.dock-main.has-bottom):has(.slot-right:not([hidden])) .slot-right {
+    flex: 0 0 var(--slot-right-width);
+}
+
+.dock-row.no-main:has(.dock-main.has-bottom):has(.slot-right:not([hidden])) .splitter-slot-right {
+    display: revert;
+}
+
+.dock-row.no-main .dock-main:not(.has-bottom) {
+    display: none;
+}
+
+.dock-row.no-main .dock-main > .splitter-h {
+    display: none;
+}
+
+.dock-row.no-main .dock-main > .slot-center {
+    flex: 1 1 0;
+}
+
+.slot {
+    position: relative;
+}
+
+.slot-empty-hide {
+    position: absolute;
+    top: var(--space-1);
+    right: var(--space-1);
+    z-index: 1;
+    opacity: 0;
+    transition: opacity var(--motion-fast) var(--ease-standard);
+}
+
+.panel:hover .slot-empty-hide,
+.slot-empty-hide:focus-within {
+    opacity: 1;
+}
+
+.slot-view {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.slot-empty {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    text-align: center;
+}
+
+.slot-empty-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.slot-empty .icon {
+    color: var(--text-mute);
+}
+
+.slot-empty-title {
+    font-size: var(--font-size-ui);
+    font-weight: 600;
 }
 
 .statusbar {
-    grid-row: -2;
-    grid-column: 1 / -1;
+    grid-row: 5;
     display: flex;
     user-select: none;
     align-items: center;
@@ -392,7 +503,7 @@ button.statusbar-strip-item:hover {
 }
 
 .notifications {
-    z-index: 45;
+    z-index: var(--z-notification);
     gap: var(--space-2);
     display: flex;
     position: fixed;
@@ -404,16 +515,16 @@ button.statusbar-strip-item:hover {
 }
 
 .notification {
-    gap: var(--space-2);
     display: flex;
-    padding: var(--space-3);
     position: relative;
+    pointer-events: auto;
     align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3);
     background: var(--bg-popup);
     box-shadow: var(--shadow-popup);
     border: 1px solid var(--border);
     border-radius: var(--radius-island);
-    pointer-events: auto;
     animation: notification-in var(--motion-slow) var(--ease-standard);
     transition: opacity var(--motion-slow) var(--ease-standard),
     transform var(--motion-slow) var(--ease-standard);
@@ -521,51 +632,9 @@ body.is-dragging .assistant .chat-pane {
     transition: none;
 }
 
-.canvas.rail-collapsed {
-    grid-template-columns: 0 0 1fr 0 0;
-}
-
-.canvas.rail-collapsed .rail,
-.canvas.rail-collapsed .splitter-rail {
-    opacity: 0;
-    pointer-events: none;
-}
-
-.tree-panel {
-    grid-column: 5;
-    grid-row: 3 / 6;
-}
-
-.canvas.tree-hidden .tree-panel,
-.canvas.tree-hidden .splitter-tree {
-    opacity: 0;
-    pointer-events: none;
-}
-
-.canvas.tree-open {
-    grid-template-columns: var(--rail-width) var(--island-gap) 1fr var(--island-gap) var(--tree-width);
-}
-
-.canvas.rail-collapsed.tree-open {
-    grid-template-columns: 0 0 1fr var(--island-gap) var(--tree-width);
-}
-
-.canvas.bottom-hidden {
-    grid-template-rows:
-        var(--menubar-height) var(--island-gap)
-        1fr 0 0 var(--island-gap) var(--statusbar-height);
-}
-
-.canvas.bottom-hidden .bottom,
-.canvas.bottom-hidden .splitter-h {
-    opacity: 0;
-    pointer-events: none;
-}
-
 .splitter {
     position: relative;
     z-index: 5;
-    transition: opacity var(--motion-fast) var(--ease-standard);
 }
 
 .splitter::after {
@@ -574,23 +643,17 @@ body.is-dragging .assistant .chat-pane {
 }
 
 .splitter-v {
-    grid-column: 2;
-    grid-row: 3 / 6;
     cursor: col-resize;
+    flex: 0 0 var(--island-gap);
 }
 
 .splitter-v::after {
     inset: 0 -3px;
 }
 
-.splitter-tree {
-    grid-column: 4;
-    grid-row: 3 / 6;
-}
-
 .splitter-h {
-    grid-column: 3;
-    grid-row: 4;
+    order: 2;
+    flex: 0 0 var(--island-gap);
     cursor: row-resize;
 }
 
@@ -612,15 +675,9 @@ body.is-dragging .assistant .chat-pane {
     opacity: 1;
 }
 
-.rail .panel-header,
-.bottom .panel-header,
-.tree-panel .panel-header {
+.slot .panel-header {
     gap: var(--space-1);
     padding: 0 var(--space-1) 0 var(--space-3);
-}
-
-.bottom .panel-title {
-    margin-right: var(--space-2);
 }
 
 .panel-actions {
@@ -636,10 +693,6 @@ body.is-dragging .assistant .chat-pane {
     position: relative;
 }
 
-/* A code pane is one column of the split: its own tab strip above its own
-   gutter, code area and minimap. The right pane is mounted from the start and
-   folded away here rather than added on demand, so both panes can be measured
-   and drawn at any time. */
 .code-pane {
     flex: 1 1 0;
     min-width: 0;
@@ -663,11 +716,6 @@ body.is-dragging .assistant .chat-pane {
     display: flex;
     flex: 1 1 auto;
     position: relative;
-}
-
-.editor-body.is-empty .code-pane,
-.editor-body.is-empty .pane-divider {
-    display: none;
 }
 
 .gutter {
@@ -1022,13 +1070,6 @@ body.is-dragging .assistant .chat-pane {
     color: var(--syn-function);
 }
 
-@media (hover: none), (pointer: coarse), (max-width: 720px) {
-    .canvas.tree-open,
-    .canvas.rail-collapsed.tree-open {
-        grid-template-columns: 0 0 1fr;
-    }
-}
-
 .offline-page {
     display: flex;
     grid-row: 1 / -1;
@@ -1136,8 +1177,8 @@ body.is-dragging .assistant .chat-pane {
 }
 
 .offline-hint {
-    color: var(--text-dim);
-    font-size: calc(14px * var(--ui-scale));
-    padding-inline: var(--space-4);
     text-wrap: balance;
+    color: var(--text-dim);
+    padding-inline: var(--space-4);
+    font-size: calc(14px * var(--ui-scale));
 }
