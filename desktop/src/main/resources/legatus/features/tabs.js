@@ -1,6 +1,7 @@
 import {findDoc, findDocByName, withDoc} from "../core/store.js";
 import {createTextField} from "../ui/components/field.js";
 import {renderTabStrip} from "../ui/components/tab.js";
+import {openContextMenu} from "../ui/components/contextMenu.js";
 import {copy} from "../ui/copy.js";
 
 // A name is taken when it is already on disk or open in a tab. Renaming ignores
@@ -16,8 +17,6 @@ function iconFor(name) {
   return name.toLowerCase().endsWith(".kt") ? "kotlin" : null;
 }
 
-// The tab carries the file name; the root/relative path stays the document's
-// identity and rides along in the tooltip.
 function labelFor(name) {
   const parts = String(name).split("/").filter(Boolean);
   return parts[parts.length - 1] ?? String(name);
@@ -196,6 +195,77 @@ export function mountTabs(store, {strips, documents}) {
     label.replaceWith(field);
     field.focus();
     field.select();
+  }
+
+  function closeOthers(id) {
+    const state = store.getState();
+    store.setState({docs: state.docs.filter((doc) => doc.id === id), activeId: id, focusToken: state.focusToken + 1});
+  }
+
+  function closeToRight(id) {
+    const state = store.getState();
+    const index = state.docs.findIndex((doc) => doc.id === id);
+    if (index === -1) {
+      return;
+    }
+    const docs = state.docs.slice(0, index + 1);
+    const activeId = docs.some((doc) => doc.id === state.activeId) ? state.activeId : id;
+    store.setState({docs, activeId, focusToken: state.focusToken + 1});
+  }
+
+  function renameById(id) {
+    const doc = findDoc(store.getState(), id);
+    const tab = document.querySelector(`.tab[data-id="${id}"]`);
+    if (doc && tab) {
+      beginRename(tab, doc);
+    }
+  }
+
+  function copyPath(doc) {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(doc.name).then(
+        () => store.setState({status: {text: copy.status.pathCopied(doc.name), tone: "neutral"}}),
+        () => store.setState({status: {text: copy.status.copyFailed, tone: "error"}}),
+      );
+      return;
+    }
+    store.setState({status: {text: copy.status.copyFailed, tone: "error"}});
+  }
+
+  function tabMenuItems(id) {
+    const state = store.getState();
+    const index = state.docs.findIndex((doc) => doc.id === id);
+    if (index === -1) {
+      return null;
+    }
+    const doc = state.docs[index];
+    return [
+      {label: copy.menu.close, onSelect: () => close(id)},
+      {label: copy.menu.closeOthers, enabled: state.docs.length > 1, onSelect: () => closeOthers(id)},
+      {label: copy.menu.closeToRight, enabled: index < state.docs.length - 1, onSelect: () => closeToRight(id)},
+      {separator: true},
+      {label: copy.menu.rename, icon: "edit", onSelect: () => renameById(id)},
+      {label: copy.menu.copyPath, icon: "copy", onSelect: () => copyPath(doc)},
+    ];
+  }
+
+  for (const view of strips) {
+    view.strip.addEventListener("contextmenu", (event) => {
+      const tab = event.target.closest(".tab");
+      if (!tab || !view.strip.contains(tab)) {
+        return;
+      }
+      const id = Number(tab.dataset.id);
+      if (!Number.isFinite(id)) {
+        return;
+      }
+      event.preventDefault();
+      activate(id);
+      const items = tabMenuItems(id);
+      if (items) {
+        openContextMenu({x: event.clientX, y: event.clientY, items});
+      }
+    });
   }
 
   let signature = null;

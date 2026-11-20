@@ -110,6 +110,14 @@ export const copy = {
     slotRight: "Toggle the right panel slot",
   },
 
+  menu: {
+    close: "Close",
+    closeOthers: "Close Others",
+    closeToRight: "Close to the Right",
+    rename: "Rename",
+    copyPath: "Copy Path",
+  },
+
   status: {
     noSkill: "No opened skill",
     invalidName: "Invalid name",
@@ -117,6 +125,8 @@ export const copy = {
     unauthorized: "Server rejected the request: the editor token is missing or has expired.",
     loadFailed: (name, detail) => `Could not open ${name}: ${detail}`,
     nameTaken: (name) => `${name} already exists`,
+    pathCopied: (name) => `Copied path: ${name}`,
+    copyFailed: "Could not copy to the clipboard",
   },
 
   rail: {
