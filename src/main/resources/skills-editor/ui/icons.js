@@ -174,6 +174,20 @@ export const icons = {
     + 'C14.5 12.8284 13.8284 13.5 13 13.5H10C9.17157 13.5 8.5 12.8284 8.5 12V4Z"'
     + ' stroke="currentColor" stroke-width="1"/>',
 
+  // expui/actions/moveToWindow_dark.svg: a frame with an arrow escaping to the
+  // top-right — the platform's "detach into window" mark. Apache 2.0,
+  // Copyright 2000-2025 JetBrains s.r.o. and contributors.
+  moveToWindow: '<path fill-rule="evenodd" clip-rule="evenodd" d="M4 14C2.89543 14 2 13.1046 2 12'
+    + 'L2 4C2 2.89543 2.89543 2 4 2L6.5 2C6.77614 2 7 2.22386 7 2.5C7 2.77614 6.77614 3 6.5 3L4 3'
+    + 'C3.44772 3 3 3.44772 3 4L3 12C3 12.5523 3.44772 13 4 13H12C12.5523 13 13 12.5523 13 12V9.5'
+    + 'C13 9.22386 13.2239 9 13.5 9C13.7761 9 14 9.22386 14 9.5V12C14 13.1046 13.1046 14 12 14H4Z"'
+    + ' fill="currentColor" stroke="none"/>'
+    + '<path fill-rule="evenodd" clip-rule="evenodd" d="M14 2V6.5C14 6.77614 13.7761 7 13.5 7'
+    + 'C13.2239 7 13 6.77614 13 6.5V3.70711L8.85355 7.85355C8.65829 8.04882 8.34171 8.04882'
+    + ' 8.14645 7.85355C7.95118 7.65829 7.95118 7.34171 8.14645 7.14645L12.2929 3L9.5 3'
+    + 'C9.22386 3 9 2.77614 9 2.5C9 2.22386 9.22386 2 9.5 2L14 2Z"'
+    + ' fill="currentColor" stroke="none"/>',
+
   // Kotlin plugin. The dark variant (expui/kotlin_dark.svg) shapes the sprite;
   // the light variant (expui/kotlin.svg) supplies the other token values.
   kotlin: '<path d="M13.3337 12.6314C13.6699 12.9396 13.4519 13.5 12.9958 13.5H3C2.72386 13.5'

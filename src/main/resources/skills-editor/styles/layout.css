@@ -200,47 +200,6 @@
         display: none;
     }
 
-    .canvas .slot {
-        position: fixed;
-        overflow: hidden;
-        z-index: var(--z-float);
-        top: var(--float-y, 64px);
-        left: var(--float-x, 12px);
-        height: var(--float-h, min(46vh, 420px));
-        width: var(--float-w, min(320px, calc(100vw - 24px)));
-        background: var(--bg-popup);
-        box-shadow: var(--shadow-popup);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-island);
-    }
-
-    .canvas .slot-right {
-        left: auto;
-        right: var(--float-x, 12px);
-    }
-
-    .slot.is-dragging {
-        border-color: var(--accent);
-        box-shadow: 0 12px 32px var(--glow);
-    }
-
-    .slot .panel-header,
-    .slot .slot-empty {
-        cursor: grab;
-        touch-action: none;
-    }
-
-    .float-resize {
-        right: 0;
-        bottom: 0;
-        z-index: 2;
-        width: 18px;
-        height: 18px;
-        position: absolute;
-        touch-action: none;
-        cursor: nwse-resize;
-    }
-
     .canvas {
         --statusbar-height: calc(20px * var(--ui-scale) + env(safe-area-inset-bottom, 0px));
     }
@@ -325,7 +284,55 @@
     position: relative;
 }
 
-.slot-empty-hide {
+.canvas .slot.slot-float {
+    position: fixed;
+    overflow: hidden;
+    z-index: var(--z-float);
+    top: var(--float-y, 64px);
+    left: var(--float-x, 12px);
+    height: var(--float-h, min(46vh, 420px));
+    width: var(--float-w, min(320px, calc(100vw - 24px)));
+    background: var(--bg-popup);
+    box-shadow: var(--shadow-popup);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-island);
+}
+
+.canvas .slot-right.slot-float {
+    left: auto;
+    right: var(--float-x, 12px);
+}
+
+.slot.slot-float.is-dragging {
+    border-color: var(--accent);
+    box-shadow: 0 12px 32px var(--glow);
+}
+
+.slot.slot-float .panel-header,
+.slot.slot-float .slot-empty {
+    cursor: grab;
+    touch-action: none;
+}
+
+.float-resize {
+    display: none;
+}
+
+.slot-float .float-resize {
+    display: block;
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    width: 18px;
+    height: 18px;
+    touch-action: none;
+    cursor: nwse-resize;
+}
+
+.slot-empty-controls {
+    display: flex;
+    gap: var(--space-1);
     position: absolute;
     top: var(--space-1);
     right: var(--space-1);
@@ -334,8 +341,8 @@
     transition: opacity var(--motion-fast) var(--ease-standard);
 }
 
-.panel:hover .slot-empty-hide,
-.slot-empty-hide:focus-within {
+.panel:hover .slot-empty-controls,
+.slot-empty-controls:focus-within {
     opacity: 1;
 }
 

@@ -40,10 +40,11 @@ function begin(event, panel, handle, onMove) {
   if (event.pointerType === "mouse" && event.button !== 0) {
     return;
   }
-  // Handlers stay attached across resizes; only the popup state drags.
-  if (!isFloatLayout()) {
+
+  if (!panel.classList.contains("slot-float")) {
     return;
   }
+
   if (event.target.closest("button, input, select, textarea")) {
     return;
   }

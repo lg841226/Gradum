@@ -34,7 +34,7 @@ jobs:
       # app image (bundled minimal JRE) for its own OS/arch only.
       - name: Build self-contained app image
         shell: bash
-        run: ./gradlew serverPackage --console=plain -Pgradum.skipPlugin
+        run: ./gradlew serverPackage --console=plain -Pgradum.skipPlugin -Pgradum.skipDesktop
 
       - name: Archive (macOS)
         if: runner.os == 'macOS'

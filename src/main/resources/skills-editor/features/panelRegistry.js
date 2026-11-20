@@ -175,7 +175,18 @@ function createSlots(store, {
       const active = assigned !== null && viewHasContent(state, assigned);
       nodes.empty.hidden = active;
       nodes.viewWrap.hidden = !active;
-      nodes.hideEmpty.hidden = active;
+      nodes.hideWrap.hidden = active;
+      // Windowed either by the per-slot toggle or by the narrow-screen rule.
+      const floating = isFloatLayout() || state[view.spec.floatKey] === true;
+      nodes.panel.classList.toggle("slot-float", floating);
+      nodes.floatBtn.hidden = !active;
+      const floatTip = floating ? copy.tooltip.dockPanel : copy.tooltip.floatPanel;
+      for (const button of [nodes.floatBtn, nodes.floatEmpty]) {
+        if (button.dataset.tooltip !== floatTip) {
+          button.dataset.tooltip = floatTip;
+          button.setAttribute("aria-label", floatTip);
+        }
+      }
       const creatable = active && (assigned === "explorer" || assigned === "sessions");
       nodes.plus.hidden = !creatable;
       if (assigned) {
@@ -238,13 +249,23 @@ function createSlots(store, {
     head.append(createIcon({name: SLOT_ICONS[view.spec.id], size: 24}), title);
     empty.append(head, select.element);
 
+    const floatEmpty = createIconButton({
+      icon: "moveToWindow",
+      tooltip: copy.tooltip.floatPanel,
+      onClick: () => store.setState({
+        [view.spec.floatKey]: store.getState()[view.spec.floatKey] !== true,
+      }),
+    });
+
     const hideEmpty = createIconButton({
       icon: "hide",
       tooltip: copy.tooltip.hide,
-      // Hides the slot; a remembered view (empty right now) stays assigned.
       onClick: () => store.setState({[view.spec.openKey]: false}),
     });
-    hideEmpty.classList.add("slot-empty-hide");
+
+    const hideWrap = document.createElement("div");
+    hideWrap.className = "slot-empty-controls";
+    hideWrap.append(floatEmpty, hideEmpty);
 
     const plus = createIconButton({
       icon: "plus",
@@ -259,22 +280,33 @@ function createSlots(store, {
       },
     });
     plus.hidden = true;
+    const floatBtn = createIconButton({
+      icon: "moveToWindow",
+      tooltip: copy.tooltip.floatPanel,
+      onClick: () => store.setState({
+        [view.spec.floatKey]: store.getState()[view.spec.floatKey] !== true,
+      }),
+    });
+    floatBtn.hidden = true;
     const hide = createIconButton({
       icon: "hide",
       tooltip: copy.tooltip.hide,
       onClick: () => store.setState({[view.spec.viewKey]: null}),
     });
-    const header = createPanelHeader({title: "", actions: [plus, hide]});
+    const header = createPanelHeader({title: "", actions: [plus, floatBtn, hide]});
     const viewWrap = document.createElement("div");
     viewWrap.className = "slot-view";
 
-    panel.append(hideEmpty, empty, viewWrap);
+    panel.append(hideWrap, empty, viewWrap);
     view.nodes = {
+      panel,
       empty,
       viewWrap,
       header,
       plus,
-      hideEmpty,
+      floatBtn,
+      floatEmpty,
+      hideWrap,
       select,
       titleNode: header.querySelector(".panel-title"),
     };

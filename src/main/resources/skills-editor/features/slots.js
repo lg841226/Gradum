@@ -23,9 +23,9 @@ export function viewFitsSlot(name, slotId) {
 }
 
 export const SLOTS = [
-  {id: "left", openKey: "slotLeftOpen", viewKey: "slotLeftView"},
-  {id: "center", openKey: "slotCenterOpen", viewKey: "slotCenterView"},
-  {id: "right", openKey: "slotRightOpen", viewKey: "slotRightView"},
+  {id: "left", openKey: "slotLeftOpen", viewKey: "slotLeftView", floatKey: "slotLeftFloat"},
+  {id: "center", openKey: "slotCenterOpen", viewKey: "slotCenterView", floatKey: "slotCenterFloat"},
+  {id: "right", openKey: "slotRightOpen", viewKey: "slotRightView", floatKey: "slotRightFloat"},
 ];
 
 export function slotById(id) {

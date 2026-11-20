@@ -90,6 +90,8 @@ export const copy = {
 
   tooltip: {
     hide: "Hide",
+    floatPanel: "Float Panel",
+    dockPanel: "Dock Panel",
     settings: "Settings",
     closeTab: "Close",
     newChat: "New chat",

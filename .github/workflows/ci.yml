@@ -27,5 +27,6 @@ jobs:
       # entirely (see settings.gradle.kts): it targets JDK 25 and resolves its
       # IntelliJ SDK from an aliyun mirror that is unreliable on CI. The `:`
       # prefix keeps tests pinned to the root project for good measure.
+      # `-Pgradum.skipDesktop` likewise excludes the macOS shell (JDK 25 toolchain).
       - name: Tests
-        run: ./gradlew :test --console=plain -Pgradum.skipPlugin -Dorg.gradle.java.home="$JAVA_HOME"
+        run: ./gradlew :test --console=plain -Pgradum.skipPlugin -Pgradum.skipDesktop -Dorg.gradle.java.home="$JAVA_HOME"

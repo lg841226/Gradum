@@ -93,20 +93,44 @@ private fun initRuntime(): StartupRuntime {
   )
 }
 
-private fun startHttp(arguments: Array<String>) {
-  if (arguments.any { it == "--help" || it == "-h" }) {
-    printUsage()
-    return
+/**
+ * Everything a started-but-not-yet-blocked server needs: the desktop shell
+ * keeps this. The engine type stays hidden behind these three methods so
+ * consumers do not need Ktor on their compile classpath.
+ */
+class GradumServerHandle internal constructor(
+  private val server: GradumServer,
+  val port: Int,
+  val token: String,
+  val runtime: GradumRuntime
+) {
+  /** Run the engine until it stops (CLI path). */
+  fun startBlocking() {
+    server.start(wait = true)
   }
 
-  val monitor: EventStreamMonitor? = EventStreamMonitor.openForServer()
-  val lineSink: (String) -> Unit =
-    if (monitor != null) {
-      { text: String -> monitor.serverLogSink("I", text) }
-    } else {
-      ::println
-    }
+  /** Launch the engine and return (desktop path); may throw BindException. */
+  fun startAsync() {
+    server.start(wait = false)
+  }
 
+  fun shutdown() {
+    server.stop(gracePeriodMillis = 3000, timeoutMillis = 5000)
+  }
+}
+
+/**
+ * Shared boot path for the CLI and the desktop shell: runtime init, bind-host
+ * validation, port auto-detection, server configuration and the shutdown
+ * hook, without blocking. Returns null (after cleanup) when startup cannot
+ * proceed.
+ */
+fun bootServer(
+  lineSink: (String) -> Unit = ::println,
+  showBanner: Boolean = true,
+  bannerColored: Boolean = true,
+  logLegatusUrl: Boolean = true
+): GradumServerHandle? {
   val startup = initRuntime()
   val runtime = startup.runtime
   val settings = runtime.settings
@@ -120,7 +144,7 @@ private fun startHttp(arguments: Array<String>) {
     )
     runtime.skillWatcher.close()
     runtime.mcpManager.close()
-    return
+    return null
   }
   if (exposedToNetwork) {
     logger.warn(
@@ -137,7 +161,7 @@ private fun startHttp(arguments: Array<String>) {
       )
       runtime.skillWatcher.close()
       runtime.mcpManager.close()
-      return
+      return null
     }
   } else if (settings.allowRemote) {
     logger.info(
@@ -155,7 +179,7 @@ private fun startHttp(arguments: Array<String>) {
           )
           runtime.skillWatcher.close()
           runtime.mcpManager.close()
-          return
+          return null
         }
         logger.info("Using auto-detected port: $detectedPort")
         detectedPort
@@ -166,15 +190,17 @@ private fun startHttp(arguments: Array<String>) {
 
   System.setProperty("gradum.server.port", resolvedPort.toString())
 
-  printStartupBanner(
-    hostAddress = settings.host,
-    portNumber = resolvedPort,
-    mcpToolCount = McpToolCatalog.toolCount(),
-    skillCount = SkillRegistry.getAllSkills().size,
-    mcpFailureCount = startup.mcpFailures.size,
-    lineSink = lineSink,
-    colored = monitor == null
-  )
+  if (showBanner) {
+    printStartupBanner(
+      hostAddress = settings.host,
+      portNumber = resolvedPort,
+      mcpToolCount = McpToolCatalog.toolCount(),
+      skillCount = SkillRegistry.getAllSkills().size,
+      mcpFailureCount = startup.mcpFailures.size,
+      lineSink = lineSink,
+      colored = bannerColored
+    )
+  }
   runtime.mcpManager.reportFailures(startup.mcpFailures)
 
   if (runtime.resolvedApiKey != null) {
@@ -203,20 +229,22 @@ private fun startHttp(arguments: Array<String>) {
 
   val server: GradumServer = createServerInstance(serverConfiguration)
 
-  // One product, one entry: /skills/editor is a legacy alias of /legatus
-  // (both answer through respondWorkspacePage), so only /legatus is printed.
-  val legatusPath = "/legatus?${ServerAuth.TOKEN_QUERY_PARAM}=$authToken"
-  logger.info("Gradum Legatus (this machine): http://localhost:$resolvedPort$legatusPath")
-  val lanAddresses: List<String> = ServerAuth.localAddresses()
-  val primaryLan: String? = preferredLanAddress(lanAddresses)
-  if (primaryLan != null) {
-    if (!exposedToNetwork) {
-      logger.info(
-        "The LAN links below answer remote clients once \"allowRemote\": true is set in ~/.gradum/settings.json"
-      )
+  if (logLegatusUrl) {
+    // One product, one entry: /skills/editor is a legacy alias of /legatus
+    // (both answer through respondWorkspacePage), so only /legatus is printed.
+    val legatusPath = "/legatus?${ServerAuth.TOKEN_QUERY_PARAM}=$authToken"
+    logger.info("Gradum Legatus (this machine): http://localhost:$resolvedPort$legatusPath")
+    val lanAddresses: List<String> = ServerAuth.localAddresses()
+    val primaryLan: String? = preferredLanAddress(lanAddresses)
+    if (primaryLan != null) {
+      if (!exposedToNetwork) {
+        logger.info(
+          "The LAN links below answer remote clients once \"allowRemote\": true is set in ~/.gradum/settings.json"
+        )
+      }
+      val primaryHost: String = if (primaryLan.contains(':')) "[$primaryLan]" else primaryLan
+      logger.info("Gradum Legatus (LAN): http://$primaryHost:$resolvedPort$legatusPath")
     }
-    val primaryHost: String = if (primaryLan.contains(':')) "[$primaryLan]" else primaryLan
-    logger.info("Gradum Legatus (LAN): http://$primaryHost:$resolvedPort$legatusPath")
   }
 
   Runtime.getRuntime().addShutdownHook(Thread {
@@ -226,12 +254,30 @@ private fun startHttp(arguments: Array<String>) {
     logger.info("Gradum Server has been shut down successfully")
   })
 
+  return GradumServerHandle(server, resolvedPort, authToken, runtime)
+}
+
+private fun startHttp(arguments: Array<String>) {
+  if (arguments.any { it == "--help" || it == "-h" }) {
+    printUsage()
+    return
+  }
+
+  val monitor: EventStreamMonitor? = EventStreamMonitor.openForServer()
+  val lineSink: (String) -> Unit =
+    if (monitor != null) {
+      { text: String -> monitor.serverLogSink("I", text) }
+    } else {
+      ::println
+    }
+
+  val handle = bootServer(lineSink = lineSink, bannerColored = monitor == null) ?: return
   try {
-    server.start(wait = true)
+    handle.startBlocking()
   } catch (bindException: BindException) {
-    runtime.skillWatcher.close()
+    handle.runtime.skillWatcher.close()
     logger.error(
-      "Port $resolvedPort on ${settings.host} is already in use (${bindException.message}). " +
+      "Port ${handle.port} on ${handle.runtime.settings.host} is already in use (${bindException.message}). " +
         "Stop that process or set another port / autoDetectPort in ~/.gradum/settings.json, then restart."
     )
   }
