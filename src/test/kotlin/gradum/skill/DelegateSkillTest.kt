@@ -3,23 +3,10 @@ package gradum.skill
 import gradum.AgentConfiguration
 import gradum.GradumConfig
 import gradum.SkillResult
-import gradum.ToolMode
+import gradum.mode.ModeRegistry
 import gradum.skill.builtin.DelegateSkill
 import kotlin.test.*
 
-/**
- * Pins [DelegateSkill] behavior that the agent orchestration and the
- * sub-agent lifecycle depend on:
- *
- *  1. Schema structure: the LLM must discover `task` and `title`.
- *  2. Tool-mode gates: the skill must be available in all modes.
- *  3. Validation: missing required parameters return structured errors.
- *  4. Context validation: missing [AgentConfiguration] or [emitEvent]
- *     in [SkillContext] return client errors, not NPEs.
- *  5. Event-stream ownership: the skill signals
- *     [manageOwnEventStream] so the agent loop does not emit
- *     duplicate `tool_call_start` / `tool_call` events.
- */
 class DelegateSkillTest {
 
   private val skill: DelegateSkill = DelegateSkill()
@@ -66,9 +53,9 @@ class DelegateSkillTest {
 
   @Test
   fun `allows agent edit and read-only tool modes`() {
-    assertTrue(skill.allows(ToolMode.AGENT), "must allow AGENT mode")
-    assertTrue(skill.allows(ToolMode.EDIT), "must allow EDIT mode")
-    assertTrue(skill.allows(ToolMode.READ_ONLY), "must allow READ_ONLY mode")
+    assertTrue(skill.allows(ModeRegistry.resolve("agent")), "must allow agent mode")
+    assertTrue(skill.allows(ModeRegistry.resolve("edit")), "must allow edit mode")
+    assertTrue(skill.allows(ModeRegistry.resolve("read_only")), "must allow read_only mode")
   }
 
   @Test
@@ -79,7 +66,6 @@ class DelegateSkillTest {
   @Test
   fun `execute fails when task parameter is missing`() {
     val context = SkillContext(
-      toolMode = ToolMode.AGENT,
       projectRoot = "/tmp",
       agentConfiguration = AgentConfiguration(),
       emitEvent = { _, _ -> }
@@ -96,7 +82,6 @@ class DelegateSkillTest {
   @Test
   fun `execute fails when agentConfiguration is not available`() {
     val context = SkillContext(
-      toolMode = ToolMode.AGENT,
       projectRoot = "/tmp",
       emitEvent = { _, _ -> }
     )
@@ -117,7 +102,6 @@ class DelegateSkillTest {
   @Test
   fun `execute fails when emitEvent is not available`() {
     val context = SkillContext(
-      toolMode = ToolMode.AGENT,
       projectRoot = "/tmp",
       agentConfiguration = AgentConfiguration()
     )

@@ -16,6 +16,7 @@ internal class CocoaApp(private val config: DesktopWindowConfig) {
   private var webView = MemorySegment.NULL
   private var delegate = MemorySegment.NULL
   private var navigationDelegate = MemorySegment.NULL
+  private var uiDelegate = MemorySegment.NULL
 
   fun show() {
     NativeCallbacks.current = this
@@ -110,6 +111,7 @@ internal class CocoaApp(private val config: DesktopWindowConfig) {
       webView = WebView.create(frame, config.url, buildDragHandler())
       ObjCRuntime.void1(window, "setContentView:", webView)
       installNavigationDelegate()
+      installUIDelegate()
       buildMenu()
 
       ObjCRuntime.void1(window, "setTitle:", ObjCRuntime.nsString(config.windowTitle))
@@ -227,6 +229,31 @@ internal class CocoaApp(private val config: DesktopWindowConfig) {
     ObjCRuntime.void1(webView, "setNavigationDelegate:", navigationDelegate)
   }
 
+  private fun installUIDelegate() {
+    val callbackType = MethodType.methodType(
+      MemorySegment::class.java,
+      MemorySegment::class.java,
+      MemorySegment::class.java,
+      MemorySegment::class.java,
+      MemorySegment::class.java,
+      MemorySegment::class.java,
+      MemorySegment::class.java
+    )
+    val delegateClass = ObjCRuntime.beginClass("GradumUIDelegate")
+    ObjCRuntime.addImp(
+      delegateClass,
+      "webView:createWebViewWithConfiguration:forNavigationAction:windowFeatures:",
+      "@@:@@@@",
+      MethodHandles.lookup().findStatic(
+        NativeCallbacks::class.java, "createWebViewWithConfiguration", callbackType
+      ),
+      FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS),
+    )
+    ObjCRuntime.finishClass(delegateClass)
+    uiDelegate = ObjCRuntime.allocInit(delegateClass)
+    ObjCRuntime.void1(webView, "setUIDelegate:", uiDelegate)
+  }
+
   fun setWindowTitle(title: String) {
     if (window != MemorySegment.NULL && title.isNotEmpty()) {
       ObjCRuntime.void1(window, "setTitle:", ObjCRuntime.nsString(title))
@@ -279,6 +306,27 @@ internal object NativeCallbacks {
     self: MemorySegment, cmd: MemorySegment, notification: MemorySegment
   ) {
     current?.applyTrafficLightOffset()
+  }
+
+  @JvmStatic
+  @Suppress("unused_parameter")
+  fun createWebViewWithConfiguration(
+    self: MemorySegment,
+    cmd: MemorySegment,
+    webView: MemorySegment,
+    configuration: MemorySegment,
+    navigationAction: MemorySegment,
+    windowFeatures: MemorySegment,
+  ): MemorySegment {
+    val request = ObjCRuntime.send0(navigationAction, "request")
+    if (request != MemorySegment.NULL) {
+      val url = ObjCRuntime.send0(request, "URL")
+      if (url != MemorySegment.NULL) {
+        val workspace = ObjCRuntime.send0(ObjCRuntime.classNamed("NSWorkspace"), "sharedWorkspace")
+        ObjCRuntime.void1(workspace, "openURL:", url)
+      }
+    }
+    return MemorySegment.NULL
   }
 
   @JvmStatic

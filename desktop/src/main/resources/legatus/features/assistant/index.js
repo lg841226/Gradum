@@ -1,4 +1,4 @@
-import {listModels, listSessions, sessionState} from "../../data/legatusApi.js";
+import {listModels, listModes, listSessions, sessionState} from "../../data/legatusApi.js";
 import {STORAGE_KEYS} from "../../core/storageKeys.js";
 import {readJsonStorage, readStorage, writeStorage} from "../../core/storage.js";
 import {copy} from "../../ui/copy.js";
@@ -559,6 +559,14 @@ export function mountAssistant(store, {panel, onOpenFile}) {
         const sendable = ui.modelPicker.hasModels();
         ui.composer.setSendEnabled(sendable);
         splitUi.composer.setSendEnabled(sendable);
+      })
+      .catch(() => {
+      });
+
+    listModes()
+      .then((modes) => {
+        ui.permissionPicker.applyModes(modes);
+        splitUi.permissionPicker.applyModes(modes);
       })
       .catch(() => {
       });

@@ -4,6 +4,8 @@ import gradum.SkillResult
 import gradum.ToolMode
 import gradum.agent.MessageRecord
 import gradum.agent.ToolMessageRecord
+import gradum.mode.AgentMode
+import gradum.mode.ToolOrigin
 import gradum.skill.dsl.ParameterLevel
 import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.dsl.SettingsSpec
@@ -40,17 +42,42 @@ abstract class Skill {
   abstract val description: String
 
   /**
-   * The [ToolMode] values under which this skill may execute.
+   * Which registry this skill was loaded from. The registrar assigns it:
+   * built-ins leave the default, the MCP adapter marks itself [ToolOrigin.MCP],
+   * and the external scanner stamps [ToolOrigin.EXTERNAL] on every compiled
+   * user skill before registering it. The `$mcp` / `$external` selectors in
+   * a mode's `tools` section match on this value.
+   */
+  @Volatile
+  var toolOrigin: ToolOrigin = ToolOrigin.BUILTIN
+
+  /**
+   * Whether this skill is on [mode]'s tool surface. Tool visibility is
+   * decided by the mode's declarative `tools` allow/deny selectors (see
+   * [gradum.mode.ModeRegistry]), not by the skill itself.
    *
    * The runtime gate lives here, not in [gradum.skill.SkillRegistry],
-   * because LLM-hallucinated tool calls bypass the schema filter, the
+   * because LLM-hallucinated tool calls bypass the schema filter and the
    * agent must enforce the invariant regardless of what the schema
-   * whitelist let through. Skills that mutate the project must exclude
-   * [ToolMode.READ_ONLY].
+   * whitelist let through.
    */
+  fun allows(mode: AgentMode): Boolean = mode.allowsTool(skillName, toolOrigin)
+
+  /**
+   * Legacy per-skill whitelist consulted by the old [ToolMode] enum.
+   * Modes are configuration now and [allows] is the runtime path; this
+   * property survives only so external skills that still override it
+   * keep compiling. Overriding it no longer changes behavior.
+   */
+  @Deprecated("Modes are configuration now; the active mode's tools allow/deny decides visibility.")
   open val allowedToolModes: Set<ToolMode> = setOf(
     ToolMode.AGENT, ToolMode.EDIT, ToolMode.READ_ONLY
   )
+
+  /** Legacy enum-based check kept for external-skill source compatibility. */
+  @Deprecated("Use allows(AgentMode); the mode registry is the single source of tool surface.")
+  open fun allows(toolMode: ToolMode): Boolean =
+    toolMode == ToolMode.YOLO || toolMode in allowedToolModes
 
   /**
    * Shape of the plugin config this skill reads from the settings.json
@@ -58,22 +85,6 @@ abstract class Skill {
    * Consumed via `pluginConfig(context).forSpec(settingsSpec)`.
    */
   open val settingsSpec: SettingsSpec? = null
-
-  /**
-   * Whether this skill may execute under [toolMode].
-   *
-   * The single authority for the tool-mode gate: both the schema filter
-   * in [gradum.skill.SkillRegistry] and the runtime gate in
-   * [gradum.agent.ToolExecutor] call this so the two checks can never
-   * disagree.
-   *
-   * [ToolMode.YOLO] short-circuits the per-skill whitelist: the user opted
-   * out of every gate, so every skill is available in that mode. Keeping
-   * the bypass here (rather than adding YOLO to each [allowedToolModes]
-   * set) leaves the per-skill declarations describing only the gated modes.
-   */
-  fun allows(toolMode: ToolMode): Boolean =
-    toolMode == ToolMode.YOLO || toolMode in allowedToolModes
 
   /**
    * Execute the skill with the LLM's tool-call arguments and the

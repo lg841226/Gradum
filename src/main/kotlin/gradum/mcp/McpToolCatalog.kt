@@ -1,21 +1,16 @@
 package gradum.mcp
 
-import gradum.ToolMode
 import gradum.agent.ExternalToolProvider
-import gradum.mcp.McpToolCatalog.OTHER_GROUP
+import gradum.mode.AgentMode
+import gradum.mode.ModeRegistry
 import gradum.skill.Skill
 import java.util.concurrent.ConcurrentHashMap
 
-/**
- * A one-line summary of an MCP tool for the directory listing: its callable
- * name and a short description.
- */
 data class McpToolBrief(
   val name: String,
   val description: String,
 )
 
-/** A functional group of MCP tools, each with a one-line summary. */
 data class McpToolGroup(
   val group: String,
   val tools: List<McpToolBrief>,
@@ -46,12 +41,10 @@ object McpToolCatalog : ExternalToolProvider {
     adaptersByTool[tool.name] = McpSkillAdapter(tool, client)
   }
 
-  /** Drops every registered adapter; paired with [McpConnectionManager.close]. */
   fun clear() {
     adaptersByTool.clear()
   }
 
-  /** Number of registered MCP tools. */
   override fun toolCount(): Int = adaptersByTool.size
 
   // Returns the full-schema adapter for [name], or null when not registered.
@@ -63,22 +56,19 @@ object McpToolCatalog : ExternalToolProvider {
    * [gradum.agent.Agent] to add a session's materialized tools to the model's
    * tool list.
    */
-  override fun fullSchemas(names: Set<String>, toolMode: ToolMode): List<Map<String, Any>> =
-    names.mapNotNull { adaptersByTool[it] }
-      .filter { adapter -> adapter.allows(toolMode) }
+  override fun fullSchemas(names: Set<String>, toolMode: String): List<Map<String, Any>> {
+    val mode: AgentMode = ModeRegistry.resolve(toolMode)
+    return names.mapNotNull { adaptersByTool[it] }
+      .filter { adapter -> adapter.allows(mode) }
       .sortedBy { adapter -> adapter.skillName }
       .map { adapter -> adapter.getSchema() }
+  }
 
-  /** Functional group assigned to [toolName] by the keyword rules. */
   fun groupOf(toolName: String): String =
     GROUP_RULES.firstOrNull { (_, keywords) -> keywords.any { toolName.contains(it) } }
       ?.first
       ?: OTHER_GROUP
 
-  /**
-   * The full directory grouped by function, in rule order with unmatched tools
-   * falling back to [OTHER_GROUP] last.
-   */
   fun groupedListing(): List<McpToolGroup> {
     val grouped: LinkedHashMap<String, MutableList<McpToolBrief>> = linkedMapOf()
     allAdapters().forEach { adapter ->
@@ -109,7 +99,6 @@ object McpToolCatalog : ExternalToolProvider {
       .map { brief(it) }
   }
 
-  /** Full OpenAI schema for a single tool, or null when unknown. */
   fun schemaOf(name: String): Map<String, Any>? = adaptersByTool[name]?.getSchema()
 
   private fun allAdapters(): List<McpSkillAdapter> =
@@ -128,10 +117,6 @@ object McpToolCatalog : ExternalToolProvider {
   private const val OTHER_GROUP = "Other"
   private const val BRIEF_LENGTH = 90
 
-  // Ordered (group, keyword) rules. The first rule whose keyword appears in a
-  // tool name assigns its group; tools matching none fall back to [OTHER_GROUP].
-  // Rule order matters, so broad keywords (e.g. `fill`) appear after narrower
-  // ones to avoid hijacking tools that belong to a more specific group.
   private val GROUP_RULES: List<Pair<String, List<String>>> = listOf(
     "Navigation" to listOf("navigate", "new_page", "go_back", "reload", "wait_for", "close", "install"),
     "Interaction" to listOf("click", "hover", "drag", "press_key", "check", "uncheck", "handle_dialog"),

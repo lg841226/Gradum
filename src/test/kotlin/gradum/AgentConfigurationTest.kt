@@ -1,113 +1,132 @@
 package gradum
 
+import gradum.mode.ModeRegistry
+import java.nio.file.Files
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * Locks the wire format that the plugin sends for [ToolMode]. The plugin
- * emits `"read_only"` / `"edit"` / `"agent"` / `"yolo"` (lowercase),
- * see [gradum.idea.chat.ui.input.PermissionMode], and the server's
- * [ToolMode.fromStringOrDefault] must translate those to the actual
- * enum constants. If this translation ever regresses to be case-sensitive
- * or to reject lowercase values, the read-only mode is silently treated
- * as agent and the security gate in `Agent.executeSingleTool` becomes a
- * no-op. The default fallback (unknown -> AGENT) is also pinned because
- * it is the silent-success path that previously masked the bug.
+ * Locks the wire format that the plugin sends for the tool mode. The plugin
+ * emits `"read_only"` / `"edit"` / `"agent"` / `"yolo"` (lowercase), see
+ * PermissionMode, and [ModeRegistry.resolveId]
+ * must translate those to the matching configured mode ids. If this
+ * translation ever regresses to be case-sensitive or to reject lowercase
+ * values, the read-only mode is silently treated as agent and the security
+ * gate in `Agent.executeSingleTool` becomes a no-op. The default fallback
+ * (unknown -> agent) is also pinned because it is the silent-success path
+ * that previously masked the bug.
  */
 class AgentConfigurationTest {
+  private var previousConfigDir: String? = null
+
+  @BeforeTest
+  fun isolateConfigDir() {
+    previousConfigDir = System.getProperty("gradum.server.configDir")
+    System.setProperty(
+      "gradum.server.configDir",
+      Files.createTempDirectory("gradum-agent-config-").toAbsolutePath().toString()
+    )
+    ModeRegistry.reload()
+  }
+
+  @AfterTest
+  fun restoreConfigDir() {
+    if (previousConfigDir == null) System.clearProperty("gradum.server.configDir")
+    else System.setProperty("gradum.server.configDir", previousConfigDir!!)
+    ModeRegistry.reload()
+  }
 
   @Test
-  fun `read_only wire value resolves to READ_ONLY`() {
+  fun `read_only wire value resolves to read_only`() {
     assertEquals(
-      ToolMode.READ_ONLY,
-      ToolMode.fromStringOrDefault(rawValue = "read_only")
+      "read_only",
+      ModeRegistry.resolveId(rawValue = "read_only")
     )
   }
 
   @Test
-  fun `edit wire value resolves to EDIT`() {
+  fun `edit wire value resolves to edit`() {
     assertEquals(
-      ToolMode.EDIT,
-      ToolMode.fromStringOrDefault(rawValue = "edit")
+      "edit",
+      ModeRegistry.resolveId(rawValue = "edit")
     )
   }
 
   @Test
-  fun `agent wire value resolves to AGENT`() {
+  fun `agent wire value resolves to agent`() {
     assertEquals(
-      ToolMode.AGENT,
-      ToolMode.fromStringOrDefault(rawValue = "agent")
+      "agent",
+      ModeRegistry.resolveId(rawValue = "agent")
     )
   }
 
   @Test
-  fun `yolo wire value resolves to YOLO`() {
-    // Parsed by enum name, same as the other three: the plugin sends
-    // PermissionMode.YOLO = "yolo" and it must round-trip unchanged. A
-    // fallback to AGENT here would silently re-enable the permission gates.
+  fun `yolo wire value resolves to yolo`() {
     assertEquals(
-      ToolMode.YOLO,
-      ToolMode.fromStringOrDefault(rawValue = "yolo")
+      "yolo",
+      ModeRegistry.resolveId(rawValue = "yolo")
     )
     assertEquals(
-      ToolMode.YOLO,
-      ToolMode.fromStringOrDefault(rawValue = "YOLO")
+      "yolo",
+      ModeRegistry.resolveId(rawValue = "YOLO")
     )
   }
 
   @Test
   fun `uppercase wire value also resolves (case insensitive)`() {
     assertEquals(
-      ToolMode.READ_ONLY,
-      ToolMode.fromStringOrDefault(rawValue = "READ_ONLY")
+      "read_only",
+      ModeRegistry.resolveId(rawValue = "READ_ONLY")
     )
     assertEquals(
-      ToolMode.EDIT,
-      ToolMode.fromStringOrDefault(rawValue = "EDIT")
+      "edit",
+      ModeRegistry.resolveId(rawValue = "EDIT")
     )
   }
 
   @Test
   fun `old wire values still resolve via aliases`() {
     assertEquals(
-      ToolMode.AGENT,
-      ToolMode.fromStringOrDefault(rawValue = "write")
+      "agent",
+      ModeRegistry.resolveId(rawValue = "write")
     )
     assertEquals(
-      ToolMode.EDIT,
-      ToolMode.fromStringOrDefault(rawValue = "single_step")
-    )
-  }
-
-  @Test
-  fun `unknown wire value falls back to AGENT`() {
-    assertEquals(
-      ToolMode.AGENT,
-      ToolMode.fromStringOrDefault(rawValue = "garbage")
-    )
-    assertEquals(
-      ToolMode.AGENT,
-      ToolMode.fromStringOrDefault(rawValue = "Read-only Permissions")
-    )
-    assertEquals(
-      ToolMode.AGENT,
-      ToolMode.fromStringOrDefault(rawValue = "只读权限")
+      "edit",
+      ModeRegistry.resolveId(rawValue = "single_step")
     )
   }
 
   @Test
-  fun `null and blank wire value falls back to AGENT`() {
+  fun `unknown wire value falls back to agent`() {
     assertEquals(
-      ToolMode.AGENT,
-      ToolMode.fromStringOrDefault(rawValue = null)
+      "agent",
+      ModeRegistry.resolveId(rawValue = "garbage")
     )
     assertEquals(
-      ToolMode.AGENT,
-      ToolMode.fromStringOrDefault(rawValue = "")
+      "agent",
+      ModeRegistry.resolveId(rawValue = "Read-only Permissions")
     )
     assertEquals(
-      ToolMode.AGENT,
-      ToolMode.fromStringOrDefault(rawValue = "   ")
+      "agent",
+      ModeRegistry.resolveId(rawValue = "只读权限")
+    )
+  }
+
+  @Test
+  fun `null and blank wire value falls back to agent`() {
+    assertEquals(
+      "agent",
+      ModeRegistry.resolveId(rawValue = null)
+    )
+    assertEquals(
+      "agent",
+      ModeRegistry.resolveId(rawValue = "")
+    )
+    assertEquals(
+      "agent",
+      ModeRegistry.resolveId(rawValue = "   ")
     )
   }
 

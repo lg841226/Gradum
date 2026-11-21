@@ -1,7 +1,6 @@
 package gradum.skill
 
 import gradum.SkillResult
-import gradum.ToolMode
 import gradum.skill.builtin.ReadFileSkill
 import java.io.File
 import java.nio.file.Files
@@ -52,9 +51,9 @@ class ReadFileSkillPrepareHistoryTest {
   }
 
   private fun readContext(): SkillContext = SkillContext(
-    toolMode = ToolMode.READ_ONLY,
     projectRoot = projectRoot.absolutePath,
-    modelName = "qwen2.5:7b"
+    modelName = "qwen2.5:7b",
+    toolMode = "read_only"
   )
 
   @Test

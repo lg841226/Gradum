@@ -1,6 +1,9 @@
 package gradum.skill.builtin
 
-import gradum.*
+import gradum.ErrorCode
+import gradum.SkillResult
+import gradum.makeFailure
+import gradum.makeSuccess
 import gradum.skill.*
 import gradum.skill.dsl.*
 import io.ktor.client.*
@@ -19,10 +22,6 @@ private const val MAX_RESULTS: Int = 10
 private const val DEFAULT_RESULTS: Int = 5
 private const val MAX_QUERY_LENGTH: Int = 5000
 
-/**
- * Searches the web via Tavily Search API.
- * Requires the web-search API key to be configured.
- */
 class WebSearchSkill : Skill() {
 
   override val skillName: String = "search_web"
@@ -34,8 +33,6 @@ class WebSearchSkill : Skill() {
   override val toolDisplay: ToolDisplay =
     ToolDisplay(label = "Fetch", paramKey = "query", kind = ToolDisplayKind.FETCH)
 
-  override val allowedToolModes: Set<ToolMode> =
-    setOf(ToolMode.AGENT, ToolMode.EDIT, ToolMode.READ_ONLY)
 
   override val historyKeepCount: Int = 3
   override val historyVolatileKeys: List<String> = listOf("results")

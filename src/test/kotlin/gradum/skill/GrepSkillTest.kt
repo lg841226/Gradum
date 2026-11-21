@@ -1,7 +1,7 @@
 package gradum.skill
 
 import gradum.SkillResult
-import gradum.ToolMode
+import gradum.mode.ModeRegistry
 import gradum.skill.builtin.GrepSkill
 import java.io.File
 import java.nio.file.Files
@@ -59,7 +59,6 @@ class GrepSkillTest {
     functionOf(schema)["parameters"] as Map<String, Any>
 
   private fun ctx(): SkillContext = SkillContext(
-    toolMode = ToolMode.AGENT,
     projectRoot = projectRoot.absolutePath,
     modelName = "gpt-4o",
   )
@@ -165,19 +164,12 @@ class GrepSkillTest {
 
   @Test
   fun `grep is available in all tool modes`() {
-    val modes: Set<ToolMode> = skill.allowedToolModes
-    assertTrue(
-      ToolMode.AGENT in modes,
-      "AGENT must be allowed"
-    )
-    assertTrue(
-      ToolMode.EDIT in modes,
-      "EDIT must be allowed"
-    )
-    assertTrue(
-      ToolMode.READ_ONLY in modes,
-      "READ_ONLY must be allowed"
-    )
+    for (modeId in listOf("agent", "edit", "read_only", "yolo")) {
+      assertTrue(
+        skill.allows(ModeRegistry.resolve(modeId)),
+        "$modeId mode must allow grep"
+      )
+    }
   }
 
   @Test

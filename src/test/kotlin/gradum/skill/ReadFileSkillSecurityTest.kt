@@ -2,7 +2,6 @@ package gradum.skill
 
 import gradum.ErrorCode
 import gradum.SkillResult
-import gradum.ToolMode
 import gradum.skill.builtin.ReadFileSkill
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -52,9 +51,9 @@ class ReadFileSkillSecurityTest {
   }
 
   private fun context(): SkillContext = SkillContext(
-    toolMode = ToolMode.READ_ONLY,
     projectRoot = projectRoot.absolutePath,
-    modelName = "qwen2.5:7b"
+    modelName = "qwen2.5:7b",
+    toolMode = "read_only"
   )
 
   @Test
@@ -104,9 +103,9 @@ class ReadFileSkillSecurityTest {
       val result = skill.execute(
         mapOf("path" to evilRoot.absolutePath),
         SkillContext(
-          toolMode = ToolMode.READ_ONLY,
           projectRoot = trapRoot.absolutePath,
-          modelName = "qwen2.5:7b"
+          modelName = "qwen2.5:7b",
+          toolMode = "read_only"
         )
       )
       assertTrue(result is SkillResult.Failure)
@@ -148,9 +147,9 @@ class ReadFileSkillSecurityTest {
     val result = skill.execute(
       mapOf("path" to "in-project.txt"),
       SkillContext(
-        toolMode = ToolMode.READ_ONLY,
         projectRoot = "",
-        modelName = "qwen2.5:7b"
+        modelName = "qwen2.5:7b",
+        toolMode = "read_only"
       )
     )
     assertTrue(result is SkillResult.Failure)
@@ -199,9 +198,9 @@ class ReadFileSkillSecurityTest {
       val emitted = mutableListOf<Pair<String, Map<String, Any>>>()
       val scope = AskScope("s", pending) { type, data -> emitted.add(type to data) }
       val yoloContext = SkillContext(
-        toolMode = ToolMode.YOLO,
         projectRoot = projectRoot.absolutePath,
         modelName = "qwen2.5:7b",
+        toolMode = "yolo",
         scope = scope
       )
       val yoloResult = skill.execute(mapOf("path" to outside.absolutePath), yoloContext)

@@ -3,7 +3,6 @@ package gradum.skill
 import gradum.ErrorCode
 import gradum.Provider
 import gradum.SkillResult
-import gradum.ToolMode
 import gradum.skill.builtin.WriteFileSkill
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -31,8 +30,6 @@ class WriteFileSkillSecurityTest {
 
   @BeforeEach
   fun setUp() {
-    // Under /tmp (ProtectedPaths.safePathPrefixes) so whole-file writes pass
-    // the protected-path guard; java.io.tmpdir (/var/folders) is deliberately blocked.
     projectRoot = File("/tmp", "gradum-edit-security-test-${System.nanoTime()}")
     projectRoot.mkdirs()
     File(projectRoot, "editable.txt").writeText("old content\n")
@@ -45,15 +42,15 @@ class WriteFileSkillSecurityTest {
   }
 
   private fun context(): SkillContext = SkillContext(
-    toolMode = ToolMode.EDIT,
     projectRoot = projectRoot.absolutePath,
-    modelName = "qwen2.5:7b"
+    modelName = "qwen2.5:7b",
+    toolMode = "edit"
   )
 
   private fun yoloContext(): SkillContext = SkillContext(
-    toolMode = ToolMode.YOLO,
     projectRoot = projectRoot.absolutePath,
-    modelName = "qwen2.5:7b"
+    modelName = "qwen2.5:7b",
+    toolMode = "yolo"
   )
 
   private fun askContext(): Triple<SkillContext, PendingQuestions, MutableList<Pair<String, Map<String, Any>>>> {
@@ -61,15 +58,14 @@ class WriteFileSkillSecurityTest {
     val emitted = mutableListOf<Pair<String, Map<String, Any>>>()
     val scope = AskScope("s", pending) { type, data -> emitted.add(type to data) }
     val ctx = SkillContext(
-      toolMode = ToolMode.EDIT,
       projectRoot = projectRoot.absolutePath,
       modelName = "qwen2.5:7b",
+      toolMode = "edit",
       scope = scope
     )
     return Triple(ctx, pending, emitted)
   }
 
-  // Answers the single outstanding ask question and returns the executed result.
   private fun runAskWith(
     ctx: SkillContext,
     pending: PendingQuestions,
@@ -218,9 +214,9 @@ class WriteFileSkillSecurityTest {
         )
       ),
       SkillContext(
-        toolMode = ToolMode.EDIT,
         projectRoot = projectRoot.absolutePath,
         modelName = "gpt-4o",
+        toolMode = "edit",
         provider = Provider.OPENAI
       )
     )
@@ -242,9 +238,9 @@ class WriteFileSkillSecurityTest {
         )
       ),
       SkillContext(
-        toolMode = ToolMode.EDIT,
         projectRoot = projectRoot.absolutePath,
         modelName = "gpt-4o",
+        toolMode = "edit",
         provider = Provider.OPENAI
       )
     )
@@ -265,9 +261,9 @@ class WriteFileSkillSecurityTest {
         "newString" to "new"
       ),
       SkillContext(
-        toolMode = ToolMode.EDIT,
         projectRoot = "",
-        modelName = "qwen2.5:7b"
+        modelName = "qwen2.5:7b",
+        toolMode = "edit"
       )
     )
     assertTrue(result is SkillResult.Failure)
@@ -318,9 +314,9 @@ class WriteFileSkillSecurityTest {
         "edits" to listOf(mapOf("newString" to "cloud content\n"))
       ),
       SkillContext(
-        toolMode = ToolMode.EDIT,
         projectRoot = projectRoot.absolutePath,
         modelName = "gpt-4o",
+        toolMode = "edit",
         provider = Provider.OPENAI
       )
     )
@@ -351,7 +347,6 @@ class WriteFileSkillSecurityTest {
 
   @Test
   fun `YOLO writes outside the project root without asking`() {
-    // The out-of-project write that normally needs an ask card just runs.
     val fileName = "gradum-write-yolo-${System.nanoTime()}.txt"
     val outside = File(projectRoot.parentFile, fileName)
     val result = skill.execute(
@@ -365,9 +360,6 @@ class WriteFileSkillSecurityTest {
 
   @Test
   fun `YOLO writes to a protected system path without asking`() {
-    // A protected path (under a systemPrefix) that non-YOLO modes reject with
-    // PERMISSION_DENIED before touching the disk. YOLO skips the guard, so its
-    // outcome is whatever the filesystem says: never PERMISSION_DENIED.
     val protectedPath = "/System/gradum-yolo-probe-${System.nanoTime()}/probe.txt"
 
     val guarded = skill.execute(

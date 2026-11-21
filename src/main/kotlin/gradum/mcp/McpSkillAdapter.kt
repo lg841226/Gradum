@@ -1,10 +1,10 @@
 package gradum.mcp
 
 import gradum.SkillResult
-import gradum.ToolMode
+import gradum.jsonrpc.RpcException
 import gradum.makeFailure
 import gradum.makeSuccess
-import gradum.jsonrpc.RpcException
+import gradum.mode.ToolOrigin
 import gradum.skill.*
 import gradum.skill.dsl.SchemaBuilder
 import gradum.utils.JsonUtil
@@ -26,9 +26,12 @@ import kotlinx.serialization.json.*
 // transport's own IO scope, so blocking the calling thread only waits on the
 // deferred: it never deadlocks.
 internal class McpSkillAdapter(
-  private val tool: McpTool,
-  private val client: McpClient,
+  private val tool: McpTool, private val client: McpClient
 ) : Skill() {
+
+  init {
+    toolOrigin = ToolOrigin.MCP
+  }
 
   override val skillName: String get() = tool.name
   override val description: String get() = tool.description ?: "MCP tool ${tool.name}"
@@ -44,10 +47,6 @@ internal class McpSkillAdapter(
       (tool.description ?: tool.name) +
       " Prefer this tool over running the equivalent shell command when the task matches."
 
-  // External MCP tools may mutate arbitrary state; exclude READ_ONLY.
-  override val allowedToolModes: Set<ToolMode> = setOf(ToolMode.AGENT, ToolMode.EDIT)
-
-  // Full native schema; the [SchemaBuilder] DSL cannot faithfully express arbitrary JSON Schema.
   override fun getSchema(context: SkillContext?): Map<String, Any> {
     val requiredNames: List<String> = tool.inputSchema["required"]
       ?.jsonArray
@@ -72,7 +71,6 @@ internal class McpSkillAdapter(
     )
   }
 
-  // Unused because [getSchema] is overridden; kept to satisfy the abstract [Skill.schemaProperties].
   override val schemaProperties: SchemaBuilder.() -> Unit = {}
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
@@ -104,10 +102,10 @@ internal class McpSkillAdapter(
   // already approved "always" this session, the user allowed a single run,
   // or the user chose "always" (remembered by name). Returns true without a
   // prompt when no ask capability is wired (tests / sub-agents that must not
-  // block) and in [gradum.ToolMode.YOLO], where the user opted out of every
-  // gate. Returns false when the user rejected or canceled.
+  // block) and when the active mode turns approvals off. Returns false when
+  // the user rejected or canceled.
   private fun isAuthorized(argumentsText: String, context: SkillContext): Boolean {
-    if (context.isYolo) return true
+    if (!context.gates.approvals) return true
     if (tool.name in context.authorizedMcpTools) return true
     val askScope: AskScope = context.scope ?: return true
     val decision: AskResult = askScope.askInteraction {

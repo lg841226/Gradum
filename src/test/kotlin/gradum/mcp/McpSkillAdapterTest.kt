@@ -1,7 +1,6 @@
 package gradum.mcp
 
 import gradum.SkillResult
-import gradum.ToolMode
 import gradum.mcp.transport.StdioMcpClient
 import gradum.skill.AskScope
 import gradum.skill.PendingQuestions
@@ -13,13 +12,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/**
- * Verifies that a single MCP tool is wrapped into a [Skill]: its schema is
- * trimmed to the required parameters and [Skill.execute] forwards the caller's
- * arguments to the server and returns the rendered content. Uses the same tiny
- * Python echo server as [McpClientIntegrationTest]; skips when no Python
- * interpreter is on PATH.
- */
 class McpSkillAdapterTest {
 
   @Test
@@ -31,7 +23,7 @@ class McpSkillAdapterTest {
       val transport = StdioMcpClient(command = listOf(python, script.absolutePath))
       transport.start()
       val client = McpClient(transport)
-      try {
+      client.use { client ->
         runBlocking { client.initialize() }
         val tool = runBlocking { client.listTools() }.single()
         val adapter = McpSkillAdapter(tool, client)
@@ -46,20 +38,17 @@ class McpSkillAdapterTest {
         assertEquals(listOf("text"), parameters["required"])
         assertEquals("string", (properties["text"] as Map<*, *>)["type"])
 
-        val context = SkillContext(toolMode = ToolMode.AGENT, projectRoot = "")
+        val context = SkillContext(projectRoot = "")
         val result: SkillResult = adapter.execute(mapOf("text" to "hi"), context)
         assertTrue(result is SkillResult.Success)
         assertEquals("hi", result.data["content"])
 
-        // YOLO short-circuits the consent gate: with an ask scope wired, the
-        // call must still complete immediately without emitting a card or
-        // registering a pending question.
         val pending = PendingQuestions()
         val emitted = mutableListOf<Pair<String, Map<String, Any>>>()
         val yoloScope = AskScope("s", pending) { type, data -> emitted.add(type to data) }
         val yoloContext = SkillContext(
-          toolMode = ToolMode.YOLO,
           projectRoot = "",
+          toolMode = "yolo",
           scope = yoloScope
         )
         val yoloHolder = arrayOfNulls<SkillResult>(1)
@@ -71,8 +60,6 @@ class McpSkillAdapterTest {
         assertEquals("yolo", (yoloHolder[0] as SkillResult.Success).data["content"])
         assertEquals(0, emitted.size, "YOLO must not emit an ask card")
         assertEquals(0, pending.size(), "YOLO must not register a pending question")
-      } finally {
-        client.close()
       }
     } finally {
       script.delete()

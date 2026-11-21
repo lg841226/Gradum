@@ -4,7 +4,8 @@ import gradum.AgentConfiguration
 import gradum.ErrorCode
 import gradum.SkillResult
 import gradum.client.ToolCallEntry
-import gradum.agent.ExternalToolRegistry
+import gradum.mode.AgentMode
+import gradum.mode.ModeRegistry
 import gradum.skill.Skill
 import gradum.skill.SkillContext
 import gradum.skill.SkillRegistry
@@ -17,9 +18,6 @@ import org.slf4j.LoggerFactory
 
 private val logger = LoggerFactory.getLogger("ToolExecutor")
 
-// Maps skill function names to their most meaningful argument key
-// for compact log display. Falls back to no parameter display when
-// the key is absent or the skill is not listed.
 private val SKILL_PARAM_KEY: Map<String, String> = mapOf(
   "read_file" to "path",
   "write_file" to "path",
@@ -160,10 +158,6 @@ class ToolExecutor(
     return executionResult
   }
 
-  /**
-   * Dispatches a tool call to [SkillRegistry] and returns the result.
-   * Handles SKILL_NOT_FOUND and TOOL_NOT_PERMITTED errors.
-   */
   fun executeSkill(
     skillInstance: Skill?, functionName: String, convertedArguments: Map<String, Any>
   ): Map<String, Any> {
@@ -173,16 +167,14 @@ class ToolExecutor(
         "error" to mapOf("code" to "SKILL_NOT_FOUND", "message" to "Skill '$functionName' not found"),
       )
     }
-    if (!skillInstance.allows(configuration.toolMode)) {
-      val allowedNames: List<String> = skillInstance.allowedToolModes.map { it.name }
+    val mode: AgentMode = ModeRegistry.resolve(configuration.toolMode)
+    if (!skillInstance.allows(mode)) {
       return mapOf(
         "success" to false,
         "error" to mapOf(
           "code" to ErrorCode.TOOL_NOT_PERMITTED.name,
-          "message" to "Tool '${functionName}' is not permitted in ${configuration.toolMode} mode " +
-            "(allowed: ${allowedNames.joinToString(separator = ", ")})",
-          "toolMode" to configuration.toolMode.name,
-          "allowedModes" to allowedNames,
+          "message" to "Tool '${functionName}' is not permitted in '${mode.id}' mode",
+          "toolMode" to mode.id,
         ),
       )
     }
@@ -218,7 +210,6 @@ class ToolExecutor(
     }
   }
 
-  /** Checks whether the current tool call is a runaway (identical signature). */
   fun checkToolRunaway(toolName: String, toolArguments: Map<String, Any>): Boolean {
     val callSignature =
       "$toolName|${
@@ -233,8 +224,6 @@ class ToolExecutor(
     return repeatedToolCallCount >= configuration.maxRepeatedToolCalls
   }
 
-  // Emits a `tool_call_start` event. Skills that manage their own event
-  // stream (e.g. DelegateSkill) are skipped.
   private fun emitToolCallStart(
     toolAlias: String,
     toolCallId: String,

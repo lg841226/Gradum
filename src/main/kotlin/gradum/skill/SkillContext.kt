@@ -3,9 +3,11 @@ package gradum.skill
 import gradum.AgentConfiguration
 import gradum.Provider
 import gradum.SchemaVariant
-import gradum.ToolMode
 import gradum.agent.Agent
 import gradum.agent.MessageRecord
+import gradum.mode.AgentMode
+import gradum.mode.ModeGates
+import gradum.mode.ModeRegistry
 
 /**
  * Per-session context handed to every [Skill.execute] call.
@@ -20,9 +22,9 @@ import gradum.agent.MessageRecord
  * so `POST /stop` on the parent cascades to all child sessions.
  */
 data class SkillContext(
-  val toolMode: ToolMode,
   val projectRoot: String,
   val modelName: String = "",
+  val toolMode: String = "agent",
   val provider: Provider = Provider.OLLAMA,
 
   /** Full AgentConfiguration for current session; used by sub-agent spawning skills. */
@@ -92,9 +94,9 @@ data class SkillContext(
   /** True when active model wants SIMPLE schema variant (small/local models). */
   val isSimpleModel: Boolean get() = SchemaVariant.resolve(modelName) == SchemaVariant.SIMPLE
 
-  /**
-   * True in ToolMode.YOLO (user opted out of every permission gate).
-   * Single source of truth for that bypass; skills must not re-derive from toolMode.
-   */
-  val isYolo: Boolean get() = toolMode == ToolMode.YOLO
+  /** The resolved definition of [toolMode]; the single source for surface and gates. */
+  val mode: AgentMode get() = ModeRegistry.resolve(toolMode)
+
+  /** The three permission gates of the active mode. */
+  val gates: ModeGates get() = mode.gates
 }

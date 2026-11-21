@@ -28,15 +28,6 @@ class TodoSkill : Skill() {
   override val toolDisplay: ToolDisplay =
     ToolDisplay(label = "Update Todos", paramKey = "task")
 
-  /**
-   * Available in AGENT mode only. Task planning drives the agent's
-   * step-by-step execution; EDIT and READ_ONLY exclude it because the
-   * to_do / finish_to_do_item pair implies an active agent workflow.
-   */
-  override val allowedToolModes: Set<gradum.ToolMode> = setOf(
-    gradum.ToolMode.AGENT
-  )
-
   override val schemaProperties: SchemaBuilder.() -> Unit = {
     stringArray(
       name = "tasks",
@@ -72,15 +63,6 @@ class CompletePlanSkill : Skill() {
   override val skillName: String = "finish_to_do_item"
   override val alias: String = "Completed"
   override val description: String = "Manage tasks: mark as completed or skip without completing tasks"
-
-  /**
-   * Available in AGENT mode only, matching [TodoSkill]. EDIT and
-   * READ_ONLY exclude it since finishing tasks implies the active
-   * agent workflow that owns the task list.
-   */
-  override val allowedToolModes: Set<gradum.ToolMode> = setOf(
-    gradum.ToolMode.AGENT
-  )
 
   override val schemaProperties: SchemaBuilder.() -> Unit = {
     string(
@@ -178,7 +160,6 @@ class TodoManager {
     }
   }
 
-  /** Skips the current task without marking it as completed and advances the cursor. */
   fun skipTask(count: Int = 1): SkillResult {
     val taskItems: List<String> =
       taskList ?: return makeFailure(

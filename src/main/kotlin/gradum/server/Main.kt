@@ -7,6 +7,8 @@ import gradum.agent.ExternalToolRegistry
 import gradum.logging.EventStreamDump
 import gradum.logging.routeAcpLogsToFile
 import gradum.mcp.*
+import gradum.mode.ModeDirectoryScanner
+import gradum.mode.ModeDirectoryWatcher
 import gradum.runtime.EventStreamMonitor
 import gradum.server.setup.*
 import gradum.skill.SkillRegistry
@@ -67,6 +69,10 @@ private fun initRuntime(): StartupRuntime {
 
   skillScanner.scan()
 
+  val modeScanner = ModeDirectoryScanner()
+  modeScanner.scan()
+  val modeWatcher = ModeDirectoryWatcher(modeScanner = modeScanner).start()
+
   val uiDirectory = skillScanner.skillsDirectory.parentFile.resolve(UI_ROOT)
   if (!uiDirectory.exists()) {
     uiDirectory.mkdirs()
@@ -88,6 +94,8 @@ private fun initRuntime(): StartupRuntime {
       mcpManager = mcpManager,
       skillScanner = skillScanner,
       skillWatcher = skillWatcher,
+      modeScanner = modeScanner,
+      modeWatcher = modeWatcher,
       resolvedApiKey = resolvedApiKey
     ),
     mcpFailures = mcpFailures
@@ -132,6 +140,7 @@ fun bootServer(
         "or keep server.host on localhost, 127.0.0.1, or ::1 to serve this machine only."
     )
     runtime.skillWatcher.close()
+    runtime.modeWatcher.close()
     runtime.mcpManager.close()
     return null
   }
@@ -149,6 +158,7 @@ fun bootServer(
           "fix it in ~/.gradum/settings.json and restart."
       )
       runtime.skillWatcher.close()
+      runtime.modeWatcher.close()
       runtime.mcpManager.close()
       return null
     }
@@ -167,6 +177,7 @@ fun bootServer(
             "No available port in range ${settings.port} ~ ${settings.port + 10}; aborting server start"
           )
           runtime.skillWatcher.close()
+          runtime.modeWatcher.close()
           runtime.mcpManager.close()
           return null
         }
@@ -220,7 +231,6 @@ fun bootServer(
 
   val server: GradumServer = createServerInstance(serverConfiguration)
 
-  // The Legatus links only make sense for hosts that serve the UI.
   if (uiRoutes != null) {
     val legatusPath = "/legatus?${ServerAuth.TOKEN_QUERY_PARAM}=$authToken"
     val lanAddresses: List<String> = ServerAuth.localAddresses()
@@ -241,6 +251,7 @@ fun bootServer(
 
   Runtime.getRuntime().addShutdownHook(Thread {
     runtime.skillWatcher.close()
+    runtime.modeWatcher.close()
     runtime.mcpManager.close()
     server.stop(gracePeriodMillis = 3000, timeoutMillis = 5000)
     logger.info("Gradum Server has been shut down successfully")
@@ -268,6 +279,7 @@ private fun startHttp(arguments: Array<String>) {
     handle.startBlocking()
   } catch (bindException: BindException) {
     handle.runtime.skillWatcher.close()
+    handle.runtime.modeWatcher.close()
     logger.error(
       "Port ${handle.port} on ${handle.runtime.settings.host} is already in use (${bindException.message}). " +
         "Stop that process or set another port / autoDetectPort in ~/.gradum/settings.json, then restart."
@@ -286,6 +298,7 @@ private fun startAcp() {
 
   AcpServer(runtime).runBlocking()
   runtime.skillWatcher.close()
+  runtime.modeWatcher.close()
   runtime.mcpManager.close()
 
   logger.info("Gradum ACP server has been shut down")
@@ -332,6 +345,7 @@ private fun printUsage() {
     |  POST /provider/probe   Probe provider connectivity
     |  GET  /health           Liveness probe
     |  GET  /models           List available models
+    |  GET  /modes            List configured agent modes
     |  GET  /skills           List registered skills
     |
     |Note: projectRoot is sent by the plugin on every /events request.
@@ -385,14 +399,15 @@ private fun printStartupBanner(
 private fun rightCell(text: String, width: Int): String = text.take(width).padEnd(width)
 
 private fun preferredLanAddress(addresses: List<String>): String? {
-  val outbound: String? = try {
-    DatagramSocket().use { socket: DatagramSocket ->
-      socket.connect(InetAddress.getByName("8.8.8.8"), 53)
-      socket.localAddress.hostAddress?.takeUnless { it.isEmpty() }
-    }
-  } catch (_: Exception) {
-    null
-  }?.takeIf { candidate -> candidate in addresses }
+  val outbound: String? =
+    try {
+      DatagramSocket().use { socket: DatagramSocket ->
+        socket.connect(InetAddress.getByName("8.8.8.8"), 53)
+        socket.localAddress.hostAddress?.takeUnless { it.isEmpty() }
+      }
+    } catch (_: Exception) {
+      null
+    }?.takeIf { candidate -> candidate in addresses }
   if (outbound != null) return outbound
 
   val ipv4: List<String> = addresses.filter { !it.contains(':') }

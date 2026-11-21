@@ -3,11 +3,11 @@ package gradum.agent
 import gradum.AgentConfiguration
 import gradum.ErrorCode
 import gradum.Provider
-import gradum.ToolMode
 import gradum.client.LLMResponseChunk
 import gradum.client.LlmClient
 import gradum.client.TokenUsageSnapshot
 import gradum.client.ToolCallEntry
+import gradum.mode.ModeRegistry
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
@@ -38,6 +38,25 @@ class ToolModeGateTest {
     Files.createTempDirectory("gradum-mode-gate-")
   }
 
+  private var previousConfigDir: String? = null
+
+  @BeforeTest
+  fun isolateConfigDir() {
+    previousConfigDir = System.getProperty("gradum.server.configDir")
+    System.setProperty(
+      "gradum.server.configDir",
+      Files.createTempDirectory("gradum-mode-gate-config-").toAbsolutePath().toString()
+    )
+    ModeRegistry.reload()
+  }
+
+  @AfterTest
+  fun restoreConfigDir() {
+    if (previousConfigDir == null) System.clearProperty("gradum.server.configDir")
+    else System.setProperty("gradum.server.configDir", previousConfigDir!!)
+    ModeRegistry.reload()
+  }
+
   @Test
   fun `read-only mode rejects write_file call and does not touch the file`() {
     val targetFile: Path = tempProjectRoot.resolve("victim.txt")
@@ -54,7 +73,7 @@ class ToolModeGateTest {
         ),
       ),
     )
-    val events = runAgentWithToolCall(toolCall, ToolMode.READ_ONLY)
+    val events = runAgentWithToolCall(toolCall, "read_only")
 
     val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
       ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
@@ -67,12 +86,12 @@ class ToolModeGateTest {
       "write_file in READ_ONLY mode must return TOOL_NOT_PERMITTED",
     )
     assertEquals(
-      "READ_ONLY",
+      "read_only",
       errorMap["toolMode"]
     )
     assertTrue(
-      ((errorMap["allowedModes"] as List<*>).contains("AGENT")),
-      "Error should list the actually-allowed modes",
+      (errorMap["message"] as String).contains("read_only"),
+      "Error message should name the mode that rejected the tool",
     )
 
     assertEquals(
@@ -99,7 +118,7 @@ class ToolModeGateTest {
       ),
     )
 
-    val events = runAgentWithToolCall(toolCall, ToolMode.READ_ONLY)
+    val events = runAgentWithToolCall(toolCall, "read_only")
 
     val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
       ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
@@ -125,7 +144,7 @@ class ToolModeGateTest {
         "tasks" to JsonPrimitive(value = """["steal data"]"""),
       ),
     )
-    val events = runAgentWithToolCall(toolCall, ToolMode.READ_ONLY)
+    val events = runAgentWithToolCall(toolCall, "read_only")
 
     val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
       ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
@@ -149,7 +168,7 @@ class ToolModeGateTest {
         ),
       ),
     )
-    val events = runAgentWithToolCall(toolCall, ToolMode.EDIT)
+    val events = runAgentWithToolCall(toolCall, "edit")
 
     val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
       ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
@@ -161,7 +180,7 @@ class ToolModeGateTest {
       errorMap["code"]
     )
     assertEquals(
-      "EDIT",
+      "edit",
       errorMap["toolMode"]
     )
   }
@@ -188,7 +207,7 @@ class ToolModeGateTest {
         ),
       ),
     )
-    val events = runAgentWithToolCall(toolCall, ToolMode.AGENT)
+    val events = runAgentWithToolCall(toolCall, "agent")
 
     val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
       ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
@@ -218,7 +237,7 @@ class ToolModeGateTest {
       functionName = "read_file",
       functionArguments = mapOf("path" to JsonPrimitive(value = "observable.txt")),
     )
-    val events = runAgentWithToolCall(toolCall, ToolMode.READ_ONLY)
+    val events = runAgentWithToolCall(toolCall, "read_only")
 
     val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
       ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
@@ -234,9 +253,6 @@ class ToolModeGateTest {
 
   @Test
   fun `YOLO mode bypasses the tool-mode gate entirely`() {
-    // YOLO is the fourth gear: no per-skill whitelist applies. to_do is
-    // rejected in both READ_ONLY and EDIT, so it is the sharpest probe:
-    // if the YOLO bypass in Skill.allows regresses, this fails.
     val toolCall = ToolCallEntry(
       functionName = "to_do",
       callIdentifier = "call_1",
@@ -246,7 +262,7 @@ class ToolModeGateTest {
         ),
       ),
     )
-    val events = runAgentWithToolCall(toolCall, ToolMode.YOLO)
+    val events = runAgentWithToolCall(toolCall, "yolo")
 
     val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
       ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
@@ -260,10 +276,7 @@ class ToolModeGateTest {
     )
   }
 
-  // Shared driver: build an Agent with a mocked LLM that emits exactly
-  // one tool call followed by a no-op text chunk (so the agent loop
-  // terminates), and return every event the agent emitted.
-  private fun runAgentWithToolCall(toolCall: ToolCallEntry, toolMode: ToolMode): List<Pair<String, Map<String, Any>>> {
+  private fun runAgentWithToolCall(toolCall: ToolCallEntry, toolMode: String): List<Pair<String, Map<String, Any>>> {
     val events = mutableListOf<Pair<String, Map<String, Any>>>()
     val mockClient: LlmClient = mockk {
       every {

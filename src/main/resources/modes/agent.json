@@ -1,0 +1,20 @@
+{
+  "id": "agent",
+  "label": "Full Agent Mode",
+  "description": "Reads, writes, executes complex tasks",
+  "aliases": [
+    "write"
+  ],
+  "tools": {
+    "allow": [
+      "*"
+    ],
+    "deny": []
+  },
+  "gates": {
+    "approvals": true,
+    "commandFilter": true,
+    "protectedPaths": true
+  },
+  "prompt": "agent"
+}

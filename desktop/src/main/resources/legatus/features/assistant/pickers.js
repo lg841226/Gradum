@@ -12,14 +12,22 @@ import {createProviderIcon} from "../../ui/providerIcons.js";
 import {STORAGE_KEYS} from "../../core/storageKeys.js";
 import {readStorage, writeStorage} from "../../core/storage.js";
 
-export const PERMISSION_MODES = [
-  {value: "read_only", icon: "reader-mode"},
-  {value: "edit", icon: "edit"},
-  {value: "agent", icon: "build"},
-  {value: "yolo", icon: "warning-outline"},
-];
+// Icon per built-in mode id; user-authored modes fall back to a generic one.
+const MODE_ICONS = {
+  read_only: "reader-mode",
+  edit: "edit",
+  agent: "build",
+  yolo: "warning-outline",
+};
+const GENERIC_MODE_ICON = "settings";
+const FALLBACK_MODE_ORDER = ["read_only", "edit", "agent", "yolo"];
 
-const modeInfo = (value) => copy.chat.modes[value] ?? copy.chat.modes.read_only;
+const fallbackModes = () => FALLBACK_MODE_ORDER.map((id) => ({
+  value: id,
+  icon: MODE_ICONS[id],
+  label: copy.chat.modes[id].label,
+  info: copy.chat.modes[id].info,
+}));
 
 function mountMenu({chip, menu, onOpen}) {
   const close = () => {
@@ -149,10 +157,14 @@ export function createModelPicker({onOtherOpen} = {}) {
 }
 
 export function createPermissionPicker({onOtherOpen} = {}) {
+  let modes = fallbackModes();
   let value = readStorage(STORAGE_KEYS.permission, "read_only");
-  if (!PERMISSION_MODES.some((mode) => mode.value === value)) {
+  if (!modes.some((mode) => mode.value === value)) {
     value = "read_only";
   }
+
+  const modeInfo = (id) => modes.find((mode) => mode.value === id)
+    ?? {value: id, icon: GENERIC_MODE_ICON, label: id, info: ""};
 
   const chip = document.createElement("button");
   chip.type = "button";
@@ -181,35 +193,60 @@ export function createPermissionPicker({onOtherOpen} = {}) {
     control.close();
   };
 
-  list.replaceChildren(
-    ...PERMISSION_MODES.map((mode) => {
-      const row = document.createElement("div");
-      row.className = "list-item perm-item";
-      row.setAttribute("role", "treeitem");
-      row.setAttribute("tabindex", "0");
-      row.setAttribute("aria-selected", mode.value === value ? "true" : "false");
-      row.dataset.value = mode.value;
+  const render = () => {
+    list.replaceChildren(
+      ...modes.map((mode) => {
+        const row = document.createElement("div");
+        row.className = "list-item perm-item";
+        row.setAttribute("role", "treeitem");
+        row.setAttribute("tabindex", "0");
+        row.setAttribute("aria-selected", mode.value === value ? "true" : "false");
+        row.dataset.value = mode.value;
 
-      row.append(createIcon({name: mode.icon}));
-      const text = document.createElement("div");
-      text.className = "perm-item-text";
-      const name = document.createElement("span");
-      name.className = "list-item-label";
-      name.textContent = modeInfo(mode.value).label;
-      const info = document.createElement("span");
-      info.className = "perm-item-info";
-      info.textContent = modeInfo(mode.value).info;
-      text.append(name, info);
-      row.append(text);
-      row.addEventListener("click", () => choose(mode.value));
-      return row;
-    }),
-  );
+        row.append(createIcon({name: mode.icon}));
+        const text = document.createElement("div");
+        text.className = "perm-item-text";
+        const name = document.createElement("span");
+        name.className = "list-item-label";
+        name.textContent = mode.label;
+        const info = document.createElement("span");
+        info.className = "perm-item-info";
+        info.textContent = mode.info;
+        text.append(name, info);
+        row.append(text);
+        row.addEventListener("click", () => choose(mode.value));
+        return row;
+      }),
+    );
+    label.textContent = modeInfo(value).label;
+  };
+  render();
 
   return {
     chip,
     menu,
     close: () => control.close(),
     value: () => value,
+    applyModes(entries) {
+      if (!Array.isArray(entries) || entries.length === 0) {
+        return;
+      }
+
+      modes = entries.map((entry) => ({
+        value: entry.id,
+        icon: MODE_ICONS[entry.id] ?? GENERIC_MODE_ICON,
+        label: entry.label || entry.id,
+        info: entry.description ?? "",
+      }));
+
+      if (!modes.some((mode) => mode.value === value)) {
+        value = modes.some((mode) => mode.value === "read_only")
+          ? "read_only"
+          : modes[0].value;
+        writeStorage(STORAGE_KEYS.permission, value);
+      }
+
+      render();
+    },
   };
 }

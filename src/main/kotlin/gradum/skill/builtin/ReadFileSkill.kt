@@ -93,9 +93,9 @@ class ReadFileSkill : Skill() {
 
     if (pathRejection != null) {
       val externalPath: Path = resolveProjectPath(filePath, projectRoot, requireWithinProject = false).resolved
-      // YOLO treats every out-of-project path as already authorized: no prompt.
+      // Modes with approvals off treat every out-of-project path as authorized.
       val alreadyAuthorized: Boolean =
-        context.isYolo || externalPath.toString() in context.authorizedReadPaths
+        !context.gates.approvals || externalPath.toString() in context.authorizedReadPaths
 
       if (!alreadyAuthorized) {
         val askScope: AskScope = context.scope ?: return outsideDenied(path = filePath, reason = pathRejection)

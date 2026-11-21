@@ -1,7 +1,6 @@
 package gradum.skill
 
 import gradum.SkillResult
-import gradum.ToolMode
 import gradum.skill.external.ExternalDiagnosticSeverity
 import gradum.skill.external.ExternalSkillDirectoryScanner
 import gradum.skill.external.ExternalSkillDirectoryWatcher
@@ -267,7 +266,7 @@ class ExternalSkillReloadTest {
   private fun runEcho(store: FakeSkillStore, message: String): String {
     val result = store.getSkill("echo")!!.execute(
       arguments = mapOf("message" to message),
-      context = SkillContext(toolMode = ToolMode.AGENT, projectRoot = ""),
+      context = SkillContext(projectRoot = ""),
     )
     val success = assertIs<SkillResult.Success>(result)
     return success.data["echo"] as String
@@ -276,7 +275,7 @@ class ExternalSkillReloadTest {
   private fun runAlpha(store: FakeSkillStore, message: String): String {
     val result = store.getSkill("alpha")!!.execute(
       arguments = mapOf("message" to message),
-      context = SkillContext(toolMode = ToolMode.AGENT, projectRoot = ""),
+      context = SkillContext(projectRoot = ""),
     )
     val success = assertIs<SkillResult.Success>(result)
     return success.data["alpha"] as String

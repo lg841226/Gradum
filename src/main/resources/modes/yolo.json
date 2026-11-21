@@ -1,0 +1,18 @@
+{
+  "id": "yolo",
+  "label": "Full Access",
+  "description": "Skips all approvals, runs edits and commands directly",
+  "aliases": [],
+  "tools": {
+    "allow": [
+      "*"
+    ],
+    "deny": []
+  },
+  "gates": {
+    "approvals": false,
+    "commandFilter": false,
+    "protectedPaths": false
+  },
+  "prompt": "yolo"
+}

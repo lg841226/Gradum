@@ -7,6 +7,8 @@ import gradum.agent.AttachmentPayload
 import gradum.agent.GradumEventType
 import gradum.client.*
 import gradum.logging.EventStreamDump
+import gradum.mode.AgentMode
+import gradum.mode.ModeRegistry
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.server.persistence.*
 import gradum.skill.PendingQuestions
@@ -245,21 +247,6 @@ data class ConfigOverrides(
   }
 }
 
-// Infer the chat-completions path for an OpenAI-compatible provider
-// from its [baseUrl]. Most providers (`api.openai.com`,
-// `openrouter.ai/api`, `api.deepseek.com`) put the version in the
-// path (`/v1/chat/completions`); Zhipu BigModel under
-// `api/coding/paas/v4` does not: the URL fragment is already
-// versioned, so the chat-completions endpoint is the bare
-// `/chat/completions`.
-//
-// Plugin callers can always override the inference with the
-// `chatCompletionsPath` field in the request `config` map.
-//
-// Detection is by substring on the host portion of [baseUrl]; we
-// keep the matching conservative (single known host) to avoid
-// accidentally rewriting a custom deployment that just happens to
-// share a path shape.
 internal fun inferChatCompletionsPath(baseUrl: String): String {
   val lower: String = baseUrl.lowercase()
   return when {
@@ -389,9 +376,9 @@ fun Application.registerAllRoutes(
       purgeExpiredRuns()
       activeRuns[runId] = run
       val configOverrides: ConfigOverrides = fromRequestMap(requestBody.config)
-      val resolvedToolMode: ToolMode =
-        if (requestBody.toolCallXml != null) ToolMode.AGENT
-        else requestBody.toolMode?.let { ToolMode.fromStringOrDefault(it) } ?: ToolMode.AGENT
+      val resolvedToolMode: String =
+        if (requestBody.toolCallXml != null) "agent"
+        else requestBody.toolMode?.takeIf { it.isNotBlank() } ?: "agent"
 
       val serverDefaultModel: String? =
         serverConfiguration.defaultModelName.trim().takeIf { it.isNotEmpty() }
@@ -1085,6 +1072,21 @@ fun Application.registerAllRoutes(
         text = JsonUtil.encodeMap(
           mapOf("models" to enrichedModels.map(modelToJson))
         ),
+        contentType = ContentType.Application.Json
+      )
+    }
+
+    get("/modes") {
+      val modesToJson: List<Map<String, Any?>> = ModeRegistry.list().map { mode: AgentMode ->
+        mapOf(
+          "id" to mode.id,
+          "label" to mode.label,
+          "description" to mode.description,
+          "aliases" to mode.aliases,
+        )
+      }
+      call.respondText(
+        text = JsonUtil.encodeMap(mapOf("modes" to modesToJson)),
         contentType = ContentType.Application.Json
       )
     }

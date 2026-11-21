@@ -1,7 +1,8 @@
 package gradum.skill
 
 import gradum.Provider
-import gradum.ToolMode
+import gradum.mode.AgentMode
+import gradum.mode.ModeRegistry
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -64,35 +65,25 @@ object SkillRegistry : SkillStore {
   }
 
   /**
-   * Returns function schemas for every skill that allows the given
-   * [toolMode].
+   * Returns function schemas for every skill on the tool surface of
+   * [toolMode] (a mode id resolved against [gradum.mode.ModeRegistry]).
    *
-   * The filter mirrors the runtime gate in [gradum.agent.Agent]: both
-   * delegate to [Skill.allows]. The two checks must agree: a tool whose
-   * schema is in the LLM's list must pass the runtime gate, and a tool
-   * left out of the list must still be gated (the model can hallucinate
-   * calls regardless of the schema filter).
+   * The filter mirrors the runtime gate in [gradum.agent.ToolExecutor]:
+   * both delegate to [Skill.allows]. The two checks must agree: a tool
+   * whose schema is in the LLM's list must pass the runtime gate, and a
+   * tool left out of the list must still be gated (the model can
+   * hallucinate calls regardless of the schema filter).
    */
   fun getSchemas(
     modelName: String = "",
-    toolMode: ToolMode = ToolMode.AGENT,
+    toolMode: String = "agent",
     provider: Provider = Provider.OLLAMA
   ): List<Map<String, Any>> {
-    val schemaContext = SkillContext(toolMode, projectRoot = "", modelName, provider)
+    val mode: AgentMode = ModeRegistry.resolve(toolMode)
+    val schemaContext = SkillContext(projectRoot = "", modelName, toolMode, provider)
     return registeredSkills.values
-      .filter { skill: Skill -> skill.allows(toolMode) }
-      .map { skill: Skill -> annotateToolAvailability(skill.getSchema(schemaContext), skill) }
-  }
-
-  private fun annotateToolAvailability(schema: Map<String, Any>, skillInstance: Skill): Map<String, Any> {
-    @Suppress("UNCHECKED_CAST")
-    val functionBlock: Map<String, Any> = schema["function"] as? Map<String, Any> ?: return schema
-    val existingDescription: String = functionBlock["description"] as? String ?: return schema
-
-    val availabilityText: String = skillInstance.allowedToolModes.joinToString(", ") { mode -> mode.name }
-    val annotatedDescription: String = "$existingDescription Tool availability: $availabilityText"
-    val annotatedFunction: Map<String, Any> = functionBlock + ("description" to annotatedDescription)
-    return schema + ("function" to annotatedFunction)
+      .filter { skill: Skill -> skill.allows(mode) }
+      .map { skill: Skill -> skill.getSchema(schemaContext) }
   }
 
   private fun registerSkill(skillInstance: Skill) {

@@ -1,7 +1,6 @@
 package gradum.skill.dsl
 
 import gradum.SkillResult
-import gradum.ToolMode
 import gradum.makeSuccess
 import gradum.skill.Skill
 import gradum.skill.SkillContext
@@ -93,10 +92,10 @@ class SettingsDslTest {
     val advancedConfig = PluginConfig.of(
       mapOf("output" to mapOf<String, Any?>("mode" to "ADVANCED"))
     ).forSpec(settingsSpec)
-    assertEquals(Mode.ADVANCED, advancedConfig.enum("output", "mode", Mode.values()))
+    assertEquals(Mode.ADVANCED, advancedConfig.enum("output", "mode", Mode.entries.toTypedArray()))
 
     val defaultConfig = PluginConfig.of(emptyMap()).forSpec(settingsSpec)
-    assertEquals(Mode.BASIC, defaultConfig.enum("output", "mode", Mode.values()))
+    assertEquals(Mode.BASIC, defaultConfig.enum("output", "mode", Mode.entries.toTypedArray()))
   }
 
   @Test
@@ -106,14 +105,13 @@ class SettingsDslTest {
     ).forSpec(settingsSpec)
 
     assertFailsWith<PluginConfigTypeError> {
-      boundConfig.enum("output", "mode", Mode.values())
+      boundConfig.enum("output", "mode", Mode.entries.toTypedArray())
     }
   }
 
   @Test
   fun `Skill pluginConfig resolves its own slice by skill name`() {
     val skillContext = SkillContext(
-      toolMode = ToolMode.AGENT,
       projectRoot = "",
       plugins = mapOf(
         "search_web" to mapOf<String, Any?>("search" to mapOf<String, Any?>("depth" to "advanced"))
@@ -123,7 +121,6 @@ class SettingsDslTest {
     val boundConfig = NamedSkill("search_web").pluginConfig(skillContext).forSpec(settingsSpec)
     assertEquals("advanced", boundConfig.string("search", "depth"))
 
-    // A different skill name sees none of the other skill's config.
     val otherSkillConfig = NamedSkill("other_skill").pluginConfig(skillContext).forSpec(settingsSpec)
     assertEquals("basic", otherSkillConfig.string("search", "depth"))
   }

@@ -17,6 +17,11 @@ export async function listModels() {
   return body?.models ?? [];
 }
 
+export async function listModes() {
+  const body = await requestJson("/modes");
+  return body?.modes ?? [];
+}
+
 export async function respond(sessionId, requestId, payload) {
   return requestJson("/events/respond", {
     method: "POST",

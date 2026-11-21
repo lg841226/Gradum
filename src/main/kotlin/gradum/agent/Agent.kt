@@ -8,6 +8,7 @@ import gradum.Provider
 import gradum.Version
 import gradum.client.*
 import gradum.debug.*
+import gradum.mode.ModeRegistry
 import gradum.skill.*
 import gradum.skill.builtin.getTodoManagerInstance
 import gradum.skill.dsl.buildXml
@@ -116,13 +117,13 @@ class Agent(
   // [SkillContext.materializedMcpTools] set that drives which MCP tools are
   // injected into the model's tool list this session (see [buildToolSchemas]).
   private val skillContext: SkillContext = SkillContext(
-    emitEvent = emitEvent,
+    projectRoot = configuration.projectRoot,
+    modelName = configuration.modelName,
     toolMode = configuration.toolMode,
     provider = configuration.provider,
     agentConfiguration = configuration,
-    modelName = configuration.modelName,
-    projectRoot = configuration.projectRoot,
     conversationHistory = { conversationHistory.toList() },
+    emitEvent = emitEvent,
     registerChildSession = registerChildSession,
     unregisterChildSession = unregisterChildSession,
     scope = askScopeHolder?.let { holder ->
@@ -482,7 +483,7 @@ class Agent(
     emitEvent(
       GradumEventType.PLAYBACK_START.wireName,
       mapOf(
-        "mode" to configuration.toolMode.name,
+        "mode" to ModeRegistry.resolveId(configuration.toolMode),
         "scenario" to scenarioName,
         "steps" to scenario.steps.size,
         "toolCalls" to toolCalls.size,

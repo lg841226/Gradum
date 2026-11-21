@@ -2,7 +2,6 @@ package gradum.skill
 
 import gradum.Provider
 import gradum.SkillResult
-import gradum.ToolMode
 import gradum.skill.builtin.GlobSkill
 import gradum.skill.builtin.GrepSkill
 import java.io.File
@@ -76,20 +75,15 @@ class SearchSkillsEndToEndTest {
   }
 
   private fun simpleContext(): SkillContext = SkillContext(
-    toolMode = ToolMode.READ_ONLY,
     projectRoot = projectRoot.absolutePath,
-    modelName = "qwen2.5:7b"
+    modelName = "qwen2.5:7b",
+    toolMode = "read_only"
   )
 
-  // The SIMPLE schema path (local 7B models) is hard-wired to
-  // case-insensitive matching: small models can't reliably use
-  // `caseSensitive`. The CLOUD/FULL path is what actually honors the
-  // `caseSensitive` argument, so the case-sensitivity tests must run
-  // with a model that resolves to `SchemaVariant.FULL`.
   private fun cloudContext(): SkillContext = SkillContext(
-    toolMode = ToolMode.READ_ONLY,
     projectRoot = projectRoot.absolutePath,
     modelName = "gpt-4o",
+    toolMode = "read_only",
     provider = Provider.OPENAI
   )
 
@@ -268,6 +262,7 @@ class SearchSkillsEndToEndTest {
       context = simpleContext(),
     )
     val totalMatches = result.fields(key = "total_matches") as Int
+
     @Suppress("UNCHECKED_CAST")
     val matches = result.fields(key = "matches") as List<Map<*, *>>
     assertTrue(

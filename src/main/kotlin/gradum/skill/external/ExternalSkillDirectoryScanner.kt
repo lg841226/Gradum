@@ -1,5 +1,6 @@
 package gradum.skill.external
 
+import gradum.mode.ToolOrigin
 import gradum.skill.Skill
 import gradum.skill.SkillRegistry
 import gradum.skill.SkillStore
@@ -148,20 +149,6 @@ class ExternalSkillDirectoryScanner(
     } finally {
       buildRoot.deleteRecursively()
     }
-  }
-
-  /** Names of the `.kt` sources currently in ~/.gradum/skills/, sorted */
-  fun listSourceNames(): List<String> = listKtSources().map { sourceFile -> sourceFile.name }
-
-  /** Reads the text of a skill source, or null when it does not exist */
-  fun readSource(fileName: String): String? {
-    val safeName = try {
-      normalizeSourceName(fileName)
-    } catch (_: IllegalArgumentException) {
-      return null
-    }
-    val sourceFile = skillsDirectory.resolve(safeName)
-    return if (sourceFile.isFile) sourceFile.readText() else null
   }
 
   private fun normalizeSourceName(fileName: String): String {
@@ -498,6 +485,7 @@ class ExternalSkillDirectoryScanner(
     val seenNames = mutableSetOf<String>()
 
     classLoader.loadSkills().forEach { loadedSkill ->
+      loadedSkill.toolOrigin = ToolOrigin.EXTERNAL
       val skillName = loadedSkill.skillName
       if (skillName in seenNames) {
         logger.warn("External skill '{}' redefined by another .kt file; the latest definition wins", skillName)
@@ -574,7 +562,6 @@ class ExternalSkillDirectoryScanner(
 
 private val SOURCE_NAME_PATTERN: Regex = Regex("[A-Za-z_][A-Za-z0-9_]{0,63}")
 
-/** Result of [ExternalSkillDirectoryScanner.deploy]: what was written and why it did or did not compile. */
 data class DeployResult(
   val fileName: String,
   val compiled: Boolean,

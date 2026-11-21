@@ -38,8 +38,6 @@ class DelegateSkill : Skill() {
   override val toolDisplay: ToolDisplay =
     ToolDisplay(label = "Delegate task", paramKey = "title")
 
-  override val allowedToolModes: Set<ToolMode> = setOf(ToolMode.AGENT, ToolMode.EDIT, ToolMode.READ_ONLY)
-
   override val manageOwnEventStream: Boolean = true
 
   private val subAgentTimeoutSeconds: Int = GradumConfig.DELEGATE_TIMEOUT_SECONDS

@@ -26,11 +26,8 @@ private val logger: Logger = LoggerFactory.getLogger("WriteFileSkill")
 
 private const val MAXIMUM_CONTENT_SIZE: Int = GradumConfig.WRITE_MAX_FILE_SIZE
 
-// True when [targetPath] resolves inside a protected system directory, so to
-// write must be blocked. [ToolMode.YOLO] opts out of this guard entirely: the
-// user asked for no brakes, protected system directories included.
 private fun isBlockedPaths(targetPath: Path, context: SkillContext): Boolean =
-  !context.isYolo && ProtectedPaths.isProtected(targetPath.toString())
+  context.gates.protectedPaths && ProtectedPaths.isProtected(targetPath.toString())
 
 // Resolves authorization for writing to a path outside the project root.
 // Returns the authorized external [Path] on success, or null when to write
@@ -38,11 +35,11 @@ private fun isBlockedPaths(targetPath: Path, context: SkillContext): Boolean =
 // An "always" answer remembers the path for the rest of the session so it is
 // not asked again. The resulting external path still passes through
 // [isBlockedPaths] before any write, so protected system directories are
-// never bypassed by an authorization, except in [ToolMode.YOLO] where both
-// the authorization prompt and the protected-path guard are disabled.
+// never bypassed by an authorization, except in modes with approvals off,
+// where both the prompt and the protected-path guard are disabled.
 private fun authorizeWrite(filePath: String, projectRoot: String, context: SkillContext): Path? {
   val externalPath: Path = resolveProjectPath(filePath, projectRoot, requireWithinProject = false).resolved
-  if (context.isYolo) return externalPath
+  if (!context.gates.approvals) return externalPath
   if (externalPath.toString() in context.authorizedWritePaths) return externalPath
   val askScope: AskScope = context.scope ?: return null
   val decision: AskResult = askScope.askInteraction {
@@ -85,7 +82,6 @@ class WriteFileSkill : Skill() {
   override val toolDisplay: ToolDisplay =
     ToolDisplay(label = "Write", paramKey = "path", kind = ToolDisplayKind.EDIT)
 
-  override val allowedToolModes: Set<ToolMode> = setOf(ToolMode.AGENT, ToolMode.EDIT)
 
   override val historyKeepCount: Int = 5
   override val historyVolatileKeys: List<String> = listOf("originalContent", "modifiedContent")
@@ -463,8 +459,11 @@ class WriteFileSkill : Skill() {
           linesRemoved += searchLines.size
           linesAdded += replaceLines.size
 
-          val newFileLines = fileLines.subList(0, bestMatch.startIndex) +
-            replaceLines + fileLines.subList(bestMatch.endIndex, fileLines.size)
+          val newFileLines = buildList {
+            addAll(fileLines.subList(0, bestMatch.startIndex))
+            addAll(replaceLines)
+            addAll(fileLines.subList(bestMatch.endIndex, fileLines.size))
+          }
           currentContent = newFileLines.joinToString(separator = "\n")
           appliedEdits.add(editIndex)
         }

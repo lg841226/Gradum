@@ -1,7 +1,6 @@
 package gradum.skill
 
 import gradum.SkillResult
-import gradum.ToolMode
 import gradum.skill.builtin.ExploreProjectSkill
 import java.io.File
 import java.nio.file.Files
@@ -39,7 +38,6 @@ class ExploreProjectSkillTest {
       file.writeText(body)
     }
 
-    // Mimics a Maven layout: files live under a submodule.
     write(relative = "reading-notes/src/main/java/com/example/readingnotes/Main.java", body = "class Main {}\n")
     write(relative = "reading-notes/src/main/java/com/example/readingnotes/Note.java", body = "class Note {}\n")
     write(relative = "reading-notes/pom.xml", body = "<project/>\n")
@@ -54,7 +52,6 @@ class ExploreProjectSkillTest {
 
   private fun runSkill(): SkillResult {
     val context = SkillContext(
-      toolMode = ToolMode.AGENT,
       projectRoot = projectRoot.absolutePath,
       modelName = "gpt-4o",
     )

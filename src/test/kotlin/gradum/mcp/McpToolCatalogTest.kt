@@ -1,7 +1,6 @@
 package gradum.mcp
 
 import gradum.SkillResult
-import gradum.ToolMode
 import gradum.mcp.transport.StdioMcpClient
 import gradum.skill.SkillContext
 import kotlinx.coroutines.runBlocking
@@ -44,7 +43,6 @@ class McpToolCatalogTest {
 
         assertEquals(8, McpToolCatalog.toolCount())
 
-        // Functional grouping from tool names.
         assertEquals("Navigation", McpToolCatalog.groupOf("browser_navigate"))
         assertEquals("Interaction", McpToolCatalog.groupOf("browser_click"))
         assertEquals("Typing", McpToolCatalog.groupOf("browser_type"))
@@ -53,41 +51,33 @@ class McpToolCatalogTest {
         assertEquals("Forms", McpToolCatalog.groupOf("browser_fill"))
         assertEquals("Other", McpToolCatalog.groupOf("echo"))
 
-        // Directory listing exposes every tool once, grouped.
         val listing = McpToolCatalog.groupedListing()
         val names = listing.flatMap { it.tools }.map { it.name }
         assertEquals(tools.size, names.size)
 
-        // Keyword search finds the network tool (and only it).
         val networkMatch = McpToolCatalog.search("network")
         assertEquals(listOf("browser_network_requests"), networkMatch.map { it.name })
 
-        // Blank query returns every tool.
         assertEquals(8, McpToolCatalog.search("").size)
 
-        // Search drives materialization: the skill adds matched names to the session set.
-        val context = SkillContext(toolMode = ToolMode.AGENT, projectRoot = "")
+        val context = SkillContext(projectRoot = "")
         val skill = McpToolsSkill()
         val result: SkillResult = skill.execute(mapOf("query" to "snapshot"), context)
         assertTrue(result is SkillResult.Success)
         assertTrue("browser_snapshot" in context.materializedMcpTools)
         assertEquals(1, (result.data["matched"] as? Number)?.toInt())
 
-        // The Agent's per-turn build surfaces the materialized tool's full schema.
-        val schemas = McpToolCatalog.fullSchemas(context.materializedMcpTools.names, ToolMode.AGENT)
+        val schemas = McpToolCatalog.fullSchemas(context.materializedMcpTools.names, "agent")
         assertEquals(listOf("browser_snapshot"), schemas.map { (it["function"] as Map<*, *>)["name"] })
 
-        // READ_ONLY mode is gated out: MCP tools may mutate state.
-        assertTrue(McpToolCatalog.fullSchemas(context.materializedMcpTools.names, ToolMode.READ_ONLY).isEmpty())
+        assertTrue(McpToolCatalog.fullSchemas(context.materializedMcpTools.names, "read_only").isEmpty())
 
-        // No-argument listing succeeds and is non-empty.
-        val listingResult = skill.execute(emptyMap(), SkillContext(toolMode = ToolMode.AGENT, projectRoot = ""))
+        val listingResult = skill.execute(emptyMap(), SkillContext(projectRoot = ""))
         assertTrue(listingResult is SkillResult.Success)
         val groups = listingResult.data["groups"] as List<*>
         assertTrue(groups.isNotEmpty())
 
-        // A no-match query reports zero and does not materialize anything.
-        val missContext = SkillContext(toolMode = ToolMode.AGENT, projectRoot = "")
+        val missContext = SkillContext(projectRoot = "")
         val missResult = skill.execute(mapOf("query" to "zztop-nonexistent"), missContext)
         assertTrue(missResult is SkillResult.Success)
         assertEquals(0, (missResult.data["matched"] as? Number)?.toInt())

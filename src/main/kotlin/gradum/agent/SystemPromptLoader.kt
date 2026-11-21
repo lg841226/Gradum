@@ -3,8 +3,10 @@ package gradum.agent
 import gradum.AgentConfiguration
 import gradum.PromptVariant
 import gradum.SchemaVariant
-import gradum.ToolMode
+import gradum.mode.AgentMode
+import gradum.mode.ModeRegistry
 import org.slf4j.LoggerFactory
+import java.io.File
 
 private val logger = LoggerFactory.getLogger("SystemPromptLoader")
 
@@ -51,23 +53,8 @@ class SystemPromptLoader(private val configuration: AgentConfiguration) {
       "You are a helpful AI assistant. You can't call any tool and report it"
     }
 
-    val modeSectionPath: String =
-      when (configuration.toolMode) {
-        ToolMode.READ_ONLY -> "/prompts/modes/read_only.xml"
-        ToolMode.EDIT -> "/prompts/modes/edit.xml"
-        ToolMode.AGENT -> "/prompts/modes/agent.xml"
-        ToolMode.YOLO -> "/prompts/modes/yolo.xml"
-      }
-
-    val modeSection: String =
-      try {
-        Agent::class.java.getResourceAsStream(modeSectionPath)?.use { stream ->
-          stream.reader(Charsets.UTF_8).readText()
-        } ?: "You have no tools available in this session."
-      } catch (modeSectionException: Exception) {
-        logger.warn("Could not load mode section $modeSectionPath: ${modeSectionException.message}")
-        "You have no tools available in this session."
-      }
+    val mode: AgentMode = ModeRegistry.resolve(configuration.toolMode)
+    val modeSection: String = loadModeSection(mode.prompt)
 
     val osName: String = System.getProperty("os.name")
     val osVersion: String = System.getProperty("os.version")
@@ -82,6 +69,32 @@ class SystemPromptLoader(private val configuration: AgentConfiguration) {
     return taskDescription?.let { task ->
       "$filteredContent\n\n### Sub-Agent Task\n$task"
     } ?: filteredContent
+  }
+
+  /**
+   * Loads the persona fragment for a mode's `prompt` reference: a user
+   * file `~/.gradum/modes/<prompt>.xml` wins, then the packaged classpath
+   * resource `/prompts/modes/<prompt>.xml`, then a plain-text fallback so
+   * a dangling reference degrades the prompt instead of failing the run.
+   */
+  private fun loadModeSection(prompt: String): String {
+    val userFile: File = File(ModeRegistry.userModesDir(), "$prompt.xml")
+    if (userFile.isFile) {
+      try {
+        return userFile.readText(Charsets.UTF_8)
+      } catch (readException: Exception) {
+        logger.warn("Could not read ${userFile.absolutePath}: ${readException.message}")
+      }
+    }
+    val resourcePath = "/prompts/modes/$prompt.xml"
+    return try {
+      Agent::class.java.getResourceAsStream(resourcePath)?.use { stream ->
+        stream.reader(Charsets.UTF_8).readText()
+      } ?: "You have no tools available in this session."
+    } catch (modeSectionException: Exception) {
+      logger.warn("Could not load mode section $resourcePath: ${modeSectionException.message}")
+      "You have no tools available in this session."
+    }
   }
 
   /**

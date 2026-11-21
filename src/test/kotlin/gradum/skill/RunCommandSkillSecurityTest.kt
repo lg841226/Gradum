@@ -2,7 +2,6 @@ package gradum.skill
 
 import gradum.ErrorCode
 import gradum.SkillResult
-import gradum.ToolMode
 import gradum.skill.builtin.RunCommandSkill
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -13,7 +12,7 @@ import java.io.File
 import kotlin.test.junit5.JUnit5Asserter.assertTrue
 
 /**
- * Authorization-boundary tests for [RunCommandSkill].
+ * Authorization boundary tests for [RunCommandSkill].
  *
  * Verifies that destructive commands targeting paths *outside* the project
  * root (but not protected system paths) go through an [AskScope] decision
@@ -28,8 +27,6 @@ class RunCommandSkillSecurityTest {
 
   @BeforeEach
   fun setUp() {
-    // Under /tmp (ProtectedPaths.safePathPrefixes) so the project root itself
-    // is not protected; java.io.tmpdir (/var/folders) is deliberately blocked.
     projectRoot = File("/tmp", "gradum-run-cmd-security-test-${System.nanoTime()}")
     projectRoot.mkdirs()
     skill = RunCommandSkill()
@@ -45,7 +42,6 @@ class RunCommandSkillSecurityTest {
     val emitted = mutableListOf<Pair<String, Map<String, Any>>>()
     val scope = AskScope("s", pending) { type, data -> emitted.add(type to data) }
     val ctx = SkillContext(
-      toolMode = ToolMode.AGENT,
       projectRoot = projectRoot.absolutePath,
       modelName = "qwen2.5:7b",
       scope = scope
@@ -53,21 +49,19 @@ class RunCommandSkillSecurityTest {
     return Triple(ctx, pending, emitted)
   }
 
-  // Context in [ToolMode.YOLO]: same ask wiring, but every gate is bypassed.
   private fun yoloContext(): Triple<SkillContext, PendingQuestions, MutableList<Pair<String, Map<String, Any>>>> {
     val pending = PendingQuestions()
     val emitted = mutableListOf<Pair<String, Map<String, Any>>>()
     val scope = AskScope("s", pending) { type, data -> emitted.add(type to data) }
     val ctx = SkillContext(
-      toolMode = ToolMode.YOLO,
       projectRoot = projectRoot.absolutePath,
       modelName = "qwen2.5:7b",
+      toolMode = "yolo",
       scope = scope
     )
     return Triple(ctx, pending, emitted)
   }
 
-  // Answers the single outstanding ask question and returns the executed result.
   private fun runAskWith(
     ctx: SkillContext,
     pending: PendingQuestions,
@@ -142,7 +136,6 @@ class RunCommandSkillSecurityTest {
     val outside = File(projectRoot.parentFile, fileName)
     outside.writeText("keep me\n")
     val ctx = SkillContext(
-      toolMode = ToolMode.AGENT,
       projectRoot = projectRoot.absolutePath,
       modelName = "qwen2.5:7b"
     )

@@ -1,0 +1,23 @@
+{
+  "id": "read_only",
+  "label": "Read Permissions",
+  "description": "Read, explore and run diagnostics",
+  "aliases": [],
+  "tools": {
+    "allow": [
+      "*"
+    ],
+    "deny": [
+      "to_do",
+      "finish_to_do_item",
+      "write_file",
+      "$mcp"
+    ]
+  },
+  "gates": {
+    "approvals": true,
+    "commandFilter": true,
+    "protectedPaths": true
+  },
+  "prompt": "read_only"
+}

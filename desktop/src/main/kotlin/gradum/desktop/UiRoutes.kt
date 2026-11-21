@@ -84,10 +84,10 @@ private suspend fun ApplicationCall.respondBundledAsset(resourceRoot: String) {
 
 private suspend fun ApplicationCall.injectStampsAndRespond(
   pageHtml: String,
-  serverConfiguration: ServerConfiguration,
+  serverConfiguration: ServerConfiguration
 ) {
-  val defaultRoot: String = System.getProperty("user.dir") ?: ""
   val home: String = System.getProperty("user.home") ?: ""
+  val defaultRoot: String = System.getProperty("user.dir") ?: ""
   val scope: String = if (ServerAuth.isLoopback(request.local.remoteHost)) "local" else "remote"
   val markedHtml: String = pageHtml.replaceFirst(
     "<html",

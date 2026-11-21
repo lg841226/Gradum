@@ -3,11 +3,7 @@ package gradum.acp
 import gradum.BuildConfig
 import gradum.GradumRuntime
 import gradum.ModelIdentity
-import gradum.jsonrpc.FrameCodec
-import gradum.jsonrpc.RpcError
-import gradum.jsonrpc.RpcNotification
-import gradum.jsonrpc.RpcRequest
-import gradum.jsonrpc.RpcResponse
+import gradum.jsonrpc.*
 import gradum.skill.PendingQuestions
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
@@ -62,6 +58,8 @@ class AcpServer(internal val runtime: GradumRuntime) {
 
     val probeJob: Job = launch { runConfigOptionProbe(frameWriter) }
 
+    runtime.modeWatcher.onChanged = { launch { broadcastConfigOptions(frameWriter) } }
+
     frameReader.lineSequence().forEach { frameLine ->
       val trimmedFrame: String = frameLine.trim()
       if (trimmedFrame.isEmpty()) return@forEach
@@ -82,7 +80,6 @@ class AcpServer(internal val runtime: GradumRuntime) {
       }
     }
 
-    // stdin closed: the client is gone, so stop probing before runBlocking waits on children.
     probeJob.cancel()
   }
 

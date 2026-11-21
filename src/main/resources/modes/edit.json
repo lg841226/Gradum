@@ -1,0 +1,23 @@
+{
+  "id": "edit",
+  "label": "Edit Permissions",
+  "description": "Edit files and code by hand",
+  "aliases": [
+    "single_step"
+  ],
+  "tools": {
+    "allow": [
+      "*"
+    ],
+    "deny": [
+      "to_do",
+      "finish_to_do_item"
+    ]
+  },
+  "gates": {
+    "approvals": true,
+    "commandFilter": true,
+    "protectedPaths": true
+  },
+  "prompt": "edit"
+}

@@ -1,7 +1,6 @@
 package gradum.skill
 
 import gradum.SkillResult
-import gradum.ToolMode
 import gradum.skill.external.ExternalSkillClassLoader
 import gradum.skill.external.ExternalSkillCompiler
 import gradum.skill.external.ExternalSkillDirectoryScanner
@@ -43,7 +42,7 @@ class ExternalSkillCompilerTest {
       assertEquals("echo", skill.skillName)
       val executionResult = skill.execute(
         arguments = mapOf("message" to "hi there"),
-        context = SkillContext(toolMode = ToolMode.AGENT, projectRoot = ""),
+        context = SkillContext(projectRoot = ""),
       )
       val success = assertIs<SkillResult.Success>(executionResult)
       assertEquals("hi there", success.data["echo"])

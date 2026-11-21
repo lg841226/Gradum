@@ -3,9 +3,10 @@ package gradum.acp
 import gradum.ModelEntry
 import gradum.ModelIdentity
 import gradum.Provider
-import gradum.ToolMode
 import gradum.jsonrpc.RpcError
 import gradum.jsonrpc.RpcResponse
+import gradum.mode.AgentMode
+import gradum.mode.ModeRegistry
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -30,13 +31,15 @@ private fun buildModelConfigOption(selectedModel: String): JsonObject = acpConfi
   options = buildModelOptionValues()
 }
 
-private fun buildModeConfigOption(selectedMode: ToolMode): JsonObject = acpConfigOption {
+private fun buildModeConfigOption(selectedMode: String): JsonObject = acpConfigOption {
   id = "mode"
   type = "select"
   category = "mode"
   name = "Select permissions"
-  currentValue = modeId(selectedMode)
-  options = ToolMode.entries.map { mode -> acpOptionValue(modeId(mode), modeLabel(mode), modeDescription(mode)) }
+  currentValue = ModeRegistry.resolveId(selectedMode)
+  options = ModeRegistry.list().map { mode: AgentMode ->
+    acpOptionValue(mode.id, mode.label, mode.description)
+  }
 }
 
 private fun buildModelOptionValues(): List<JsonObject> {
@@ -63,29 +66,6 @@ private fun buildOptionValue(modelName: String, serverName: String, providerType
   val description: String? = serverName.takeIf { it.isNotBlank() }?.let { "The $location model from $it" }
   return acpOptionValue(modelName, modelName, description)
 }
-
-// Wire id for a [ToolMode], derived from the enum name so it stays in sync
-// with [ToolMode.fromStringOrDefault], which parses those same names back.
-private fun modeId(mode: ToolMode): String = mode.name.lowercase()
-
-// Labels and descriptions mirror the plugin's GradumBundle.properties
-// (gradum.select.permissions, gradum.*.mode, gradum.*.info) so the ACP
-// selector reads identically to the plugin's own permission selector.
-private fun modeLabel(mode: ToolMode): String =
-  when (mode) {
-    ToolMode.AGENT -> "Full Agent Mode"
-    ToolMode.EDIT -> "Edit Permissions"
-    ToolMode.READ_ONLY -> "Read Permissions"
-    ToolMode.YOLO -> "Full Access"
-  }
-
-private fun modeDescription(mode: ToolMode): String =
-  when (mode) {
-    ToolMode.AGENT -> "Reads, writes, executes complex tasks"
-    ToolMode.EDIT -> "Edit files and code by hand"
-    ToolMode.READ_ONLY -> "Read, explore and run diagnostics"
-    ToolMode.YOLO -> "Skips all approvals, runs edits and commands directly"
-  }
 
 internal fun AcpServer.handleSetConfigOption(requestId: JsonPrimitive, params: JsonObject?): RpcResponse {
   val sessionId: String = params?.get("sessionId")?.jsonPrimitive?.contentOrNull
@@ -127,7 +107,7 @@ internal fun AcpServer.handleSetConfigOption(requestId: JsonPrimitive, params: J
     }
 
     "mode" -> {
-      sessionState.selectedToolMode = ToolMode.fromStringOrDefault(value, sessionState.selectedToolMode)
+      sessionState.selectedToolMode = ModeRegistry.resolveId(value, sessionState.selectedToolMode)
       logger.info("ACP config changed: sessionId=$sessionId mode=$value")
     }
 

@@ -41,40 +41,12 @@ enum class Provider {
   }
 }
 
-
-/**
- * Tool surface selection.
- *
- * - [AGENT] All skills. Full code generation capability.
- * - [READ_ONLY] Inspect only. No file writes. Use for analysis.
- * - [EDIT] All skills except to_do / finish_to_do_item.
- * For local models that can't plan reliably.
- *   Task tracking wastes tokens; step-by-step works better.
- * - [YOLO] Every skill, and no permission gate at all: no approval
- * cards, no dangerous-command blocklist, no protected-path guard.
- * The user has explicitly opted out of every prompt.
- */
+@Deprecated("Modes are configuration now; reference modes by their string id and resolve with gradum.mode.ModeRegistry.")
 enum class ToolMode {
   AGENT,
   READ_ONLY,
   EDIT,
   YOLO;
-
-  companion object {
-    private val ALIASES: Map<String, ToolMode> = mapOf(
-      "write" to AGENT,
-      "single_step" to EDIT,
-      "read_only" to READ_ONLY
-    )
-
-    fun fromStringOrDefault(rawValue: String?, default: ToolMode = AGENT): ToolMode {
-      if (rawValue.isNullOrBlank()) return default
-      val normalized: String = rawValue.trim().lowercase()
-      return ALIASES[normalized]
-        ?: entries.firstOrNull { it.name.equals(normalized, ignoreCase = true) }
-        ?: default
-    }
-  }
 }
 
 /**
@@ -137,7 +109,13 @@ data class AgentConfiguration(
   val topPValue: Double = DEFAULT_TOP_P,
   val maxRepeatedResponses: Int = 3,
   val maxRepeatedToolCalls: Int = 5,
-  val toolMode: ToolMode = ToolMode.AGENT,
+  /**
+   * Active mode id, resolved against [gradum.mode.ModeRegistry] at every
+   * consumption point. The wire format is free-form (plugin labels, old
+   * enum names, aliases); [gradum.mode.ModeRegistry.resolve] normalizes
+   * it and falls back to the built-in `agent` mode.
+   */
+  val toolMode: String = "agent",
   val enableThinking: Boolean = DEFAULT_ENABLE_THINKING,
 
   /**

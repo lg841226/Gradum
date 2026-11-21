@@ -38,9 +38,6 @@ class ExploreProjectSkill : Skill() {
   override val toolDisplay: ToolDisplay =
     ToolDisplay(label = "Explore", paramKey = "projectRoot", kind = ToolDisplayKind.OTHER)
 
-  override val allowedToolModes: Set<ToolMode> = setOf(
-    ToolMode.AGENT, ToolMode.READ_ONLY, ToolMode.EDIT
-  )
 
   override val historyKeepCount: Int = 3
 

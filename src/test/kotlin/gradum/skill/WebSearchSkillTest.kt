@@ -1,7 +1,7 @@
 package gradum.skill
 
 import gradum.SkillResult
-import gradum.ToolMode
+import gradum.mode.ModeRegistry
 import gradum.skill.builtin.WebSearchSkill
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -20,7 +20,6 @@ class WebSearchSkillTest {
     functionOf(schema)["parameters"] as Map<String, Any>
 
   private fun ctx() = SkillContext(
-    toolMode = ToolMode.AGENT,
     projectRoot = System.getProperty("java.io.tmpdir"),
     modelName = "qwen2.5:7b",
   )
@@ -127,10 +126,9 @@ class WebSearchSkillTest {
 
   @Test
   fun `search_web is available in all tool modes`() {
-    val modes = skill.allowedToolModes
-    assertTrue(ToolMode.AGENT in modes)
-    assertTrue(ToolMode.EDIT in modes)
-    assertTrue(ToolMode.READ_ONLY in modes)
+    for (modeId in listOf("agent", "edit", "read_only", "yolo")) {
+      assertTrue(skill.allows(ModeRegistry.resolve(modeId)), "$modeId mode must allow search_web")
+    }
   }
 
   @Test
