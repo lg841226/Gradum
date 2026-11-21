@@ -34,24 +34,27 @@ class SystemPromptLoader(private val configuration: AgentConfiguration) {
    * Returns The fully assembled system prompt string..
    */
   fun load(taskDescription: String?): String {
-    val resolvedVariant: PromptVariant = when (configuration.promptVariant) {
-      PromptVariant.CLOUD, PromptVariant.LOCAL -> configuration.promptVariant
-      PromptVariant.AUTO -> PromptVariant.resolveAuto(configuration.provider)
-    }
-    val primaryPath: String = when (resolvedVariant) {
-      PromptVariant.CLOUD -> "/prompts/system/cloud.xml"
-      else -> "/prompts/system/local.xml"
-    }
-
-    val promptContent: String = try {
-      Agent::class.java.getResourceAsStream(primaryPath)?.use { stream ->
-        stream.reader(Charsets.UTF_8).readText()
+    val resolvedVariant: PromptVariant =
+      when (configuration.promptVariant) {
+        PromptVariant.CLOUD, PromptVariant.LOCAL -> configuration.promptVariant
+        PromptVariant.AUTO -> PromptVariant.resolveAuto(configuration.provider)
       }
-        ?: throw IllegalStateException("No system prompt found on classpath at $primaryPath")
-    } catch (promptLoadException: Exception) {
-      logger.warn("Could not load system prompt, reason: ${promptLoadException.message}")
-      "You are a helpful AI assistant. You can't call any tool and report it"
-    }
+    val primaryPath: String =
+      when (resolvedVariant) {
+        PromptVariant.CLOUD -> "/prompts/system/cloud.xml"
+        else -> "/prompts/system/local.xml"
+      }
+
+    val promptContent: String =
+      try {
+        Agent::class.java.getResourceAsStream(primaryPath)?.use { stream ->
+          stream.reader(Charsets.UTF_8).readText()
+        }
+          ?: throw IllegalStateException("No system prompt found on classpath at $primaryPath")
+      } catch (promptLoadException: Exception) {
+        logger.warn("Could not load system prompt, reason: ${promptLoadException.message}")
+        "You are a helpful AI assistant. You can't call any tool and report it"
+      }
 
     val mode: AgentMode = ModeRegistry.resolve(configuration.toolMode)
     val modeSection: String = loadModeSection(mode.prompt)
@@ -78,7 +81,7 @@ class SystemPromptLoader(private val configuration: AgentConfiguration) {
    * a dangling reference degrades the prompt instead of failing the run.
    */
   private fun loadModeSection(prompt: String): String {
-    val userFile: File = File(ModeRegistry.userModesDir(), "$prompt.xml")
+    val userFile = File(ModeRegistry.userModesDir(), "$prompt.xml")
     if (userFile.isFile) {
       try {
         return userFile.readText(Charsets.UTF_8)

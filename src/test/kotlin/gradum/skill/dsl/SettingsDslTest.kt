@@ -10,7 +10,7 @@ import kotlin.test.assertFailsWith
 
 private enum class Mode { BASIC, ADVANCED }
 
-private class NamedSkill(private val skillIdentifier: String) : Skill() {
+private class NamedSkill(skillIdentifier: String) : Skill() {
   override val alias: String = skillIdentifier
   override val skillName: String = skillIdentifier
   override val description: String = "test skill"
